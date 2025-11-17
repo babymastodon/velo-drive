@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "TrainerRoad → ZWO Downloader",
+  "description": "Download any TrainerRoad workout as a ZWO file, with ramps, intervals, metadata, and category.",
+  "version": "1.3.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Download ZWO",
+    "default_icon": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.trainerroad.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "https://www.trainerroad.com/*"
+  ]
+}
