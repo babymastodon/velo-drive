@@ -1,7 +1,7 @@
-# TrainerRoad → ZWO Downloader
+# ZWO Downloader
 
-A Chrome extension that converts TrainerRoad workouts into Zwift `.zwo` files.
-The extension detects TrainerRoad workout builder pages, retrieves workout data via TrainerRoad’s public APIs, reconstructs the workout structure (including ramps and intervals), and provides a one-click download of a valid ZWO file.
+A Chrome extension that converts TrainerRoad & TrainerDay workouts into Zwift `.zwo` files.
+The extension detects workout builder pages, retrieves workout data from the page, reconstructs the workout structure (including ramps and intervals), and provides a one-click download of a valid ZWO file.
 
 ## Features
 
@@ -31,8 +31,8 @@ The extension detects TrainerRoad workout builder pages, retrieves workout data 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/babymastodon/trainerroad-zwo.git
-   cd trainerroad-zwo
+   git clone https://github.com/babymastodon/zwo-downloader.git
+   cd zwo-downloader
    ```
 2. Open `chrome://extensions` in Chrome.
 3. Enable **Developer mode**.
@@ -40,7 +40,7 @@ The extension detects TrainerRoad workout builder pages, retrieves workout data 
 
 ## Usage
 
-While viewing a TrainerRoad workout builder page, click the extension’s toolbar icon to download the corresponding `.zwo` file.
+While viewing a TrainerRoad/TrainerDay workout builder page, click the extension’s toolbar icon to download the corresponding `.zwo` file.
 The extension prints its generated XML to the browser console for reference and debugging.
 
 ## License
