@@ -872,11 +872,11 @@ ${blocksXml}
 
   async function downloadZwo(zwoXml, filename) {
     // First, try to ask the background script to save into the user-selected folder.
-    let handledByDirectory = false;
+    let dirSaveOutcome = null;
 
     try {
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-        handledByDirectory = await new Promise((resolve) => {
+        const resp = await new Promise((resolve) => {
           try {
             chrome.runtime.sendMessage(
               {
@@ -884,14 +884,14 @@ ${blocksXml}
                 xml: zwoXml,
                 filename
               },
-              (resp) => {
+              (reply) => {
                 const lastError = chrome.runtime && chrome.runtime.lastError
                   ? chrome.runtime.lastError
                   : null;
 
                 console.log(
                   "[ZWO Downloader] Background save response:",
-                  resp,
+                  reply,
                   "lastError:",
                   lastError
                 );
@@ -902,48 +902,86 @@ ${blocksXml}
                     "[ZWO Downloader] Background save failed or not available:",
                     lastError.message
                   );
-                  resolve(false);
+                  resolve({
+                    ok: false,
+                    reason: "messageError",
+                    details: lastError.message
+                  });
                   return;
                 }
 
-                if (resp && resp.ok) {
+                if (reply && reply.ok) {
                   console.log("[ZWO Downloader] Saved ZWO file successfully to directory:", filename);
-                  resolve(true);
-                } else {
+                  resolve({ok: true});
+                } else if (reply) {
                   console.warn(
                     "[ZWO Downloader] Background reported failure saving ZWO:",
-                    resp && resp.reason ? resp.reason : resp
+                    reply && reply.reason ? reply.reason : reply
                   );
-                  resolve(false);
+                  resolve({ok: false, reason: reply.reason || "unknown"});
+                } else {
+                  console.warn("[ZWO Downloader] Background returned no response when saving.");
+                  resolve({ok: false, reason: "noResponse"});
                 }
               }
             );
           } catch (e) {
             console.warn("[ZWO Downloader] Error sending save message:", e);
-            resolve(false);
+            resolve({ok: false, reason: "messageException"});
           }
         });
+
+        if (resp && resp.ok) {
+          // Saved successfully to the user-selected directory; nothing else to do.
+          return {ok: true, mode: "directory", reason: null};
+        }
+
+        dirSaveOutcome = resp || {ok: false, reason: "unknown"};
       }
     } catch (err) {
       console.warn("[ZWO Downloader] Error during background save attempt:", err);
-      handledByDirectory = false;
-    }
-
-    if (handledByDirectory) {
-      // Saved successfully to the user-selected directory; nothing else to do.
-      return;
+      dirSaveOutcome = {ok: false, reason: "messageException"};
     }
 
     // Fallback: original behavior – download to default browser Downloads folder via <a download>
-    const blob = new Blob([zwoXml], {type: "application/xml"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    let fallbackOk = false;
+    let fallbackErrorReason = null;
+
+    try {
+      const blob = new Blob([zwoXml], {type: "application/xml"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      fallbackOk = true;
+
+      console.log("[ZWO Downloader] Fallback browser download started for:", filename);
+    } catch (e) {
+      console.warn("[ZWO Downloader] Fallback browser download failed:", e);
+      fallbackOk = false;
+      fallbackErrorReason = "fallbackError";
+    }
+
+    if (fallbackOk) {
+      return {
+        ok: true,
+        mode: "fallback",
+        reason: dirSaveOutcome ? dirSaveOutcome.reason : null
+      };
+    }
+
+    return {
+      ok: false,
+      mode: "fallback",
+      reason:
+        fallbackErrorReason ||
+        (dirSaveOutcome && dirSaveOutcome.reason) ||
+        "fallbackError"
+    };
   }
 
   function showFailureAlert() {
@@ -954,6 +992,56 @@ ${blocksXml}
       );
     } catch {
       // ignore alert issues
+    }
+  }
+
+  function handleDownloadResult(result, filename) {
+    if (!result) return;
+
+    // Successfully saved into the user-selected directory
+    if (result.ok && result.mode === "directory") {
+      try {
+        alert(
+          "ZWO Downloader: Workout saved to your selected folder.\n\n" +
+          "File name: " + filename
+        );
+      } catch {
+        // ignore alert issues
+      }
+      return;
+    }
+
+    // Fallback download succeeded
+    if (result.ok && result.mode === "fallback") {
+      // If there is no selected folder, we deliberately avoid an extra
+      // notification because the browser's download UI already notifies.
+      if (!result.reason || result.reason === "noDir") {
+        return;
+      }
+
+      // There *was* a directory-related error (e.g. permission/write),
+      // but the browser download still worked.
+      try {
+        alert(
+          "ZWO Downloader: Workout downloaded using your browser's default Downloads folder,\n" +
+          "but saving to the selected folder failed (" + result.reason + ")."
+        );
+      } catch {
+        // ignore alert issues
+      }
+      return;
+    }
+
+    // Download failed (including fallback failure) → show an error
+    if (!result.ok) {
+      try {
+        alert(
+          "ZWO Downloader: Workout was generated, but the file download failed.\n\n" +
+          (result.reason ? "Reason: " + result.reason : "")
+        );
+      } catch {
+        // ignore alert issues
+      }
     }
   }
 
@@ -1041,7 +1129,8 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        await downloadZwo(zwoXml, filename);
+        const downloadResult = await downloadZwo(zwoXml, filename);
+        handleDownloadResult(downloadResult, filename);
       }
 
       return true;
@@ -1096,7 +1185,8 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        await downloadZwo(zwoXml, filename);
+        const downloadResult = await downloadZwo(zwoXml, filename);
+        handleDownloadResult(downloadResult, filename);
       }
 
       return true;
@@ -1201,7 +1291,8 @@ ${blocksXml}
       console.info("===== End ZWO XML =====");
 
       if (shouldDownload) {
-        await downloadZwo(zwoXml, filename);
+        const downloadResult = await downloadZwo(zwoXml, filename);
+        handleDownloadResult(downloadResult, filename);
       }
 
       return true;

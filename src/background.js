@@ -62,7 +62,7 @@ async function saveZwoToDirectory(filename, xmlText) {
     const writable = await fileHandle.createWritable();
     await writable.write(xmlText);
     await writable.close();
-    return {ok: true};
+    return {ok: true, reason: null};
   } catch (err) {
     console.warn("[ZWO background] Failed to write file:", err);
     return {ok: false, reason: "writeError"};
@@ -79,13 +79,40 @@ chrome.runtime.onMessage.addListener((msg, _, sendResponse) => {
     (async () => {
       const {filename, xml} = msg;
       if (!filename || !xml) {
-        sendResponse({ok: false, reason: "missingData"});
+        // Include new result fields expected by the content script
+        sendResponse({
+          ok: false,
+          mode: "directory",
+          reason: "missingData"
+        });
         return;
       }
       const result = await saveZwoToDirectory(filename, xml);
-      sendResponse(result);
+
+      // Always return the extended shape:
+      // { ok: boolean, mode: "directory", reason: string|null }
+      sendResponse({
+        ok: !!result.ok,
+        mode: "directory",
+        reason:
+          typeof result.reason === "string" && result.reason.length
+            ? result.reason
+            : null
+      });
     })();
     return true; // keep the message channel open for async sendResponse
+  }
+});
+
+// ---- Open options page after install ----
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details && details.reason === "install") {
+    if (chrome.runtime.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+    } else if (chrome.tabs && chrome.runtime.getURL) {
+      chrome.tabs.create({url: chrome.runtime.getURL("options.html")});
+    }
   }
 });
 
@@ -109,3 +136,4 @@ chrome.action.onClicked.addListener((tab) => {
     }
   );
 });
+
