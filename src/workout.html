@@ -213,6 +213,13 @@
       color: var(--text-main);
     }
 
+    .mode-toggle-wrapper {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 6px;
+    }
+
     .nav-left,
     .nav-right {
       display: flex;
@@ -427,6 +434,7 @@
 
     .control-btn:last-child {
       border-right: none;
+      border-left: 1px solid var(--border-subtle);
     }
 
     .control-btn:hover {
@@ -461,7 +469,7 @@
       width: var(--nav-control-height);
       height: var(--nav-control-height);
       border-radius: var(--radius);
-      border: 1px solid var(--border);
+      border: 0px solid var(--border);
       background: var(--surface);
       display: flex;
       align-items: center;
@@ -496,7 +504,6 @@
       gap: 4px;
       font-size: 13px;
       border-radius: var(--radius);
-      border: 1px solid var(--border);
       padding: 0 8px;
       background: var(--surface);
       height: var(--nav-control-height);
@@ -507,9 +514,31 @@
       white-space: nowrap;
     }
 
+    /* FTP clickable states (CSS-only hover/active driven by data-clickable) */
+    #ftpInline[data-clickable="true"] {
+      cursor: pointer;
+    }
+
+    #ftpInline[data-clickable="true"]:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    #ftpInline[data-clickable="true"]:active {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #ftpInline[data-clickable="true"]:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      #ftpInline[data-clickable="true"]:active {
+        background: rgba(255, 255, 255, 0.12);
+      }
+    }
+
     .workout-name-label {
       border-radius: var(--radius);
-      border: 1px solid var(--border);
       padding: 0 8px;
       background: var(--surface);
       font-size: 13px;
@@ -705,14 +734,16 @@
       </button>
     </div>
 
-    <div class="nav-right">
+    <div class="mode-toggle-wrapper">
       <!-- Mode toggle -->
       <div id="modeToggle" class="mode-toggle" title="Control mode">
         <button class="mode-toggle-button active" data-mode="workout">Workout</button>
         <button class="mode-toggle-button" data-mode="erg">ERG</button>
         <button class="mode-toggle-button" data-mode="resistance">Resistance</button>
       </div>
+    </div>
 
+    <div class="nav-right">
       <!-- Manual controls for ERG / Resistance -->
       <div id="manualControls" class="control-group" style="display:none">
         <button class="control-btn" data-delta="-10">-</button>
@@ -722,6 +753,12 @@
 
       <!-- Workout controls: FTP + title + playback -->
       <div id="workoutControls" class="workout-controls">
+        <button id="startBtn" class="playback-button" title="Start workout (Space)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 7v10l8-5z" />
+          </svg>
+        </button>
+
         <div id="ftpInline" class="ftp-inline">
           <span>FTP</span>
           <span id="ftpWorkoutValue"></span>
@@ -730,20 +767,7 @@
         <div id="workoutNameLabel" class="workout-name-label">
           Selected workout
         </div>
-
-        <button id="startBtn" class="playback-button" title="Start workout (Space)">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 7v10l8-5z" />
-          </svg>
-        </button>
       </div>
-
-      <!-- Go back icon -->
-      <button id="goBackBtn" class="nav-icon-button nav-icon-bordered" title="Back to workout list">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14 7l-5 5 5 5" />
-        </svg>
-      </button>
     </div>
   </nav>
 

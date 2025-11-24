@@ -38,11 +38,11 @@ const STORAGE_ACTIVE_STATE = "activeWorkoutState";
 const STORAGE_SOUND_ENABLED = "soundEnabled";
 const STORAGE_LAST_DEVICE_ID = "lastKickrDeviceId";
 
-// Auto-pause after 1 second of 0 power (effectively 2 consecutive samples)
+// Auto-pause after 1 second of 0 power
 const AUTO_PAUSE_POWER_ZERO_SEC = 1;
 const AUTO_PAUSE_GRACE_SEC = 15;
 
-const TRAINER_SEND_MIN_INTERVAL_SEC = 10; // don't spam trainer when target unchanged
+const TRAINER_SEND_MIN_INTERVAL_SEC = 10;
 
 // --------------------------- DOM refs ---------------------------
 
@@ -54,7 +54,7 @@ const statElapsedTimeEl = document.getElementById("stat-elapsed-time");
 const statCadenceEl = document.getElementById("stat-cadence");
 
 const chartSvg = document.getElementById("chartSvg");
-const chartPanel = document.querySelector(".chart-panel");
+const chartPanel = document.getElementById("chartPanel");
 const chartTooltip = document.getElementById("chartTooltip");
 
 const bikeConnectBtn = document.getElementById("bikeConnectBtn");
@@ -80,7 +80,6 @@ const startBtn = document.getElementById("startBtn");
 const ftpInline = document.getElementById("ftpInline");
 const ftpWorkoutValueEl = document.getElementById("ftpWorkoutValue");
 const workoutNameLabel = document.getElementById("workoutNameLabel");
-const goBackBtn = document.getElementById("goBackBtn");
 
 const debugOverlay = document.getElementById("debugOverlay");
 const debugCloseBtn = document.getElementById("debugCloseBtn");
@@ -178,16 +177,15 @@ function logDebug(msg) {
   const time = new Date().toLocaleTimeString();
   const line = `[${time}] ${msg}`;
   logLines.push(line);
-  // keep only last 5000 lines
   if (logLines.length > 5000) {
     logLines.splice(0, logLines.length - 5000);
   }
   console.log("[Workout]", msg);
 
   if (debugLog) {
-    // Only tail if we're already at the bottom
     const isAtBottom =
-      debugLog.scrollTop + debugLog.clientHeight >= debugLog.scrollHeight - 4;
+      debugLog.scrollTop + debugLog.clientHeight >=
+      debugLog.scrollHeight - 4;
     debugLog.textContent = logLines.join("\n");
     if (isAtBottom) {
       debugLog.scrollTop = debugLog.scrollHeight;
@@ -211,6 +209,12 @@ function formatTimeHHMMSS(sec) {
   const mm = String(m).padStart(2, "0");
   const sss = String(ss).padStart(2, "0");
   return `${hh}:${mm}:${sss}`;
+}
+
+function clampFtp(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return DEFAULT_FTP;
+  return Math.min(500, Math.max(50, Math.round(n)));
 }
 
 function getCssVar(name) {
@@ -376,6 +380,7 @@ function persistSoundPreference() {
 }
 
 function updateSoundIcon() {
+  if (!soundIcon) return;
   if (soundEnabled) {
     soundBtn.classList.add("active");
     soundIcon.innerHTML = `
@@ -509,7 +514,6 @@ function drawChart() {
   const ftp = currentFtp || DEFAULT_FTP;
   const maxY = Math.max(200, ftp * 2);
 
-  // grid lines & labels (behind intervals)
   const step = 100;
   for (let yVal = 0; yVal <= maxY; yVal += step) {
     const y = h - (yVal / maxY) * h;
@@ -535,7 +539,6 @@ function drawChart() {
 
   const totalSec = workoutTotalSec || 1;
 
-  // intervals (muted color but full opacity)
   scaledSegments.forEach((seg) => {
     const x1 = (seg.startTimeSec / totalSec) * w;
     const x2 = (seg.endTimeSec / totalSec) * w;
@@ -576,7 +579,6 @@ function drawChart() {
     chartSvg.appendChild(poly);
   });
 
-  // shade past
   if (elapsedSec > 0 && totalSec > 0) {
     const xPast = Math.min(w, (elapsedSec / totalSec) * w);
     const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -590,7 +592,6 @@ function drawChart() {
     chartSvg.appendChild(shade);
   }
 
-  // FTP line
   const ftpY = h - (ftp / maxY) * h;
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
@@ -612,7 +613,6 @@ function drawChart() {
   ftpLabel.textContent = `FTP ${ftp}`;
   chartSvg.appendChild(ftpLabel);
 
-  // position line
   const xNow = Math.min(w, (elapsedSec / totalSec) * w);
   const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   posLine.setAttribute("x1", String(xNow));
@@ -624,7 +624,6 @@ function drawChart() {
   posLine.setAttribute("pointer-events", "none");
   chartSvg.appendChild(posLine);
 
-  // foreground lines
   const samples = liveSamples;
   if (samples.length) {
     const pathForKey = (key) => {
@@ -678,7 +677,6 @@ function drawChart() {
   }
 }
 
-// hover for intervals
 function setupChartHover() {
   if (!chartSvg || !chartPanel || !chartTooltip) return;
 
@@ -785,11 +783,10 @@ function getCurrentZoneColor() {
 
   const rel = refPower / ftp;
   const zone = zoneInfoFromRel(rel);
-  return zone.color || getCssVar("--stat-number-color");
+  return zone.color || getCssVar("--text-main");
 }
 
 function updateStatsDisplay() {
-  // show "--" only if we have no data at all, otherwise show 0 as 0
   if (lastSamplePower == null) {
     statPowerEl.textContent = "--";
   } else {
@@ -812,7 +809,6 @@ function updateStatsDisplay() {
 
   let color = getCurrentZoneColor();
   if (!isDarkMode()) {
-    // make 50% darker in light mode
     color = mixColors(color, "#000000", 0.5);
   }
 
@@ -875,7 +871,6 @@ function nowSec() {
   return performance.now() / 1000;
 }
 
-// Generic helper to send FTMS control point commands (with optional SINT16 param)
 async function sendFtmsControlPoint(opCode, sint16Param /* or null */) {
   if (!ftmsControlPointChar) {
     logDebug("FTMS CP write attempted, but characteristic not ready.");
@@ -889,7 +884,7 @@ async function sendFtmsControlPoint(opCode, sint16Param /* or null */) {
     buffer = new ArrayBuffer(3);
     const view = new DataView(buffer);
     view.setUint8(0, opCode);
-    view.setInt16(1, sint16Param, true); // little-endian SINT16
+    view.setInt16(1, sint16Param, true);
   }
 
   logDebug(
@@ -917,7 +912,7 @@ async function sendErgSetpointRaw(targetWatts) {
 async function sendResistanceLevelRaw(level) {
   if (!ftmsControlPointChar) return;
   const clamped = Math.max(0, Math.min(100, level | 0));
-  const tenth = clamped * 10; // FTMS uses 0.1 increments
+  const tenth = clamped * 10;
   try {
     await sendFtmsControlPoint(
       FTMS_OPCODES.setTargetResistanceLevel,
@@ -1135,43 +1130,27 @@ function showResumedOverlay() {
   showStatusMessage("Workout Resumed", 0.2, 800);
 }
 
-// --------------------------- BLE parsing (FTMS-only) ---------------------------
+// --------------------------- BLE parsing (FTMS + HR) ---------------------------
 
-// Parse Indoor Bike Data (0x2AD2) like the working test script.
 function parseIndoorBikeData(dataView) {
   if (!dataView || dataView.byteLength < 4) return;
 
   let index = 0;
 
-  // Flags (uint16, little-endian)
   const flags = dataView.getUint16(index, true);
   index += 2;
-
-  // bit0: More Data (0 => Instantaneous Speed present)
-  // bit1: Average Speed present
-  // bit2: Instantaneous Cadence present
-  // bit3: Average Cadence present
-  // bit4: Total Distance present
-  // bit5: Resistance Level present
-  // bit6: Instantaneous Power present
-  // bit7: Average Power present
-  // bit8: Expended Energy present
-  // bit9: Heart Rate present
-  // bit10: Metabolic Equivalent present
-  // bit11: Elapsed Time present
-  // bit12: Remaining Time present
 
   const moreDataBit = flags & 0x0001;
 
   if (moreDataBit === 0 && dataView.byteLength >= index + 2) {
     const raw = dataView.getUint16(index, true);
     index += 2;
-    lastSampleSpeed = raw / 100.0; // km/h
+    lastSampleSpeed = raw / 100.0;
   }
 
   if (flags & (1 << 1)) {
     if (dataView.byteLength >= index + 2) {
-      index += 2; // average speed
+      index += 2;
     }
   }
 
@@ -1185,19 +1164,19 @@ function parseIndoorBikeData(dataView) {
 
   if (flags & (1 << 3)) {
     if (dataView.byteLength >= index + 2) {
-      index += 2; // avg cadence
+      index += 2;
     }
   }
 
   if (flags & (1 << 4)) {
     if (dataView.byteLength >= index + 3) {
-      index += 3; // distance
+      index += 3;
     }
   }
 
   if (flags & (1 << 5)) {
     if (dataView.byteLength >= index + 1) {
-      index += 1; // resistance level
+      index += 1;
     }
   }
 
@@ -1211,13 +1190,13 @@ function parseIndoorBikeData(dataView) {
 
   if (flags & (1 << 7)) {
     if (dataView.byteLength >= index + 2) {
-      index += 2; // avg power
+      index += 2;
     }
   }
 
   if (flags & (1 << 8)) {
     if (dataView.byteLength >= index + 5) {
-      index += 5; // expended energy
+      index += 5;
     }
   }
 
@@ -1232,13 +1211,13 @@ function parseIndoorBikeData(dataView) {
   }
 
   if (flags & (1 << 10)) {
-    if (dataView.byteLength >= index + 1) index += 1; // MET
+    if (dataView.byteLength >= index + 1) index += 1;
   }
   if (flags & (1 << 11)) {
-    if (dataView.byteLength >= index + 2) index += 2; // elapsed time
+    if (dataView.byteLength >= index + 2) index += 2;
   }
   if (flags & (1 << 12)) {
-    if (dataView.byteLength >= index + 2) index += 2; // remaining time
+    if (dataView.byteLength >= index + 2) index += 2;
   }
 
   logDebug(
@@ -1252,7 +1231,6 @@ function parseIndoorBikeData(dataView) {
     maybeAutoStartFromPower(lastSamplePower);
   }
 
-  // Keep HUD live even when paused
   updateStatsDisplay();
 }
 
@@ -1302,7 +1280,6 @@ function updateHrBatteryLabel() {
 
 // --------------------------- BLE connect ---------------------------
 
-// type: "bike" | "hr"
 async function connectToDevice(device, type) {
   if (!device) return;
   bluetoothDevice = device;
@@ -1336,10 +1313,12 @@ async function connectToDevice(device, type) {
   } catch {}
 
   if (type === "bike") {
-    ftmsService = await gattServer.getPrimaryService(FTMS_SERVICE_UUID).catch((err) => {
-      logDebug("Error getting FTMS service: " + err);
-      return null;
-    });
+    ftmsService = await gattServer
+      .getPrimaryService(FTMS_SERVICE_UUID)
+      .catch((err) => {
+        logDebug("Error getting FTMS service: " + err);
+        return null;
+      });
     logDebug("FTMS service " + (ftmsService ? "found" : "not found"));
   }
 
@@ -1574,7 +1553,6 @@ function startWorkoutTicker() {
       scheduleSaveActiveState();
     }
 
-    // Auto-resume check runs even when paused
     if (mode === "workout" && workoutRunning && workoutPaused) {
       const currentTarget = getCurrentTargetPower();
       if (currentTarget && lastSamplePower) {
@@ -1767,6 +1745,58 @@ function loadActiveState() {
   });
 }
 
+// --------------------------- FTP clickable / dialog ---------------------------
+
+function updateFtpInteractiveState() {
+  if (!ftpInline) return;
+
+  const isActiveWorkout = workoutRunning;
+  if (isActiveWorkout) {
+    ftpInline.style.cursor = "default";
+    ftpInline.dataset.clickable = "false";
+    ftpInline.title = "FTP is not editable while a workout is active.";
+  } else {
+    ftpInline.style.cursor = "pointer";
+    ftpInline.dataset.clickable = "true";
+    ftpInline.title = "Click to change FTP.";
+  }
+}
+
+async function handleFtpClick() {
+  if (!ftpInline) return;
+  if (ftpInline.dataset.clickable !== "true") {
+    return;
+  }
+
+  const current = currentFtp || DEFAULT_FTP;
+  const input = window.prompt("Set FTP (50–500 W):", String(current));
+  if (input == null) return;
+
+  const newFtp = clampFtp(input);
+  if (!Number.isFinite(newFtp) || newFtp <= 0) return;
+  if (newFtp === currentFtp) return;
+
+  currentFtp = newFtp;
+  ftpWorkoutValueEl.textContent = currentFtp;
+
+  buildScaledSegments();
+  drawChart();
+  updateStatsDisplay();
+  scheduleSaveActiveState();
+
+  try {
+    if (chrome && chrome.storage && chrome.storage.sync) {
+      chrome.storage.sync.set({ftp: currentFtp});
+    }
+  } catch {}
+
+  if (isBikeConnected) {
+    sendTrainerState(true).catch((err) =>
+      logDebug("Trainer state send after FTP change failed: " + err)
+    );
+  }
+}
+
 // --------------------------- Playback buttons ---------------------------
 
 function updatePlaybackButtons() {
@@ -1828,34 +1858,36 @@ function updatePlaybackButtons() {
   }
 
   if (!workoutRunning) {
+    // no active workout
     if (mode === "workout" && workoutMeta) {
       startBtn.style.display = "";
     } else {
       startBtn.style.display = "none";
     }
-    goBackBtn.style.display = "";
+    updateFtpInteractiveState();
     return;
   }
 
   startBtn.style.display = "none";
-  goBackBtn.style.display = "none";
 
   if (mode === "workout") {
     if (workoutPaused) {
       const play = createPlayButton();
       const stop = createStopButton();
-      workoutControls.appendChild(play);
-      workoutControls.appendChild(stop);
+      workoutControls.prepend(stop);
+      workoutControls.prepend(play);
     } else {
       const pause = createPauseButton();
       const stop = createStopButton();
-      workoutControls.appendChild(pause);
-      workoutControls.appendChild(stop);
+      workoutControls.prepend(stop);
+      workoutControls.prepend(pause);
     }
   } else {
     const stop = createStopButton();
-    workoutControls.appendChild(stop);
+    workoutControls.prepend(stop);
   }
+
+  updateFtpInteractiveState();
 }
 
 function setWorkoutRunning(running) {
@@ -1910,6 +1942,10 @@ function startWorkout() {
     autoPauseDisabledUntilSec = elapsedSec + AUTO_PAUSE_GRACE_SEC;
     showResumedOverlay();
     setWorkoutPaused(false);
+  } else {
+    logDebug("Manual pause requested.");
+    showPausedOverlay();
+    setWorkoutPaused(true);
   }
 }
 
@@ -1947,13 +1983,13 @@ function applyModeUI() {
   if (mode === "erg") {
     manualControls.style.display = "inline-flex";
     manualValueEl.textContent = String(manualErgTarget);
-    ftpInline.style.display = "none";
+    ftpInline.style.display = "inline-flex";
     workoutNameLabel.style.display = "flex";
     if (workoutRunning) setWorkoutPaused(true);
   } else if (mode === "resistance") {
     manualControls.style.display = "inline-flex";
     manualValueEl.textContent = String(manualResistance);
-    ftpInline.style.display = "none";
+    ftpInline.style.display = "inline-flex";
     workoutNameLabel.style.display = "flex";
     if (workoutRunning) setWorkoutPaused(true);
   } else {
@@ -2033,7 +2069,7 @@ async function initPage() {
     manualErgTarget = activeState.manualErgTarget || manualErgTarget;
     manualResistance = activeState.manualResistance || manualResistance;
     workoutRunning = !!activeState.workoutRunning;
-    workoutPaused = true; // restore in paused state
+    workoutPaused = true;
     elapsedSec = activeState.elapsedSec || 0;
     currentIntervalIndex = activeState.currentIntervalIndex || 0;
     liveSamples = activeState.liveSamples || [];
@@ -2059,6 +2095,12 @@ async function initPage() {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
   applyModeUI();
+
+  // FTP click handler (CSS handles hover/active)
+  if (ftpInline) {
+    ftpInline.addEventListener("click", handleFtpClick);
+    updateFtpInteractiveState();
+  }
 
   bikeConnectBtn.addEventListener("click", async () => {
     if (!navigator.bluetooth) {
@@ -2136,14 +2178,7 @@ async function initPage() {
     startWorkout();
   });
 
-  goBackBtn.addEventListener("click", () => {
-    if (!workoutRunning) {
-      navigateToOptionsReplace();
-    }
-  });
-
   document.addEventListener("keydown", (e) => {
-    // Space: start/resume workout
     if (e.code === "Space") {
       const tag = e.target && e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -2153,7 +2188,6 @@ async function initPage() {
       return;
     }
 
-    // Escape: close logs overlay
     if (e.key === "Escape") {
       if (debugOverlay && debugOverlay.style.display !== "none") {
         debugOverlay.style.display = "none";
