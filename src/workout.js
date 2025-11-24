@@ -290,10 +290,8 @@ function adjustStatFontSizes() {
 // --------------------------- Chart dimension helpers ---------------------------
 
 function updateChartDimensions() {
-  if (!chartPanel) return;
-  const rect = chartPanel.getBoundingClientRect();
-  const w = rect.width || window.innerWidth || 800;
-  const h = rect.height || Math.floor((window.innerHeight || 800) / 2);
+  const w = window.innerWidth || 1200;
+  const h = Math.floor((window.innerHeight || 800) / 2);
   chartWidth = Math.max(200, Math.floor(w));
   chartHeight = Math.max(200, Math.floor(h));
 }
@@ -530,7 +528,7 @@ function drawChart() {
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("x", "4");
     label.setAttribute("y", String(y - 6));
-    label.setAttribute("font-size", "11");
+    label.setAttribute("font-size", "14");
     label.setAttribute("fill", getCssVar("--text-muted"));
     label.setAttribute("pointer-events", "none");
     label.textContent = String(yVal);
@@ -606,7 +604,7 @@ function drawChart() {
   const ftpLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
   ftpLabel.setAttribute("x", String(w - 4));
   ftpLabel.setAttribute("y", String(ftpY - 6));
-  ftpLabel.setAttribute("font-size", "11");
+  ftpLabel.setAttribute("font-size", "14");
   ftpLabel.setAttribute("fill", getCssVar("--ftp-line"));
   ftpLabel.setAttribute("text-anchor", "end");
   ftpLabel.setAttribute("pointer-events", "none");
@@ -681,8 +679,14 @@ function setupChartHover() {
   if (!chartSvg || !chartPanel || !chartTooltip) return;
 
   chartSvg.addEventListener("mousemove", (e) => {
-    const target = e.target;
-    if (!(target instanceof SVGElement) || !target.dataset.zone) {
+    console.log("mouse move", e);
+    // Find the polygon we care about
+    const segment = e.target.closest
+      ? e.target.closest(".chart-segment")
+      : null;
+
+    if (!segment) {
+      // Not over a segment → hide tooltip + reset last hovered fill
       chartTooltip.style.display = "none";
       if (lastHoveredSegment) {
         const prevColor =
@@ -696,34 +700,33 @@ function setupChartHover() {
       return;
     }
 
-    const zone = target.dataset.zone;
-    const p0 = target.dataset.p0;
-    const p1 = target.dataset.p1;
-    const durMin = target.dataset.durMin;
+    const zone = segment.dataset.zone;
+    const p0 = segment.dataset.p0;
+    const p1 = segment.dataset.p1;
+    const durMin = segment.dataset.durMin;
 
     chartTooltip.textContent = `${zone}: ${p0}%–${p1}% FTP, ${durMin} min`;
     chartTooltip.style.display = "block";
 
-    const rect = chartPanel.getBoundingClientRect();
-    let tx = e.clientX - rect.left + 8;
-    let ty = e.clientY - rect.top + 8;
+    const panelRect = chartPanel.getBoundingClientRect();
+    let tx = e.clientX - panelRect.left + 8;
+    let ty = e.clientY - panelRect.top + 8;
 
     const ttRect = chartTooltip.getBoundingClientRect();
-
-    if (tx + ttRect.width > rect.width - 4) {
-      tx = rect.width - ttRect.width - 4;
+    if (tx + ttRect.width > panelRect.width - 4) {
+      tx = panelRect.width - ttRect.width - 4;
     }
     if (tx < 0) tx = 0;
-
-    if (ty + ttRect.height > rect.height - 4) {
-      ty = rect.height - ttRect.height - 4;
+    if (ty + ttRect.height > panelRect.height - 4) {
+      ty = panelRect.height - ttRect.height - 4;
     }
     if (ty < 0) ty = 0;
 
     chartTooltip.style.left = `${tx}px`;
     chartTooltip.style.top = `${ty}px`;
 
-    if (lastHoveredSegment && lastHoveredSegment !== target) {
+    // Reset previous segment fill
+    if (lastHoveredSegment && lastHoveredSegment !== segment) {
       const prevColor =
         lastHoveredSegment.dataset.mutedColor ||
         lastHoveredSegment.dataset.color;
@@ -731,14 +734,17 @@ function setupChartHover() {
         lastHoveredSegment.setAttribute("fill", prevColor);
       }
     }
+
+    // Apply hover fill
     const hoverColor =
-      target.dataset.hoverColor ||
-      target.dataset.color ||
-      target.dataset.mutedColor;
+      segment.dataset.hoverColor ||
+      segment.dataset.color ||
+      segment.dataset.mutedColor;
     if (hoverColor) {
-      target.setAttribute("fill", hoverColor);
+      segment.setAttribute("fill", hoverColor);
     }
-    lastHoveredSegment = target;
+
+    lastHoveredSegment = segment;
   });
 
   chartSvg.addEventListener("mouseleave", () => {

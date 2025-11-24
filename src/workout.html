@@ -330,14 +330,14 @@
 
     .nav-icon-button:hover,
     .device-group:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: rgba(0, 0, 0, 0.06);
     }
 
     @media (prefers-color-scheme: dark) {
 
       .nav-icon-button:hover,
       .device-group:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.10);
       }
     }
 
@@ -348,21 +348,6 @@
     @media (prefers-color-scheme: dark) {
       .nav-icon-button.active {
         background: rgba(255, 255, 255, 0.10);
-      }
-    }
-
-    .nav-icon-bordered {
-      border: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .nav-icon-bordered:hover {
-      background: rgba(0, 0, 0, 0.04);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .nav-icon-bordered:hover {
-        background: rgba(255, 255, 255, 0.06);
       }
     }
 
@@ -438,12 +423,12 @@
     }
 
     .control-btn:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: rgba(0, 0, 0, 0.06);
     }
 
     @media (prefers-color-scheme: dark) {
       .control-btn:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.10);
       }
     }
 
@@ -489,16 +474,16 @@
     }
 
     .playback-button:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: rgba(0, 0, 0, 0.06);
     }
 
     @media (prefers-color-scheme: dark) {
       .playback-button:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.10);
       }
     }
 
-    .ftp-inline {
+    .inline-clicktoggle {
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -508,52 +493,42 @@
       background: var(--surface);
       height: var(--nav-control-height);
       color: var(--text-main);
+      background: rgba(0, 0, 0, 0.06);
     }
 
-    .ftp-inline span {
+    @media (prefers-color-scheme: dark) {
+      .inline-clicktoggle {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    .inline-clicktoggle span {
       white-space: nowrap;
     }
 
-    /* FTP clickable states (CSS-only hover/active driven by data-clickable) */
-    #ftpInline[data-clickable="true"] {
+    .inline-clicktoggle[data-clickable="true"] {
       cursor: pointer;
+      background: rgba(0, 0, 0, 0.0);
     }
 
-    #ftpInline[data-clickable="true"]:hover {
-      background: rgba(0, 0, 0, 0.04);
+
+    .inline-clicktoggle[data-clickable="true"]:hover {
+      background: rgba(0, 0, 0, 0.06);
     }
 
-    #ftpInline[data-clickable="true"]:active {
+    .inline-clicktoggle[data-clickable="true"]:active {
       background: rgba(0, 0, 0, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
-      #ftpInline[data-clickable="true"]:hover {
-        background: rgba(255, 255, 255, 0.06);
+      .inline-clicktoggle[data-clickable="true"]:hover {
+        background: rgba(255, 255, 255, 0.10);
       }
 
-      #ftpInline[data-clickable="true"]:active {
-        background: rgba(255, 255, 255, 0.12);
+      .inline-clicktoggle[data-clickable="true"]:active {
+        background: rgba(255, 255, 255, 0.14);
       }
     }
-
-    .workout-name-label {
-      border-radius: var(--radius);
-      padding: 0 8px;
-      background: var(--surface);
-      font-size: 13px;
-      max-width: 200px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: var(--text-main);
-      height: var(--nav-control-height);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* no hover background change for workout name */
 
     /* Debug overlay */
 
@@ -759,12 +734,12 @@
           </svg>
         </button>
 
-        <div id="ftpInline" class="ftp-inline">
+        <div id="ftpInline" class="inline-clicktoggle">
           <span>FTP</span>
           <span id="ftpWorkoutValue"></span>
         </div>
 
-        <div id="workoutNameLabel" class="workout-name-label">
+        <div id="workoutNameLabel" class="inline-clicktoggle">
           Selected workout
         </div>
       </div>
