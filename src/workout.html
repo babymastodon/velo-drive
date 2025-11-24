@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>ZWO Workout</title>
+  <style>
+    :root {
+      --bg: #f4f4f4;
+      --surface: #f4f4f4;
+      --surface-elevated: #f4f4f4;
+      --border: #d0d0d0;
+      --border-subtle: #e0e0e0;
+      --text-main: #666666;
+      --text-muted: #999999;
+      --accent: #e53935;
+      --accent-soft: #ececec;
+      --nav-bg: #f4f4f4;
+      --grid-line: #bdbdbd;
+      --grid-line-subtle: #d6d6d6;
+      --ftp-line: #9db8e6;
+      --radius: 4px;
+      --nav-control-height: 30px;
+
+      /* interval colors (light mode, as in options.js) */
+      --zone-recovery: #b0bec5;
+      --zone-base: #81c784;
+      --zone-tempo: #ffb74d;
+      --zone-sweetspot: #ff8a65;
+      --zone-threshold: #e57373;
+      --zone-vo2: #ba68c8;
+      --zone-anaerobic: #9575cd;
+
+      --stat-number-color: #333333;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #222222;
+        --surface: #222222;
+        --surface-elevated: #222222;
+        --border: #3a3a3a;
+        --border-subtle: #333333;
+        --text-main: #aaaaaa;
+        --text-muted: #777777;
+        --accent: #ff5252;
+        --accent-soft: #222222;
+        --nav-bg: #222222;
+        --grid-line: #444444;
+        --grid-line-subtle: #333333;
+        --ftp-line: #5c7ea6;
+
+        /* slightly darkened versions of the light colors */
+        --zone-recovery: #90a4ae;
+        --zone-base: #66bb6a;
+        --zone-tempo: #ffa726;
+        --zone-sweetspot: #ff7043;
+        --zone-threshold: #ef5350;
+        --zone-vo2: #ab47bc;
+        --zone-anaerobic: #7e57c2;
+
+        --stat-number-color: #f5f5f5;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    .page-root {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 10px 54px;
+      gap: 10px;
+    }
+
+    /* prevent selecting HUD & chart text */
+    .top-panel,
+    .top-panel *,
+    .chart-panel,
+    .chart-panel * {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+    /* 2x3 stat grid */
+
+    .top-panel {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 0;
+      min-height: 0;
+    }
+
+    .stat-card {
+      background: transparent;
+      border-radius: 0;
+      border: none;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .stat-label {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-value {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    .stat-value span {
+      white-space: nowrap;
+      color: var(--stat-number-color);
+    }
+
+    /* Chart */
+
+    .chart-panel {
+      flex: 1;
+      background: transparent;
+      border-radius: 0;
+      border: none;
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+      min-height: 0;
+    }
+
+    #chartSvg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .chart-tooltip {
+      position: absolute;
+      pointer-events: none;
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: #ffffff;
+      color: #666666;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+      white-space: nowrap;
+      display: none;
+      z-index: 10;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .chart-tooltip {
+        background: #303030;
+        color: #dddddd;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+      }
+    }
+
+    /* Bottom navbar */
+
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 6px 10px 8px;
+      background: var(--nav-bg);
+      border-top: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    .nav-left,
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .device-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 6px;
+      border-radius: var(--radius);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      height: var(--nav-control-height);
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    .device-label {
+      font-size: 14px;
+      color: var(--text-main);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .device-battery {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .icon-box {
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius);
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+      color: var(--text-main);
+    }
+
+    .icon-box svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+    }
+
+    .status-dot {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 2px;
+      background: #a0a0a0;
+    }
+
+    .status-dot.connected {
+      background: #18a058;
+    }
+
+    .status-dot.connecting {
+      background: #f9a825;
+    }
+
+    .status-dot.error {
+      background: #e53935;
+    }
+
+    .battery-low {
+      color: #f57c00;
+    }
+
+    .nav-icon-button {
+      width: var(--nav-control-height);
+      height: var(--nav-control-height);
+      border-radius: var(--radius);
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      color: var(--text-main);
+    }
+
+    .nav-icon-button svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+    }
+
+    .nav-icon-button:hover,
+    .device-group:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+
+      .nav-icon-button:hover,
+      .device-group:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+
+    .nav-icon-button.active {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .nav-icon-button.active {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    .nav-icon-bordered {
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .nav-icon-bordered:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .nav-icon-bordered:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+
+    /* Mode toggle */
+
+    .mode-toggle {
+      display: inline-flex;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--surface);
+      height: var(--nav-control-height);
+      color: var(--text-main);
+    }
+
+    .mode-toggle-button {
+      border: none;
+      background: transparent;
+      padding: 0 10px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      color: inherit;
+    }
+
+    .mode-toggle-button+.mode-toggle-button {
+      border-left: 1px solid var(--border-subtle);
+    }
+
+    .mode-toggle-button.active {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .mode-toggle-button.active {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    /* Manual controls */
+
+    .control-group {
+      display: inline-flex;
+      align-items: stretch;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--surface);
+      height: var(--nav-control-height);
+      color: var(--text-main);
+    }
+
+    .control-btn {
+      min-width: 26px;
+      border: none;
+      border-right: 1px solid var(--border-subtle);
+      background: transparent;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: inherit;
+    }
+
+    .control-btn:last-child {
+      border-right: none;
+    }
+
+    .control-btn:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .control-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+
+    .control-value {
+      min-width: 54px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px;
+      color: inherit;
+    }
+
+    .workout-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-main);
+    }
+
+    .playback-button {
+      width: var(--nav-control-height);
+      height: var(--nav-control-height);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      color: var(--text-main);
+    }
+
+    .playback-button svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+    }
+
+    .playback-button:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .playback-button:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+    }
+
+    .ftp-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 0 8px;
+      background: var(--surface);
+      height: var(--nav-control-height);
+      color: var(--text-main);
+    }
+
+    .ftp-inline span {
+      white-space: nowrap;
+    }
+
+    .workout-name-label {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 0 8px;
+      background: var(--surface);
+      font-size: 13px;
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-main);
+      height: var(--nav-control-height);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* no hover background change for workout name */
+
+    /* Debug overlay */
+
+    .debug-overlay {
+      position: fixed;
+      inset: 10px;
+      border-radius: var(--radius);
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      font-size: 14px;
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.85);
+      color: #111111;
+    }
+
+    .debug-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .debug-header-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .debug-close-btn {
+      border-radius: var(--radius);
+      border: 1px solid #999;
+      background: transparent;
+      color: inherit;
+      padding: 2px 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .debug-log {
+      flex: 1;
+      overflow: auto;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: var(--radius);
+      padding: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .debug-overlay {
+        background: rgba(0, 0, 0, 0.85);
+        color: #aaaaaa;
+      }
+
+      .debug-log {
+        background: rgba(0, 0, 0, 0.55);
+      }
+
+      .debug-close-btn {
+        border-color: #777;
+      }
+    }
+
+    /* Status overlay (countdown / paused / resumed) */
+
+    .status-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 40;
+      opacity: 0;
+      transition: opacity 0.35s ease-out;
+    }
+
+    #statusText {
+      font-weight: 700;
+      text-shadow: 0 0 16px rgba(0, 0, 0, 0.45);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    @media (max-width: 800px) {
+      .bottom-nav {
+        font-size: 13px;
+      }
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="page-root">
+    <section class="top-panel" aria-label="Workout stats">
+      <div class="stat-card" data-key="power">
+        <div class="stat-label">Power</div>
+        <div class="stat-value"><span id="stat-power">--</span></div>
+      </div>
+      <div class="stat-card" data-key="intervalTime">
+        <div class="stat-label">Interval Time</div>
+        <div class="stat-value"><span id="stat-interval-time">00:00</span></div>
+      </div>
+      <div class="stat-card" data-key="heartRate">
+        <div class="stat-label">Heart Rate</div>
+        <div class="stat-value"><span id="stat-hr">--</span></div>
+      </div>
+      <div class="stat-card" data-key="targetPower">
+        <div class="stat-label">Target Power</div>
+        <div class="stat-value"><span id="stat-target-power">--</span></div>
+      </div>
+      <div class="stat-card" data-key="elapsedTime">
+        <div class="stat-label">Workout Time</div>
+        <div class="stat-value"><span id="stat-elapsed-time">00:00:00</span></div>
+      </div>
+      <div class="stat-card" data-key="cadence">
+        <div class="stat-label">Cadence</div>
+        <div class="stat-value"><span id="stat-cadence">--</span></div>
+      </div>
+    </section>
+
+    <section class="chart-panel" aria-label="Workout profile and live data">
+      <svg id="chartSvg" viewBox="0 0 1000 400" preserveAspectRatio="none"></svg>
+      <div id="chartTooltip" class="chart-tooltip"></div>
+    </section>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <div class="nav-left">
+      <!-- Bike / trainer status -->
+      <button class="device-group" id="bikeConnectBtn">
+        <div class="icon-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M5 16.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm0 0 3-6h4l3 6m-4-6 1.5-3M16 7h-3m7 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+          </svg>
+          <div id="bikeStatusDot" class="status-dot"></div>
+        </div>
+        <div class="device-label">
+          <span>Bike</span>
+          <span id="bikeBatteryLabel" class="device-battery"></span>
+        </div>
+      </button>
+
+      <!-- HR status -->
+      <button class="device-group" id="hrConnectBtn">
+        <div class="icon-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 20s-4.5-2.9-7-6.1C3.2 12.1 3 10.8 3 9.9 3 7.8 4.7 6 6.9 6c1.3 0 2.6.6 3.4 1.8C11.5 6.6 12.8 6 14.1 6 16.3 6 18 7.8 18 9.9c0 .9-.2 2.2-2 4-2.5 3.2-7 6.1-7 6.1z" />
+          </svg>
+          <div id="hrStatusDot" class="status-dot"></div>
+        </div>
+        <div class="device-label">
+          <span>HRM</span>
+          <span id="hrBatteryLabel" class="device-battery"></span>
+        </div>
+      </button>
+
+      <!-- Logs -->
+      <button id="logsBtn" class="nav-icon-button" title="Show connection logs">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 5h14M5 9h10M5 13h14M5 17h8" />
+        </svg>
+      </button>
+
+      <!-- Sound -->
+      <button id="soundBtn" class="nav-icon-button" title="Toggle interval sounds">
+        <svg id="soundIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 10v4h3l4 4V6l-4 4H5z" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="nav-right">
+      <!-- Mode toggle -->
+      <div id="modeToggle" class="mode-toggle" title="Control mode">
+        <button class="mode-toggle-button active" data-mode="workout">Workout</button>
+        <button class="mode-toggle-button" data-mode="erg">ERG</button>
+        <button class="mode-toggle-button" data-mode="resistance">Resistance</button>
+      </div>
+
+      <!-- Manual controls for ERG / Resistance -->
+      <div id="manualControls" class="control-group" style="display:none">
+        <button class="control-btn" data-delta="-10">-</button>
+        <div class="control-value"><span id="manualValue">0</span></div>
+        <button class="control-btn" data-delta="10">+</button>
+      </div>
+
+      <!-- Workout controls: FTP + title + playback -->
+      <div id="workoutControls" class="workout-controls">
+        <div id="ftpInline" class="ftp-inline">
+          <span>FTP</span>
+          <span id="ftpWorkoutValue"></span>
+        </div>
+
+        <div id="workoutNameLabel" class="workout-name-label">
+          Selected workout
+        </div>
+
+        <button id="startBtn" class="playback-button" title="Start workout (Space)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 7v10l8-5z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Go back icon -->
+      <button id="goBackBtn" class="nav-icon-button nav-icon-bordered" title="Back to workout list">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 7l-5 5 5 5" />
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Debug overlay -->
+  <div id="debugOverlay" class="debug-overlay">
+    <div class="debug-header">
+      <div class="debug-header-title">Connection logs</div>
+      <button id="debugCloseBtn" class="debug-close-btn">Close</button>
+    </div>
+    <div id="debugLog" class="debug-log"></div>
+  </div>
+
+  <!-- Status overlay (3-2-1 / paused / resumed) -->
+  <div id="statusOverlay" class="status-overlay">
+    <div id="statusText"></div>
+  </div>
+
+  <script src="workout.js"></script>
+</body>
+
+</html>
