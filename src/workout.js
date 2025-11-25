@@ -684,8 +684,8 @@ function drawChart() {
     const pts = `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`;
     poly.setAttribute("points", pts);
 
-    const muted = mixColors(zone.color, zone.bg, 0.5);
-    const hover = mixColors(muted, zone.color, 0.3);
+    const muted = mixColors(zone.color, zone.bg, 0.3);
+    const hover = mixColors(zone.color, zone.bg, 0.15);
 
     poly.setAttribute("fill", muted);
     poly.setAttribute("fill-opacity", "1");
@@ -948,6 +948,8 @@ function updateStatsDisplay() {
   let color = getCurrentZoneColor();
   if (!detectDarkMode()) {
     color = mixColors(color, "#000000", 0.5);
+  } else {
+    color = mixColors(color, "#000000", 0.3);
   }
 
   document
@@ -2513,8 +2515,8 @@ function renderMiniWorkoutGraph(container, workout) {
     const points = `${x},${yBottom} ${x},${y0} ${x + w},${y1} ${x + w},${yBottom}`;
     poly.setAttribute("points", points);
 
-    const muted = mixColors(zone.color, zone.bg, 0.5);
-    const hover = mixColors(muted, zone.color, 0.3);
+    const muted = mixColors(zone.color, zone.bg, 0.3);
+    const hover = mixColors(zone.color, zone.bg, 0.15);
     poly.setAttribute("fill", muted);
     poly.classList.add("chart-segment"); // so shared hover logic can target it
 
