@@ -17,4 +17,7 @@
 - do siren 10s before big spike, and different soudns for start vs end interval
 - pause workout when bike disconnected, and maybe don't start workout if bike disconnected
 - when hrm or bike is disconnected, show -- in the big numbers
-- the workout history docs should also contain the zwo file
+- the workout history docs should also contain the zwo file (or at least the name and segments)
+- maybe not necessary to put metrics in the zwo file or description?
+- when workout ends, stop the timer, and continue showing target power
+- investigate stability of the timer (uses system clock)
