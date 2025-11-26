@@ -1,0 +1,20 @@
+- shade in history should be stronger, and also same color as background
+- metric lines in dark mode should be lighter (red and green), power is OK
+- light mode, big numbers too dark
+- light mode, orange power line should be much brighter, red and green slightly brighter
+- if HRM disconnect during workout, try to reconnect
+- erg and resistance flows are not implemented
+- beep if the power change is greater than 5% to next interval, and the low beep is not audible
+- beep volume to 75%
+- maybe add a bit more padding at the top of big number titles
+- in product modals, or ideally local popup above FTP when selecting
+- need use monospace font for numbers, or somehow prevent them from shifting around
+- there are white lines between the segments in the workout chart
+- there should be time tick marks on the x axis
+- pause message 0.5 second longer
+- button focus should not have blue border
+- bluetooth auto reconnect bug: says "Bike BLE ready, sending initial trainer state." and then gets marked as successful
+- do siren 10s before big spike, and different soudns for start vs end interval
+- pause workout when bike disconnected, and maybe don't start workout if bike disconnected
+- when hrm or bike is disconnected, show -- in the big numbers
+- the workout history docs should also contain the zwo file
