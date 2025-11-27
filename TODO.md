@@ -5,7 +5,6 @@
 - in product modals, or ideally local popup above FTP when selecting
 - there are white lines between the segments in the workout chart
 - there should be time tick marks on the x axis
-- pause message 0.5 second longer
 - button focus should not have blue border
 - bluetooth auto reconnect bug: says "Bike BLE ready, sending initial trainer state." and then gets marked as successful
 - do siren 10s before big spike, and different soudns for start vs end interval

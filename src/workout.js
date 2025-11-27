@@ -293,7 +293,7 @@ function adjustStatFontSizes() {
 
     const fs = Math.max(
       18,
-      Math.min(availableHeight * 0.7, availableWidth / (isDouble ? 6 : 3)) * 0.9 // 90%
+      Math.min(availableHeight, availableWidth / (isDouble ? 6 : 3)) * 0.9
     );
     valueEl.style.fontSize = `${fs}px`;
   });
@@ -949,11 +949,7 @@ function updateStatsDisplay() {
   statIntervalTimeEl.textContent = formatTimeMMSS(intervalElapsedSec);
 
   let color = getCurrentZoneColor();
-  if (detectDarkMode()) {
-    color = mixColors(color, "#000000", 0.25);
-  } else {
-    color = mixColors(color, "#000000", 0.35);
-  }
+  color = mixColors(color, "#000000", 0.30);
 
   document
     .querySelectorAll(".stat-value span")
