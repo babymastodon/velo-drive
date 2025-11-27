@@ -1522,73 +1522,91 @@ async function btRetry(fn, retries = 8, baseDelay = 1000) {
 // --------------------------- Unified connectToDevice (bike or HRM) ---------------------------
 
 async function connectToDevice(device, type) {
-  if (!device) return;
+  if (!device) {
+    throw new Error("connectToDevice called without a device");
+  }
 
   if (type === "bike") {
     // --- Bike connection ---
+
+    // Clean up old disconnect handler if any
+    if (bikeState.device && bikeState._disconnectHandler) {
+      try {
+        bikeState.device.removeEventListener(
+          "gattserverdisconnected",
+          bikeState._disconnectHandler
+        );
+      } catch {}
+    }
+
     bikeState.device = device;
 
-    bikeState.device.addEventListener("gattserverdisconnected", () => {
-      logDebug("BLE disconnected (bike).");
-      isBikeConnected = false;
-      isBikeConnecting = false;
-      setBikeStatus("error");
+    if (!bikeState._disconnectHandler) {
+      bikeState._disconnectHandler = () => {
+        logDebug("BLE disconnected (bike).");
+        isBikeConnected = false;
+        isBikeConnecting = false;
+        setBikeStatus("error");
 
-      // Clear bike-derived stats so the UI shows "--"
-      lastSamplePower = null;
-      lastSampleCadence = null;
-      lastSampleSpeed = null;
+        // Clear bike-derived stats so the UI shows "--"
+        lastSamplePower = null;
+        lastSampleCadence = null;
+        lastSampleSpeed = null;
 
-      // If HR was only coming from the bike (no dedicated HRM), clear that too
-      if (!isHrAvailable) {
-        lastSampleHr = null;
-      }
+        // If HR was only coming from the bike (no dedicated HRM), clear that too
+        if (!isHrAvailable) {
+          lastSampleHr = null;
+        }
 
-      updateStatsDisplay();
-      enqueueReconnect("bike");
-    });
+        updateStatsDisplay();
+        enqueueReconnect("bike");
+      };
+    }
+
+    bikeState.device.addEventListener(
+      "gattserverdisconnected",
+      bikeState._disconnectHandler
+    );
 
     isBikeConnecting = true;
     setBikeStatus("connecting");
 
-    logDebug("Connecting to GATT server for bike…");
-    // Retry connect – this is the most important flaky op
-    bikeState.server = await btRetry(
-      () => bikeState.device.gatt.connect()
-    );
-    logDebug("Connected to GATT server (bike).");
-
-    // Persist bike device ID for future auto-reconnect
     try {
-      if (chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({[STORAGE_LAST_BIKE_DEVICE_ID]: bikeState.device.id});
+      logDebug("Connecting to GATT server for bike…");
+      // GATT connect (fatal on failure)
+      bikeState.server = await btRetry(
+        () => bikeState.device.gatt.connect()
+      );
+      logDebug("Connected to GATT server (bike).");
+
+      // Persist bike device ID for future auto-reconnect
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            [STORAGE_LAST_BIKE_DEVICE_ID]: bikeState.device.id,
+          });
+        }
+      } catch {
+        // non-fatal
       }
-    } catch {}
 
-    // FTMS service – critical for trainer, so if this fails after retries we let it throw
-    bikeState.ftmsService = await btRetry(
-      () => bikeState.server.getPrimaryService(FTMS_SERVICE_UUID)
-    ).catch((err) => {
-      logDebug("Error getting FTMS service: " + err);
-      return null;
-    });
+      // FTMS service (fatal if we cannot get it)
+      bikeState.ftmsService = await btRetry(
+        () => bikeState.server.getPrimaryService(FTMS_SERVICE_UUID)
+      );
+      logDebug("FTMS service found.");
 
-    logDebug("FTMS service " + (bikeState.ftmsService ? "found" : "not found"));
-
-    if (bikeState.ftmsService) {
-      // Indoor Bike Data characteristic (notifications optional but useful)
+      // Indoor Bike Data characteristic (fatal if we cannot get it)
       bikeState.indoorBikeDataChar = await btRetry(
         () => bikeState.ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR)
-      ).catch((err) => {
-        logDebug("Error getting IndoorBikeData characteristic: " + err);
-        return null;
-      });
+      );
+      logDebug("Indoor Bike Data characteristic found.");
 
-      // Control Point characteristic (needed for ERG/resistance)
+      // Control Point characteristic (nice-to-have; non-fatal if missing)
       bikeState.controlPointChar = await btRetry(
         () => bikeState.ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR)
       ).catch((err) => {
-        logDebug("Error getting FTMS Control Point characteristic: " + err);
+        logDebug("Error getting FTMS Control Point characteristic (non-fatal): " + err);
         return null;
       });
 
@@ -1618,111 +1636,131 @@ async function connectToDevice(device, type) {
           logDebug("Subscribed to FTMS Control Point indications.");
         } catch (err) {
           logDebug(
-            "Could not start FTMS Control Point indications (may still work): " +
-            err
+            "Could not start FTMS Control Point indications (non-fatal): " + err
           );
-          // Non-fatal
         }
       }
 
-      // Indoor Bike Data notifications
-      if (bikeState.indoorBikeDataChar) {
-        bikeState.indoorBikeDataChar.addEventListener(
-          "characteristicvaluechanged",
-          (ev) => {
-            const dv = ev.target.value;
-            parseIndoorBikeData(dv);
-          }
+      // Indoor Bike Data notifications (we already require the characteristic; notify failure is non-fatal)
+      bikeState.indoorBikeDataChar.addEventListener(
+        "characteristicvaluechanged",
+        (ev) => {
+          const dv = ev.target.value;
+          parseIndoorBikeData(dv);
+        }
+      );
+      try {
+        await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
+        logDebug("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
+      } catch (err) {
+        logDebug(
+          "Could not start Indoor Bike Data notifications (may still work): " + err
         );
+      }
+
+      // Request control + start or resume if control point is present
+      if (bikeState.controlPointChar) {
         try {
-          await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
-          logDebug("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
+          await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
+          await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
+          logDebug("FTMS requestControl + startOrResume sent.");
         } catch (err) {
           logDebug(
-            "Could not start Indoor Bike Data notifications (may still work): " +
-            err
+            "Failed to send FTMS requestControl/startOrResume (non-fatal): " + err
           );
-          // Non-fatal
         }
       }
-    }
 
-    // Request control + start or resume if control point is present
-    if (bikeState.controlPointChar) {
-      try {
-        await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
-        await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
-        logDebug("FTMS requestControl + startOrResume sent.");
-      } catch (err) {
-        logDebug("Failed to send FTMS requestControl/startOrResume: " + err);
-        // Non-fatal to the BLE connection itself
-      }
+      // Success: we wouldn't get here if connect/service/indoor data char had failed
+      isBikeConnecting = false;
+      isBikeConnected = true;
+      setBikeStatus("connected");
+      logDebug("Bike BLE ready, sending initial trainer state.");
+      await sendTrainerState(true);
+      return;
+    } catch (err) {
+      logDebug("Bike connect error (fatal): " + err);
+      isBikeConnecting = false;
+      isBikeConnected = false;
+      setBikeStatus("error");
+      throw err; // callers (manual + queue) treat this as failure
     }
-
-    isBikeConnecting = false;
-    isBikeConnected = true;
-    setBikeStatus("connected");
-    logDebug("Bike BLE ready, sending initial trainer state.");
-    await sendTrainerState(true);
-    return;
   }
 
   if (type === "hr") {
     // --- HRM connection ---
-    hrState.device = device;
 
-    hrState.device.addEventListener("gattserverdisconnected", () => {
-      logDebug("BLE disconnected (hr).");
-      isHrAvailable = false;
-      setHrStatus("error");
-
-      // Clear HR so the UI shows "--"
-      lastSampleHr = null;
-      hrBatteryPercent = null;
-      updateHrBatteryLabel();
-      updateStatsDisplay();
-      enqueueReconnect("hr");
-    });
-
-    setHrStatus("connecting");
-    logDebug("Connecting to GATT server for hr…");
-    // Retry connect: critical to even talk to the HRM
-    hrState.server = await btRetry(
-      () => hrState.device.gatt.connect()
-    );
-    logDebug("Connected to GATT server (hr).");
-
-    // Persist HR device ID for future auto-reconnect
-    try {
-      if (chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.set({[STORAGE_LAST_HR_DEVICE_ID]: hrState.device.id});
-      }
-    } catch {}
-
-    // Heart Rate service (important but we treat failure as "no HR available")
-    hrState.hrService = await btRetry(
-      () => hrState.server.getPrimaryService(HEART_RATE_SERVICE_UUID)
-    ).catch((err) => {
-      logDebug("Error getting Heart Rate service: " + err);
-      return null;
-    });
-
-    // Battery service (optional)
-    hrState.batteryService = await hrState.server
-      .getPrimaryService(BATTERY_SERVICE_UUID)
-      .catch(() => null);
-
-    // HR Measurement characteristic
-    if (hrState.hrService) {
-      hrState.measurementChar = await btRetry(
-        () => hrState.hrService.getCharacteristic(HR_MEASUREMENT_CHAR)
-      ).catch((err) => {
-        logDebug("Error getting HR measurement characteristic: " + err);
-        return null;
-      });
+    // Clean up old disconnect handler if any
+    if (hrState.device && hrState._disconnectHandler) {
+      try {
+        hrState.device.removeEventListener(
+          "gattserverdisconnected",
+          hrState._disconnectHandler
+        );
+      } catch {}
     }
 
-    if (hrState.measurementChar) {
+    hrState.device = device;
+
+    if (!hrState._disconnectHandler) {
+      hrState._disconnectHandler = () => {
+        logDebug("BLE disconnected (hr).");
+        isHrAvailable = false;
+        setHrStatus("error");
+
+        lastSampleHr = null;
+        hrBatteryPercent = null;
+        updateHrBatteryLabel();
+        updateStatsDisplay();
+
+        enqueueReconnect("hr");
+      };
+    }
+
+    hrState.device.addEventListener(
+      "gattserverdisconnected",
+      hrState._disconnectHandler
+    );
+
+    setHrStatus("connecting");
+
+    try {
+      logDebug("Connecting to GATT server for hr…");
+      // GATT connect (fatal on failure)
+      hrState.server = await btRetry(
+        () => hrState.device.gatt.connect()
+      );
+      logDebug("Connected to GATT server (hr).");
+
+      // Persist HR device ID
+      try {
+        if (chrome && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            [STORAGE_LAST_HR_DEVICE_ID]: hrState.device.id,
+          });
+        }
+      } catch {
+        // non-fatal
+      }
+
+      // Heart Rate service (fatal if we cannot get it)
+      hrState.hrService = await btRetry(
+        () => hrState.server.getPrimaryService(HEART_RATE_SERVICE_UUID)
+      );
+      logDebug("Heart Rate service found.");
+
+      // Battery service (optional)
+      hrState.batteryService = await hrState.server
+        .getPrimaryService(BATTERY_SERVICE_UUID)
+        .catch(() => null);
+
+      // HR Measurement characteristic (fatal if we cannot get it)
+      hrState.measurementChar = await btRetry(
+        () => hrState.hrService.getCharacteristic(HR_MEASUREMENT_CHAR)
+      );
+      logDebug("HR Measurement characteristic found.");
+
+      // Notifications (fatal if they can't be started, because then you get no HR data)
       try {
         await btRetry(() => hrState.measurementChar.startNotifications());
         hrState.measurementChar.addEventListener(
@@ -1735,39 +1773,44 @@ async function connectToDevice(device, type) {
         setHrStatus("connected");
         logDebug("Subscribed to HRM Measurement (0x2A37).");
       } catch (err) {
-        logDebug("Could not start HRM notifications (may still work): " + err);
+        logDebug("Could not start HRM notifications (fatal): " + err);
         isHrAvailable = false;
-        setHrStatus("error");
+        throw err;
       }
-    } else {
+
+      // Battery read (optional)
+      if (hrState.batteryService) {
+        try {
+          const batteryLevelChar = await btRetry(
+            () => hrState.batteryService.getCharacteristic(BATTERY_LEVEL_CHAR)
+          );
+          const val = await btRetry(
+            () => batteryLevelChar.readValue()
+          );
+          const pct = val.getUint8(0);
+          logDebug(`HR battery: ${pct}%`);
+          hrBatteryPercent = pct;
+          updateHrBatteryLabel();
+        } catch (err) {
+          logDebug("Battery read failed (non-fatal): " + err);
+        }
+      }
+
+      logDebug("HR BLE ready.");
+      return;
+    } catch (err) {
+      logDebug("HR connect error (fatal): " + err);
       isHrAvailable = false;
       setHrStatus("error");
+      throw err;
     }
-
-    // Battery read (if available) – nice-to-have, with retry
-    if (hrState.batteryService) {
-      try {
-        const batteryLevelChar = await btRetry(
-          () => hrState.batteryService.getCharacteristic(BATTERY_LEVEL_CHAR)
-        );
-        const val = await btRetry(
-          () => batteryLevelChar.readValue()
-        );
-        const pct = val.getUint8(0);
-        logDebug(`HR battery: ${pct}%`);
-        hrBatteryPercent = pct;
-        updateHrBatteryLabel();
-      } catch (err) {
-        logDebug("Battery read failed: " + err);
-      }
-    }
-
-    logDebug("HR BLE ready.");
-    return;
   }
 
-  logDebug(`connectToDevice called with unknown type: ${type}`);
+  const msg = `connectToDevice called with unknown type: ${type}`;
+  logDebug(msg);
+  throw new Error(msg);
 }
+
 
 // --------------------------- Auto-reconnect helper (using getDevices) ---------------------------
 
