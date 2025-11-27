@@ -770,12 +770,11 @@ function drawChart() {
 
     const powerPath = pathForKey("power");
     if (powerPath) {
-      const powerColor = darkMode ? "#ffb300" : "#f57c00";
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
       p.setAttribute("d", powerPath);
       p.setAttribute("fill", "none");
-      p.setAttribute("stroke", powerColor);
-      p.setAttribute("stroke-width", "1.4");
+      p.setAttribute("stroke", getCssVar("--power-line"));
+      p.setAttribute("stroke-width", "2.5");
       p.setAttribute("pointer-events", "none");
       chartSvg.appendChild(p);
     }
@@ -785,25 +784,25 @@ function drawChart() {
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
       p.setAttribute("d", hrPath);
       p.setAttribute("fill", "none");
-      p.setAttribute("stroke", "#ec407a");
-      p.setAttribute("stroke-width", "1.0");
+      p.setAttribute("stroke", getCssVar("--hr-line"));
+      p.setAttribute("stroke-width", "1.5");
       p.setAttribute("pointer-events", "none");
       chartSvg.appendChild(p);
     }
 
     const cadPath = pathForKey("cadence");
     if (cadPath) {
-      const cadColor = darkMode ? "#26a69a" : "#00897b";
       const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
       p.setAttribute("d", cadPath);
       p.setAttribute("fill", "none");
-      p.setAttribute("stroke", cadColor);
-      p.setAttribute("stroke-width", "1.0");
+      p.setAttribute("stroke", getCssVar("--cad-line"));
+      p.setAttribute("stroke-width", "1.5");
       p.setAttribute("pointer-events", "none");
       chartSvg.appendChild(p);
     }
   }
 }
+
 function attachSegmentHover(svg, tooltipEl, containerEl) {
   if (!svg || !tooltipEl || !containerEl) return;
 

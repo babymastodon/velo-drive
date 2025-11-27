@@ -1,4 +1,3 @@
-- metric lines in dark mode should be lighter (red and green), power is OK
 - light mode, big numbers too dark
 - light mode, orange power line should be much brighter, red and green slightly brighter
 - if HRM disconnect during workout, try to reconnect
