@@ -1654,6 +1654,16 @@ const BleManager = (() => {
     return false;
   }
 
+  function isConnectInProgressError(err) {
+    if (!err) return false;
+    const msg = String(err.message || err).toLowerCase();
+    const name = err.name || "";
+    return (
+      msg.includes("connection already in progress") ||
+      (name === "NetworkError" && msg.includes("already in progress"))
+    );
+  }
+
   // Retry a Bluetooth operation up to `retries` times with exponential backoff,
   // but abort immediately once we know the GATT server is disconnected.
   async function btRetry(fn, retries = 8, baseDelay = 1000) {
@@ -1665,7 +1675,7 @@ const BleManager = (() => {
         lastErr = err;
 
         // If the GATT server is disconnected, further retries are pointless.
-        if (isGattDisconnectedError(err)) {
+        if (isGattDisconnectedError(err) || isConnectInProgressError(err)) {
           logDebug &&
             logDebug(
               `btRetry: aborting retries because GATT server is disconnected: ${err}`
