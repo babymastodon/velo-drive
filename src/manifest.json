@@ -57,6 +57,7 @@
         "storage.js",
         "workout-metrics.js",
         "workout-chart.js",
+        "workout-engine.js",
         "workout-picker.js"
       ],
       "matches": ["chrome-extension://*/*"]

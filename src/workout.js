@@ -1,42 +1,26 @@
 // workout.js
-// Page to run a ZWO workout against a Wahoo KICKR over BLE,
-// with ERG / resistance control, HUD stats, chart, auto-pause/resume,
-// countdown overlay, paused/resumed overlay, and saving workout JSON.
+// UI layer for running a workout against a Wahoo KICKR over BLE.
+// All business logic & state is owned by workout-engine.js.
+// This file:
+//   - wires DOM events to the engine
+//   - renders HUD stats, chart, logs
+//   - manages picker + sound UI
 
 import {BleManager} from "./ble-manager.js";
-import {Beeper} from "./beeper.js";
+import {getWorkoutEngine} from "./workout-engine.js";
 import {getWorkoutPicker} from "./workout-picker.js";
 
 import {
-  computeScaledSegments,
+  clearSvg,
   renderWorkoutSegmentPolygon,
   attachSegmentHover,
-  clearSvg,
   getCssVar,
   mixColors,
   zoneInfoFromRel,
 } from "./workout-chart.js";
 
 import {DEFAULT_FTP} from "./workout-metrics.js";
-
-import {
-  loadWorkoutDirHandle,
-  saveWorkoutDirHandle,
-  ensureDirPermission,
-  loadSelectedWorkout,
-  loadActiveState,
-  saveActiveState,
-  clearActiveState,
-  loadSoundPreference,
-  saveSoundPreference,
-  saveFtp,
-} from "./storage.js";
-
-// --------------------------- Constants ---------------------------
-
-// Auto-pause after 1 second of 0 power
-const AUTO_PAUSE_POWER_ZERO_SEC = 1;
-const AUTO_PAUSE_GRACE_SEC = 15;
+import {loadSoundPreference, saveSoundPreference, saveFtp} from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
 
@@ -87,61 +71,17 @@ const pickerDurationFilter = document.getElementById("pickerDurationFilter");
 const pickerSummaryEl = document.getElementById("pickerSummary");
 const pickerWorkoutTbody = document.getElementById("pickerWorkoutTbody");
 
-// --------------------------- State ---------------------------
-
-// Legacy flags and battery values used elsewhere in the UI
-let isBikeConnected = false;
-let isHrAvailable = false;
+// --------------------------- UI-local state ---------------------------
 
 let hrBatteryPercent = null;
+let soundEnabled = true;
 
-// workout structure
-let workoutMeta = null;
-let scaledSegments = [];
-let workoutTotalSec = 0;
-
-// live workout
-let currentFtp = DEFAULT_FTP;
-let mode = "workout"; // "workout" | "erg" | "resistance"
-let manualErgTarget = 200;
-let manualResistance = 30;
-
-let workoutRunning = false;
-let workoutPaused = false;
-let workoutStartedAt = null;
-let workoutStarting = false;
-let elapsedSec = 0;
-let currentIntervalIndex = 0;
-let intervalElapsedSec = 0;
-
-let lastSamplePower = null;
-let lastSampleHr = null;
-let lastSampleCadence = null;
-
-let zeroPowerSeconds = 0;
-let autoPauseDisabledUntilSec = 0;
-
-// chart
-let liveSamples = [];
+const logLines = [];
 let chartWidth = 1000;
 let chartHeight = 400;
 
-// scheduling
-let workoutTicker = null;
-
-// sound
-let soundEnabled = true;
-
-// logging
-const logLines = [];
-
-// state persistence
-let saveStateTimer = null;
-
-// workout dir
-let workoutDirHandle = null;
-
-// picker singleton
+// engine & picker are created in initPage
+let engine = null;
 let picker = null;
 
 // --------------------------- Helpers ---------------------------
@@ -166,47 +106,6 @@ function logDebug(msg) {
   }
 }
 
-function initBleIntegration() {
-  BleManager.on("bikeStatus", (status) => {
-    isBikeConnected = status === "connected";
-    setBikeStatus(status);
-  });
-
-  BleManager.on("hrStatus", (status) => {
-    isHrAvailable = status === "connected";
-    setHrStatus(status);
-  });
-
-  BleManager.on("bikeSample", (sample) => {
-    lastSamplePower = sample.power;
-    lastSampleCadence = sample.cadence;
-
-    if (!isHrAvailable) {
-      lastSampleHr = sample.hrFromBike;
-    }
-
-    if (lastSamplePower != null) {
-      maybeAutoStartFromPower(lastSamplePower);
-    }
-
-    updateStatsDisplay();
-  });
-
-  BleManager.on("hrSample", (bpm) => {
-    lastSampleHr = bpm;
-    updateStatsDisplay();
-  });
-
-  BleManager.on("hrBattery", (pct) => {
-    hrBatteryPercent = pct;
-    updateHrBatteryLabel();
-  });
-
-  BleManager.on("log", logDebug);
-
-  BleManager.init({autoReconnect: true});
-}
-
 function formatTimeMMSS(sec) {
   const s = Math.max(0, Math.floor(sec));
   const mm = String(Math.floor(s / 60)).padStart(2, "0");
@@ -223,12 +122,6 @@ function formatTimeHHMMSS(sec) {
   const mm = String(m).padStart(2, "0");
   const sss = String(ss).padStart(2, "0");
   return `${hh}:${mm}:${sss}`;
-}
-
-function clampFtp(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return DEFAULT_FTP;
-  return Math.min(500, Math.max(50, Math.round(n)));
 }
 
 // --------------------------- Dynamic stat font sizing ---------------------------
@@ -267,10 +160,63 @@ function updateChartDimensions() {
   chartHeight = Math.max(200, Math.floor(h));
 }
 
-// --------------------------- Pre-select directory messages ---------------------------
+// --------------------------- BLE integration (UI side) ---------------------------
 
-function showWorkoutSaveDirPreselectMessage() {
-  alert("Pick the folder where your workout history will be saved.");
+function setBikeStatus(state) {
+  if (!bikeStatusDot) return;
+  bikeStatusDot.classList.remove("connected", "connecting", "error");
+  if (state === "connected") bikeStatusDot.classList.add("connected");
+  else if (state === "connecting") bikeStatusDot.classList.add("connecting");
+  else if (state === "error") bikeStatusDot.classList.add("error");
+}
+
+function setHrStatus(state) {
+  if (!hrStatusDot) return;
+  hrStatusDot.classList.remove("connected", "connecting", "error");
+  if (state === "connected") hrStatusDot.classList.add("connected");
+  else if (state === "connecting") hrStatusDot.classList.add("connecting");
+  else if (state === "error") hrStatusDot.classList.add("error");
+}
+
+function updateHrBatteryLabel() {
+  if (!hrBatteryLabel) return;
+  if (hrBatteryPercent == null) {
+    hrBatteryLabel.textContent = "";
+    hrBatteryLabel.classList.remove("battery-low");
+    return;
+  }
+  hrBatteryLabel.textContent = `${hrBatteryPercent}%`;
+  hrBatteryLabel.classList.toggle("battery-low", hrBatteryPercent <= 20);
+}
+
+function initBleIntegration() {
+  // Status LEDs
+  BleManager.on("bikeStatus", (status) => {
+    setBikeStatus(status);
+  });
+
+  BleManager.on("hrStatus", (status) => {
+    setHrStatus(status);
+  });
+
+  // Samples go into the engine
+  BleManager.on("bikeSample", (sample) => {
+    engine && engine.handleBikeSample(sample);
+  });
+
+  BleManager.on("hrSample", (bpm) => {
+    engine && engine.handleHrSample(bpm);
+  });
+
+  // HR battery is purely UI
+  BleManager.on("hrBattery", (pct) => {
+    hrBatteryPercent = pct;
+    updateHrBatteryLabel();
+  });
+
+  BleManager.on("log", logDebug);
+
+  BleManager.init({autoReconnect: true});
 }
 
 // --------------------------- Sound preference ---------------------------
@@ -281,12 +227,12 @@ async function initSoundPreference() {
 }
 
 function updateSoundIcon() {
-  if (!soundIcon) return;
+  if (!soundBtn || !soundIcon) return;
   if (soundEnabled) {
     soundBtn.classList.add("active");
     soundIcon.innerHTML = `
       <path d="M5 10v4h3l4 4V6l-4 4H5z" />
-      <path d="M15 9.5c1 .7 1.6 1.9 1.6 3.1 0 1.2-.6 2.4-1.6 3.1M17.5 7c1.6 1.2 2.5 3.1 2.5 5.1 0 2-1 3.9-2.5 5.1" />
+      <path d="M15 9.5c1 .7 1.6 1.9 1.6 3.1 0 1.2-.6 2.4-1.6 3.1M17.5 7c1.6 1.2 2.5 3.1 2.5 5.1" />
     `;
   } else {
     soundBtn.classList.remove("active");
@@ -296,53 +242,115 @@ function updateSoundIcon() {
   }
 }
 
-// --------------------------- Workout structure ---------------------------
+// --------------------------- Zone color & stats rendering ---------------------------
 
-function buildScaledSegments() {
-  if (!workoutMeta || !Array.isArray(workoutMeta.segmentsForMetrics)) {
-    scaledSegments = [];
-    workoutTotalSec = 0;
-    return;
+function getCurrentZoneColor(vm) {
+  const ftp = vm.currentFtp || DEFAULT_FTP;
+  let refPower;
+
+  if (vm.mode === "workout") {
+    const t = vm.elapsedSec > 0 ? vm.elapsedSec : 0;
+    let target = null;
+    if (vm.scaledSegments && vm.scaledSegments.length) {
+      const totalSec = vm.workoutTotalSec || 1;
+      const clampedT = Math.min(Math.max(0, t), totalSec);
+      let seg = vm.scaledSegments[vm.currentIntervalIndex || 0];
+      if (
+        !seg ||
+        clampedT < seg.startTimeSec ||
+        clampedT >= seg.endTimeSec
+      ) {
+        seg = vm.scaledSegments.find(
+          (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
+        );
+      }
+      if (seg) {
+        const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
+        target =
+          seg.targetWattsStart +
+          (seg.targetWattsEnd - seg.targetWattsStart) *
+          Math.min(1, Math.max(0, rel));
+      }
+    }
+    refPower = target || vm.lastSamplePower || ftp * 0.6;
+  } else if (vm.mode === "erg") {
+    refPower = vm.manualErgTarget || ftp * 0.6;
+  } else {
+    refPower = (vm.manualResistance / 100) * ftp || ftp * 0.5;
   }
 
-  const segments = workoutMeta.segmentsForMetrics;
-  const ftp = currentFtp || workoutMeta.ftpAtSelection || DEFAULT_FTP;
-
-  const {scaledSegments: scaled, totalSec} = computeScaledSegments(
-    segments,
-    ftp
-  );
-
-  scaledSegments = scaled;
-  workoutTotalSec = totalSec;
+  const rel = refPower / ftp;
+  const zone = zoneInfoFromRel(rel);
+  return zone.color || getCssVar("--text-main");
 }
 
-function getCurrentSegmentAtTime(tSec) {
-  if (!scaledSegments.length) return {segment: null, target: null};
-  const clampedT = Math.min(Math.max(0, tSec), workoutTotalSec);
-  let seg = scaledSegments[currentIntervalIndex];
+function updateStatsDisplay(vm) {
+  if (!statPowerEl || !statHrEl || !statCadenceEl) return;
 
-  if (!seg || clampedT < seg.startTimeSec || clampedT >= seg.endTimeSec) {
-    seg = scaledSegments.find(
-      (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
-    );
-    if (seg) currentIntervalIndex = scaledSegments.indexOf(seg);
+  if (vm.lastSamplePower == null) {
+    statPowerEl.textContent = "--";
+  } else {
+    const p = Math.round(vm.lastSamplePower);
+    statPowerEl.textContent = String(p < 0 ? 0 : p);
   }
 
-  if (!seg) return {segment: null, target: null};
+  // target power
+  let target = null;
+  if (vm.mode === "erg") {
+    target = vm.manualErgTarget;
+  } else if (vm.mode === "workout" && vm.scaledSegments?.length) {
+    const totalSec = vm.workoutTotalSec || 1;
+    const t = vm.workoutRunning || vm.elapsedSec > 0 ? vm.elapsedSec : 0;
+    const clampedT = Math.min(Math.max(0, t), totalSec);
+    let seg = vm.scaledSegments[vm.currentIntervalIndex || 0];
+    if (
+      !seg ||
+      clampedT < seg.startTimeSec ||
+      clampedT >= seg.endTimeSec
+    ) {
+      seg = vm.scaledSegments.find(
+        (s) => clampedT >= s.startTimeSec && clampedT < s.endTimeSec
+      );
+    }
+    if (seg) {
+      const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
+      target =
+        seg.targetWattsStart +
+        (seg.targetWattsEnd - seg.targetWattsStart) *
+        Math.min(1, Math.max(0, rel));
+    }
+  }
 
-  const rel = (clampedT - seg.startTimeSec) / seg.durationSec;
-  const target =
-    seg.targetWattsStart +
-    (seg.targetWattsEnd - seg.targetWattsStart) * Math.min(1, Math.max(0, rel));
+  if (statTargetPowerEl) {
+    statTargetPowerEl.textContent =
+      target != null ? String(Math.round(target)) : "--";
+  }
 
-  return {segment: seg, target: Math.round(target)};
+  statHrEl.textContent =
+    vm.lastSampleHr != null ? String(Math.round(vm.lastSampleHr)) : "--";
+
+  statCadenceEl.textContent =
+    vm.lastSampleCadence != null ? String(Math.round(vm.lastSampleCadence)) : "--";
+
+  if (statElapsedTimeEl) {
+    statElapsedTimeEl.textContent = formatTimeHHMMSS(vm.elapsedSec || 0);
+  }
+  if (statIntervalTimeEl) {
+    statIntervalTimeEl.textContent = formatTimeMMSS(vm.intervalElapsedSec || 0);
+  }
+
+  let color = getCurrentZoneColor(vm);
+  color = mixColors(color, "#000000", 0.3);
+
+  document
+    .querySelectorAll(".stat-value span")
+    .forEach((el) => (el.style.color = color));
 }
 
 // --------------------------- Chart rendering ---------------------------
 
-function drawChart() {
-  if (!chartSvg) return;
+function drawChart(vm) {
+  if (!chartSvg || !chartPanel) return;
   updateChartDimensions();
   clearSvg(chartSvg);
 
@@ -351,9 +359,10 @@ function drawChart() {
   chartSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   chartSvg.setAttribute("shape-rendering", "crispEdges");
 
-  const ftp = currentFtp || DEFAULT_FTP;
+  const ftp = vm.currentFtp || DEFAULT_FTP;
   const maxY = Math.max(200, ftp * 2);
 
+  // grid
   const step = 100;
   for (let yVal = 0; yVal <= maxY; yVal += step) {
     const y = h - (yVal / maxY) * h;
@@ -377,22 +386,26 @@ function drawChart() {
     chartSvg.appendChild(label);
   }
 
-  const totalSec = workoutTotalSec || 1;
+  const totalSec = vm.workoutTotalSec || 1;
 
-  scaledSegments.forEach((seg) => {
-    renderWorkoutSegmentPolygon({
-      svg: chartSvg,
-      seg,
-      totalSec,
-      width: w,
-      height: h,
-      ftp,
-      maxY,
+  // segments
+  if (vm.scaledSegments && vm.scaledSegments.length) {
+    vm.scaledSegments.forEach((seg) => {
+      renderWorkoutSegmentPolygon({
+        svg: chartSvg,
+        seg,
+        totalSec,
+        width: w,
+        height: h,
+        ftp,
+        maxY,
+      });
     });
-  });
+  }
 
-  if (elapsedSec > 0 && totalSec > 0) {
-    const xPast = Math.min(w, (elapsedSec / totalSec) * w);
+  // past shade
+  if (vm.elapsedSec > 0 && totalSec > 0) {
+    const xPast = Math.min(w, (vm.elapsedSec / totalSec) * w);
     const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     shade.setAttribute("x", "0");
     shade.setAttribute("y", "0");
@@ -404,6 +417,7 @@ function drawChart() {
     chartSvg.appendChild(shade);
   }
 
+  // FTP line
   const ftpY = h - (ftp / maxY) * h;
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
@@ -425,7 +439,8 @@ function drawChart() {
   ftpLabel.textContent = `FTP ${ftp}`;
   chartSvg.appendChild(ftpLabel);
 
-  const xNow = Math.min(w, (elapsedSec / totalSec) * w);
+  // position line
+  const xNow = Math.min(w, (vm.elapsedSec / totalSec) * w);
   const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   posLine.setAttribute("x1", String(xNow));
   posLine.setAttribute("x2", String(xNow));
@@ -436,10 +451,12 @@ function drawChart() {
   posLine.setAttribute("pointer-events", "none");
   chartSvg.appendChild(posLine);
 
-  const samples = liveSamples;
+  // live sample lines
+  const samples = vm.liveSamples || [];
   const powerColor = getCssVar("--power-line");
   const hrColor = getCssVar("--hr-line");
   const cadColor = getCssVar("--cad-line");
+
   if (samples.length) {
     const pathForKey = (key) => {
       let d = "";
@@ -492,432 +509,9 @@ function drawChart() {
   attachSegmentHover(chartSvg, chartTooltip, chartPanel);
 }
 
-// --------------------------- Stats & HUD ---------------------------
-
-function getCurrentTargetPower() {
-  if (mode === "erg") return manualErgTarget;
-  if (mode === "resistance") return null;
-
-  if (!scaledSegments.length) return null;
-
-  const t = workoutRunning || elapsedSec > 0 ? elapsedSec : 0;
-  const {target} = getCurrentSegmentAtTime(t);
-  return target;
-}
-
-function getCurrentZoneColor() {
-  const ftp = currentFtp || DEFAULT_FTP;
-  let refPower;
-
-  if (mode === "workout") {
-    const target = getCurrentTargetPower();
-    refPower = target || lastSamplePower || ftp * 0.6;
-  } else if (mode === "erg") {
-    refPower = manualErgTarget || ftp * 0.6;
-  } else {
-    refPower = (manualResistance / 100) * ftp || ftp * 0.5;
-  }
-
-  const rel = refPower / ftp;
-  const zone = zoneInfoFromRel(rel);
-  return zone.color || getCssVar("--text-main");
-}
-
-function updateStatsDisplay() {
-  if (lastSamplePower == null) {
-    statPowerEl.textContent = "--";
-  } else {
-    const p = Math.round(lastSamplePower);
-    statPowerEl.textContent = String(p < 0 ? 0 : p);
-  }
-
-  const target = getCurrentTargetPower();
-  statTargetPowerEl.textContent =
-    target != null ? String(Math.round(target)) : "--";
-
-  statHrEl.textContent =
-    lastSampleHr != null ? String(Math.round(lastSampleHr)) : "--";
-
-  statCadenceEl.textContent =
-    lastSampleCadence != null ? String(Math.round(lastSampleCadence)) : "--";
-
-  statElapsedTimeEl.textContent = formatTimeHHMMSS(elapsedSec);
-  statIntervalTimeEl.textContent = formatTimeMMSS(intervalElapsedSec);
-
-  let color = getCurrentZoneColor();
-  color = mixColors(color, "#000000", 0.3);
-
-  document
-    .querySelectorAll(".stat-value span")
-    .forEach((el) => (el.style.color = color));
-}
-
-// --------------------------- BLE helpers ---------------------------
-
-function setBikeStatus(state) {
-  bikeStatusDot.classList.remove("connected", "connecting", "error");
-  if (state === "connected") bikeStatusDot.classList.add("connected");
-  else if (state === "connecting") bikeStatusDot.classList.add("connecting");
-  else if (state === "error") bikeStatusDot.classList.add("error");
-}
-
-function setHrStatus(state) {
-  hrStatusDot.classList.remove("connected", "connecting", "error");
-  if (state === "connected") hrStatusDot.classList.add("connected");
-  else if (state === "connecting") hrStatusDot.classList.add("connecting");
-  else if (state === "error") hrStatusDot.classList.add("error");
-}
-
-function desiredTrainerState() {
-  if (mode === "workout") {
-    const target = getCurrentTargetPower();
-    if (target == null) return null;
-    return {kind: "erg", value: target};
-  }
-
-  if (mode === "erg") {
-    return {kind: "erg", value: manualErgTarget};
-  }
-
-  if (mode === "resistance") {
-    return {kind: "resistance", value: manualResistance};
-  }
-
-  return null;
-}
-
-async function sendTrainerState(force = false) {
-  const st = desiredTrainerState();
-  if (!st) return;
-  await BleManager.setTrainerState(st, {force});
-}
-
-// --------------------------- Auto-start helper ---------------------------
-
-function maybeAutoStartFromPower(power) {
-  if (!power || power <= 0) return;
-  if (mode !== "workout") return;
-  if (workoutRunning || workoutStarting) return;
-  if (elapsedSec > 0 || liveSamples.length) return;
-  if (!scaledSegments.length) {
-    if (power >= 75) {
-      logDebug("Auto-start (no segments, power >= 75W).");
-      startWorkout();
-    }
-    return;
-  }
-
-  const first = scaledSegments[0];
-  const startTarget =
-    (first && first.targetWattsStart) ||
-    (currentFtp || DEFAULT_FTP) * (first?.pStartRel || 0.5);
-  const threshold = Math.max(75, 0.5 * startTarget);
-
-  if (power >= threshold) {
-    logDebug(
-      `Auto-start: power ${power.toFixed(
-        1
-      )}W ≥ threshold ${threshold.toFixed(1)}W`
-    );
-    startWorkout();
-  }
-}
-
-// --------------------------- Battery reporting ---------------------------
-
-function updateHrBatteryLabel() {
-  if (!hrBatteryLabel) return;
-  if (hrBatteryPercent == null) {
-    hrBatteryLabel.textContent = "";
-    hrBatteryLabel.classList.remove("battery-low");
-    return;
-  }
-  hrBatteryLabel.textContent = `${hrBatteryPercent}%`;
-  hrBatteryLabel.classList.toggle("battery-low", hrBatteryPercent <= 20);
-}
-
-// --------------------------- Interval beeps ---------------------------
-
-function handleIntervalBeep(currentT) {
-  if (!scaledSegments.length) return;
-
-  const {segment} = getCurrentSegmentAtTime(currentT);
-  if (!segment) return;
-
-  const ftp = currentFtp || DEFAULT_FTP;
-  const idx = scaledSegments.indexOf(segment);
-  const next =
-    idx >= 0 && idx < scaledSegments.length - 1
-      ? scaledSegments[idx + 1]
-      : null;
-
-  if (!next || !ftp) return;
-
-  const currEnd =
-    segment.targetWattsEnd != null
-      ? segment.targetWattsEnd
-      : segment.pEndRel * ftp;
-
-  const nextStart =
-    next.targetWattsStart != null
-      ? next.targetWattsStart
-      : next.pStartRel * ftp;
-
-  if (!currEnd || currEnd <= 0) return;
-
-  const diffFrac = Math.abs(nextStart - currEnd) / currEnd;
-
-  if (diffFrac < 0.1) return;
-
-  const secsToEnd = segment.endTimeSec - currentT;
-  const secsToEndInt = Math.round(secsToEnd);
-
-  const nextTargetPct =
-    next.targetWattsStart != null ? next.targetWattsStart / ftp : next.pStartRel;
-
-  if (diffFrac >= 0.3 && nextTargetPct >= 1.2 && secsToEndInt === 9) {
-    Beeper.playDangerDanger();
-  }
-
-  if (secsToEndInt === 3) {
-    Beeper.playBeepPattern();
-  }
-}
-
-// --------------------------- Workout ticker ---------------------------
-
-function startWorkoutTicker() {
-  if (workoutTicker) return;
-  workoutTicker = setInterval(async () => {
-    const shouldAdvance = workoutRunning && !workoutPaused;
-
-    if (!workoutRunning && !workoutPaused) {
-      updateStatsDisplay();
-      drawChart();
-      return;
-    }
-
-    if (shouldAdvance) {
-      elapsedSec += 1;
-      const {segment, target} = getCurrentSegmentAtTime(elapsedSec);
-      intervalElapsedSec = segment ? segment.endTimeSec - elapsedSec : 0;
-
-      const currentTarget = target;
-
-      if (mode === "workout") {
-        const inGrace = elapsedSec < autoPauseDisabledUntilSec;
-
-        if (!lastSamplePower || lastSamplePower <= 0) {
-          if (!inGrace) {
-            zeroPowerSeconds++;
-          } else {
-            zeroPowerSeconds = 0;
-          }
-          if (
-            !workoutPaused &&
-            !inGrace &&
-            zeroPowerSeconds >= AUTO_PAUSE_POWER_ZERO_SEC
-          ) {
-            logDebug("Auto-pause: power at 0 for AUTO_PAUSE_POWER_ZERO_SEC.");
-            setWorkoutPaused(true);
-          }
-        } else {
-          zeroPowerSeconds = 0;
-        }
-      }
-
-      await sendTrainerState(false);
-
-      const t = elapsedSec;
-      liveSamples.push({
-        t,
-        power: lastSamplePower,
-        hr: lastSampleHr,
-        cadence: lastSampleCadence,
-        targetPower: currentTarget || null,
-      });
-
-      if (mode === "workout" && workoutRunning && !workoutPaused) {
-        handleIntervalBeep(elapsedSec);
-      }
-
-      scheduleSaveActiveState();
-    }
-
-    if (mode === "workout" && workoutRunning && workoutPaused) {
-      const currentTarget = getCurrentTargetPower();
-      if (currentTarget && lastSamplePower) {
-        if (lastSamplePower >= 0.9 * currentTarget) {
-          logDebug("Auto-resume: power high vs target (>=90%).");
-          autoPauseDisabledUntilSec = elapsedSec + AUTO_PAUSE_GRACE_SEC;
-          Beeper.showResumedOverlay();
-          setWorkoutPaused(false);
-        }
-      }
-    }
-
-    updateStatsDisplay();
-    drawChart();
-  }, 1000);
-}
-
-function stopWorkoutTicker() {
-  if (workoutTicker) {
-    clearInterval(workoutTicker);
-    workoutTicker = null;
-  }
-}
-
-// --------------------------- Workout save ---------------------------
-
-async function ensureWorkoutDir() {
-  if (!("showDirectoryPicker" in window)) {
-    alert("Saving workouts requires a recent Chromium-based browser.");
-    return null;
-  }
-
-  if (!workoutDirHandle) {
-    workoutDirHandle = await loadWorkoutDirHandle();
-  }
-
-  if (!workoutDirHandle) {
-    logDebug("Prompting for workout directory…");
-
-    showWorkoutSaveDirPreselectMessage();
-
-    const handle = await window.showDirectoryPicker();
-    const ok = await ensureDirPermission(handle);
-    if (!ok) {
-      alert("Permission was not granted to the selected folder.");
-      return null;
-    }
-    workoutDirHandle = handle;
-    await saveWorkoutDirHandle(handle);
-  } else {
-    const ok = await ensureDirPermission(workoutDirHandle);
-    if (!ok) {
-      showWorkoutSaveDirPreselectMessage();
-      const handle = await window.showDirectoryPicker();
-      const ok2 = await ensureDirPermission(handle);
-      if (!ok2) {
-        alert("Permission was not granted to the selected folder.");
-        return null;
-      }
-      workoutDirHandle = handle;
-      await saveWorkoutDirHandle(handle);
-    }
-  }
-
-  return workoutDirHandle;
-}
-
-async function saveWorkoutFile() {
-  if (!workoutMeta || !liveSamples.length) return;
-
-  const dir = await ensureWorkoutDir();
-  if (!dir) return;
-
-  const now = new Date();
-  const nameSafe =
-    workoutMeta.name?.replace(/[<>:"/\\|?*]+/g, "_").slice(0, 60) || "workout";
-  const timestamp = now
-    .toISOString()
-    .replace(/[:]/g, "-")
-    .replace(/\.\d+Z$/, "Z");
-  const fileName = `${timestamp} - ${nameSafe}.json`;
-
-  const fileHandle = await dir.getFileHandle(fileName, {create: true});
-  const writable = await fileHandle.createWritable();
-
-  const payload = {
-    meta: {
-      workoutName: workoutMeta.name,
-      fileName: workoutMeta.fileName,
-      ftpUsed: currentFtp,
-      startedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
-      endedAt: now.toISOString(),
-      totalElapsedSec: elapsedSec,
-      modeHistory: "workout",
-    },
-    samples: liveSamples,
-  };
-
-  const text = JSON.stringify(payload, null, 2);
-  await writable.write(text);
-  await writable.close();
-
-  logDebug(`Workout saved to ${fileName}`);
-}
-
-// --------------------------- Active state persistence ---------------------------
-
-function scheduleSaveActiveState() {
-  if (saveStateTimer) return;
-  saveStateTimer = setTimeout(() => {
-    saveStateTimer = null;
-    persistActiveState();
-  }, 500);
-}
-
-function persistActiveState() {
-  const state = {
-    workoutMeta,
-    currentFtp,
-    mode,
-    manualErgTarget,
-    manualResistance,
-    workoutRunning,
-    workoutPaused,
-    elapsedSec,
-    currentIntervalIndex,
-    liveSamples,
-    zeroPowerSeconds,
-    autoPauseDisabledUntilSec,
-    workoutStartedAt: workoutStartedAt
-      ? workoutStartedAt.toISOString()
-      : null,
-  };
-
-  saveActiveState(state);
-}
-
-// --------------------------- FTP clickable / dialog ---------------------------
-
-async function handleFtpClick() {
-  if (!ftpInline) return;
-
-  const current = currentFtp || DEFAULT_FTP;
-  const input = window.prompt("Set FTP (50–500 W):", String(current));
-  if (input == null) return;
-
-  const newFtp = clampFtp(input);
-  if (!Number.isFinite(newFtp) || newFtp <= 0) return;
-  if (newFtp === currentFtp) return;
-
-  currentFtp = newFtp;
-  ftpWorkoutValueEl.textContent = currentFtp;
-
-  buildScaledSegments();
-  drawChart();
-  updateStatsDisplay();
-  scheduleSaveActiveState();
-
-  saveFtp(currentFtp);
-
-  if (picker) {
-    picker.syncFtpChanged();
-  }
-
-  if (isBikeConnected) {
-    sendTrainerState(true).catch((err) =>
-      logDebug("Trainer state send after FTP change failed: " + err)
-    );
-  }
-}
-
 // --------------------------- Playback buttons ---------------------------
 
-function updatePlaybackButtons() {
+function updatePlaybackButtons(vm) {
   const existingPlay = document.getElementById("playBtn");
   const existingPause = document.getElementById("pauseBtn");
   const existingStop = document.getElementById("stopBtn");
@@ -925,6 +519,8 @@ function updatePlaybackButtons() {
   if (existingPlay) existingPlay.remove();
   if (existingPause) existingPause.remove();
   if (existingStop) existingStop.remove();
+
+  if (!startBtn || !workoutControls) return;
 
   function createPlayButton() {
     const btn = document.createElement("button");
@@ -936,7 +532,7 @@ function updatePlaybackButtons() {
         <path d="M9 7v10l8-5z" />
       </svg>`;
     btn.addEventListener("click", () => {
-      startWorkout();
+      engine && engine.startWorkout();
     });
     return btn;
   }
@@ -951,9 +547,9 @@ function updatePlaybackButtons() {
         <path d="M9 7v10M15 7v10" />
       </svg>`;
     btn.addEventListener("click", () => {
-      if (workoutRunning && !workoutPaused) {
-        setWorkoutPaused(true);
-      }
+      // Pause/resume is handled inside engine.startWorkout toggle;
+      // we just treat pause button as "toggle"
+      engine && engine.startWorkout();
     });
     return btn;
   }
@@ -970,13 +566,14 @@ function updatePlaybackButtons() {
     btn.addEventListener("click", async () => {
       const sure = confirm("End current workout and save it?");
       if (!sure) return;
-      await endWorkout();
+      engine && engine.endWorkout();
     });
     return btn;
   }
 
-  if (!workoutRunning) {
-    if (mode === "workout" && workoutMeta) {
+  if (!vm.workoutRunning) {
+    // No active workout
+    if (vm.mode === "workout" && vm.workoutMeta) {
       startBtn.style.display = "";
     } else {
       startBtn.style.display = "none";
@@ -986,8 +583,8 @@ function updatePlaybackButtons() {
 
   startBtn.style.display = "none";
 
-  if (mode === "workout") {
-    if (workoutPaused) {
+  if (vm.mode === "workout") {
+    if (vm.workoutPaused) {
       const play = createPlayButton();
       const stop = createStopButton();
       workoutControls.prepend(stop);
@@ -1004,210 +601,111 @@ function updatePlaybackButtons() {
   }
 }
 
-function setWorkoutRunning(running) {
-  workoutRunning = running;
-  workoutPaused = !running;
-  if (running && !workoutTicker) {
-    startWorkoutTicker();
-  }
-  updatePlaybackButtons();
-}
+// --------------------------- Mode UI ---------------------------
 
-function setWorkoutPaused(paused) {
-  workoutPaused = paused;
-  if (paused) {
-    Beeper.showPausedOverlay();
-  }
-  updatePlaybackButtons();
-}
-
-// --------------------------- Start / stop workout ---------------------------
-
-function startWorkout() {
-  if (!workoutMeta || !scaledSegments.length) {
-    alert("No workout selected. Choose a workout in the options page.");
-    return;
-  }
-
-  if (!workoutRunning && !workoutStarting) {
-    workoutStarting = true;
-    logDebug("Starting workout (countdown)...");
-    Beeper.runStartCountdown(async () => {
-      liveSamples = [];
-      elapsedSec = 0;
-      intervalElapsedSec = scaledSegments[0]?.durationSec || 0;
-      currentIntervalIndex = 0;
-      workoutStartedAt = new Date();
-      zeroPowerSeconds = 0;
-      autoPauseDisabledUntilSec = elapsedSec + AUTO_PAUSE_GRACE_SEC;
-
-      workoutStarting = false;
-      setWorkoutRunning(true);
-      setWorkoutPaused(false);
-      updateStatsDisplay();
-      drawChart();
-      await sendTrainerState(true);
-      scheduleSaveActiveState();
-    });
-    return;
-  }
-
-  if (workoutPaused) {
-    logDebug("Manual resume requested.");
-    autoPauseDisabledUntilSec = elapsedSec + AUTO_PAUSE_GRACE_SEC;
-    Beeper.showResumedOverlay();
-    setWorkoutPaused(false);
-  } else {
-    logDebug("Manual pause requested.");
-    Beeper.showPausedOverlay();
-    setWorkoutPaused(true);
-  }
-}
-
-async function endWorkout() {
-  logDebug("Ending workout, saving file if samples exist.");
-  stopWorkoutTicker();
-  if (liveSamples.length) {
-    try {
-      await saveWorkoutFile();
-    } catch (err) {
-      logDebug("Failed to save workout file: " + err);
-    }
-  }
-  workoutRunning = false;
-  workoutPaused = false;
-  workoutStarting = false;
-  elapsedSec = 0;
-  intervalElapsedSec = 0;
-  liveSamples = [];
-  zeroPowerSeconds = 0;
-  autoPauseDisabledUntilSec = 0;
-  stopWorkoutTicker();
-  clearActiveState();
-  updateStatsDisplay();
-  drawChart();
-  updatePlaybackButtons();
-}
-
-// --------------------------- Mode switching ---------------------------
-
-function applyModeUI() {
+function applyModeUI(vm) {
   modeButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === mode);
+    btn.classList.toggle("active", btn.dataset.mode === vm.mode);
   });
 
-  if (mode === "erg") {
+  if (!manualControls || !ftpInline || !workoutNameLabel) return;
+
+  if (vm.mode === "erg") {
     manualControls.style.display = "inline-flex";
-    manualValueEl.textContent = String(manualErgTarget);
+    manualValueEl.textContent = String(vm.manualErgTarget || 0);
     ftpInline.style.display = "inline-flex";
     workoutNameLabel.style.display = "flex";
-    if (workoutRunning) setWorkoutPaused(true);
-  } else if (mode === "resistance") {
+  } else if (vm.mode === "resistance") {
     manualControls.style.display = "inline-flex";
-    manualValueEl.textContent = String(manualResistance);
+    manualValueEl.textContent = String(vm.manualResistance || 0);
     ftpInline.style.display = "inline-flex";
     workoutNameLabel.style.display = "flex";
-    if (workoutRunning) setWorkoutPaused(true);
   } else {
     manualControls.style.display = "none";
     ftpInline.style.display = "inline-flex";
     workoutNameLabel.style.display = "flex";
   }
-
-  updatePlaybackButtons();
-
-  sendTrainerState(true).catch((err) =>
-    logDebug("Trainer state send on mode change failed: " + err)
-  );
 }
 
-// --------------------------- Init & restore ---------------------------
+// --------------------------- Render from engine state ---------------------------
+
+function renderFromEngine(vm) {
+  // Workout title & FTP
+  if (workoutNameLabel) {
+    if (vm.workoutMeta) {
+      const name = vm.workoutMeta.name || "Selected workout";
+      workoutNameLabel.textContent = name;
+      workoutNameLabel.title = name;
+    } else {
+      workoutNameLabel.textContent = "No workout selected";
+      workoutNameLabel.title = "";
+    }
+  }
+
+  if (ftpWorkoutValueEl) {
+    ftpWorkoutValueEl.textContent = vm.currentFtp || DEFAULT_FTP;
+  }
+
+  applyModeUI(vm);
+  updateStatsDisplay(vm);
+  updatePlaybackButtons(vm);
+  drawChart(vm);
+}
+
+// --------------------------- FTP click handler ---------------------------
+
+async function handleFtpClick() {
+  if (!engine) return;
+  const vm = engine.getViewModel();
+  const current = vm.currentFtp || DEFAULT_FTP;
+  const input = window.prompt("Set FTP (50–500 W):", String(current));
+  if (input == null) return;
+
+  const n = Number(input);
+  if (!Number.isFinite(n)) return;
+  const clamped = Math.min(500, Math.max(50, Math.round(n)));
+  if (clamped === vm.currentFtp) return;
+
+  engine.setFtp(clamped);
+  saveFtp(clamped);
+}
+
+// --------------------------- Theme re-render ---------------------------
 
 function rerenderThemeSensitive() {
-  updateStatsDisplay();
-  drawChart();
+  if (!engine) return;
+  const vm = engine.getViewModel();
+  renderFromEngine(vm);
 }
+
+// --------------------------- Init ---------------------------
 
 async function initPage() {
   logDebug("Workout page init…");
 
+  engine = getWorkoutEngine();
+
+  // Initialize engine first so it has state before we wire UI events that call it.
+  await engine.init({
+    onStateChanged: (vm) => renderFromEngine(vm),
+    onLog: logDebug,
+    onWorkoutEnded: () => {
+      // nothing special for now; HUD re-renders via onStateChanged
+    },
+  });
+
+  // BLE, sound, theme
   initBleIntegration();
-  initSoundPreference();
+  await initSoundPreference();
+  updateHrBatteryLabel();
 
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
       rerenderThemeSensitive();
-      if (picker) {
-        picker.syncFtpChanged();
-      }
     };
     if (mql.addEventListener) mql.addEventListener("change", handler);
   }
-
-  try {
-    workoutDirHandle = await loadWorkoutDirHandle();
-  } catch (err) {
-    logDebug("Failed to load workout dir handle: " + err);
-  }
-
-  const selectedWorkout = await loadSelectedWorkout();
-  if (!selectedWorkout) {
-    workoutNameLabel.textContent = "No workout selected";
-    workoutNameLabel.title = "";
-    currentFtp = DEFAULT_FTP;
-  } else {
-    workoutMeta = selectedWorkout;
-    const name = workoutMeta.name || "Selected workout";
-    workoutNameLabel.textContent = name;
-    workoutNameLabel.title = name;
-    currentFtp = workoutMeta.ftpAtSelection || DEFAULT_FTP;
-  }
-
-  ftpWorkoutValueEl.textContent = currentFtp;
-
-  buildScaledSegments();
-  updateChartDimensions();
-  drawChart();
-  updateStatsDisplay();
-  adjustStatFontSizes();
-
-  const activeState = await loadActiveState();
-  if (activeState && activeState.workoutMeta && activeState.liveSamples) {
-    logDebug("Restoring previous active workout state.");
-    workoutMeta = activeState.workoutMeta;
-    const name = workoutMeta.name || "Selected workout";
-    workoutNameLabel.textContent = name;
-    workoutNameLabel.title = name;
-
-    currentFtp = activeState.currentFtp || currentFtp;
-    mode = activeState.mode || "workout";
-    manualErgTarget = activeState.manualErgTarget || manualErgTarget;
-    manualResistance = activeState.manualResistance || manualResistance;
-    workoutRunning = !!activeState.workoutRunning;
-    workoutPaused = true;
-    elapsedSec = activeState.elapsedSec || 0;
-    currentIntervalIndex = activeState.currentIntervalIndex || 0;
-    liveSamples = activeState.liveSamples || [];
-    zeroPowerSeconds = activeState.zeroPowerSeconds || 0;
-    autoPauseDisabledUntilSec =
-      activeState.autoPauseDisabledUntilSec || 0;
-    workoutStartedAt = activeState.workoutStartedAt
-      ? new Date(activeState.workoutStartedAt)
-      : null;
-
-    ftpWorkoutValueEl.textContent = currentFtp;
-
-    buildScaledSegments();
-    updateChartDimensions();
-    drawChart();
-    updateStatsDisplay();
-  }
-
-  modeButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === mode);
-  });
-  applyModeUI();
 
   // Picker singleton
   picker = getWorkoutPicker({
@@ -1219,136 +717,133 @@ async function initPage() {
     durationFilter: pickerDurationFilter,
     summaryEl: pickerSummaryEl,
     tbody: pickerWorkoutTbody,
-    getCurrentFtp: () => currentFtp,
+    getCurrentFtp: () => engine.getViewModel().currentFtp,
     onWorkoutSelected: (payload) => {
-      workoutMeta = payload;
-      const name = workoutMeta.name || "Selected workout";
-      workoutNameLabel.textContent = name;
-      workoutNameLabel.title = name;
-
-      currentFtp = workoutMeta.ftpAtSelection || currentFtp || DEFAULT_FTP;
-      ftpWorkoutValueEl.textContent = currentFtp;
-
-      buildScaledSegments();
-      elapsedSec = 0;
-      intervalElapsedSec = scaledSegments[0]?.durationSec || 0;
-      liveSamples = [];
-      zeroPowerSeconds = 0;
-      autoPauseDisabledUntilSec = 0;
-      updateStatsDisplay();
-      updatePlaybackButtons();
-      drawChart();
-      clearActiveState();
+      engine.setWorkoutFromPicker(payload);
     },
     logDebug,
   });
 
+  // Workout name: click -> picker (guard if workout running)
   if (workoutNameLabel) {
     workoutNameLabel.dataset.clickable = "true";
     workoutNameLabel.title = "Click to choose a workout.";
     workoutNameLabel.addEventListener("click", () => {
-      if (workoutRunning) {
+      const vm = engine.getViewModel();
+      if (vm.workoutRunning) {
         alert("End the current workout before changing the workout selection.");
         return;
       }
-
       picker
         .open()
-        .catch?.((err) => {
-          logDebug("Workout picker open error: " + err);
-        });
+        .catch((err) => logDebug("Workout picker open error: " + err));
     });
   }
 
+  // FTP click
   if (ftpInline) {
     ftpInline.addEventListener("click", handleFtpClick);
   }
 
-  bikeConnectBtn.addEventListener("click", async () => {
-    if (!navigator.bluetooth) {
-      alert("Bluetooth not available in this browser.");
-      return;
-    }
+  // Connect buttons
+  if (bikeConnectBtn) {
+    bikeConnectBtn.addEventListener("click", async () => {
+      if (!navigator.bluetooth) {
+        alert("Bluetooth not available in this browser.");
+        return;
+      }
+      try {
+        await BleManager.connectBikeViaPicker();
+        // engine will push desired state on next relevant change
+      } catch (err) {
+        logDebug("BLE connect canceled or failed (bike): " + err);
+        setBikeStatus("error");
+      }
+    });
+  }
 
-    try {
-      await BleManager.connectBikeViaPicker();
-      await sendTrainerState(true);
-    } catch (err) {
-      logDebug("BLE connect canceled or failed (bike): " + err);
-      setBikeStatus("error");
-    }
-  });
+  if (hrConnectBtn) {
+    hrConnectBtn.addEventListener("click", async () => {
+      if (!navigator.bluetooth) {
+        alert("Bluetooth not available in this browser.");
+        return;
+      }
+      try {
+        await BleManager.connectHrViaPicker();
+      } catch (err) {
+        logDebug("BLE connect canceled or failed (HRM): " + err);
+        setHrStatus("error");
+      }
+    });
+  }
 
-  hrConnectBtn.addEventListener("click", async () => {
-    if (!navigator.bluetooth) {
-      alert("Bluetooth not available in this browser.");
-      return;
-    }
+  // Logs overlay
+  if (logsBtn && debugOverlay && debugLog && debugCloseBtn) {
+    logsBtn.addEventListener("click", () => {
+      debugOverlay.style.display = "flex";
+      debugLog.textContent = logLines.join("\n");
+      debugLog.scrollTop = debugLog.scrollHeight;
+    });
+    debugCloseBtn.addEventListener("click", () => {
+      debugOverlay.style.display = "none";
+    });
+  }
 
-    try {
-      await BleManager.connectHrViaPicker();
-    } catch (err) {
-      logDebug("BLE connect canceled or failed (HRM): " + err);
-      setHrStatus("error");
-    }
-  });
+  // Sound toggle
+  if (soundBtn) {
+    soundBtn.addEventListener("click", () => {
+      soundEnabled = !soundEnabled;
+      updateSoundIcon();
+      saveSoundPreference(soundEnabled);
+    });
+  }
 
-  logsBtn.addEventListener("click", () => {
-    debugOverlay.style.display = "flex";
-    debugLog.textContent = logLines.join("\n");
-    debugLog.scrollTop = debugLog.scrollHeight;
-  });
-  debugCloseBtn.addEventListener("click", () => {
-    debugOverlay.style.display = "none";
-  });
-
-  soundBtn.addEventListener("click", () => {
-    soundEnabled = !soundEnabled;
-    updateSoundIcon();
-    saveSoundPreference(soundEnabled);
-  });
-
+  // Mode toggle
   if (modeToggle) {
     modeToggle.addEventListener("click", (e) => {
       const btn = e.target.closest(".mode-toggle-button");
       if (!btn) return;
       const newMode = btn.dataset.mode;
-      if (!newMode || newMode === mode) return;
-      logDebug(`Mode changed: ${mode} -> ${newMode}`);
-      mode = newMode;
-      applyModeUI();
-      scheduleSaveActiveState();
+      if (!newMode) return;
+      const vm = engine.getViewModel();
+      if (newMode === vm.mode) return;
+      logDebug(`Mode changed: ${vm.mode} -> ${newMode}`);
+      engine.setMode(newMode);
     });
   }
 
-  manualControls.addEventListener("click", (ev) => {
-    const btn = ev.target.closest(".control-btn");
-    if (!btn) return;
-    const delta = Number(btn.dataset.delta) || 0;
-    if (mode === "erg") {
-      manualErgTarget = Math.max(50, Math.min(1500, manualErgTarget + delta));
-      manualValueEl.textContent = String(manualErgTarget);
-    } else if (mode === "resistance") {
-      manualResistance = Math.max(0, Math.min(100, manualResistance + delta));
-      manualValueEl.textContent = String(manualResistance);
-    }
-    sendTrainerState(true).catch((err) =>
-      logDebug("Trainer state send on manual adjust failed: " + err)
-    );
-    scheduleSaveActiveState();
-  });
+  // Manual +/- controls
+  if (manualControls) {
+    manualControls.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".control-btn");
+      if (!btn) return;
+      const delta = Number(btn.dataset.delta) || 0;
+      const vm = engine.getViewModel();
+      if (vm.mode === "erg") {
+        engine.adjustManualErg(delta);
+      } else if (vm.mode === "resistance") {
+        engine.adjustManualResistance(delta);
+      }
+    });
+  }
 
-  startBtn.addEventListener("click", () => {
-    startWorkout();
-  });
+  // Start button
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      engine.startWorkout();
+    });
+  }
 
+  // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
+    const tag = e.target && e.target.tagName;
+    const vm = engine.getViewModel();
+
     if (e.code === "Space") {
-      const tag = e.target && e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (mode !== "workout") return;
+      if (vm.mode !== "workout") return;
       e.preventDefault();
-      startWorkout();
+      engine.startWorkout();
       return;
     }
 
@@ -1362,21 +857,17 @@ async function initPage() {
     }
   });
 
-  if (workoutRunning) {
-    startWorkoutTicker();
-    setWorkoutPaused(true);
-  }
+  // Initial layout & chart
+  adjustStatFontSizes();
+  const vm = engine.getViewModel();
+  renderFromEngine(vm);
 
-  updatePlaybackButtons();
-
+  // Resize handler
   window.addEventListener("resize", () => {
     adjustStatFontSizes();
-    updateChartDimensions();
-    drawChart();
+    const currentVm = engine.getViewModel();
+    drawChart(currentVm);
   });
-
-  adjustStatFontSizes();
-  drawChart();
 
   logDebug("Workout page ready.");
 }

@@ -3,6 +3,49 @@
 
 export const DEFAULT_FTP = 250;
 
+// --------------------------- Segment scaling ---------------------------
+
+/**
+ * Take normalized workout segments (with durationSec, pStartRel, pEndRel)
+ * and scale them into absolute watt targets & timeline.
+ *
+ * Returns:
+ *   { scaledSegments, totalSec }
+ */
+export function computeScaledSegments(segments, ftp) {
+  if (!Array.isArray(segments) || !segments.length) {
+    return {scaledSegments: [], totalSec: 0};
+  }
+
+  let t = 0;
+  const scaled = segments.map((seg) => {
+    const dur = Math.max(1, Math.round(seg.durationSec || 0));
+    const pStartRel = seg.pStartRel || 0;
+    const pEndRel = seg.pEndRel != null ? seg.pEndRel : pStartRel;
+
+    const targetWattsStart = Math.round(ftp * pStartRel);
+    const targetWattsEnd = Math.round(ftp * pEndRel);
+
+    const s = {
+      durationSec: dur,
+      startTimeSec: t,
+      endTimeSec: t + dur,
+      targetWattsStart,
+      targetWattsEnd,
+      pStartRel,
+      pEndRel,
+    };
+
+    t += dur;
+    return s;
+  });
+
+  return {
+    scaledSegments: scaled,
+    totalSec: t,
+  };
+}
+
 // --------------------------- Metrics from segments ---------------------------
 
 /**
