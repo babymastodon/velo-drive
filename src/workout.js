@@ -3,8 +3,9 @@
 // All business logic & state is owned by workout-engine.js.
 // This file:
 //   - wires DOM events to the engine
-//   - renders HUD stats, chart, logs
-//   - manages picker + sound UI
+//   - renders HUD stats, chart
+//   - manages picker UI
+//   - forwards logs to settings.js for display
 
 import {BleManager} from "./ble-manager.js";
 import {getWorkoutEngine} from "./workout-engine.js";
@@ -18,7 +19,8 @@ import {
 } from "./workout-chart.js";
 
 import {DEFAULT_FTP} from "./workout-metrics.js";
-import {loadSoundPreference, saveSoundPreference, saveFtp} from "./storage.js";
+import {saveFtp} from "./storage.js";
+import {initSettings, addLogLineToSettings} from "./settings.js";
 
 // --------------------------- DOM refs ---------------------------
 
@@ -38,9 +40,6 @@ const bikeStatusDot = document.getElementById("bikeStatusDot");
 const hrConnectBtn = document.getElementById("hrConnectBtn");
 const hrStatusDot = document.getElementById("hrStatusDot");
 const hrBatteryLabel = document.getElementById("hrBatteryLabel");
-const logsBtn = document.getElementById("logsBtn");
-const soundBtn = document.getElementById("soundBtn");
-const soundIcon = document.getElementById("soundIcon");
 
 const modeToggle = document.getElementById("modeToggle");
 const modeButtons = modeToggle
@@ -56,23 +55,9 @@ const ftpInline = document.getElementById("ftpInline");
 const ftpWorkoutValueEl = document.getElementById("ftpWorkoutValue");
 const workoutNameLabel = document.getElementById("workoutNameLabel");
 
-const debugOverlay = document.getElementById("debugOverlay");
-const debugCloseBtn = document.getElementById("debugCloseBtn");
-const debugLog = document.getElementById("debugLog");
-
-const pickerOverlay = document.getElementById("workoutPickerOverlay");
-const pickerModal = document.getElementById("workoutPickerModal");
-const pickerCloseBtn = document.getElementById("workoutPickerCloseBtn");
-const pickerSearchInput = document.getElementById("pickerSearchInput");
-const pickerCategoryFilter = document.getElementById("pickerCategoryFilter");
-const pickerDurationFilter = document.getElementById("pickerDurationFilter");
-const pickerSummaryEl = document.getElementById("pickerSummary");
-const pickerWorkoutTbody = document.getElementById("pickerWorkoutTbody");
-
 // --------------------------- UI-local state ---------------------------
 
 let hrBatteryPercent = null;
-let soundEnabled = true;
 
 const logLines = [];
 let chartWidth = 1000;
@@ -93,14 +78,12 @@ function logDebug(msg) {
   }
   console.log("[Workout]", msg);
 
-  if (debugLog) {
-    const isAtBottom =
-      debugLog.scrollTop + debugLog.clientHeight >=
-      debugLog.scrollHeight - 4;
-    debugLog.textContent = logLines.join("\n");
-    if (isAtBottom) {
-      debugLog.scrollTop = debugLog.scrollHeight;
-    }
+  // Forward to settings modal log view (selection-safe appends happen there)
+  try {
+    addLogLineToSettings(line);
+  } catch (err) {
+    // If settings.js isn't ready yet, just ignore; logs are still in console.
+    console.error("[Workout] Failed to forward log to settings:", err);
   }
 }
 
@@ -206,29 +189,6 @@ function initBleIntegration() {
   BleManager.on("log", logDebug);
 }
 
-// --------------------------- Sound preference ---------------------------
-
-async function initSoundPreference() {
-  soundEnabled = await loadSoundPreference(true);
-  updateSoundIcon();
-}
-
-function updateSoundIcon() {
-  if (!soundBtn || !soundIcon) return;
-  if (soundEnabled) {
-    soundBtn.classList.add("active");
-    soundIcon.innerHTML = `
-      <path d="M5 10v4h3l4 4V6l-4 4H5z" />
-      <path d="M15 9.5c1 .7 1.6 1.9 1.6 3.1 0 1.2-.6 2.4-1.6 3.1M17.5 7c1.6 1.2 2.5 3.1 2.5 5.1" />
-    `;
-  } else {
-    soundBtn.classList.remove("active");
-    soundIcon.innerHTML = `
-      <path d="M5 10v4h3l4 4V6l-4 4H5z" />
-    `;
-  }
-}
-
 // --------------------------- Zone color & stats rendering ---------------------------
 
 function getCurrentZoneColor(vm) {
@@ -317,13 +277,17 @@ function updateStatsDisplay(vm) {
     vm.lastSampleHr != null ? String(Math.round(vm.lastSampleHr)) : "--";
 
   statCadenceEl.textContent =
-    vm.lastSampleCadence != null ? String(Math.round(vm.lastSampleCadence)) : "--";
+    vm.lastSampleCadence != null
+      ? String(Math.round(vm.lastSampleCadence))
+      : "--";
 
   if (statElapsedTimeEl) {
     statElapsedTimeEl.textContent = formatTimeHHMMSS(vm.elapsedSec || 0);
   }
   if (statIntervalTimeEl) {
-    statIntervalTimeEl.textContent = formatTimeMMSS(vm.intervalElapsedSec || 0);
+    statIntervalTimeEl.textContent = formatTimeMMSS(
+      vm.intervalElapsedSec || 0
+    );
   }
 
   let color = getCurrentZoneColor(vm);
@@ -472,6 +436,17 @@ function applyModeUI(vm) {
   }
 }
 
+// --------------------------- Status overlay (countdown / paused / resumed) ---------------------------
+//
+// Engine is responsible for actually showing/hiding the overlay via Beeper,
+// but this helper is here if we ever want to tweak styles from UI.
+// Leaving placeholder wiring in case engine emits events later.
+function updateStatusOverlay(_vm) {
+  // Currently driven from Beeper; no-op from UI side for now.
+  // Kept for future: could react to vm.workoutPaused / starting countdown, etc.
+  void _vm;
+}
+
 // --------------------------- Render from engine state ---------------------------
 
 function renderFromEngine(vm) {
@@ -495,6 +470,7 @@ function renderFromEngine(vm) {
   updateStatsDisplay(vm);
   updatePlaybackButtons(vm);
   drawChart(vm);
+  updateStatusOverlay(vm);
 }
 
 // --------------------------- FTP click handler ---------------------------
@@ -512,7 +488,11 @@ async function handleFtpClick() {
   if (clamped === vm.currentFtp) return;
 
   engine.setFtp(clamped);
-  saveFtp(clamped);
+  try {
+    saveFtp(clamped);
+  } catch (err) {
+    console.error("[Workout] Failed to persist FTP:", err);
+  }
 }
 
 // --------------------------- Theme re-render ---------------------------
@@ -539,10 +519,12 @@ async function initPage() {
     },
   });
 
-  // BLE, sound, theme
+  // BLE
   initBleIntegration();
-  await initSoundPreference();
   updateHrBatteryLabel();
+
+  // Settings modal (handles startup checks, dirs, sound, env, logs view)
+  await initSettings();
 
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -554,14 +536,14 @@ async function initPage() {
 
   // Picker singleton
   picker = getWorkoutPicker({
-    overlay: pickerOverlay,
-    modal: pickerModal,
-    closeBtn: pickerCloseBtn,
-    searchInput: pickerSearchInput,
-    categoryFilter: pickerCategoryFilter,
-    durationFilter: pickerDurationFilter,
-    summaryEl: pickerSummaryEl,
-    tbody: pickerWorkoutTbody,
+    overlay: document.getElementById("workoutPickerOverlay"),
+    modal: document.getElementById("workoutPickerModal"),
+    closeBtn: document.getElementById("workoutPickerCloseBtn"),
+    searchInput: document.getElementById("pickerSearchInput"),
+    categoryFilter: document.getElementById("pickerCategoryFilter"),
+    durationFilter: document.getElementById("pickerDurationFilter"),
+    summaryEl: document.getElementById("pickerSummary"),
+    tbody: document.getElementById("pickerWorkoutTbody"),
     getCurrentFtp: () => engine.getViewModel().currentFtp,
     onWorkoutSelected: (payload) => {
       engine.setWorkoutFromPicker(payload);
@@ -622,27 +604,6 @@ async function initPage() {
     });
   }
 
-  // Logs overlay
-  if (logsBtn && debugOverlay && debugLog && debugCloseBtn) {
-    logsBtn.addEventListener("click", () => {
-      debugOverlay.style.display = "flex";
-      debugLog.textContent = logLines.join("\n");
-      debugLog.scrollTop = debugLog.scrollHeight;
-    });
-    debugCloseBtn.addEventListener("click", () => {
-      debugOverlay.style.display = "none";
-    });
-  }
-
-  // Sound toggle
-  if (soundBtn) {
-    soundBtn.addEventListener("click", () => {
-      soundEnabled = !soundEnabled;
-      updateSoundIcon();
-      saveSoundPreference(soundEnabled);
-    });
-  }
-
   // Mode toggle
   if (modeToggle) {
     modeToggle.addEventListener("click", (e) => {
@@ -696,9 +657,7 @@ async function initPage() {
       if (picker) {
         picker.close();
       }
-      if (debugOverlay && debugOverlay.style.display !== "none") {
-        debugOverlay.style.display = "none";
-      }
+      // Settings ESC handling is in settings.js
     }
   });
 

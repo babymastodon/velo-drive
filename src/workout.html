@@ -67,7 +67,6 @@
         --zone-vo2: #ff8a58;
         --zone-anaerobic: #ff5959;
 
-
         --stat-number-color: #f5f5f5;
       }
     }
@@ -529,7 +528,9 @@
       }
     }
 
-    /* Debug overlay */
+    /* Debug overlay (no longer used, retained for reference)
+       (Could be removed once we're sure settings logs cover all needs)
+    */
 
     .debug-overlay {
       position: fixed;
@@ -693,7 +694,6 @@
       color: var(--text-main);
       min-width: 0;
     }
-
 
     .workout-picker-controls input[type="search"] {
       min-width: 220px;
@@ -879,28 +879,23 @@
     /* Footer link styling inside the workout picker popup */
     .picker-footer a {
       color: var(--text-muted);
-      /* soft, non-blue, theme-aware */
       text-decoration: underline;
     }
 
     .picker-footer a:hover {
       color: var(--text-main);
-      /* brighten slightly on hover */
       text-decoration: underline;
     }
 
-    /* Dark mode tweaks */
     @media (prefers-color-scheme: dark) {
       .picker-footer a {
         color: var(--text-muted);
-        /* muted gray, not neon blue */
       }
 
       .picker-footer a:hover {
         color: var(--text-main);
       }
     }
-
 
     .picker-close-btn {
       width: var(--nav-control-height);
@@ -944,15 +939,11 @@
       padding: 0 14px;
       font-size: 14px;
       cursor: pointer;
-
-      /* Stronger, warm muted red */
       background: #d87d73;
       color: #ffffff;
-
       display: inline-flex;
       align-items: center;
       justify-content: center;
-
       box-shadow: none;
       transition: background-color 0.14s ease,
         transform 0.06s ease;
@@ -960,7 +951,6 @@
 
     .select-workout-btn:hover {
       background: #ac554c;
-      /* mild contrast increase */
     }
 
     .select-workout-btn:active {
@@ -968,11 +958,9 @@
       background: #9f4d45;
     }
 
-    /* Dark mode — deeper, slightly richer */
     @media (prefers-color-scheme: dark) {
       .select-workout-btn {
         background: #bd4d45;
-        /* deeper tone */
         color: #ffffff;
       }
 
@@ -1012,7 +1000,6 @@
     #statusOverlay {
       opacity: 0;
       transition: opacity .3s ease;
-
       background: var(--bg-overlay);
       color: #444444;
       text-shadow: 0 0 20px rgba(244, 244, 244, 1);
@@ -1025,6 +1012,431 @@
         color: #999999;
         text-shadow: 0 0 20px rgba(34, 34, 34, 1);
         background: rgba(34, 34, 34, .8);
+      }
+    }
+
+    /* ---------------- Settings modal (reuses picker style patterns) ---------------- */
+
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 46;
+    }
+
+    .settings-modal {
+      width: min(1100px, 80vw);
+      height: min(900px, 80vh);
+      background: var(--surface-elevated);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px;
+      color: var(--text-main);
+      font-size: 14px;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .settings-header-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .settings-title {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .settings-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .settings-close-btn {
+      width: var(--nav-control-height);
+      height: var(--nav-control-height);
+      border-radius: var(--radius);
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      color: var(--text-main);
+      flex-shrink: 0;
+    }
+
+    .settings-close-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+    }
+
+    .settings-close-btn:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-close-btn:hover {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    .settings-attention-banner {
+      display: none;
+      margin-bottom: 8px;
+      padding: 6px 8px;
+      border-radius: var(--radius);
+      background: rgba(245, 166, 35, 0.12);
+      border: 1px solid rgba(245, 166, 35, 0.5);
+      color: #b26a00;
+      font-size: 13px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-attention-banner {
+        background: rgba(255, 183, 77, 0.1);
+        border-color: rgba(255, 183, 77, 0.5);
+        color: #ffb74d;
+      }
+    }
+
+    .settings-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .settings-main-view,
+    .settings-logs-view {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .settings-logs-view {
+      display: none;
+    }
+
+    .settings-section {
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .settings-section-title {
+      font-weight: 500;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .settings-row-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .settings-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--text-main);
+    }
+
+    .settings-icon svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+    }
+
+    .settings-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .settings-row-label {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .settings-row-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .settings-row-status {
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .settings-status-ok {
+      color: #1b8a3c;
+    }
+
+    .settings-status-missing {
+      color: #e53935;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-status-ok {
+        color: #6ad60b;
+      }
+
+      .settings-status-missing {
+        color: #ff7043;
+      }
+    }
+
+    .settings-button {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 4px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .settings-button:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-button:hover {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    .settings-input {
+      padding: 4px 6px;
+      font-size: 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-main);
+      min-width: 80px;
+    }
+
+    .settings-input:focus {
+      outline: none;
+      border-color: var(--border);
+      box-shadow: none;
+    }
+
+    .settings-inline-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .settings-error {
+      font-size: 12px;
+      color: #e53935;
+      margin-top: 2px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-error {
+        color: #ff7043;
+      }
+    }
+
+    /* Sound toggle: slider */
+
+    .settings-toggle-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      height: 20px;
+    }
+
+    .settings-toggle-switch input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .settings-toggle-slider {
+      width: 40px;
+      height: 20px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.12);
+      position: relative;
+      transition: background 0.15s ease;
+    }
+
+    .settings-toggle-slider::before {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s ease;
+    }
+
+    .settings-toggle-switch input:checked+.settings-toggle-slider {
+      background: #42a5f5;
+    }
+
+    .settings-toggle-switch input:checked+.settings-toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-toggle-slider {
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .settings-toggle-switch input:checked+.settings-toggle-slider {
+        background: #64b5f6;
+      }
+    }
+
+    /* Logs view */
+
+    .settings-logs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .settings-logs-title {
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .settings-logs-back {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 2px 8px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .settings-logs-back:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-logs-back:hover {
+        background: rgba(255, 255, 255, 0.10);
+      }
+    }
+
+    .settings-logs-body {
+      flex: 1;
+      min-height: 0;
+      margin-top: 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      background: rgba(0, 0, 0, 0.02);
+      padding: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-logs-body {
+        background: rgba(255, 255, 255, 0.02);
+      }
+    }
+
+    /* Help / user guide toggles */
+
+    .settings-help-toggle-btn {
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin-left: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .settings-help-content {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .settings-help-content[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .settings-modal {
+        width: 96vw;
+        height: 84vh;
+        padding: 8px;
+      }
+
+      .settings-row {
+        align-items: flex-start;
       }
     }
 
@@ -1098,17 +1510,11 @@
         </div>
       </button>
 
-      <!-- Logs -->
-      <button id="logsBtn" class="nav-icon-button" title="Show connection logs">
+      <!-- Settings (immediately right of HR) -->
+      <button id="settingsBtn" class="nav-icon-button" title="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 5h14M5 9h10M5 13h14M5 17h8" />
-        </svg>
-      </button>
-
-      <!-- Sound -->
-      <button id="soundBtn" class="nav-icon-button" title="Toggle interval sounds">
-        <svg id="soundIcon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 10v4h3l4 4V6l-4 4H5z" />
+          <path
+            d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.007 7.007 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.5 2h-4a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L3.1 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.65-.06.94 0 .32.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.25.42.49.42h4c.24 0 .44-.18.49-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" />
         </svg>
       </button>
     </div>
@@ -1224,13 +1630,274 @@
     </div>
   </div>
 
-  <!-- Debug overlay -->
-  <div id="debugOverlay" class="debug-overlay">
-    <div class="debug-header">
-      <div class="debug-header-title">Connection logs</div>
-      <button id="debugCloseBtn" class="debug-close-btn">Close</button>
+  <!-- Settings overlay -->
+  <div id="settingsOverlay" class="settings-overlay" aria-modal="true" role="dialog">
+    <div id="settingsModal" class="settings-modal" tabindex="-1">
+      <header class="settings-header">
+        <div class="settings-header-main">
+          <div class="settings-title">Settings</div>
+          <div class="settings-subtitle">Configure folders, FTP, sound, logs, and environment checks.</div>
+        </div>
+        <button id="settingsCloseBtn" class="settings-close-btn" title="Close settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <div id="settingsAttentionBanner" class="settings-attention-banner"></div>
+
+      <div class="settings-body">
+        <!-- Main settings view -->
+        <div id="settingsMainView" class="settings-main-view">
+          <!-- Folders -->
+          <section class="settings-section">
+            <div class="settings-section-title">
+              Workout &amp; history folders
+              <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsFoldersHelp">
+                What is this?
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h5l2 2h9v10H4z" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">History folder</div>
+                  <div class="settings-row-sub">
+                    Where completed workouts are saved as JSON files.
+                  </div>
+                  <div class="settings-row-status" id="historyDirStatus"></div>
+                </div>
+              </div>
+              <button id="historyDirButton" class="settings-button" type="button">
+                Choose…
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 5h6l2 2h8v12H4z" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">Workout library (.zwo)</div>
+                  <div class="settings-row-sub">
+                    Folder with your ZWO files used by the workout picker.
+                  </div>
+                  <div class="settings-row-status" id="zwoDirStatus"></div>
+                </div>
+              </div>
+              <button id="zwoDirButton" class="settings-button" type="button">
+                Choose…
+              </button>
+            </div>
+
+            <div id="settingsFoldersHelp" class="settings-help-content" hidden>
+              VeloDrive needs permission to read/write in two folders:
+              <ul>
+                <li><strong>History folder</strong> – each workout you complete is exported here as a JSON file with
+                  power, HR, cadence, and metadata.</li>
+                <li><strong>Workout library folder</strong> – this points to the folder where your <code>.zwo</code>
+                  workouts live. The workout picker scans this folder.</li>
+              </ul>
+              You can move or rename folders later, but you may need to re-select them so the browser permissions are
+              refreshed.
+            </div>
+          </section>
+
+          <!-- FTP & sound -->
+          <section class="settings-section">
+            <div class="settings-section-title">Workout behaviour</div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 18V6h3.5L12 8.5 14.5 6H18v12z" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">
+                    Functional Threshold Power (FTP)
+                    <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsFtpHelp">
+                      Learn more
+                    </button>
+                  </div>
+                  <div class="settings-row-sub">
+                    Used to scale workout intensity and metrics.
+                  </div>
+                  <div class="settings-inline-group">
+                    <input id="settingsFtpInput" class="settings-input" type="number" min="50" max="500" step="1"
+                      inputmode="numeric" />
+                    <span>W</span>
+                    <button id="settingsFtpSaveBtn" class="settings-button" type="button">
+                      Save
+                    </button>
+                  </div>
+                  <div id="settingsFtpError" class="settings-error"></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="settingsFtpHelp" class="settings-help-content" hidden>
+              FTP is your sustainable power for roughly a 1-hour effort. VeloDrive uses it to:
+              <ul>
+                <li>Convert relative workout segments (%FTP) into watts.</li>
+                <li>Estimate IF (intensity factor), TSS, and energy.</li>
+                <li>Colour-code zones in the workout chart and HUD.</li>
+              </ul>
+              If you’re unsure, start with a rough guess (e.g. last known FTP or outdoor 20–30 minute best power × 0.95)
+              and adjust over time.
+            </div>
+
+            <div class="settings-row" id="settingsSoundToggle">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 10v4h3l4 4V6l-4 4H5z" />
+                    <path d="M15 9.5c1 .7 1.6 1.9 1.6 3.1 0 1.2-.6 2.4-1.6 3.1" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">
+                    Interval sounds
+                    <button class="settings-help-toggle-btn" type="button"
+                      data-settings-help-toggle="settingsSoundHelp">
+                      What will I hear?
+                    </button>
+                  </div>
+                  <div class="settings-row-sub">
+                    Enable beeps and countdowns for segment changes and auto-pause/resume.
+                  </div>
+                </div>
+              </div>
+              <label class="settings-toggle-switch">
+                <input id="settingsSoundCheckbox" type="checkbox" />
+                <span class="settings-toggle-slider"></span>
+              </label>
+            </div>
+
+            <div id="settingsSoundHelp" class="settings-help-content" hidden>
+              When sounds are enabled:
+              <ul>
+                <li>Short beep pattern a few seconds before a big interval change.</li>
+                <li>More dramatic sound before very hard efforts.</li>
+                <li>Countdown &amp; overlay when starting a workout.</li>
+              </ul>
+              This helps you prepare for intensity changes without staring at the screen.
+            </div>
+          </section>
+
+          <!-- Environment / browser / BT -->
+          <section class="settings-section">
+            <div class="settings-section-title">
+              Environment checks
+              <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsEnvHelp">
+                Why is this important?
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 4h16v16H4z" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">Browser support</div>
+                  <div class="settings-row-sub">
+                    VeloDrive works best in recent Chromium-based browsers.
+                  </div>
+                  <div id="settingsBrowserStatusText" class="settings-row-status"></div>
+                </div>
+              </div>
+              <div id="settingsBrowserStatusCta" class="settings-row-sub" style="display:none; max-width:260px;">
+                If possible, switch to the latest
+                <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>
+                for the best Bluetooth support.
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 3h10v2H7zM7 19h10v2H7z" />
+                    <path d="M11 5h2v14h-2z" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">Web Bluetooth</div>
+                  <div class="settings-row-sub">
+                    Required to talk to your trainer and heart-rate monitor.
+                  </div>
+                  <div id="settingsBtStatusText" class="settings-row-status"></div>
+                </div>
+              </div>
+              <div id="settingsBtStatusCta" class="settings-row-sub" style="display:none; max-width:260px;">
+                In Chrome desktop, open a new tab and navigate to:
+                <ul style="margin:2px 0 0 16px; padding-left:0;">
+                  <li><code>chrome://flags/#enable-web-bluetooth</code></li>
+                  <li><code>chrome://flags/#enable-web-bluetooth-new-permissions-backend</code></li>
+                </ul>
+                Set them to <strong>Enabled</strong>, restart the browser, and then reload VeloDrive.
+              </div>
+            </div>
+
+            <div id="settingsEnvHelp" class="settings-help-content" hidden>
+              Web Bluetooth is what allows VeloDrive to connect directly to your trainer and heart-rate monitor from the
+              browser.
+              Some browsers or configurations don’t support it yet, which is why we recommend recent Chromium-based
+              browsers and,
+              if needed, enabling the Bluetooth flags in <code>chrome://flags</code>.
+            </div>
+          </section>
+
+          <!-- Logs entry point -->
+          <section class="settings-section">
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 5h14M5 9h10M5 13h14M5 17h8" />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">
+                    Connection logs
+                  </div>
+                  <div class="settings-row-sub">
+                    Useful for troubleshooting BLE connections; updates in real time.
+                  </div>
+                </div>
+              </div>
+              <button id="settingsOpenLogsBtn" class="settings-button" type="button">
+                View logs
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <!-- Logs view -->
+        <div id="settingsLogsView" class="settings-logs-view">
+          <div class="settings-logs-header">
+            <div class="settings-logs-title">Connection logs</div>
+            <button id="settingsBackFromLogsBtn" class="settings-logs-back" type="button">
+              ← Back to settings
+            </button>
+          </div>
+          <div id="settingsLogsContent" class="settings-logs-body"></div>
+        </div>
+      </div>
     </div>
-    <div id="debugLog" class="debug-log"></div>
   </div>
 
   <!-- Status overlay (3-2-1 / paused / resumed) -->

@@ -215,3 +215,25 @@ export function savePickerState(state) {
   chrome.storage.local.set({[STORAGE_PICKER_STATE]: state});
 }
 
+// --------------------------- Convenience helpers for settings / engine ---------------------------
+
+// Ensure we have a usable history/workout directory handle.
+// Returns the handle if present & permission is granted, otherwise null.
+export async function ensureWorkoutDir() {
+  const handle = await loadWorkoutDirHandle();
+  if (!handle) return null;
+  const ok = await ensureDirPermission(handle);
+  if (!ok) return null;
+  return handle;
+}
+
+// Ensure we have a usable ZWO library directory handle.
+// Returns the handle if present & permission is granted, otherwise null.
+export async function ensureZwoDirectoryHandle() {
+  const handle = await loadZwoDirHandle();
+  if (!handle) return null;
+  const ok = await ensureDirPermission(handle);
+  if (!ok) return null;
+  return handle;
+}
+
