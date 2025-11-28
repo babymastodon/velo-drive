@@ -2742,9 +2742,6 @@ function persistActiveState() {
     elapsedSec,
     currentIntervalIndex,
     liveSamples,
-    lastSamplePower,
-    lastSampleHr,
-    lastSampleCadence,
     zeroPowerSeconds,
     autoPauseDisabledUntilSec,
     workoutStartedAt: workoutStartedAt
@@ -3995,9 +3992,6 @@ async function initPage() {
     elapsedSec = activeState.elapsedSec || 0;
     currentIntervalIndex = activeState.currentIntervalIndex || 0;
     liveSamples = activeState.liveSamples || [];
-    lastSamplePower = activeState.lastSamplePower ?? lastSamplePower;
-    lastSampleHr = activeState.lastSampleHr ?? lastSampleHr;
-    lastSampleCadence = activeState.lastSampleCadence ?? lastSampleCadence;
     zeroPowerSeconds = activeState.zeroPowerSeconds || 0;
     autoPauseDisabledUntilSec =
       activeState.autoPauseDisabledUntilSec || 0;
