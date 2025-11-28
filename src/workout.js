@@ -1489,6 +1489,9 @@ const BleManager = (() => {
   const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
   const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 
+  const MIN_RECONNECT_DELAY_MS = 1000;  // 1s
+  const MAX_RECONNECT_DELAY_MS = 10000; // cap at 10s
+
   // Simple event system
   const listeners = {
     log: new Set(),
@@ -1521,7 +1524,10 @@ const BleManager = (() => {
     emit("log", msg);
   }
 
+  // ---------------------------------------------------------------------------
   // Internal device state
+  // ---------------------------------------------------------------------------
+
   const bikeState = {
     device: null,
     server: null,
@@ -1529,7 +1535,6 @@ const BleManager = (() => {
     indoorBikeDataChar: null,
     controlPointChar: null,
     _disconnectHandler: null,
-    connectPromise: null,
   };
 
   const hrState = {
@@ -1539,12 +1544,29 @@ const BleManager = (() => {
     measurementChar: null,
     batteryService: null,
     _disconnectHandler: null,
-    connectPromise: null,
   };
+
+  // Desired / preferred devices (the IDs we *want* to be connected to)
+  let bikeDesiredDeviceId = null;
+  let hrDesiredDeviceId = null;
+
+  // Known device objects by ID (from getDevices or requestDevice)
+  const bikeKnownDevices = new Map(); // id -> BluetoothDevice
+  const hrKnownDevices = new Map();   // id -> BluetoothDevice
+
+  // Auto-reconnect timers & delays
+  let bikeAutoReconnectTimerId = null;
+  let hrAutoReconnectTimerId = null;
+
+  let bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+  let hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
 
   // Connection flags (internal)
   let bikeConnected = false;
   let hrConnected = false;
+
+  // Global auto-reconnect enable flag
+  let autoReconnectEnabled = true;
 
   function updateBikeStatus(state) {
     bikeConnected = state === "connected";
@@ -1623,135 +1645,128 @@ const BleManager = (() => {
   }
 
   // ---------------------------------------------------------------------------
-  // Retry helper
+  // Auto-reconnect scheduling (per-device, exponential backoff)
   // ---------------------------------------------------------------------------
 
-  // Helper: detect when the error is really "GATT is gone, stop retrying"
-  function isGattDisconnectedError(err) {
-    if (!err) return false;
-
-    const name = err.name || "";
-    const msg = String(err.message || err).toLowerCase();
-
-    // Web Bluetooth tends to use NetworkError with this message
-    if (msg.includes("gatt server is disconnected")) {
-      return true;
+  function cancelBikeAutoReconnect() {
+    if (bikeAutoReconnectTimerId != null) {
+      clearTimeout(bikeAutoReconnectTimerId);
+      bikeAutoReconnectTimerId = null;
+      log("Bike auto-reconnect cancelled.");
     }
-
-    // Be conservative: some stacks use these names for "not connected"
-    if (
-      name === "NetworkError" ||
-      name === "NotConnectedError" ||
-      name === "InvalidStateError"
-    ) {
-      // Only treat as fatal if message suggests disconnection
-      if (
-        msg.includes("gatt") &&
-        (msg.includes("disconnect") || msg.includes("not connected"))
-      ) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
-  function isConnectInProgressError(err) {
-    if (!err) return false;
-    const msg = String(err.message || err).toLowerCase();
-    const name = err.name || "";
-    return (
-      msg.includes("connection already in progress") ||
-      (name === "NetworkError" && msg.includes("already in progress"))
-    );
-  }
-
-  // Retry a Bluetooth operation up to `retries` times with exponential backoff,
-  // but abort immediately once we know the GATT server is disconnected.
-  async function btRetry(fn, retries = 8, baseDelay = 1000) {
-    let lastErr;
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        return await fn();
-      } catch (err) {
-        lastErr = err;
-
-        if (isGattDisconnectedError(err) || isConnectInProgressError(err)) {
-          logDebug &&
-            logDebug(
-              `btRetry: aborting retries for non-retriable error: ${err}`
-            );
-          break; // stop retry loop; caller will see the error
-        }
-
-        const delay = baseDelay * Math.pow(1.2, attempt - 1);
-        logDebug &&
-          logDebug(
-            `btRetry: attempt ${attempt} failed: ${err}. Retrying in ${delay}ms`
-          );
-        await new Promise((res) => setTimeout(res, delay));
-      }
+  function cancelHrAutoReconnect() {
+    if (hrAutoReconnectTimerId != null) {
+      clearTimeout(hrAutoReconnectTimerId);
+      hrAutoReconnectTimerId = null;
+      log("HR auto-reconnect cancelled.");
     }
-    throw lastErr;
   }
 
+  function scheduleBikeAutoReconnect(resetDelay = false) {
+    if (!autoReconnectEnabled) return;
+    if (!bikeDesiredDeviceId) return;
 
-  // ---------------------------------------------------------------------------
-  // Auto-reconnect queue
-  // ---------------------------------------------------------------------------
-
-  let reconnectQueue = [];
-  let reconnectWorkerActive = false;
-
-  function enqueueReconnect(kind) {
-    reconnectQueue.push(kind);
-    if (!reconnectWorkerActive) {
-      processReconnectQueue().catch((err) =>
-        log("Reconnect worker error: " + err)
+    const device = bikeKnownDevices.get(bikeDesiredDeviceId);
+    if (!device) {
+      log(
+        "Bike auto-reconnect skipped: desired device not known in bikeKnownDevices."
       );
+      return;
     }
-  }
 
-  function clearReconnectQueue() {
-    reconnectQueue = [];
-    log("Reconnect queue cleared (manual connect).");
-  }
+    if (bikeConnected) return;
 
-  async function processReconnectQueue() {
-    reconnectWorkerActive = true;
-    try {
-      while (reconnectQueue.length) {
-        const kind = reconnectQueue.shift();
+    if (resetDelay || !bikeAutoReconnectDelayMs) {
+      bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    }
 
-        if (kind === "bike") {
-          if (!bikeState.device || bikeConnected) continue;
-          log("Auto-reconnect: attempting bike reconnect…");
-          updateBikeStatus("connecting");
-          try {
-            await connectToBike(bikeState.device);
-            log("Auto-reconnect (bike) succeeded.");
-          } catch (err) {
-            log("Auto-reconnect (bike) failed: " + err);
-            updateBikeStatus("error");
-          }
-        } else if (kind === "hr") {
-          if (!hrState.device || hrConnected) continue;
-          log("Auto-reconnect: attempting HRM reconnect…");
-          updateHrStatus("connecting");
-          try {
-            await connectToHr(hrState.device);
-            log("Auto-reconnect (HRM) succeeded.");
-          } catch (err) {
-            log("Auto-reconnect (HRM) failed: " + err);
-            updateHrStatus("error");
-          }
-        }
+    cancelBikeAutoReconnect();
 
-        await new Promise((res) => setTimeout(res, 2000));
+    bikeAutoReconnectTimerId = setTimeout(async () => {
+      bikeAutoReconnectTimerId = null;
+
+      if (!autoReconnectEnabled) return;
+      if (!bikeDesiredDeviceId) return;
+
+      const currentDesiredId = bikeDesiredDeviceId;
+      const dev = bikeKnownDevices.get(currentDesiredId);
+      if (!dev) {
+        log(
+          "Auto-reconnect (bike): desired device missing from map; aborting attempt."
+        );
+        return;
       }
-    } finally {
-      reconnectWorkerActive = false;
+
+      log("Auto-reconnect: attempting bike reconnect…");
+
+      try {
+        await connectToBike(dev, {isAuto: true});
+        log("Auto-reconnect (bike) attempt finished.");
+        // Success path: we don't schedule further here.
+      } catch (err) {
+        log("Auto-reconnect (bike) failed: " + err);
+        // Increase delay (up to 10s) and reschedule
+        bikeAutoReconnectDelayMs = Math.min(
+          MAX_RECONNECT_DELAY_MS,
+          bikeAutoReconnectDelayMs * 2
+        );
+        scheduleBikeAutoReconnect(false);
+      }
+    }, bikeAutoReconnectDelayMs);
+  }
+
+  function scheduleHrAutoReconnect(resetDelay = false) {
+    if (!autoReconnectEnabled) return;
+    if (!hrDesiredDeviceId) return;
+
+    const device = hrKnownDevices.get(hrDesiredDeviceId);
+    if (!device) {
+      log(
+        "HR auto-reconnect skipped: desired device not known in hrKnownDevices."
+      );
+      return;
     }
+
+    if (hrConnected) return;
+
+    if (resetDelay || !hrAutoReconnectDelayMs) {
+      hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    }
+
+    cancelHrAutoReconnect();
+
+    hrAutoReconnectTimerId = setTimeout(async () => {
+      hrAutoReconnectTimerId = null;
+
+      if (!autoReconnectEnabled) return;
+      if (!hrDesiredDeviceId) return;
+
+      const currentDesiredId = hrDesiredDeviceId;
+      const dev = hrKnownDevices.get(currentDesiredId);
+      if (!dev) {
+        log(
+          "Auto-reconnect (HR): desired device missing from map; aborting attempt."
+        );
+        return;
+      }
+
+      log("Auto-reconnect: attempting HRM reconnect…");
+
+      try {
+        await connectToHr(dev, {isAuto: true});
+        log("Auto-reconnect (HR) attempt finished.");
+      } catch (err) {
+        log("Auto-reconnect (HR) failed: " + err);
+        // Increase delay (up to 10s) and reschedule
+        hrAutoReconnectDelayMs = Math.min(
+          MAX_RECONNECT_DELAY_MS,
+          hrAutoReconnectDelayMs * 2
+        );
+        scheduleHrAutoReconnect(false);
+      }
+    }, hrAutoReconnectDelayMs);
   }
 
   // ---------------------------------------------------------------------------
@@ -1811,7 +1826,9 @@ const BleManager = (() => {
     log(
       `FTMS <- IndoorBikeData: flags=0x${flags
         .toString(16)
-        .padStart(4, "0")}, power=${lastBikeSample.power ?? "n/a"}W, cad=${lastBikeSample.cadence != null ? lastBikeSample.cadence.toFixed(1) : "n/a"
+        .padStart(4, "0")}, power=${lastBikeSample.power ?? "n/a"}W, cad=${lastBikeSample.cadence != null
+          ? lastBikeSample.cadence.toFixed(1)
+          : "n/a"
       }rpm`
     );
 
@@ -1841,6 +1858,23 @@ const BleManager = (() => {
   // FTMS control point / trainer state
   // ---------------------------------------------------------------------------
 
+  // Generic writer that doesn't depend on global bikeState (used during connect)
+  async function writeFtmsControlPoint(cpChar, opCode, sint16Param /* or null */) {
+    let buffer;
+    if (sint16Param == null) {
+      buffer = new Uint8Array([opCode]).buffer;
+    } else {
+      buffer = new ArrayBuffer(3);
+      const view = new DataView(buffer);
+      view.setUint8(0, opCode);
+      view.setInt16(1, sint16Param, true);
+    }
+
+    const fn = cpChar.writeValueWithResponse || cpChar.writeValue;
+    await fn.call(cpChar, buffer);
+  }
+
+  // Uses committed bikeState.controlPointChar (for normal trainer operations)
   async function sendFtmsControlPoint(opCode, sint16Param /* or null */) {
     const cpChar = bikeState.controlPointChar;
     if (!cpChar) {
@@ -1859,7 +1893,8 @@ const BleManager = (() => {
     }
 
     log(
-      `FTMS CP -> opCode=0x${opCode.toString(16)}, param=${sint16Param ?? "none"}`
+      `FTMS CP -> opCode=0x${opCode.toString(16)}, param=${sint16Param ?? "none"
+      }`
     );
 
     const fn = cpChar.writeValueWithResponse || cpChar.writeValue;
@@ -1963,14 +1998,111 @@ const BleManager = (() => {
     return device;
   }
 
-  async function connectToBike(device) {
+  // Bike connect:
+  // - All errors are fatal (including FTMS control point characteristic)
+  // - Only updates bikeState & saves ID after successful connect *and* if this device is still desired
+  // - Multiple connect calls for the same device are allowed to run in parallel
+  async function connectToBike(device, {isAuto = false} = {}) {
     if (!device) throw new Error("connectToBike called without a device");
 
-    if (bikeState.connectPromise) {
-      return bikeState.connectPromise;
+    const deviceId = device.id;
+    bikeKnownDevices.set(deviceId, device);
+
+    const desiredAtStart = bikeDesiredDeviceId;
+
+    // For auto attempts, if desired ID already changed, skip entirely.
+    if (isAuto && desiredAtStart && desiredAtStart !== deviceId) {
+      log(
+        `connectToBike(auto): desired device changed (was ${desiredAtStart}, now ${bikeDesiredDeviceId}); skipping.`
+      );
+      return;
     }
 
-    const doConnect = (async () => {
+    if (deviceId === bikeDesiredDeviceId) {
+      updateBikeStatus("connecting");
+    }
+
+    let server = null;
+    let ftmsService = null;
+    let indoorBikeDataChar = null;
+    let controlPointChar = null;
+
+    try {
+      log(`Connecting to GATT server for bike (id=${deviceId})…`);
+      server = await device.gatt.connect();
+      log("Connected to GATT server (bike).");
+
+      ftmsService = await server.getPrimaryService(FTMS_SERVICE_UUID);
+      log("FTMS service found.");
+
+      indoorBikeDataChar = await ftmsService.getCharacteristic(
+        INDOOR_BIKE_DATA_CHAR
+      );
+      log("Indoor Bike Data characteristic found.");
+
+      // FTMS Control Point is REQUIRED now; errors are fatal
+      controlPointChar = await ftmsService.getCharacteristic(
+        FTMS_CONTROL_POINT_CHAR
+      );
+      log("FTMS Control Point characteristic found.");
+
+      // Subscribe to control point indications
+      controlPointChar.addEventListener("characteristicvaluechanged", (ev) => {
+        const dv = ev.target.value;
+        if (!dv || dv.byteLength < 3) return;
+        const op = dv.getUint8(0);
+        const reqOp = dv.getUint8(1);
+        const resCode = dv.getUint8(2);
+        log(
+          `FTMS CP <- Indication: op=0x${op
+            .toString(16)
+            .padStart(2, "0")}, req=0x${reqOp
+              .toString(16)
+              .padStart(2, "0")}, result=0x${resCode
+                .toString(16)
+                .padStart(2, "0")}`
+        );
+      });
+
+      await controlPointChar.startNotifications();
+      log("Subscribed to FTMS Control Point indications.");
+
+      // Subscribe to Indoor Bike Data
+      indoorBikeDataChar.addEventListener("characteristicvaluechanged", (ev) => {
+        const dv = ev.target.value;
+        parseIndoorBikeData(dv);
+      });
+      await indoorBikeDataChar.startNotifications();
+      log("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
+
+      // Request control + start/resume are now fatal if they fail.
+      await writeFtmsControlPoint(
+        controlPointChar,
+        FTMS_OPCODES.requestControl,
+        null
+      );
+      await writeFtmsControlPoint(
+        controlPointChar,
+        FTMS_OPCODES.startOrResume,
+        null
+      );
+      log("FTMS requestControl + startOrResume sent.");
+
+      // Only commit to state & save ID if this device is still desired
+      if (deviceId !== bikeDesiredDeviceId) {
+        log(
+          `Bike connect succeeded for stale device ${deviceId}, desired is now ${bikeDesiredDeviceId}. Tearing down.`
+        );
+        try {
+          server.disconnect();
+        } catch {}
+        return;
+      }
+
+      // Save ID only after confirming it's still the desired ID
+      saveBikeDeviceId(deviceId);
+
+      // Clean up previous connection's handler
       if (bikeState.device && bikeState._disconnectHandler) {
         try {
           bikeState.device.removeEventListener(
@@ -1980,128 +2112,132 @@ const BleManager = (() => {
         } catch {}
       }
 
-      bikeState.device = device;
-
-      if (!bikeState._disconnectHandler) {
-        bikeState._disconnectHandler = () => {
-          log("BLE disconnected (bike).");
-          bikeConnected = false;
-          updateBikeStatus("error");
-
-          lastBikeSample = {
-            power: null,
-            cadence: null,
-            speedKph: null,
-            hrFromBike: null,
-          };
-          emit("bikeSample", {...lastBikeSample});
-          enqueueReconnect("bike");
-        };
-      }
-
-      bikeState.device.addEventListener(
-        "gattserverdisconnected",
-        bikeState._disconnectHandler
-      );
-
-      updateBikeStatus("connecting");
-
-      try {
-        log("Connecting to GATT server for bike…");
-        bikeState.server = await btRetry(() => bikeState.device.gatt.connect());
-        log("Connected to GATT server (bike).");
-
-        saveBikeDeviceId(bikeState.device.id);
-
-        bikeState.ftmsService = await btRetry(() =>
-          bikeState.server.getPrimaryService(FTMS_SERVICE_UUID)
-        );
-        log("FTMS service found.");
-
-        bikeState.indoorBikeDataChar = await btRetry(() =>
-          bikeState.ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR)
-        );
-        log("Indoor Bike Data characteristic found.");
-
-        bikeState.controlPointChar = await btRetry(() =>
-          bikeState.ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR)
-        ).catch((err) => {
-          log(
-            "Error getting FTMS Control Point characteristic (non-fatal): " + err
-          );
-          return null;
-        });
-
-        if (bikeState.controlPointChar) {
-          bikeState.controlPointChar.addEventListener(
-            "characteristicvaluechanged",
-            (ev) => {
-              const dv = ev.target.value;
-              if (!dv || dv.byteLength < 3) return;
-              const op = dv.getUint8(0);
-              const reqOp = dv.getUint8(1);
-              const resCode = dv.getUint8(2);
-              log(
-                `FTMS CP <- Indication: op=0x${op
-                  .toString(16)
-                  .padStart(2, "0")}, req=0x${reqOp
-                    .toString(16)
-                    .padStart(2, "0")}, result=0x${resCode
-                      .toString(16)
-                      .padStart(2, "0")}`
-              );
-            }
-          );
-
-          // Fatal: if this fails, let connectToBike throw
-          await btRetry(() => bikeState.controlPointChar.startNotifications());
-          log("Subscribed to FTMS Control Point indications.");
-        }
-
-        bikeState.indoorBikeDataChar.addEventListener(
-          "characteristicvaluechanged",
-          (ev) => {
-            const dv = ev.target.value;
-            parseIndoorBikeData(dv);
-          }
-        );
-
-        // Fatal: no Indoor Bike Data = no workout
-        await btRetry(() => bikeState.indoorBikeDataChar.startNotifications());
-        log("Subscribed to FTMS Indoor Bike Data (0x2AD2).");
-
-        if (bikeState.controlPointChar) {
-          // Fatal: if we can't claim control, treat the connection as failed
-          await sendFtmsControlPoint(FTMS_OPCODES.requestControl, null);
-          await sendFtmsControlPoint(FTMS_OPCODES.startOrResume, null);
-          log("FTMS requestControl + startOrResume sent.");
-        }
-
-        bikeConnected = true;
-        updateBikeStatus("connected");
-      } catch (err) {
-        log("Bike connect error (fatal): " + err);
+      const disconnectHandler = () => {
+        log("BLE disconnected (bike).");
         bikeConnected = false;
         updateBikeStatus("error");
-        throw err;
-      } finally {
-        bikeState.connectPromise = null;
-      }
-    })();
 
-    bikeState.connectPromise = doConnect;
-    return doConnect;
+        lastBikeSample = {
+          power: null,
+          cadence: null,
+          speedKph: null,
+          hrFromBike: null,
+        };
+        emit("bikeSample", {...lastBikeSample});
+
+        // Upon disconnect, resume regular auto-reconnect with reset backoff
+        bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+        scheduleBikeAutoReconnect(true);
+      };
+
+      device.addEventListener("gattserverdisconnected", disconnectHandler);
+
+      // Commit to shared bikeState
+      bikeState.device = device;
+      bikeState.server = server;
+      bikeState.ftmsService = ftmsService;
+      bikeState.indoorBikeDataChar = indoorBikeDataChar;
+      bikeState.controlPointChar = controlPointChar;
+      bikeState._disconnectHandler = disconnectHandler;
+
+      bikeConnected = true;
+      updateBikeStatus("connected");
+      log("Bike connected & committed to bikeState.");
+    } catch (err) {
+      log("Bike connect error (fatal): " + err);
+      if (deviceId === bikeDesiredDeviceId) {
+        bikeConnected = false;
+        updateBikeStatus("error");
+      }
+      if (server && server.connected) {
+        try {
+          server.disconnect();
+        } catch {}
+      }
+      throw err;
+    }
   }
 
-  async function connectToHr(device) {
+  // HR connect:
+  // - All errors in the core HR flow are fatal (battery read remains optional)
+  // - Only updates hrState & saves ID after successful connect *and* if this device is still desired
+  // - Multiple connect calls for the same device are allowed to run in parallel
+  async function connectToHr(device, {isAuto = false} = {}) {
     if (!device) throw new Error("connectToHr called without a device");
 
-    // If a connection attempt is already in flight, just reuse it.
-    if (hrState.connectPromise) {
-      return hrState.connectPromise;
+    const deviceId = device.id;
+    hrKnownDevices.set(deviceId, device);
+
+    const desiredAtStart = hrDesiredDeviceId;
+
+    if (isAuto && desiredAtStart && desiredAtStart !== deviceId) {
+      log(
+        `connectToHr(auto): desired device changed (was ${desiredAtStart}, now ${hrDesiredDeviceId}); skipping.`
+      );
+      return;
     }
 
-    const doConnect = (async () => {
+    if (deviceId === hrDesiredDeviceId) {
+      updateHrStatus("connecting");
+    }
+
+    let server = null;
+    let hrService = null;
+    let batteryService = null;
+    let measurementChar = null;
+
+    try {
+      log(`Connecting to GATT server for HR (id=${deviceId})…`);
+      server = await device.gatt.connect();
+      log("Connected to GATT server (hr).");
+
+      hrService = await server.getPrimaryService(HEART_RATE_SERVICE_UUID);
+      log("Heart Rate service found.");
+
+      // Battery service still optional
+      batteryService = await server
+        .getPrimaryService(BATTERY_SERVICE_UUID)
+        .catch(() => null);
+
+      measurementChar = await hrService.getCharacteristic(HR_MEASUREMENT_CHAR);
+      log("HR Measurement characteristic found.");
+
+      await measurementChar.startNotifications();
+      measurementChar.addEventListener("characteristicvaluechanged", (ev) =>
+        parseHrMeasurement(ev.target.value)
+      );
+      log("Subscribed to HRM Measurement (0x2A37).");
+
+      // Optional battery read; errors are non-fatal
+      if (batteryService) {
+        try {
+          const batteryLevelChar =
+            await batteryService.getCharacteristic(BATTERY_LEVEL_CHAR);
+          const val = await batteryLevelChar.readValue();
+          const pct = val.getUint8(0);
+          log(`HR battery: ${pct}%`);
+          hrBatteryPercent = pct;
+          emit("hrBattery", pct);
+        } catch (err) {
+          log("Battery read failed (non-fatal): " + err);
+        }
+      }
+
+      // Only commit & save ID if still desired device
+      if (deviceId !== hrDesiredDeviceId) {
+        log(
+          `HR connect succeeded for stale device ${deviceId}, desired is now ${hrDesiredDeviceId}. Tearing down.`
+        );
+        try {
+          server.disconnect();
+        } catch {}
+        return;
+      }
+
+      // Save ID only after confirming it's still the desired ID
+      saveHrDeviceId(deviceId);
+
+      // Clean up previous connection's handler
       if (hrState.device && hrState._disconnectHandler) {
         try {
           hrState.device.removeEventListener(
@@ -2111,84 +2247,45 @@ const BleManager = (() => {
         } catch {}
       }
 
-      hrState.device = device;
-
-      if (!hrState._disconnectHandler) {
-        hrState._disconnectHandler = () => {
-          log("BLE disconnected (hr).");
-          hrConnected = false;
-          updateHrStatus("error");
-          hrBatteryPercent = null;
-          emit("hrBattery", hrBatteryPercent);
-          emit("hrSample", null);
-          enqueueReconnect("hr");
-        };
-      }
-
-      hrState.device.addEventListener(
-        "gattserverdisconnected",
-        hrState._disconnectHandler
-      );
-
-      updateHrStatus("connecting");
-
-      try {
-        log("Connecting to GATT server for hr…");
-        hrState.server = await btRetry(() => hrState.device.gatt.connect());
-        log("Connected to GATT server (hr).");
-
-        saveHrDeviceId(hrState.device.id);
-
-        hrState.hrService = await btRetry(() =>
-          hrState.server.getPrimaryService(HEART_RATE_SERVICE_UUID)
-        );
-        log("Heart Rate service found.");
-
-        hrState.batteryService = await hrState.server
-          .getPrimaryService(BATTERY_SERVICE_UUID)
-          .catch(() => null);
-
-        hrState.measurementChar = await btRetry(() =>
-          hrState.hrService.getCharacteristic(HR_MEASUREMENT_CHAR)
-        );
-        log("HR Measurement characteristic found.");
-
-        await btRetry(() => hrState.measurementChar.startNotifications());
-        hrState.measurementChar.addEventListener(
-          "characteristicvaluechanged",
-          (ev) => parseHrMeasurement(ev.target.value)
-        );
-        hrConnected = true;
-        updateHrStatus("connected");
-        log("Subscribed to HRM Measurement (0x2A37).");
-
-        if (hrState.batteryService) {
-          try {
-            const batteryLevelChar = await btRetry(() =>
-              hrState.batteryService.getCharacteristic(BATTERY_LEVEL_CHAR)
-            );
-            const val = await btRetry(() => batteryLevelChar.readValue());
-            const pct = val.getUint8(0);
-            log(`HR battery: ${pct}%`);
-            hrBatteryPercent = pct;
-            emit("hrBattery", pct);
-          } catch (err) {
-            log("Battery read failed (non-fatal): " + err);
-          }
-        }
-      } catch (err) {
-        log("HR connect error (fatal): " + err);
+      const disconnectHandler = () => {
+        log("BLE disconnected (hr).");
         hrConnected = false;
         updateHrStatus("error");
-        throw err;
-      } finally {
-        // IMPORTANT: clear the in-flight marker regardless of success/failure
-        hrState.connectPromise = null;
-      }
-    })();
+        hrBatteryPercent = null;
+        emit("hrBattery", hrBatteryPercent);
+        emit("hrSample", null);
 
-    hrState.connectPromise = doConnect;
-    return doConnect;
+        // Upon disconnect, resume regular auto-reconnect with reset backoff
+        hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+        scheduleHrAutoReconnect(true);
+      };
+
+      device.addEventListener("gattserverdisconnected", disconnectHandler);
+
+      // Commit to shared hrState
+      hrState.device = device;
+      hrState.server = server;
+      hrState.hrService = hrService;
+      hrState.measurementChar = measurementChar;
+      hrState.batteryService = batteryService;
+      hrState._disconnectHandler = disconnectHandler;
+
+      hrConnected = true;
+      updateHrStatus("connected");
+      log("HR connected & committed to hrState.");
+    } catch (err) {
+      log("HR connect error (fatal): " + err);
+      if (deviceId === hrDesiredDeviceId) {
+        hrConnected = false;
+        updateHrStatus("error");
+      }
+      if (server && server.connected) {
+        try {
+          server.disconnect();
+        } catch {}
+      }
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -2221,17 +2318,21 @@ const BleManager = (() => {
     const hrDevice = hrId ? devices.find((d) => d.id === hrId) : null;
 
     if (bikeDevice) {
-      log("Found previously paired bike, queueing auto-reconnect…");
-      bikeState.device = bikeDevice;
-      enqueueReconnect("bike");
+      log("Found previously paired bike, starting auto-reconnect…");
+      bikeKnownDevices.set(bikeDevice.id, bikeDevice);
+      bikeDesiredDeviceId = bikeDevice.id;
+      bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+      scheduleBikeAutoReconnect(true);
     } else if (bikeId) {
       log("Saved bike ID not available in getDevices() (permission revoked?).");
     }
 
     if (hrDevice) {
-      log("Found previously paired HRM, queueing auto-reconnect…");
-      hrState.device = hrDevice;
-      enqueueReconnect("hr");
+      log("Found previously paired HRM, starting auto-reconnect…");
+      hrKnownDevices.set(hrDevice.id, hrDevice);
+      hrDesiredDeviceId = hrDevice.id;
+      hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+      scheduleHrAutoReconnect(true);
     } else if (hrId) {
       log("Saved HRM ID not available in getDevices() (permission revoked?).");
     }
@@ -2243,29 +2344,67 @@ const BleManager = (() => {
 
   return {
     init({autoReconnect = true} = {}) {
-      if (autoReconnect) {
+      autoReconnectEnabled = !!autoReconnect;
+
+      if (autoReconnectEnabled) {
         maybeReconnectSavedDevicesOnLoad().catch((err) =>
           log("Auto-reconnect error: " + err)
         );
+      } else {
+        cancelBikeAutoReconnect();
+        cancelHrAutoReconnect();
       }
     },
 
     async connectBikeViaPicker() {
-      clearReconnectQueue();
       if (!navigator.bluetooth) {
         throw new Error("Bluetooth not available in this browser.");
       }
+
+      // If user manually triggers connect, cancel any pending auto-connects
+      cancelBikeAutoReconnect();
+
       const device = await requestBikeDevice();
-      await connectToBike(device);
+      const deviceId = device.id;
+
+      // The user's selection becomes the new desired bike ID
+      bikeDesiredDeviceId = deviceId;
+      bikeKnownDevices.set(deviceId, device);
+
+      // Reset backoff for this new target
+      bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+
+      try {
+        await connectToBike(device, {isAuto: false});
+      } catch (err) {
+        // Even if user connect fails, auto-reconnect should keep trying this ID
+        scheduleBikeAutoReconnect(true);
+        throw err;
+      }
     },
 
     async connectHrViaPicker() {
-      clearReconnectQueue();
       if (!navigator.bluetooth) {
         throw new Error("Bluetooth not available in this browser.");
       }
+
+      cancelHrAutoReconnect();
+
       const device = await requestHrDevice();
-      await connectToHr(device);
+      const deviceId = device.id;
+
+      hrDesiredDeviceId = deviceId;
+      hrKnownDevices.set(deviceId, device);
+
+      hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+
+      try {
+        await connectToHr(device, {isAuto: false});
+      } catch (err) {
+        // Even if user connect fails, auto-reconnect should keep trying this ID
+        scheduleHrAutoReconnect(true);
+        throw err;
+      }
     },
 
     async setTrainerState(state, opts) {
@@ -2292,7 +2431,6 @@ const BleManager = (() => {
     },
   };
 })();
-
 
 // --------------------------- Battery reporting ---------------------------
 
