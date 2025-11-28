@@ -29,7 +29,7 @@ const FTMS_OPCODES = {
 
 const DEFAULT_FTP = 250;
 
-const DB_NAME = "zwo-downloader";
+const DB_NAME = "velo-drive";
 const DB_VERSION = 1;
 const WORKOUT_DIR_KEY = "workoutDirHandle";
 const ZWO_DIR_KEY = "dirHandle"; // same key used in options.js for the ZWO folder
