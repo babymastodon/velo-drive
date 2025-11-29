@@ -373,8 +373,7 @@
 
 /* --- Add / Back buttons in header --- */
 
-.picker-add-btn,
-.picker-back-btn {
+.picker-add-btn {
   height: var(--nav-control-height);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
@@ -391,23 +390,20 @@
 
 @media (prefers-color-scheme: dark) {
 
-  .picker-add-btn,
-  .picker-back-btn {
+  .picker-add-btn {
     background: #4b2220;
     color: #ffd9d5;
     border-color: rgba(255, 255, 255, 0.18);
   }
 }
 
-.picker-add-btn:hover,
-.picker-back-btn:hover {
+.picker-add-btn:hover {
   background: #f6cbc7;
 }
 
 @media (prefers-color-scheme: dark) {
 
-  .picker-add-btn:hover,
-  .picker-back-btn:hover {
+  .picker-add-btn:hover {
     background: #5b2724;
   }
 }
@@ -450,8 +446,7 @@
 
 /* --- Add / Back buttons (match select-workout-btn) --- */
 
-.picker-add-btn,
-.picker-back-btn {
+.picker-add-btn {
   border: none;
   border-radius: 4px;
   height: var(--nav-control-height);
@@ -467,31 +462,26 @@
   flex-shrink: 0;
 }
 
-.picker-add-btn:hover,
-.picker-back-btn:hover {
+.picker-add-btn:hover {
   background: #ac554c;
 }
 
-.picker-add-btn:active,
-.picker-back-btn:active {
+.picker-add-btn:active {
   transform: scale(0.97);
   background: #9f4d45;
 }
 
 @media (prefers-color-scheme: dark) {
 
-  .picker-add-btn,
-  .picker-back-btn {
+  .picker-add-btn {
     background: #bd4d45;
   }
 
-  .picker-add-btn:hover,
-  .picker-back-btn:hover {
+  .picker-add-btn:hover {
     background: #93463e;
   }
 
-  .picker-add-btn:active,
-  .picker-back-btn:active {
+  .picker-add-btn:active {
     background: #883f38;
   }
 }
@@ -580,7 +570,12 @@
   padding: 4px 6px;
   background: var(--surface-elevated);
   color: var(--text-main);
-  resize: vertical;
+}
+
+.wb-field-textarea {
+  overflow: hidden;
+  resize: none;
+  min-height: 100px;
 }
 
 .wb-field-input:focus,
@@ -606,6 +601,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
+  gap: 12px;
 }
 
 .wb-stat-label {
@@ -630,6 +626,7 @@
 
 .wb-chart-mini-host {
   width: 100%;
+  position: relative;
 }
 
 .wb-chart-mini-host svg {
@@ -675,8 +672,8 @@
 }
 
 .wb-code-icon {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
@@ -708,8 +705,10 @@
   background: var(--surface-elevated);
   color: var(--text-main);
   padding: 6px;
-  resize: vertical;
   box-sizing: border-box;
+  overflow: hidden;
+  resize: none;
+
 }
 
 .wb-code-textarea.wb-has-error {
@@ -726,7 +725,7 @@
   display: flex;
   gap: 6px;
   font-size: 14px;
-  margin-top: 4px;
+  margin-top: -4px;
 }
 
 .wb-code-error-label {

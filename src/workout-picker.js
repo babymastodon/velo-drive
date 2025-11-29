@@ -367,6 +367,12 @@ function createWorkoutPicker(config) {
     modal.classList.add("workout-picker-modal--builder");
 
     if (emptyStateEl) emptyStateEl.style.display = "none";
+
+    if (workoutBuilder) {
+      requestAnimationFrame(() => {
+        workoutBuilder.refreshLayout();
+      });
+    }
   }
 
   function exitBuilderMode() {

@@ -61,6 +61,10 @@ export function createWorkoutBuilder(options) {
   const sourceField = createLabeledInput("Author / Source");
   const descField = createLabeledTextarea("Description");
 
+  descField.textarea.addEventListener("input", () => {
+    autoGrowTextarea(descField.textarea);
+  });
+
   metaFields.appendChild(nameField.wrapper);
   metaFields.appendChild(sourceField.wrapper);
   metaFields.appendChild(descField.wrapper);
@@ -192,6 +196,7 @@ export function createWorkoutBuilder(options) {
   codeTextarea.rows = 18;
   codeTextarea.placeholder =
     '<SteadyState Duration="300" Power="0.75" />\n<SteadyState Duration="300" Power="0.85" />\n<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
+  codeTextarea.addEventListener("input", () => autoGrowTextarea(codeTextarea));
 
   textareaWrapper.appendChild(codeTextarea);
 
@@ -210,7 +215,15 @@ export function createWorkoutBuilder(options) {
   errorRow.appendChild(errorLabel);
   errorRow.appendChild(errorMessage);
 
+  codeCard.appendChild(toolbar);
+  codeCard.appendChild(textareaWrapper);
+  codeCard.appendChild(errorRow);
+
+  colCode.appendChild(codeCard);
+
   // URL import under textarea
+  const importCard = document.createElement("div");
+  importCard.className = "wb-card wb-code-card";
   const urlSection = document.createElement("div");
   urlSection.className = "wb-url-section";
 
@@ -229,7 +242,7 @@ export function createWorkoutBuilder(options) {
 
   const urlBtn = document.createElement("button");
   urlBtn.type = "button";
-  urlBtn.className = "wb-url-button";
+  urlBtn.className = "picker-add-btn";
   urlBtn.textContent = "Import";
 
   urlRow.appendChild(urlInput);
@@ -237,12 +250,9 @@ export function createWorkoutBuilder(options) {
   urlSection.appendChild(urlTitle);
   urlSection.appendChild(urlRow);
 
-  codeCard.appendChild(toolbar);
-  codeCard.appendChild(textareaWrapper);
-  codeCard.appendChild(errorRow);
-  codeCard.appendChild(urlSection);
+  importCard.appendChild(urlSection);
 
-  colCode.appendChild(codeCard);
+  colCode.appendChild(importCard);
 
   // ---------- Events ----------
 
@@ -282,6 +292,7 @@ export function createWorkoutBuilder(options) {
       }
       codeTextarea.value = snippet.trim();
       handleAnyChange();
+      autoGrowTextarea(codeTextarea);
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
       errorMessage.textContent =
@@ -313,9 +324,15 @@ export function createWorkoutBuilder(options) {
       setDefaultSnippet();
     }
     handleAnyChange();
+    refreshLayout();
   })();
 
   // ---------- Public API ----------
+
+  function refreshLayout() {
+    autoGrowTextarea(descField.textarea);
+    autoGrowTextarea(codeTextarea);
+  }
 
   function getState() {
     return {
@@ -716,7 +733,10 @@ export function createWorkoutBuilder(options) {
 
       // Also populate metadata if available
       if (json.title) nameField.input.value = json.title;
-      if (json.description) descField.textarea.value = json.description;
+      if (json.description) {
+        descField.textarea.value = json.description;
+        autoGrowTextarea(descField.textarea);
+      }
       sourceField.input.value = "TrainerDay";
 
       return lines.join("\n");
@@ -737,41 +757,51 @@ export function createWorkoutBuilder(options) {
   function createWorkoutElementIcon(kind) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
     svg.classList.add("wb-code-icon");
 
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "currentColor");
-    path.setAttribute("stroke-width", "1.8");
-    path.setAttribute("stroke-linecap", "round");
-    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("fill", "currentColor");
 
     switch (kind) {
       case "steady":
-        // Flat block / interval
-        path.setAttribute("d", "M4 16h14v-6H4z");
+        // Flat block
+        path.setAttribute("d", "M4 14h16v6H4z");
         break;
+
       case "rampUp":
-        // Warmup: rising ramp
-        path.setAttribute("d", "M4 16L10 10l6-6M4 16h16");
-        break;
-      case "rampDown":
-        // Cooldown: descending ramp
-        path.setAttribute("d", "M4 4l6 6 6 6M4 16h16");
-        break;
-      case "intervals":
-      default:
-        // Repeated on/off blocks
+        // Warmup: rising filled ramp (low left → high right)
         path.setAttribute(
           "d",
-          "M4 16h3v-6H4zm5 6h3v-12H9zm5-4h3v-8h-3z"
+          "M4 20 L20 20 20 8 4 16 Z"
+        );
+        break;
+
+      case "rampDown":
+        // Cooldown: descending filled ramp (high left → low right)
+        path.setAttribute(
+          "d",
+          "M4 8 L20 16 20 20 4 20 Z"
+        );
+        break;
+
+      case "intervals":
+      default:
+        // Repeated blocks (ON/OFF pattern)
+        path.setAttribute(
+          "d",
+          "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z"
         );
         break;
     }
 
     svg.appendChild(path);
     return svg;
+  }
+
+  function autoGrowTextarea(el) {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
   }
 
   function createLabeledInput(labelText) {
@@ -848,11 +878,14 @@ export function createWorkoutBuilder(options) {
     const caretPos = (beforeText + prefix + snippet).length;
     textarea.setSelectionRange(caretPos, caretPos);
     textarea.focus();
+
+    autoGrowTextarea(textarea);
   }
 
   // Expose minimal API if needed later (currently we only use side effects)
   return {
     getState,
+    refreshLayout,
   };
 }
 
