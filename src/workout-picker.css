@@ -694,7 +694,38 @@
   min-height: 0;
 }
 
+/* Wrapper for overlays + textarea */
+.wb-code-wrapper {
+  position: relative;
+}
+
+/* Highlight layer behind the textarea text */
+.wb-code-highlights {
+  position: absolute;
+  inset: 0;
+  padding: 6px;
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  color: transparent;
+  /* hide text; we only want background */
+  pointer-events: none;
+  /* let clicks go to the textarea */
+  overflow: hidden;
+}
+
+/* Error lines background */
+.wb-highlight-line {
+  background: rgba(216, 125, 115, 0.24);
+  /* soft red, adjust to taste */
+  display: block;
+}
+
+/* Textarea stays on top */
 .wb-code-textarea {
+  position: relative;
   width: 100%;
   min-height: 200px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -702,13 +733,13 @@
   font-size: 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  background: var(--surface-elevated);
+  background: transparent;
+  /* important so highlights show through */
   color: var(--text-main);
   padding: 6px;
+  resize: none;
   box-sizing: border-box;
   overflow: hidden;
-  resize: none;
-
 }
 
 .wb-code-textarea.wb-has-error {

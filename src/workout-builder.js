@@ -190,15 +190,30 @@ export function createWorkoutBuilder(options) {
   const textareaWrapper = document.createElement("div");
   textareaWrapper.className = "wb-code-textarea-wrapper";
 
+  // Wrapper + highlight layer + textarea
+  const codeWrapper = document.createElement("div");
+  codeWrapper.className = "wb-code-wrapper";
+
+  const codeHighlights = document.createElement("div");
+  codeHighlights.className = "wb-code-highlights";
+
   const codeTextarea = document.createElement("textarea");
   codeTextarea.className = "wb-code-textarea";
   codeTextarea.spellcheck = false;
   codeTextarea.rows = 18;
   codeTextarea.placeholder =
-    '<SteadyState Duration="300" Power="0.75" />\n<SteadyState Duration="300" Power="0.85" />\n<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
+    '<SteadyState Duration="300" Power="0.75" />\n' +
+    '<SteadyState Duration="300" Power="0.85" />\n' +
+    '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
   codeTextarea.addEventListener("input", () => autoGrowTextarea(codeTextarea));
+  codeTextarea.addEventListener("scroll", () => {
+    codeHighlights.scrollTop = codeTextarea.scrollTop;
+    codeHighlights.scrollLeft = codeTextarea.scrollLeft;
+  });
 
-  textareaWrapper.appendChild(codeTextarea);
+  codeWrapper.appendChild(codeHighlights);
+  codeWrapper.appendChild(codeTextarea);
+  textareaWrapper.appendChild(codeWrapper);
 
   // Error row
   const errorRow = document.createElement("div");
@@ -384,6 +399,7 @@ export function createWorkoutBuilder(options) {
     updateStats();
     renderChart();
     updateErrorStyling();
+    updateErrorHighlights();
 
     // Persist state
     try {
@@ -753,6 +769,68 @@ export function createWorkoutBuilder(options) {
   }
 
   // ---------- Small DOM helpers ----------
+  function escapeHtml(str) {
+    return (str || "").replace(/[&<>"]/g, (c) => {
+      switch (c) {
+        case "&": return "&amp;";
+        case "<": return "&lt;";
+        case ">": return "&gt;";
+        default: return c;
+      }
+    });
+  }
+
+  /**
+   * Highlight all lines that overlap any syntax error range.
+   * Uses currentErrors (array of {start,end,message}) and codeTextarea.value.
+   */
+
+  function updateErrorHighlights() {
+    if (!codeHighlights) return;
+
+    const text = codeTextarea.value || "";
+    const lines = text.split("\n");
+
+    if (!currentErrors.length) {
+      // No errors: just mirror the lines so height stays in sync
+      const html = lines
+        .map((line) => `<div>${escapeHtml(line) || " "}</div>`)
+        .join("");
+      codeHighlights.innerHTML = html;
+      return;
+    }
+
+    // Compute which line indices are touched by any error range
+    const errorLines = new Set();
+
+    currentErrors.forEach((err) => {
+      const start = Math.max(0, err.start || 0);
+      const end = Math.max(start, err.end || start);
+
+      const beforeStart = text.slice(0, start);
+      const beforeEnd = text.slice(0, end);
+
+      const startLine = beforeStart.split("\n").length - 1;
+      const endLine = beforeEnd.split("\n").length - 1;
+
+      for (let i = startLine; i <= endLine; i += 1) {
+        errorLines.add(i);
+      }
+    });
+
+    const html = lines
+      .map((line, idx) => {
+        const safe = escapeHtml(line) || " ";
+        if (errorLines.has(idx)) {
+          return `<div class="wb-highlight-line">${safe}</div>`;
+        }
+        return `<div>${safe}</div>`;
+      })
+      .join("");
+
+    codeHighlights.innerHTML = html;
+  }
+
 
   function createWorkoutElementIcon(kind) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
