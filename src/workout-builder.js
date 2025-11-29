@@ -298,21 +298,26 @@ export function createWorkoutBuilder(options) {
   urlBtn.addEventListener("click", async () => {
     const url = (urlInput.value || "").trim();
     if (!url) return;
+
+    errorMessage.textContent = "Importing workout…";
+    errorMessage.className =
+      "wb-code-error-message wb-code-error-message--neutral";
+
     try {
-      errorMessage.textContent = "Importing workout…";
-      errorMessage.className =
-        "wb-code-error-message wb-code-error-message--neutral";
-      const snippet = await importFromUrl(url);
-      if (!snippet) {
+      const {snippet, error} = await importFromUrl(url);
+
+      if (error || !snippet) {
+        console.warn("[WorkoutBuilder] Import error:", error);
         errorMessage.textContent =
+          (error && error.message) ||
           "Could not import workout from this URL yet.";
         errorMessage.className =
           "wb-code-error-message wb-code-error-message--error";
         return;
       }
+
       codeTextarea.value = snippet.trim();
       handleAnyChange();
-      autoGrowTextarea(codeTextarea);
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
       errorMessage.textContent =
@@ -775,7 +780,18 @@ export function createWorkoutBuilder(options) {
   // ---------- URL import (using page URL, not a .zwo URL) ----------
 
   async function importFromUrl(inputUrl) {
-    const url = new URL(inputUrl);
+    let url;
+    try {
+      url = new URL(inputUrl);
+    } catch {
+      return {
+        snippet: null,
+        error: {
+          type: "invalidUrl",
+          message: "That doesn’t look like a valid URL.",
+        },
+      };
+    }
 
     if (url.host.includes("trainerday.com")) {
       return importFromTrainerDay(url);
@@ -789,8 +805,16 @@ export function createWorkoutBuilder(options) {
       "[WorkoutBuilder] Import-from-URL currently only implemented for TrainerDay and WhatsOnZwift; got",
       url.host,
     );
-    return null;
+    return {
+      snippet: null,
+      error: {
+        type: "unsupportedHost",
+        message:
+          "This URL is not from a supported workout site (TrainerDay or WhatsOnZwift).",
+      },
+    };
   }
+
 
   /**
  * Convert an array of [minutes, startPct, endPct] into ZWO lines.
@@ -825,40 +849,79 @@ export function createWorkoutBuilder(options) {
   // ---------- TrainerDay ----------
 
   async function importFromTrainerDay(url) {
-    // Example: https://app.trainerday.com/workouts/<slug>
-    const slugMatch = url.pathname.match(/\/workouts\/([^/?#]+)/);
-    if (!slugMatch) return null;
-    const slug = slugMatch[1];
+    try {
+      const slugMatch = url.pathname.match(/\/workouts\/([^/?#]+)/);
+      if (!slugMatch) {
+        return {
+          snippet: null,
+          error: {
+            type: "invalidTrainerDayPath",
+            message: "This TrainerDay URL does not look like a workout page.",
+          },
+        };
+      }
+      const slug = slugMatch[1];
 
-    const apiUrl = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
-      slug,
-    )}`;
+      const apiUrl = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
+        slug,
+      )}`;
 
-    const res = await fetch(apiUrl, {credentials: "omit"});
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} from TrainerDay API`);
+      const res = await fetch(apiUrl, {credentials: "omit"});
+      if (!res.ok) {
+        return {
+          snippet: null,
+          error: {
+            type: "network",
+            message: `TrainerDay request failed (HTTP ${res.status}).`,
+          },
+        };
+      }
+
+      const json = await res.json();
+      if (!Array.isArray(json.segments) || !json.segments.length) {
+        return {
+          snippet: null,
+          error: {
+            type: "noSegments",
+            message: "TrainerDay workout has no segments to import.",
+          },
+        };
+      }
+
+      const segments = json.segments.map((seg) => {
+        const minutes = Number(seg[0]);
+        const startPct = Number(seg[1]);
+        const endPct =
+          seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+        return [minutes, startPct, endPct];
+      });
+
+      if (json.title) nameField.input.value = json.title;
+      if (json.description) descField.textarea.value = json.description;
+      sourceField.input.value = "TrainerDay";
+
+      const snippet = segmentsToZwoSnippet(segments);
+      if (!snippet) {
+        return {
+          snippet: null,
+          error: {
+            type: "emptySnippet",
+            message: "TrainerDay workout could not be converted to ZWO elements.",
+          },
+        };
+      }
+
+      return {snippet, error: null};
+    } catch (err) {
+      console.error("[WorkoutBuilder] TrainerDay import error:", err);
+      return {
+        snippet: null,
+        error: {
+          type: "exception",
+          message: "Import from TrainerDay failed. See console for details.",
+        },
+      };
     }
-
-    const json = await res.json();
-    if (!Array.isArray(json.segments) || !json.segments.length) {
-      return null;
-    }
-
-    // TrainerDay segments: [minutes, startPct, endPct?]
-    const segments = json.segments.map((seg) => {
-      const minutes = Number(seg[0]);
-      const startPct = Number(seg[1]);
-      const endPct =
-        seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-      return [minutes, startPct, endPct];
-    });
-
-    // Also populate metadata if available
-    if (json.title) nameField.input.value = json.title;
-    if (json.description) descField.textarea.value = json.description;
-    sourceField.input.value = "TrainerDay";
-
-    return segmentsToZwoSnippet(segments);
   }
 
   // ---------- Whats On Zwift ----------
@@ -990,37 +1053,73 @@ export function createWorkoutBuilder(options) {
   }
 
   async function importFromWhatsOnZwift(url) {
-    const res = await fetch(url.toString(), {credentials: "omit"});
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} from WhatsOnZwift`);
+    try {
+      const res = await fetch(url.toString(), {credentials: "omit"});
+      if (!res.ok) {
+        return {
+          snippet: null,
+          error: {
+            type: "network",
+            message: `WhatsOnZwift request failed (HTTP ${res.status}).`,
+          },
+        };
+      }
+
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      const wozSegments = extractWozSegmentsFromDoc(doc);
+      if (!wozSegments || !wozSegments.length) {
+        console.warn(
+          "[WorkoutBuilder][WhatsOnZwift] No segments extracted from DOM.",
+        );
+        return {
+          snippet: null,
+          error: {
+            type: "noSegments",
+            message:
+              "Could not find any intervals on this WhatsOnZwift workout page.",
+          },
+        };
+      }
+
+      const segments = wozSegments.map((s) => [
+        s.minutes,
+        s.startPct,
+        s.endPct,
+      ]);
+
+      const title = extractWozTitleFromDoc(doc);
+      const description = extractWozDescriptionFromDoc(doc);
+
+      if (title) nameField.input.value = title;
+      if (description) descField.textarea.value = description;
+      sourceField.input.value = "WhatsOnZwift";
+
+      const snippet = segmentsToZwoSnippet(segments);
+      if (!snippet) {
+        return {
+          snippet: null,
+          error: {
+            type: "emptySnippet",
+            message:
+              "WhatsOnZwift workout could not be converted to ZWO elements.",
+          },
+        };
+      }
+
+      return {snippet, error: null};
+    } catch (err) {
+      console.error("[WorkoutBuilder] WhatsOnZwift import error:", err);
+      return {
+        snippet: null,
+        error: {
+          type: "exception",
+          message: "Import from WhatsOnZwift failed. See console for details.",
+        },
+      };
     }
-
-    const html = await res.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    const wozSegments = extractWozSegmentsFromDoc(doc);
-    if (!wozSegments || !wozSegments.length) {
-      console.warn(
-        "[WorkoutBuilder][WhatsOnZwift] No segments extracted from DOM.",
-      );
-      return null;
-    }
-
-    const segments = wozSegments.map((s) => [
-      s.minutes,
-      s.startPct,
-      s.endPct,
-    ]);
-
-    const title = extractWozTitleFromDoc(doc);
-    const description = extractWozDescriptionFromDoc(doc);
-
-    if (title) nameField.input.value = title;
-    if (description) descField.textarea.value = description;
-    sourceField.input.value = "WhatsOnZwift";
-
-    return segmentsToZwoSnippet(segments);
   }
 
   // ---------- Small DOM helpers ----------
