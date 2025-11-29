@@ -1488,6 +1488,35 @@
       max-width: 420px;
     }
 
+    /* FTP input styled to look like the manualControls value */
+    .settings-ftp-input {
+      width: 4ch;
+      border: none;
+      background: transparent;
+      color: var(--text-main);
+      font: inherit;
+      text-align: center;
+      outline: none;
+    }
+
+    /* Hide number spinners */
+    .settings-ftp-input::-webkit-outer-spin-button,
+    .settings-ftp-input::-webkit-inner-spin-button {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .settings-ftp-input[type="number"] {
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    .settings-ftp-unit {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
   </style>
 </head>
 
@@ -1770,6 +1799,7 @@
             <div class="settings-row">
               <div class="settings-row-main">
                 <div class="settings-icon">
+                  <!-- power / FTP icon -->
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M11 21L5 13h4V3l8 8h-4v10z" />
                   </svg>
@@ -1786,13 +1816,18 @@
                   </div>
                 </div>
               </div>
+
+              <!-- RIGHT SIDE: FTP box that looks like manualControls -->
               <div class="settings-row-right">
-                <div class="settings-inline-group">
-                  <button id="settingsFtpMinusBtn" class="settings-button" type="button">−10</button>
-                  <input id="settingsFtpInput" class="settings-input" type="number" min="50" max="500" step="1"
-                    inputmode="numeric" />
-                  <span>W</span>
-                  <button id="settingsFtpPlusBtn" class="settings-button" type="button">+10</button>
+                <div id="settingsFtpControls" class="control-group">
+                  <button class="control-btn" type="button" data-ftp-delta="-10">-</button>
+                  <div class="control-value">
+                    <!-- Input is styled so it visually mimics the manualValue span -->
+                    <input id="settingsFtpInput" class="settings-ftp-input" type="number" min="50" max="500" step="1"
+                      inputmode="numeric" />
+                    <span class="settings-ftp-unit">W</span>
+                  </div>
+                  <button class="control-btn" type="button" data-ftp-delta="10">+</button>
                 </div>
                 <div id="settingsFtpError" class="settings-error"></div>
               </div>

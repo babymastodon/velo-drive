@@ -4,7 +4,7 @@
 // Responsibilities:
 //  - Show & manage settings modal (similar style to workout picker)
 //  - Configure workout history dir + workout library (.zwo) dir
-//  - FTP setting (editable input)
+//  - FTP setting (FTP control-group with +/-10 buttons, saves on Enter/blur, no Save button)
 //  - Sound on/off toggle (replaces nav sound button)
 //  - Logs view (replaces old logs overlay; preserves selection when appending)
 //  - Environment checks: Web Bluetooth support + browser support
@@ -16,8 +16,6 @@
 import {getWorkoutEngine} from "./workout-engine.js";
 import {DEFAULT_FTP} from "./workout-metrics.js";
 
-// NOTE: These helpers must exist in storage.js. If your actual names differ,
-// adjust the imports or wrap them there.
 import {
   loadSoundPreference,
   saveSoundPreference,
@@ -56,8 +54,9 @@ const zwoDirButton = document.getElementById("zwoDirButton");
 // FTP
 const ftpInput = document.getElementById("settingsFtpInput");
 const ftpErrorEl = document.getElementById("settingsFtpError");
-const ftpMinusBtn = document.getElementById("settingsFtpMinusBtn");
-const ftpPlusBtn = document.getElementById("settingsFtpPlusBtn");
+const ftpDeltaButtons = Array.from(
+  document.querySelectorAll("[data-ftp-delta]")
+);
 
 // Sound toggle (slider)
 const soundToggleRoot = document.getElementById("settingsSoundToggle");
@@ -308,8 +307,8 @@ function handleSoundToggleChanged() {
 // --------------------------- Environment checks ---------------------------
 
 function refreshEnvironmentStatus() {
-  // Web Bluetooth
   const hasBt = isWebBluetoothAvailable();
+
   if (btStatusText) {
     btStatusText.textContent = hasBt
       ? "Web Bluetooth API detected in this browser."
@@ -366,7 +365,6 @@ function initHelpToggles() {
       if (isHidden) {
         // Show with a small fade/slide animation
         el.removeAttribute("hidden");
-        // Restart animation
         el.classList.remove("settings-help-content--visible");
         // Force reflow so the animation can replay
         // eslint-disable-next-line no-unused-expressions
@@ -435,7 +433,7 @@ function wireSettingsEvents() {
   }
 
   if (ftpInput) {
-    // Save on Enter and blur
+    // Save on Enter and blur, then blur on Enter
     ftpInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -444,21 +442,18 @@ function wireSettingsEvents() {
       }
     });
 
-    // Also persist on blur so mouse-based edits are saved too
     ftpInput.addEventListener("blur", () => {
       handleFtpSave();
     });
   }
 
-  if (ftpMinusBtn) {
-    ftpMinusBtn.addEventListener("click", () => {
-      handleFtpDelta(-10);
-    });
-  }
-
-  if (ftpPlusBtn) {
-    ftpPlusBtn.addEventListener("click", () => {
-      handleFtpDelta(10);
+  if (ftpDeltaButtons.length) {
+    ftpDeltaButtons.forEach((btn) => {
+      const delta = Number(btn.getAttribute("data-ftp-delta") || "0");
+      if (!Number.isFinite(delta) || !delta) return;
+      btn.addEventListener("click", () => {
+        handleFtpDelta(delta);
+      });
     });
   }
 
