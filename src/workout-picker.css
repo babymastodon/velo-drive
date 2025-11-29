@@ -1,0 +1,372 @@
+/* Workout picker overlay / modal */
+
+.workout-picker-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 45;
+}
+
+.workout-picker-modal {
+  width: min(1600px, 85vw);
+  height: min(1200px, 85vh);
+  background: var(--surface-elevated);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  color: var(--text-main);
+  font-size: 14px;
+  /* everything inside defaults to 14px */
+}
+
+.workout-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.workout-picker-title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.workout-picker-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workout-picker-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.workout-picker-controls input[type="search"],
+.workout-picker-controls select {
+  padding: 4px 6px;
+  font-size: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  outline: none;
+  background: var(--surface);
+  color: var(--text-main);
+  min-width: 0;
+}
+
+.workout-picker-controls input[type="search"] {
+  min-width: 220px;
+}
+
+.workout-picker-controls input[type="search"]:focus,
+.workout-picker-controls select:focus,
+.workout-picker-controls input[type="number"]:focus {
+  border-color: var(--border);
+  box-shadow: none;
+  outline: none;
+}
+
+.workout-picker-summary {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.workout-picker-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+}
+
+.workout-picker-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.workout-picker-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.workout-picker-table th,
+.workout-picker-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.workout-picker-table th {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: default;
+  user-select: none;
+  position: relative;
+}
+
+.workout-picker-table th[data-sort-key] {
+  cursor: pointer;
+}
+
+.workout-picker-table th[data-sort-key]:hover {
+  text-decoration: underline;
+}
+
+.workout-picker-table th[data-sort-key]::after {
+  content: "";
+  font-size: 9px;
+  margin-left: 3px;
+}
+
+.workout-picker-table th.sorted-asc::after {
+  content: "▲";
+}
+
+.workout-picker-table th.sorted-desc::after {
+  content: "▼";
+}
+
+.picker-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.06s ease;
+}
+
+.picker-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+@media (prefers-color-scheme: dark) {
+  .picker-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.picker-row:active {
+  transform: scale(0.998);
+}
+
+.picker-expanded-row td {
+  background: rgba(0, 0, 0, 0.02);
+  white-space: normal;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .picker-expanded-row td {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.picker-expanded {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 4px 2px;
+}
+
+.picker-graph {
+  flex: 0 0 50%;
+  max-width: 50%;
+  min-width: 240px;
+  position: relative;
+}
+
+.picker-graph-svg {
+  width: 100%;
+  height: 120px;
+  display: block;
+}
+
+.picker-detail {
+  flex: 1 1 0;
+  min-width: 200px;
+  font-size: 14px;
+  line-height: 1.4;
+  padding-left: 4px;
+}
+
+.picker-detail-empty {
+  color: var(--text-muted);
+}
+
+.picker-tooltip {
+  position: absolute;
+  pointer-events: none;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #666666;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  white-space: nowrap;
+  display: none;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  .picker-tooltip {
+    background: #303030;
+    color: #dddddd;
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+}
+
+.picker-footer {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.picker-footer span {
+  white-space: nowrap;
+}
+
+/* Footer link styling inside the workout picker popup */
+.picker-footer a {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+.picker-footer a:hover {
+  color: var(--text-main);
+  text-decoration: underline;
+}
+
+@media (prefers-color-scheme: dark) {
+  .picker-footer a {
+    color: var(--text-muted);
+  }
+
+  .picker-footer a:hover {
+    color: var(--text-main);
+  }
+}
+
+.picker-close-btn {
+  width: var(--nav-control-height);
+  height: var(--nav-control-height);
+  border-radius: var(--radius);
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.picker-close-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.picker-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .picker-close-btn:hover {
+    background: rgba(255, 255, 255, 0.10);
+  }
+}
+
+/* Select Workout button — slightly stronger color */
+.select-workout-btn {
+  border: none;
+  border-radius: 4px;
+  height: var(--nav-control-height);
+  padding: 0 14px;
+  font-size: 14px;
+  cursor: pointer;
+  background: #d87d73;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  transition: background-color 0.14s ease,
+    transform 0.06s ease;
+}
+
+.select-workout-btn:hover {
+  background: #ac554c;
+}
+
+.select-workout-btn:active {
+  transform: scale(0.97);
+  background: #9f4d45;
+}
+
+@media (prefers-color-scheme: dark) {
+  .select-workout-btn {
+    background: #bd4d45;
+    color: #ffffff;
+  }
+
+  .select-workout-btn:hover {
+    background: #93463e;
+  }
+
+  .select-workout-btn:active {
+    background: #883f38;
+  }
+}
+
+@media (max-width: 800px) {
+  .workout-picker-modal {
+    width: 96vw;
+    height: 80vh;
+    padding: 8px;
+  }
+
+  .picker-graph {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .picker-detail {
+    flex: 1 1 100%;
+    padding-left: 0;
+    margin-top: 4px;
+  }
+
+  .workout-picker-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
