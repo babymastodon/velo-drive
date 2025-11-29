@@ -496,7 +496,7 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      font-size: 13px;
+      font-size: 14px;
       border-radius: var(--radius);
       padding: 0 8px;
       background: var(--surface);
@@ -619,7 +619,7 @@
 
     @media (max-width: 800px) {
       .bottom-nav {
-        font-size: 13px;
+        font-size: 14px;
       }
     }
 
@@ -1046,7 +1046,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 16px;
       flex-wrap: wrap;
     }
 
@@ -1065,7 +1065,7 @@
     }
 
     .settings-subtitle {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-muted);
     }
 
@@ -1111,7 +1111,7 @@
       background: rgba(245, 166, 35, 0.12);
       border: 1px solid rgba(245, 166, 35, 0.5);
       color: #b26a00;
-      font-size: 13px;
+      font-size: 14px;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -1167,7 +1167,7 @@
 
     .settings-section-title {
       font-weight: 500;
-      font-size: 13px;
+      font-size: 14px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
@@ -1223,13 +1223,8 @@
       white-space: nowrap;
     }
 
-    .settings-row-sub {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
     .settings-row-status {
-      font-size: 13px;
+      font-size: 14px;
       white-space: nowrap;
     }
 
@@ -1253,13 +1248,20 @@
     }
 
     .settings-button {
+      height: var(--nav-control-height);
+      padding: 0 10px;
+      font-size: 14px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
       background: var(--surface);
-      padding: 4px 10px;
-      font-size: 13px;
+      color: var(--text-main);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       white-space: nowrap;
+      line-height: 1;
+      /* aligns arrow perfectly */
     }
 
     .settings-button:hover {
@@ -1378,26 +1380,6 @@
       font-size: 14px;
     }
 
-    .settings-logs-back {
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      background: var(--surface);
-      padding: 2px 8px;
-      font-size: 13px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .settings-logs-back:hover {
-      background: rgba(0, 0, 0, 0.06);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      .settings-logs-back:hover {
-        background: rgba(255, 255, 255, 0.10);
-      }
-    }
-
     .settings-logs-body {
       flex: 1;
       min-height: 0;
@@ -1408,7 +1390,7 @@
       padding: 6px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
-      font-size: 13px;
+      font-size: 14px;
       overflow: auto;
       white-space: pre-wrap;
     }
@@ -1433,7 +1415,7 @@
     }
 
     .settings-help-content {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-main);
       margin-top: 6px;
       padding: 8px 10px;
@@ -1752,9 +1734,6 @@
                 </div>
                 <div class="settings-row-text">
                   <div class="settings-row-label">History folder</div>
-                  <div class="settings-row-sub">
-                    Where completed workouts are saved as JSON files.
-                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
@@ -1777,9 +1756,6 @@
                 </div>
                 <div class="settings-row-text">
                   <div class="settings-row-label">Workout library (.zwo)</div>
-                  <div class="settings-row-sub">
-                    Folder with your ZWO files used by the workout picker.
-                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
@@ -1823,9 +1799,6 @@
                     <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsFtpHelp">
                       Learn more
                     </button>
-                  </div>
-                  <div class="settings-row-sub">
-                    Used to scale workout intensity and metrics.
                   </div>
                 </div>
               </div>
@@ -1872,9 +1845,6 @@
                       What will I hear?
                     </button>
                   </div>
-                  <div class="settings-row-sub">
-                    Enable beeps and countdowns for segment changes and auto-pause/resume.
-                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
@@ -1915,9 +1885,6 @@
                 </div>
                 <div class="settings-row-text">
                   <div class="settings-row-label">Web Bluetooth</div>
-                  <div class="settings-row-sub">
-                    Required to talk to your trainer and heart-rate monitor.
-                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
@@ -1958,9 +1925,6 @@
                   <div class="settings-row-label">
                     Connection logs
                   </div>
-                  <div class="settings-row-sub">
-                    Useful for troubleshooting BLE connections; updates in real time.
-                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
@@ -1976,7 +1940,7 @@
         <div id="settingsLogsView" class="settings-logs-view">
           <div class="settings-logs-header">
             <div class="settings-logs-title">Connection logs</div>
-            <button id="settingsBackFromLogsBtn" class="settings-logs-back" type="button">
+            <button id="settingsBackFromLogsBtn" class="settings-button" type="button">
               ← Back to settings
             </button>
           </div>

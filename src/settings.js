@@ -113,7 +113,17 @@ function showMainView() {
 
 function showLogsView() {
   if (settingsMainView) settingsMainView.style.display = "none";
-  if (settingsLogsView) settingsLogsView.style.display = "flex";
+  if (settingsLogsView) {
+    settingsLogsView.style.display = "flex";
+
+    // Scroll to bottom on open
+    if (settingsLogsContent) {
+      // Use rAF so layout has updated before we scroll
+      requestAnimationFrame(() => {
+        settingsLogsContent.scrollTop = settingsLogsContent.scrollHeight;
+      });
+    }
+  }
 }
 
 // --------------------------- Logs handling ---------------------------
