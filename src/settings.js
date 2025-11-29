@@ -53,7 +53,6 @@ const zwoDirButton = document.getElementById("zwoDirButton");
 
 // FTP
 const ftpInput = document.getElementById("settingsFtpInput");
-const ftpErrorEl = document.getElementById("settingsFtpError");
 const ftpDeltaButtons = Array.from(
   document.querySelectorAll("[data-ftp-delta]")
 );
@@ -86,7 +85,13 @@ let startupNeedsAttention = {
 // --------------------------- Utility helpers ---------------------------
 
 function isWebBluetoothAvailable() {
-  return typeof navigator !== "undefined" && !!navigator.bluetooth;
+  return (
+    typeof navigator !== "undefined" &&
+    !!navigator.bluetooth &&
+
+    // New Bluetooth Devices API capabilities
+    typeof navigator.bluetooth.getDevices === "function"
+  );
 }
 
 function openSettings() {
@@ -228,12 +233,11 @@ function refreshFtpFromEngine() {
   if (!ftpInput) return;
   const current = getCurrentFtpFromEngine();
   ftpInput.value = String(current);
-  if (ftpErrorEl) ftpErrorEl.textContent = "";
 }
 
 function normaliseFtpValue(value) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return null;
+  if (!Number.isFinite(n)) return 250;
   const clamped = Math.min(500, Math.max(50, Math.round(n)));
   return clamped;
 }
@@ -252,9 +256,6 @@ function applyFtpValue(newFtp) {
   if (ftpInput) {
     ftpInput.value = String(newFtp);
   }
-  if (ftpErrorEl) {
-    ftpErrorEl.textContent = "";
-  }
   try {
     saveFtp(newFtp);
   } catch (err) {
@@ -267,13 +268,6 @@ function handleFtpSave() {
 
   const raw = ftpInput.value.trim();
   const normalised = normaliseFtpValue(raw);
-  if (normalised == null) {
-    if (ftpErrorEl) {
-      ftpErrorEl.textContent = "Enter a number between 50 and 500.";
-    }
-    return;
-  }
-
   applyFtpValue(normalised);
 }
 
@@ -312,7 +306,7 @@ function refreshEnvironmentStatus() {
   if (btStatusText) {
     btStatusText.textContent = hasBt
       ? "Web Bluetooth API detected in this browser."
-      : "Web Bluetooth API not detected – device connections may not work here.";
+      : "Web Bluetooth API not detected.";
     btStatusText.classList.toggle("settings-status-ok", hasBt);
     btStatusText.classList.toggle("settings-status-missing", !hasBt);
   }

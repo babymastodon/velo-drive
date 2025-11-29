@@ -27,6 +27,8 @@ export const STORAGE_PICKER_STATE = "pickerState";
 // --------------------------- IndexedDB helpers ---------------------------
 
 let dbPromise = null;
+let workoutDirHandle = null;
+let zwoDirHandle = null;
 
 async function getDb() {
   if (dbPromise) return dbPromise;
@@ -69,7 +71,7 @@ async function loadHandle(key) {
 }
 
 // Public helpers for specific handles
-export async function saveWorkoutDirHandle(handle) {
+async function saveWorkoutDirHandle(handle) {
   return saveHandle(WORKOUT_DIR_KEY, handle);
 }
 
@@ -77,7 +79,7 @@ export async function loadWorkoutDirHandle() {
   return loadHandle(WORKOUT_DIR_KEY);
 }
 
-export async function saveZwoDirHandle(handle) {
+async function saveZwoDirHandle(handle) {
   return saveHandle(ZWO_DIR_KEY, handle);
 }
 
@@ -215,25 +217,92 @@ export function savePickerState(state) {
   chrome.storage.local.set({[STORAGE_PICKER_STATE]: state});
 }
 
-// --------------------------- Convenience helpers for settings / engine ---------------------------
 
-// Ensure we have a usable history/workout directory handle.
-// Returns the handle if present & permission is granted, otherwise null.
-export async function ensureWorkoutDir() {
-  const handle = await loadWorkoutDirHandle();
-  if (!handle) return null;
-  const ok = await ensureDirPermission(handle);
-  if (!ok) return null;
-  return handle;
+// --------------------------- directory helpers ---------------------------
+
+function showZwoDirectoryPreselectMessage() {
+  alert("Pick the folder where your .zwo workout files will be saved.");
 }
 
-// Ensure we have a usable ZWO library directory handle.
-// Returns the handle if present & permission is granted, otherwise null.
 export async function ensureZwoDirectoryHandle() {
-  const handle = await loadZwoDirHandle();
-  if (!handle) return null;
-  const ok = await ensureDirPermission(handle);
-  if (!ok) return null;
-  return handle;
+  if (!("showDirectoryPicker" in window)) {
+    alert("Selecting ZWO workouts requires a recent Chromium-based browser.");
+    return null;
+  }
+
+  if (!zwoDirHandle) {
+    try {
+      const stored = await loadZwoDirHandle();
+      if (stored) {
+        const ok = await ensureDirPermission(stored);
+        if (ok) {
+          zwoDirHandle = stored;
+          return zwoDirHandle;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load ZWO dir handle: " + err);
+    }
+  }
+
+  if (!zwoDirHandle) {
+    try {
+      showZwoDirectoryPreselectMessage();
+      const handle = await window.showDirectoryPicker();
+      const ok = await ensureDirPermission(handle);
+      if (!ok) {
+        alert("Permission was not granted to the selected ZWO folder.");
+        return null;
+      }
+      zwoDirHandle = handle;
+      await saveZwoDirHandle(handle);
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        // user canceled
+        return null;
+      }
+      console.error("Error choosing ZWO folder: " + err);
+      alert("Failed to choose ZWO folder.");
+      return null;
+    }
+  }
+
+  return zwoDirHandle;
+}
+
+export async function ensureWorkoutDir() {
+  if (!("showDirectoryPicker" in window)) {
+    alert("Saving workouts requires a recent Chromium-based browser.");
+    return null;
+  }
+
+  if (!workoutDirHandle) {
+    workoutDirHandle = await loadWorkoutDirHandle();
+  }
+
+  if (!workoutDirHandle) {
+    console.log("Prompting for workout directory…");
+    const handle = await window.showDirectoryPicker();
+    const ok = await ensureDirPermission(handle);
+    if (!ok) {
+      alert("Permission was not granted to the selected folder.");
+      return null;
+    }
+    workoutDirHandle = handle;
+    await saveWorkoutDirHandle(handle);
+  } else {
+    const ok = await ensureDirPermission(workoutDirHandle);
+    if (!ok) {
+      const handle = await window.showDirectoryPicker();
+      const ok2 = await ensureDirPermission(handle);
+      if (!ok2) {
+        alert("Permission was not granted to the selected folder.");
+        return null;
+      }
+      workoutDirHandle = handle;
+      await saveWorkoutDirHandle(handle);
+    }
+  }
+  return workoutDirHandle;
 }
 

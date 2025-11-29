@@ -13,9 +13,7 @@ import {
   loadActiveState,
   saveActiveState,
   clearActiveState,
-  loadWorkoutDirHandle,
-  saveWorkoutDirHandle,
-  ensureDirPermission,
+  ensureWorkoutDir,
 } from "./storage.js";
 
 let instance = null;
@@ -53,7 +51,6 @@ function createWorkoutEngine() {
 
   let liveSamples = [];
   let workoutTicker = null;
-  let workoutDirHandle = null;
 
   let saveStateTimer = null;
 
@@ -162,42 +159,6 @@ function createWorkoutEngine() {
         : null,
     };
     saveActiveState(state);
-  }
-
-  async function ensureWorkoutDir() {
-    if (!("showDirectoryPicker" in window)) {
-      alert("Saving workouts requires a recent Chromium-based browser.");
-      return null;
-    }
-
-    if (!workoutDirHandle) {
-      workoutDirHandle = await loadWorkoutDirHandle();
-    }
-
-    if (!workoutDirHandle) {
-      log("Prompting for workout directory…");
-      const handle = await window.showDirectoryPicker();
-      const ok = await ensureDirPermission(handle);
-      if (!ok) {
-        alert("Permission was not granted to the selected folder.");
-        return null;
-      }
-      workoutDirHandle = handle;
-      await saveWorkoutDirHandle(handle);
-    } else {
-      const ok = await ensureDirPermission(workoutDirHandle);
-      if (!ok) {
-        const handle = await window.showDirectoryPicker();
-        const ok2 = await ensureDirPermission(handle);
-        if (!ok2) {
-          alert("Permission was not granted to the selected folder.");
-          return null;
-        }
-        workoutDirHandle = handle;
-        await saveWorkoutDirHandle(handle);
-      }
-    }
-    return workoutDirHandle;
   }
 
   async function saveWorkoutFile() {

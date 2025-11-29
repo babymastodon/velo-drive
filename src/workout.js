@@ -544,7 +544,6 @@ async function initPage() {
     onWorkoutSelected: (payload) => {
       engine.setWorkoutFromPicker(payload);
     },
-    logDebug,
   });
 
   // Workout name: click -> picker (guard if workout running)

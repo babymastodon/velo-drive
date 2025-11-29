@@ -17,8 +17,7 @@ import {
 import {renderMiniWorkoutGraph} from "./workout-chart.js";
 
 import {
-  loadZwoDirHandle,
-  saveZwoDirHandle,
+  ensureZwoDirectoryHandle,
   ensureDirPermission,
   loadPickerState,
   savePickerState,
@@ -39,7 +38,6 @@ let instance = null;
  * @property {HTMLElement} tbody
  * @property {() => number} getCurrentFtp  // called whenever picker needs current FTP
  * @property {(payload: any) => void} onWorkoutSelected // called when user chooses a workout
- * @property {(msg: string) => void} [logDebug]         // optional logging
  */
 
 /**
@@ -87,7 +85,6 @@ function createWorkoutPicker(config) {
     tbody,
     getCurrentFtp,
     onWorkoutSelected,
-    logDebug = () => {},
   } = config;
 
   // Internal state
@@ -98,57 +95,6 @@ function createWorkoutPicker(config) {
   let pickerSortDir = "asc";   // "asc" | "desc"
   let isPickerOpen = false;
 
-  // --------------------------- directory helpers ---------------------------
-
-  function showZwoDirectoryPreselectMessage() {
-    alert("Pick the folder where your .zwo workout files will be saved.");
-  }
-
-  async function ensureZwoDirectoryHandle() {
-    if (!("showDirectoryPicker" in window)) {
-      alert("Selecting ZWO workouts requires a recent Chromium-based browser.");
-      return null;
-    }
-
-    if (!zwoDirHandle) {
-      try {
-        const stored = await loadZwoDirHandle();
-        if (stored) {
-          const ok = await ensureDirPermission(stored);
-          if (ok) {
-            zwoDirHandle = stored;
-            return zwoDirHandle;
-          }
-        }
-      } catch (err) {
-        logDebug("Failed to load ZWO dir handle: " + err);
-      }
-    }
-
-    if (!zwoDirHandle) {
-      try {
-        showZwoDirectoryPreselectMessage();
-        const handle = await window.showDirectoryPicker();
-        const ok = await ensureDirPermission(handle);
-        if (!ok) {
-          alert("Permission was not granted to the selected ZWO folder.");
-          return null;
-        }
-        zwoDirHandle = handle;
-        await saveZwoDirHandle(handle);
-      } catch (err) {
-        if (err && err.name === "AbortError") {
-          // user canceled
-          return null;
-        }
-        logDebug("Error choosing ZWO folder: " + err);
-        alert("Failed to choose ZWO folder.");
-        return null;
-      }
-    }
-
-    return zwoDirHandle;
-  }
 
   // --------------------------- filtering / sorting ---------------------------
 
