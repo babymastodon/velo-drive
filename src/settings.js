@@ -84,10 +84,13 @@ let startupNeedsAttention = {
   missingHistoryDir: false,
   missingZwoDir: false,
   missingBtSupport: false,
-  unsupportedBrowser: false,
 };
 
 // --------------------------- Utility helpers ---------------------------
+
+function isWebBluetoothAvailable() {
+  return typeof navigator !== "undefined" && !!navigator.bluetooth;
+}
 
 function openSettings() {
   if (!settingsOverlay || !settingsModal) return;
@@ -110,33 +113,6 @@ function showMainView() {
 function showLogsView() {
   if (settingsMainView) settingsMainView.style.display = "none";
   if (settingsLogsView) settingsLogsView.style.display = "flex";
-}
-
-// Simple browser support heuristic: Chrome / Chromium / Edge-ish
-function getBrowserSupportInfo() {
-  if (typeof navigator === "undefined") {
-    return {isSupported: false, name: "Unknown", reason: "No navigator"};
-  }
-  const ua = navigator.userAgent || "";
-  const isEdge = /Edg\//.test(ua);
-  const isChrome = /Chrome\//.test(ua) && !/OPR\//.test(ua) && !isEdge;
-  const isChromiumLike = isChrome || isEdge;
-
-  let name = "Unknown browser";
-  if (isChrome) name = "Google Chrome";
-  else if (isEdge) name = "Microsoft Edge";
-
-  return {
-    isSupported: isChromiumLike,
-    name,
-    reason: isChromiumLike
-      ? ""
-      : "VeloDrive works best in a Chromium-based browser such as Chrome or Edge.",
-  };
-}
-
-function isWebBluetoothAvailable() {
-  return typeof navigator !== "undefined" && !!navigator.bluetooth;
 }
 
 // --------------------------- Logs handling ---------------------------
@@ -284,30 +260,6 @@ function handleSoundToggleChanged() {
 // --------------------------- Environment checks ---------------------------
 
 function refreshEnvironmentStatus() {
-  // Browser
-  if (browserStatusText || browserStatusCta) {
-    const info = getBrowserSupportInfo();
-    if (browserStatusText) {
-      browserStatusText.textContent = info.isSupported
-        ? `${info.name} detected`
-        : `Current browser: ${info.name}`;
-      browserStatusText.classList.toggle("settings-status-ok", info.isSupported);
-      browserStatusText.classList.toggle("settings-status-missing", !info.isSupported);
-    }
-
-    if (browserStatusCta) {
-      if (info.isSupported) {
-        browserStatusCta.style.display = "none";
-      } else {
-        browserStatusCta.style.display = "";
-      }
-    }
-
-    if (!info.isSupported) {
-      startupNeedsAttention.unsupportedBrowser = true;
-    }
-  }
-
   // Web Bluetooth
   const hasBt = isWebBluetoothAvailable();
   if (btStatusText) {
@@ -342,9 +294,6 @@ function updateAttentionBanner() {
   }
   if (startupNeedsAttention.missingBtSupport) {
     issues.push("Enable Web Bluetooth (see instructions below).");
-  }
-  if (startupNeedsAttention.unsupportedBrowser) {
-    issues.push("Use a Chromium-based browser such as Chrome or Edge.");
   }
 
   if (!issues.length) {
@@ -388,7 +337,6 @@ function wireSettingsEvents() {
         missingHistoryDir: false,
         missingZwoDir: false,
         missingBtSupport: false,
-        unsupportedBrowser: false,
       };
       updateAttentionBanner();
       openSettings();
@@ -491,8 +439,7 @@ export async function initSettings() {
   const shouldAutoOpen =
     startupNeedsAttention.missingHistoryDir ||
     startupNeedsAttention.missingZwoDir ||
-    startupNeedsAttention.missingBtSupport ||
-    startupNeedsAttention.unsupportedBrowser;
+    startupNeedsAttention.missingBtSupport;
 
   if (shouldAutoOpen) {
     openSettings();
