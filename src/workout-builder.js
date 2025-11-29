@@ -541,7 +541,21 @@ export function createWorkoutBuilder(options) {
         });
       }
 
-      const attrs = parseAttributes(attrsText);
+      const {attrs, hasGarbage} = parseAttributes(attrsText);
+
+      if (hasGarbage) {
+        // There was stray text inside the tag (e.g. '?**')
+        errors.push({
+          start: startIdx,
+          end: endIdx,
+          message:
+            "Malformed element: unexpected text or tokens inside element.",
+        });
+        // Skip creating segments from this element
+        lastIndex = endIdx;
+        continue;
+      }
+
       switch (tagName) {
         case "SteadyState":
           handleSteady(attrs, segments, errors, startIdx, endIdx);
@@ -579,13 +593,35 @@ export function createWorkoutBuilder(options) {
 
   function parseAttributes(attrText) {
     const attrs = {};
+    let hasGarbage = false;
+
     const attrRegex =
       /([A-Za-z_:][A-Za-z0-9_:.-]*)\s*=\s*"([^"]*)"/g;
+
     let m;
+    let lastIndex = 0;
+
     while ((m = attrRegex.exec(attrText)) !== null) {
+      // Anything between the end of the previous match and this one?
+      if (m.index > lastIndex) {
+        const between = attrText.slice(lastIndex, m.index);
+        if (between.trim().length > 0) {
+          // Non-whitespace we don't understand → garbage
+          hasGarbage = true;
+        }
+      }
+
       attrs[m[1]] = m[2];
+      lastIndex = attrRegex.lastIndex;
     }
-    return attrs;
+
+    // Trailing text after the last attribute
+    const trailing = attrText.slice(lastIndex);
+    if (trailing.trim().length > 0) {
+      hasGarbage = true;
+    }
+
+    return {attrs, hasGarbage};
   }
 
   function handleSteady(attrs, segments, errors, start, end) {
