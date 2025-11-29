@@ -88,7 +88,6 @@ function createWorkoutPicker(config) {
   } = config;
 
   // Internal state
-  let zwoDirHandle = null;
   let pickerWorkouts = [];
   let pickerExpandedKey = null;
   let pickerSortKey = "kjAdj"; // "if", "tss", "kjAdj", "duration", "name"
@@ -423,23 +422,23 @@ function createWorkoutPicker(config) {
 
   // --------------------------- rescan & selection ---------------------------
 
-  async function rescanWorkouts() {
-    if (!zwoDirHandle) {
+  async function rescanWorkouts(handle) {
+    if (!handle) {
       pickerWorkouts = [];
       renderWorkoutPickerTable();
       return;
     }
 
-    const ok = await ensureDirPermission(zwoDirHandle);
+    const ok = await ensureDirPermission(handle);
     if (!ok) {
       pickerWorkouts = [];
-      zwoDirHandle = null;
+      handle = null;
       renderWorkoutPickerTable();
       return;
     }
 
     pickerExpandedKey = null;
-    pickerWorkouts = await scanWorkoutsFromDirectory(zwoDirHandle);
+    pickerWorkouts = await scanWorkoutsFromDirectory(handle);
     refreshCategoryFilterOptions();
 
     await restorePickerStateIntoControls();
@@ -469,7 +468,7 @@ function createWorkoutPicker(config) {
         summaryEl.textContent = "No ZWO folder selected.";
       }
     } else {
-      await rescanWorkouts();
+      await rescanWorkouts(handle);
     }
 
     isPickerOpen = true;

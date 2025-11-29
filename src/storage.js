@@ -4,7 +4,6 @@
 // Handles:
 //   - IndexedDB "settings" store for directory handles
 //   - chrome.storage.local for extension-local state
-//   - chrome.storage.sync for cross-device FTP
 //   - File System Access API permissions
 
 // --------------------------- IndexedDB constants ---------------------------
@@ -112,18 +111,6 @@ function hasChromeLocal() {
   }
 }
 
-function hasChromeSync() {
-  try {
-    return (
-      typeof chrome !== "undefined" &&
-      chrome.storage &&
-      chrome.storage.sync
-    );
-  } catch {
-    return false;
-  }
-}
-
 // ---- Sound preference ----
 
 export async function loadSoundPreference(defaultValue = true) {
@@ -151,8 +138,8 @@ export function saveSoundPreference(enabled) {
 // ---- FTP (sync) ----
 
 export function saveFtp(ftpValue) {
-  if (!hasChromeSync()) return;
-  chrome.storage.sync.set({ftp: ftpValue});
+  if (!hasChromeLocal()) return;
+  chrome.storage.local.set({ftp: ftpValue});
 }
 
 // ---- Selected workout ----
