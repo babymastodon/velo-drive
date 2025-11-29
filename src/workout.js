@@ -236,7 +236,8 @@ function updateChartDimensions() {
 
 // --------------------------- BLE integration (UI side) ---------------------------
 
-function setBikeStatus(state) {
+function setBikeStatus({state, message}) {
+  console.log("bike message", message)
   if (!bikeStatusDot) return;
   bikeStatusDot.classList.remove("connected", "connecting", "error");
 
@@ -260,7 +261,8 @@ function setBikeStatus(state) {
   }
 }
 
-function setHrStatus(state) {
+function setHrStatus({state, message}) {
+  console.log("hr message", message)
   if (!hrStatusDot) return;
   hrStatusDot.classList.remove("connected", "connecting", "error");
   if (state === "connected") hrStatusDot.classList.add("connected");
