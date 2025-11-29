@@ -372,23 +372,6 @@ function drawChart(vm) {
     setChartEmptyState("none");
   }
 
-  if (showNoBike || showNoWorkout) {
-    chartSvg.style.visibility = "hidden";
-
-    // Clear any existing SVG content
-    while (chartSvg.firstChild) {
-      chartSvg.removeChild(chartSvg.firstChild);
-    }
-
-    if (chartTooltip) {
-      chartTooltip.style.display = "none";
-    }
-    return;
-  }
-
-  // Normal chart rendering
-  chartSvg.style.visibility = "visible";
-
   updateChartDimensions();
 
   drawWorkoutChart({
@@ -404,6 +387,7 @@ function drawChart(vm) {
     liveSamples: vm.liveSamples,
   });
 }
+
 
 // --------------------------- Playback buttons ---------------------------
 
