@@ -417,37 +417,48 @@ function applyModeUI(vm) {
 
   if (!manualControls || !workoutNameLabel) return;
 
+  const inputIsFocused =
+    manualInputEl && document.activeElement === manualInputEl;
+
   if (vm.mode === "erg") {
     manualControls.style.display = "inline-flex";
-    if (manualInputEl) {
+
+    if (manualInputEl && !inputIsFocused) {
       manualInputEl.value = String(vm.manualErgTarget || 0);
     }
+
     if (manualUnitEl) {
       manualUnitEl.textContent = "W";
     }
+
     workoutNameLabel.style.display = "flex";
+
   } else if (vm.mode === "resistance") {
     manualControls.style.display = "inline-flex";
-    if (manualInputEl) {
+
+    if (manualInputEl && !inputIsFocused) {
       manualInputEl.value = String(vm.manualResistance || 0);
     }
+
     if (manualUnitEl) {
       manualUnitEl.textContent = "%";
     }
+
     workoutNameLabel.style.display = "flex";
+
   } else {
     manualControls.style.display = "none";
     workoutNameLabel.style.display = "flex";
   }
 }
 
-function normaliseManualErgValue(raw, vm) {
+function normaliseManualErgValue(raw, vm, currentFtp) {
   const n = Number(raw);
   if (!Number.isFinite(n)) {
     return vm.manualErgTarget || vm.currentFtp || DEFAULT_FTP;
   }
   // Reasonable ERG bounds
-  return Math.min(1500, Math.max(50, Math.round(n)));
+  return Math.min(currentFtp * 2.5, Math.max(50, Math.round(n)));
 }
 
 function normaliseManualResistanceValue(raw, vm) {
@@ -466,7 +477,7 @@ function handleManualInputSave() {
   const raw = manualInputEl.value.trim();
 
   if (vm.mode === "erg") {
-    const next = normaliseManualErgValue(raw, vm);
+    const next = normaliseManualErgValue(raw, vm, vm.currentFtp);
     const current = vm.manualErgTarget || 0;
     const delta = next - current;
     if (delta) {
