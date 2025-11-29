@@ -55,8 +55,9 @@ const zwoDirButton = document.getElementById("zwoDirButton");
 
 // FTP
 const ftpInput = document.getElementById("settingsFtpInput");
-const ftpSaveBtn = document.getElementById("settingsFtpSaveBtn");
 const ftpErrorEl = document.getElementById("settingsFtpError");
+const ftpMinusBtn = document.getElementById("settingsFtpMinusBtn");
+const ftpPlusBtn = document.getElementById("settingsFtpPlusBtn");
 
 // Sound toggle (slider)
 const soundToggleRoot = document.getElementById("settingsSoundToggle");
@@ -65,9 +66,6 @@ const soundCheckbox = document.getElementById("settingsSoundCheckbox");
 // Environment status
 const btStatusText = document.getElementById("settingsBtStatusText");
 const btStatusCta = document.getElementById("settingsBtStatusCta");
-
-const browserStatusText = document.getElementById("settingsBrowserStatusText");
-const browserStatusCta = document.getElementById("settingsBrowserStatusCta");
 
 // Help / user-guide toggles
 const helpToggleButtons = Array.from(
@@ -152,8 +150,10 @@ async function refreshDirectoryStatuses() {
       const name = historyHandle.name || "Selected folder";
       historyDirStatusEl.textContent = name;
       historyDirStatusEl.classList.remove("settings-status-missing");
+      historyDirStatusEl.classList.add("settings-status-ok");
     } else {
       historyDirStatusEl.textContent = "Not configured";
+      historyDirStatusEl.classList.remove("settings-status-ok");
       historyDirStatusEl.classList.add("settings-status-missing");
       startupNeedsAttention.missingHistoryDir = true;
     }
@@ -162,8 +162,10 @@ async function refreshDirectoryStatuses() {
       const name = zwoHandle.name || "Selected folder";
       zwoDirStatusEl.textContent = name;
       zwoDirStatusEl.classList.remove("settings-status-missing");
+      zwoDirStatusEl.classList.add("settings-status-ok");
     } else {
       zwoDirStatusEl.textContent = "Not configured";
+      zwoDirStatusEl.classList.remove("settings-status-ok");
       zwoDirStatusEl.classList.add("settings-status-missing");
       startupNeedsAttention.missingZwoDir = true;
     }
@@ -171,6 +173,10 @@ async function refreshDirectoryStatuses() {
     console.error("[Settings] Failed to load directory handles", err);
     historyDirStatusEl.textContent = "Error loading folder";
     zwoDirStatusEl.textContent = "Error loading folder";
+    historyDirStatusEl.classList.remove("settings-status-ok");
+    zwoDirStatusEl.classList.remove("settings-status-ok");
+    historyDirStatusEl.classList.add("settings-status-missing");
+    zwoDirStatusEl.classList.add("settings-status-missing");
   }
 }
 
@@ -206,39 +212,81 @@ async function handleChooseZwoDir() {
 
 // --------------------------- FTP section ---------------------------
 
+function getEngine() {
+  if (!engine) {
+    engine = getWorkoutEngine();
+  }
+  return engine;
+}
+
+function getCurrentFtpFromEngine() {
+  const eng = getEngine();
+  const vm = eng.getViewModel();
+  return vm.currentFtp || DEFAULT_FTP;
+}
+
 function refreshFtpFromEngine() {
   if (!ftpInput) return;
-  if (!engine) engine = getWorkoutEngine();
-  const vm = engine.getViewModel();
-  const current = vm.currentFtp || DEFAULT_FTP;
+  const current = getCurrentFtpFromEngine();
   ftpInput.value = String(current);
   if (ftpErrorEl) ftpErrorEl.textContent = "";
 }
 
-function handleFtpSave() {
-  if (!ftpInput || !engine) return;
+function normaliseFtpValue(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const clamped = Math.min(500, Math.max(50, Math.round(n)));
+  return clamped;
+}
 
-  const raw = ftpInput.value.trim();
-  const n = Number(raw);
-  if (!Number.isFinite(n)) {
-    if (ftpErrorEl) ftpErrorEl.textContent = "Enter a number between 50 and 500.";
+function applyFtpValue(newFtp) {
+  const eng = getEngine();
+  if (!eng) return;
+
+  const vm = eng.getViewModel();
+  if (newFtp === vm.currentFtp) {
+    // Nothing to do.
     return;
   }
-  const clamped = Math.min(500, Math.max(50, Math.round(n)));
-  if (ftpErrorEl) ftpErrorEl.textContent = "";
 
-  const vm = engine.getViewModel();
-  if (clamped === vm.currentFtp) return;
-
-  engine.setFtp(clamped);
-  try {
-    saveFtp(clamped);
-  } catch (err) {
-    console.error(
-      "[Settings] Failed to persist FTP to chrome.storage.sync:",
-      err
-    );
+  eng.setFtp(newFtp);
+  if (ftpInput) {
+    ftpInput.value = String(newFtp);
   }
+  if (ftpErrorEl) {
+    ftpErrorEl.textContent = "";
+  }
+  try {
+    saveFtp(newFtp);
+  } catch (err) {
+    console.error("[Settings] Failed to persist FTP to storage:", err);
+  }
+}
+
+function handleFtpSave() {
+  if (!ftpInput) return;
+
+  const raw = ftpInput.value.trim();
+  const normalised = normaliseFtpValue(raw);
+  if (normalised == null) {
+    if (ftpErrorEl) {
+      ftpErrorEl.textContent = "Enter a number between 50 and 500.";
+    }
+    return;
+  }
+
+  applyFtpValue(normalised);
+}
+
+function handleFtpDelta(delta) {
+  if (!ftpInput) return;
+
+  const engineFtp = getCurrentFtpFromEngine();
+  const currentParsed = normaliseFtpValue(ftpInput.value.trim());
+  const base = currentParsed == null ? engineFtp : currentParsed;
+  const next = normaliseFtpValue(base + delta);
+  if (next == null) return;
+  applyFtpValue(next);
 }
 
 // --------------------------- Sound section ---------------------------
@@ -264,18 +312,14 @@ function refreshEnvironmentStatus() {
   const hasBt = isWebBluetoothAvailable();
   if (btStatusText) {
     btStatusText.textContent = hasBt
-      ? "Web Bluetooth available"
-      : "Web Bluetooth not available in this environment";
+      ? "Web Bluetooth API detected in this browser."
+      : "Web Bluetooth API not detected – device connections may not work here.";
     btStatusText.classList.toggle("settings-status-ok", hasBt);
     btStatusText.classList.toggle("settings-status-missing", !hasBt);
   }
 
   if (btStatusCta) {
-    if (hasBt) {
-      btStatusCta.style.display = "none";
-    } else {
-      btStatusCta.style.display = "";
-    }
+    btStatusCta.style.display = hasBt ? "none" : "";
   }
 
   if (!hasBt) {
@@ -293,7 +337,7 @@ function updateAttentionBanner() {
     issues.push("Select workout history & library folders.");
   }
   if (startupNeedsAttention.missingBtSupport) {
-    issues.push("Enable Web Bluetooth (see instructions below).");
+    issues.push("Use a supported browser with Web Bluetooth (Chrome on desktop/Android).");
   }
 
   if (!issues.length) {
@@ -318,10 +362,19 @@ function initHelpToggles() {
       const el = document.getElementById(targetId);
       if (!el) return;
       const isHidden = el.hasAttribute("hidden");
+
       if (isHidden) {
+        // Show with a small fade/slide animation
         el.removeAttribute("hidden");
+        // Restart animation
+        el.classList.remove("settings-help-content--visible");
+        // Force reflow so the animation can replay
+        // eslint-disable-next-line no-unused-expressions
+        el.offsetWidth;
+        el.classList.add("settings-help-content--visible");
       } else {
         el.setAttribute("hidden", "true");
+        el.classList.remove("settings-help-content--visible");
       }
     });
   });
@@ -381,16 +434,31 @@ function wireSettingsEvents() {
     });
   }
 
-  if (ftpSaveBtn && ftpInput) {
-    ftpSaveBtn.addEventListener("click", () => {
-      handleFtpSave();
-    });
-    // Optional convenience: Enter key in FTP input
+  if (ftpInput) {
+    // Save on Enter and blur
     ftpInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         handleFtpSave();
+        ftpInput.blur();
       }
+    });
+
+    // Also persist on blur so mouse-based edits are saved too
+    ftpInput.addEventListener("blur", () => {
+      handleFtpSave();
+    });
+  }
+
+  if (ftpMinusBtn) {
+    ftpMinusBtn.addEventListener("click", () => {
+      handleFtpDelta(-10);
+    });
+  }
+
+  if (ftpPlusBtn) {
+    ftpPlusBtn.addEventListener("click", () => {
+      handleFtpDelta(10);
     });
   }
 

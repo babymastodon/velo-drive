@@ -1231,7 +1231,8 @@
 
     @media (prefers-color-scheme: dark) {
       .settings-status-ok {
-        color: #6ad60b;
+        color: #9ccc65;
+        /* softer, less neon */
       }
 
       .settings-status-missing {
@@ -1342,11 +1343,12 @@
 
     @media (prefers-color-scheme: dark) {
       .settings-toggle-slider {
-        background: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.12);
       }
 
       .settings-toggle-switch input:checked+.settings-toggle-slider {
-        background: #64b5f6;
+        background: #4f83cc;
+        /* darker, less eye-searing blue */
       }
     }
 
@@ -1421,7 +1423,35 @@
     .settings-help-content {
       font-size: 13px;
       color: var(--text-muted);
-      margin-top: 4px;
+      margin-top: 6px;
+      padding: 8px 10px;
+      border-left: 3px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(0, 0, 0, 0.03);
+      animation: none;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .settings-help-content {
+        background: rgba(255, 255, 255, 0.05);
+        border-left-color: var(--border-subtle);
+      }
+    }
+
+    .settings-help-content--visible {
+      animation: settingsHelpFadeIn 180ms ease-out;
+    }
+
+    @keyframes settingsHelpFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-2px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .settings-help-content[hidden] {
@@ -1438,6 +1468,24 @@
       .settings-row {
         align-items: flex-start;
       }
+    }
+
+    .settings-row-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    @media (max-width: 900px) {
+      .settings-row-right {
+        align-items: flex-start;
+      }
+    }
+
+    #settingsBtStatusCta {
+      max-width: 420px;
     }
 
   </style>
@@ -1658,7 +1706,10 @@
               <div class="settings-row-main">
                 <div class="settings-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <!-- folder -->
                     <path d="M4 6h5l2 2h9v10H4z" />
+                    <!-- clock overlay -->
+                    <path d="M13 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2v2.5l1.5 1.5" />
                   </svg>
                 </div>
                 <div class="settings-row-text">
@@ -1666,13 +1717,16 @@
                   <div class="settings-row-sub">
                     Where completed workouts are saved as JSON files.
                   </div>
-                  <div class="settings-row-status" id="historyDirStatus"></div>
                 </div>
               </div>
-              <button id="historyDirButton" class="settings-button" type="button">
-                Choose…
-              </button>
+              <div class="settings-row-right">
+                <div id="historyDirStatus" class="settings-row-status"></div>
+                <button id="historyDirButton" class="settings-button" type="button">
+                  Choose…
+                </button>
+              </div>
             </div>
+
 
             <div class="settings-row">
               <div class="settings-row-main">
@@ -1686,12 +1740,14 @@
                   <div class="settings-row-sub">
                     Folder with your ZWO files used by the workout picker.
                   </div>
-                  <div class="settings-row-status" id="zwoDirStatus"></div>
                 </div>
               </div>
-              <button id="zwoDirButton" class="settings-button" type="button">
-                Choose…
-              </button>
+              <div class="settings-row-right">
+                <div id="zwoDirStatus" class="settings-row-status"></div>
+                <button id="zwoDirButton" class="settings-button" type="button">
+                  Choose…
+                </button>
+              </div>
             </div>
 
             <div id="settingsFoldersHelp" class="settings-help-content" hidden>
@@ -1715,7 +1771,7 @@
               <div class="settings-row-main">
                 <div class="settings-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 18V6h3.5L12 8.5 14.5 6H18v12z" />
+                    <path d="M11 21L5 13h4V3l8 8h-4v10z" />
                   </svg>
                 </div>
                 <div class="settings-row-text">
@@ -1728,16 +1784,17 @@
                   <div class="settings-row-sub">
                     Used to scale workout intensity and metrics.
                   </div>
-                  <div class="settings-inline-group">
-                    <input id="settingsFtpInput" class="settings-input" type="number" min="50" max="500" step="1"
-                      inputmode="numeric" />
-                    <span>W</span>
-                    <button id="settingsFtpSaveBtn" class="settings-button" type="button">
-                      Save
-                    </button>
-                  </div>
-                  <div id="settingsFtpError" class="settings-error"></div>
                 </div>
+              </div>
+              <div class="settings-row-right">
+                <div class="settings-inline-group">
+                  <button id="settingsFtpMinusBtn" class="settings-button" type="button">−10</button>
+                  <input id="settingsFtpInput" class="settings-input" type="number" min="50" max="500" step="1"
+                    inputmode="numeric" />
+                  <span>W</span>
+                  <button id="settingsFtpPlusBtn" class="settings-button" type="button">+10</button>
+                </div>
+                <div id="settingsFtpError" class="settings-error"></div>
               </div>
             </div>
 
@@ -1803,8 +1860,8 @@
               <div class="settings-row-main">
                 <div class="settings-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M7 3h10v2H7zM7 19h10v2H7z" />
-                    <path d="M11 5h2v14h-2z" />
+                    <path d="M12 3v18l5-5-3.5-4L17 8l-5-5z" />
+                    <path d="M7 8l5 4-5 4" />
                   </svg>
                 </div>
                 <div class="settings-row-text">
@@ -1812,7 +1869,14 @@
                   <div class="settings-row-sub">
                     Required to talk to your trainer and heart-rate monitor.
                   </div>
-                  <div id="settingsBtStatusText" class="settings-row-status"></div>
+                </div>
+              </div>
+              <div class="settings-row-right">
+                <div id="settingsBtStatusText" class="settings-row-status"></div>
+                <div id="settingsBtStatusCta" class="settings-row-sub" style="display:none;">
+                  Web Bluetooth is only guaranteed to work in Google Chrome on Linux, Windows, macOS, and Android.
+                  Some Chromium-based browsers (for example Vivaldi) do not support Bluetooth at all, and
+                  iOS browsers currently do not support Web Bluetooth.
                 </div>
               </div>
               <div id="settingsBtStatusCta" class="settings-row-sub" style="display:none; max-width:260px;">
