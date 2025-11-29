@@ -105,10 +105,10 @@ export const BleManager = (() => {
   // Global auto-reconnect enable flag
   let autoReconnectEnabled = true;
 
-  function defaultStatusMessage(kind, status) {
-    if (status === "connecting") return `Connecting to ${kind}…`;
-    if (status === "connected") return `Connected to ${kind}.`;
-    if (status === "error") return `Error with ${kind} connection.`;
+  function defaultStatusMessage(kind, state) {
+    if (state === "connecting") return `Connecting to ${kind}…`;
+    if (state === "connected") return `Connected to ${kind}.`;
+    if (state === "error") return `Error with ${kind} connection.`;
     return "";
   }
 
@@ -236,9 +236,10 @@ export const BleManager = (() => {
 
     cancelBikeAutoReconnect();
 
+    const friendlyName = device.name || "bike";
     updateBikeStatus(
       "error",
-      `Bike disconnected. Will retry in ${Math.round(
+      `Device "${friendlyName}" disconnected. Will retry in ${Math.round(
         bikeAutoReconnectDelayMs / 1000
       )}s…`
     );
@@ -258,14 +259,15 @@ export const BleManager = (() => {
         return;
       }
 
-      log("Auto-reconnect: attempting bike reconnect…");
+      const autoName = dev.name || "bike";
+      log(`Auto-reconnect: attempting reconnect to "${autoName}"…`);
 
       try {
         await connectToBike(dev, {isAuto: true});
-        log("Auto-reconnect (bike) attempt finished.");
+        log(`Auto-reconnect (bike) attempt for "${autoName}" finished.`);
         // Success path: connectToBike will set "connected"
       } catch (err) {
-        log("Auto-reconnect (bike) failed: " + err);
+        log(`Auto-reconnect (bike) failed for "${autoName}": ` + err);
         // Increase delay (up to 10s) and reschedule
         const nextDelay = Math.min(
           MAX_RECONNECT_DELAY_MS,
@@ -274,7 +276,7 @@ export const BleManager = (() => {
         bikeAutoReconnectDelayMs = nextDelay;
 
         const msg =
-          "Bike connection failed: " +
+          `Connection to "${autoName}" failed: ` +
           (err && err.message ? err.message : String(err)) +
           ` — retrying in ${Math.round(nextDelay / 1000)}s…`;
         updateBikeStatus("error", msg);
@@ -304,9 +306,10 @@ export const BleManager = (() => {
 
     cancelHrAutoReconnect();
 
+    const friendlyName = device.name || "heart-rate monitor";
     updateHrStatus(
       "error",
-      `Heart-rate monitor disconnected. Will retry in ${Math.round(
+      `Device "${friendlyName}" disconnected. Will retry in ${Math.round(
         hrAutoReconnectDelayMs / 1000
       )}s…`
     );
@@ -326,14 +329,15 @@ export const BleManager = (() => {
         return;
       }
 
-      log("Auto-reconnect: attempting HRM reconnect…");
+      const autoName = dev.name || "heart-rate monitor";
+      log(`Auto-reconnect: attempting HRM reconnect to "${autoName}"…`);
 
       try {
         await connectToHr(dev, {isAuto: true});
-        log("Auto-reconnect (HR) attempt finished.");
+        log(`Auto-reconnect (HR) attempt for "${autoName}" finished.`);
         // Success path handled in connectToHr
       } catch (err) {
-        log("Auto-reconnect (HR) failed: " + err);
+        log(`Auto-reconnect (HR) failed for "${autoName}": ` + err);
 
         const nextDelay = Math.min(
           MAX_RECONNECT_DELAY_MS,
@@ -342,7 +346,7 @@ export const BleManager = (() => {
         hrAutoReconnectDelayMs = nextDelay;
 
         const msg =
-          "HRM connection failed: " +
+          `Connection to "${autoName}" failed: ` +
           (err && err.message ? err.message : String(err)) +
           ` — retrying in ${Math.round(nextDelay / 1000)}s…`;
         updateHrStatus("error", msg);
@@ -589,6 +593,7 @@ export const BleManager = (() => {
     if (!device) throw new Error("connectToBike called without a device");
 
     const deviceId = device.id;
+    const friendlyName = device.name || "bike";
     bikeKnownDevices.set(deviceId, device);
 
     const desiredAtStart = bikeDesiredDeviceId;
@@ -602,7 +607,7 @@ export const BleManager = (() => {
     }
 
     if (deviceId === bikeDesiredDeviceId) {
-      updateBikeStatus("connecting", "Connecting to bike…");
+      updateBikeStatus("connecting", `Connecting to "${friendlyName}"…`);
     }
 
     let server = null;
@@ -611,20 +616,23 @@ export const BleManager = (() => {
     let controlPointChar = null;
 
     try {
-      log(`Connecting to GATT server for bike (id=${deviceId})…`);
-      updateBikeStatus("connecting", "Connecting to bike GATT server…");
+      log(`Connecting to GATT server for bike (id=${deviceId}, name="${friendlyName}")…`);
+      updateBikeStatus(
+        "connecting",
+        `Connecting to "${friendlyName}" GATT server…`
+      );
       server = await device.gatt.connect();
       log("Connected to GATT server (bike).");
       updateBikeStatus(
         "connecting",
-        "Connected to bike GATT server, discovering FTMS service…"
+        `Connected to "${friendlyName}", discovering FTMS service…`
       );
 
       ftmsService = await server.getPrimaryService(FTMS_SERVICE_UUID);
       log("FTMS service found.");
       updateBikeStatus(
         "connecting",
-        "FTMS service found, discovering characteristics…"
+        `FTMS service found on "${friendlyName}", discovering characteristics…`
       );
 
       indoorBikeDataChar = await ftmsService.getCharacteristic(
@@ -683,7 +691,7 @@ export const BleManager = (() => {
       // Only commit to state & save ID if this device is still desired
       if (deviceId !== bikeDesiredDeviceId) {
         log(
-          `Bike connect succeeded for stale device ${deviceId}, desired is now ${bikeDesiredDeviceId}. Tearing down.`
+          `Bike connect succeeded for stale device ${deviceId} ("${friendlyName}"), desired is now ${bikeDesiredDeviceId}. Tearing down.`
         );
         try {
           server.disconnect();
@@ -705,7 +713,7 @@ export const BleManager = (() => {
       }
 
       const disconnectHandler = () => {
-        log("BLE disconnected (bike).");
+        log(`BLE disconnected (bike "${friendlyName}").`);
         bikeConnected = false;
 
         const willRetry =
@@ -714,8 +722,8 @@ export const BleManager = (() => {
           !!bikeDesiredDeviceId;
 
         const msg = willRetry
-          ? "Bike disconnected. Will retry shortly…"
-          : "Bike disconnected.";
+          ? `Device "${friendlyName}" disconnected. Will retry shortly…`
+          : `Device "${friendlyName}" disconnected.`;
 
         updateBikeStatus("error", msg);
 
@@ -749,15 +757,14 @@ export const BleManager = (() => {
       bikeState._disconnectHandler = disconnectHandler;
 
       bikeConnected = true;
-      const friendlyName = device.name || "bike";
-      updateBikeStatus("connected", `Connected to ${friendlyName}.`);
-      log("Bike connected & committed to bikeState.");
+      updateBikeStatus("connected", `Connected to "${friendlyName}".`);
+      log(`Bike connected & committed to bikeState (device "${friendlyName}").`);
     } catch (err) {
-      log("Bike connect error (fatal): " + err);
+      log(`Bike connect error (fatal) for "${friendlyName}": ` + err);
       if (deviceId === bikeDesiredDeviceId) {
         bikeConnected = false;
         const msg =
-          "Failed to connect to bike: " +
+          `Failed to connect to "${friendlyName}": ` +
           (err && err.message ? err.message : String(err));
         updateBikeStatus("error", msg);
       }
@@ -778,6 +785,7 @@ export const BleManager = (() => {
     if (!device) throw new Error("connectToHr called without a device");
 
     const deviceId = device.id;
+    const friendlyName = device.name || "heart-rate monitor";
     hrKnownDevices.set(deviceId, device);
 
     const desiredAtStart = hrDesiredDeviceId;
@@ -790,7 +798,7 @@ export const BleManager = (() => {
     }
 
     if (deviceId === hrDesiredDeviceId) {
-      updateHrStatus("connecting", "Connecting to heart-rate monitor…");
+      updateHrStatus("connecting", `Connecting to "${friendlyName}"…`);
     }
 
     let server = null;
@@ -799,20 +807,23 @@ export const BleManager = (() => {
     let measurementChar = null;
 
     try {
-      log(`Connecting to GATT server for HR (id=${deviceId})…`);
-      updateHrStatus("connecting", "Connecting to HRM GATT server…");
+      log(`Connecting to GATT server for HR (id=${deviceId}, name="${friendlyName}")…`);
+      updateHrStatus(
+        "connecting",
+        `Connecting to "${friendlyName}" GATT server…`
+      );
       server = await device.gatt.connect();
       log("Connected to GATT server (hr).");
       updateHrStatus(
         "connecting",
-        "Connected to HRM GATT server, discovering services…"
+        `Connected to "${friendlyName}", discovering services…`
       );
 
       hrService = await server.getPrimaryService(HEART_RATE_SERVICE_UUID);
       log("Heart Rate service found.");
       updateHrStatus(
         "connecting",
-        "Heart Rate service found, subscribing to measurement…"
+        `Heart Rate service found on "${friendlyName}", subscribing to measurement…`
       );
 
       // Battery service still optional
@@ -836,18 +847,20 @@ export const BleManager = (() => {
             await batteryService.getCharacteristic(BATTERY_LEVEL_CHAR);
           const val = await batteryLevelChar.readValue();
           const pct = val.getUint8(0);
-          log(`HR battery: ${pct}%`);
+          log(`HR battery: ${pct}% on "${friendlyName}"`);
           hrBatteryPercent = pct;
           emit("hrBattery", pct);
         } catch (err) {
-          log("Battery read failed (non-fatal): " + err);
+          log(
+            `Battery read failed for "${friendlyName}" (non-fatal): ` + err
+          );
         }
       }
 
       // Only commit & save ID if still desired device
       if (deviceId !== hrDesiredDeviceId) {
         log(
-          `HR connect succeeded for stale device ${deviceId}, desired is now ${hrDesiredDeviceId}. Tearing down.`
+          `HR connect succeeded for stale device ${deviceId} ("${friendlyName}"), desired is now ${hrDesiredDeviceId}. Tearing down.`
         );
         try {
           server.disconnect();
@@ -869,7 +882,7 @@ export const BleManager = (() => {
       }
 
       const disconnectHandler = () => {
-        log("BLE disconnected (hr).");
+        log(`BLE disconnected (hr "${friendlyName}").`);
         hrConnected = false;
 
         const willRetry =
@@ -878,8 +891,8 @@ export const BleManager = (() => {
           !!hrDesiredDeviceId;
 
         const msg = willRetry
-          ? "Heart-rate monitor disconnected. Will retry shortly…"
-          : "Heart-rate monitor disconnected.";
+          ? `Device "${friendlyName}" disconnected. Will retry shortly…`
+          : `Device "${friendlyName}" disconnected.`;
 
         updateHrStatus("error", msg);
 
@@ -909,15 +922,14 @@ export const BleManager = (() => {
       hrState._disconnectHandler = disconnectHandler;
 
       hrConnected = true;
-      const friendlyName = device.name || "heart-rate monitor";
-      updateHrStatus("connected", `Connected to ${friendlyName}.`);
-      log("HR connected & committed to hrState.");
+      updateHrStatus("connected", `Connected to "${friendlyName}".`);
+      log(`HR connected & committed to hrState (device "${friendlyName}").`);
     } catch (err) {
-      log("HR connect error (fatal): " + err);
+      log(`HR connect error (fatal) for "${friendlyName}": ` + err);
       if (deviceId === hrDesiredDeviceId) {
         hrConnected = false;
         const msg =
-          "Failed to connect to heart-rate monitor: " +
+          `Failed to connect to "${friendlyName}": ` +
           (err && err.message ? err.message : String(err));
         updateHrStatus("error", msg);
       }
@@ -960,7 +972,9 @@ export const BleManager = (() => {
     const hrDevice = hrId ? devices.find((d) => d.id === hrId) : null;
 
     if (bikeDevice) {
-      log("Found previously paired bike, starting auto-reconnect…");
+      log(
+        `Found previously paired bike "${bikeDevice.name || "bike"}", starting auto-reconnect…`
+      );
       bikeKnownDevices.set(bikeDevice.id, bikeDevice);
       bikeDesiredDeviceId = bikeDevice.id;
       bikeAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
@@ -970,7 +984,9 @@ export const BleManager = (() => {
     }
 
     if (hrDevice) {
-      log("Found previously paired HRM, starting auto-reconnect…");
+      log(
+        `Found previously paired HRM "${hrDevice.name || "heart-rate monitor"}", starting auto-reconnect…`
+      );
       hrKnownDevices.set(hrDevice.id, hrDevice);
       hrDesiredDeviceId = hrDevice.id;
       hrAutoReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
