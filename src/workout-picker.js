@@ -275,9 +275,8 @@ function createWorkoutPicker(config) {
 
     /** @type {{ canonical: CanonicalWorkout, category: string, metrics: any }[]} */
     let items = pickerWorkouts.map((canonical) => {
-      const segmentsForMetrics = canonicalToMetricsSegments(canonical);
       const metrics = computeMetricsFromSegments(
-        segmentsForMetrics,
+        canonical.rawSegments,
         currentFtp
       );
       const category = getCanonicalCategory(canonical);
@@ -572,19 +571,7 @@ function createWorkoutPicker(config) {
         expTr.appendChild(expTd);
         tbody.appendChild(expTr);
 
-        // For the chart, we keep using segmentsForMetrics for now.
-        const segmentsForMetrics = canonicalToMetricsSegments(canonical);
-        const graphMeta = {
-          name: title,
-          description,
-          source,
-          category,
-          segmentsForMetrics,
-          segmentsForCategory: canonical.rawSegments || [],
-          canonicalWorkout: canonical,
-        };
-
-        renderMiniWorkoutGraph(graphDiv, graphMeta, currentFtp);
+        renderMiniWorkoutGraph(graphDiv, canonical, currentFtp);
       }
 
       tr.addEventListener("click", () => {

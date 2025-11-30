@@ -84,22 +84,23 @@ function cdataUnwrap(text) {
 
 /**
  * Parse a ZWO-style snippet containing SteadyState / Warmup / Cooldown / IntervalsT
- * into canonical segments and syntax errors.
+ * into canonical rawSegments and syntax errors.
  *
- * Returns segments as:
- *   { durationSec: number, pStartRel: number, pEndRel: number }[]
- * where power is relative FTP (0–1).
+ * Returns:
+ *   rawSegments: Array<[minutes:number, startPct:number, endPct:number]>
+ *     where minutes is the segment duration in minutes,
+ *     and startPct / endPct are FTP percentages (0–100).
  *
  * Errors have:
  *   { start: number, end: number, message: string }
  *
- * Safety limits:
- *   - Max per-segment duration  : 12 hours
- *   - Max total IntervalsT time : 24 hours
+ * Safety limits (enforced by helper handlers):
+ *   - Max per-segment duration  : 12 hours equivalent in minutes
+ *   - Max total IntervalsT time : 24 hours equivalent
  *   - Max IntervalsT repeats    : 500
  *
  * @param {string} text
- * @returns {{segments:Array<{durationSec:number,pStartRel:number,pEndRel:number}>,errors:Array<{start:number,end:number,message:string}>}}
+ * @returns {{rawSegments:Array<[number,number,number]>, errors:Array<{start:number,end:number,message:string}>}}
  */
 export function parseZwoSnippet(text) {
   /** @type {Array<{durationSec:number,pStartRel:number,pEndRel:number}>} */
@@ -110,7 +111,7 @@ export function parseZwoSnippet(text) {
     .replace(/<\s*workout[^>]*>/gi, "")
     .replace(/<\/\s*workout\s*>/gi, "");
   const trimmed = raw.trim();
-  if (!trimmed) return {segments, errors};
+  if (!trimmed) return {rawSegments: [], errors};
 
   const tagRegex = /<([A-Za-z]+)\b([^>]*)\/>/g;
   let lastIndex = 0;
@@ -128,8 +129,7 @@ export function parseZwoSnippet(text) {
       errors.push({
         start: lastIndex,
         end: startIdx,
-        message:
-          "Unexpected text between elements; only ZWO workout elements are allowed.",
+        message: "Unexpected text between elements; only ZWO workout elements are allowed.",
       });
     }
 
@@ -139,8 +139,7 @@ export function parseZwoSnippet(text) {
       errors.push({
         start: startIdx,
         end: endIdx,
-        message:
-          "Malformed element: unexpected text or tokens inside element.",
+        message: "Malformed element: unexpected text or tokens inside element.",
       });
       lastIndex = endIdx;
       continue;
@@ -178,7 +177,16 @@ export function parseZwoSnippet(text) {
     });
   }
 
-  return {segments, errors};
+  // Convert parsed metric segments -> canonical rawSegments
+  const rawSegments = segments.map((seg) => {
+    return [
+      seg.durationSec / 60,      // minutes
+      seg.pStartRel * 100,       // startPct
+      seg.pEndRel * 100          // endPct
+    ];
+  });
+
+  return {rawSegments, errors};
 }
 
 function parseZwoAttributes(attrText) {
@@ -664,63 +672,51 @@ ${fileNameTag}</workout_file>
  * @returns {CanonicalWorkout|null}
  */
 export function parseZwoXmlToCanonicalWorkout(xmlText, filename = "") {
-  if (!xmlText || typeof xmlText !== "string") return null;
-  const xml = xmlText;
+  if (!xmlText) return null;
 
-  const nameMatch = xml.match(/<name>([\s\S]*?)<\/name>/i);
-  const rawName = nameMatch ? nameMatch[1].trim() : "Imported workout";
-  const workoutTitle = unescapeXml(cdataUnwrap(rawName));
+  // Title
+  const nameMatch = xmlText.match(/<name>([\s\S]*?)<\/name>/i);
+  const workoutTitle = unescapeXml(
+    cdataUnwrap((nameMatch ? nameMatch[1] : "Imported workout").trim())
+  );
 
-  const descMatch = xml.match(/<description>([\s\S]*?)<\/description>/i);
+  // Description (strip "Original workout URL:" line if present)
   let description = "";
+  const descMatch = xmlText.match(/<description>([\s\S]*?)<\/description>/i);
   if (descMatch) {
-    let rawDesc = descMatch[1].trim();
-    rawDesc = cdataUnwrap(rawDesc);
-    rawDesc = unescapeXml(rawDesc);
-
-    // Strip the "Original workout URL: ..." line if present
-    const lines = rawDesc.split(/\r?\n/);
-    const filtered = [];
-    for (const line of lines) {
-      if (
-        line.trim().toLowerCase().startsWith("original workout url:")
-      ) {
-        continue;
-      }
-      filtered.push(line);
-    }
-    description = filtered.join("\n").trim();
+    const rawDesc = unescapeXml(cdataUnwrap(descMatch[1].trim()));
+    description = rawDesc
+      .split(/\r?\n/)
+      .filter(
+        (line) =>
+          !line.trim().toLowerCase().startsWith("original workout url:")
+      )
+      .join("\n")
+      .trim();
   }
 
-  // Extract OriginalURL tag if present
+  // Original URL tag (if present)
   let sourceURL = "";
-  const urlTagMatch = xml.match(
+  const urlTagMatch = xmlText.match(
     /<tag[^>]*\sname="OriginalURL:([^"]*)"/i
   );
   if (urlTagMatch) {
     sourceURL = unescapeXml(urlTagMatch[1]);
   }
 
-  // Source is just the author
+  // Source = author if present, otherwise generic label
   let source = "Imported ZWO";
-  const authorMatch = xml.match(/<author>([\s\S]*?)<\/author>/i);
+  const authorMatch = xmlText.match(/<author>([\s\S]*?)<\/author>/i);
   if (authorMatch) {
     source = unescapeXml(authorMatch[1].trim());
   }
 
-  // Extract <workout>...</workout> body and reuse parseZwoSnippet
-  const workoutMatch = xml.match(
+  // Extract <workout> body and parse into canonical rawSegments
+  const workoutMatch = xmlText.match(
     /<workout[^>]*>([\s\S]*?)<\/workout>/i
   );
   const workoutInner = workoutMatch ? workoutMatch[1] : "";
-  const {segments} = parseZwoSnippet(workoutInner);
-
-  const rawSegments = segments.map((s) => {
-    const minutes = s.durationSec / 60;
-    const startPct = s.pStartRel * 100;
-    const endPct = s.pEndRel * 100;
-    return [minutes, startPct, endPct];
-  });
+  const {rawSegments} = parseZwoSnippet(workoutInner);
 
   /** @type {CanonicalWorkout} */
   const cw = {

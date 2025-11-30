@@ -3,116 +3,58 @@
 
 export const DEFAULT_FTP = 250;
 
-// --------------------------- Segment scaling ---------------------------
-
-/**
- * Take normalized workout segments (with durationSec, pStartRel, pEndRel)
- * and scale them into absolute watt targets & timeline.
- *
- * Returns:
- *   { scaledSegments, totalSec }
- */
-export function computeScaledSegments(segments, ftp) {
-  if (!Array.isArray(segments) || !segments.length) {
-    return {scaledSegments: [], totalSec: 0};
-  }
-
-  let t = 0;
-  const scaled = segments.map((seg) => {
-    const dur = Math.max(1, Math.round(seg.durationSec || 0));
-    const pStartRel = seg.pStartRel || 0;
-    const pEndRel = seg.pEndRel != null ? seg.pEndRel : pStartRel;
-
-    const targetWattsStart = Math.round(ftp * pStartRel);
-    const targetWattsEnd = Math.round(ftp * pEndRel);
-
-    const s = {
-      durationSec: dur,
-      startTimeSec: t,
-      endTimeSec: t + dur,
-      targetWattsStart,
-      targetWattsEnd,
-      pStartRel,
-      pEndRel,
-    };
-
-    t += dur;
-    return s;
-  });
-
-  return {
-    scaledSegments: scaled,
-    totalSec: t,
-  };
-}
 
 // --------------------------- Metrics from segments ---------------------------
 
 /**
- * segments: [{ durationSec, pStartRel, pEndRel }, ...]
+ * Compute workout metrics from canonical rawSegments.
+ *
+ * rawSegments: Array<[minutes:number, startPct:number, endPct:number]>
  * ftp: numeric FTP (W)
+ *
+ * Returns: { totalSec, durationMin, ifValue, tss, kj, ftp }
  */
-export function computeMetricsFromSegments(segments, ftp) {
-  const ftpVal = Number(ftp);
-  if (
-    !Array.isArray(segments) ||
-    segments.length === 0 ||
-    !Number.isFinite(ftpVal) ||
-    ftpVal <= 0
-  ) {
+export function computeMetricsFromSegments(rawSegments, ftp) {
+  const ftpVal = Number(ftp) || 0;
+  if (!ftpVal || !rawSegments?.length) {
     return {
       totalSec: 0,
       durationMin: 0,
       ifValue: null,
       tss: null,
       kj: null,
-      ftp: ftpVal > 0 ? ftpVal : null,
+      ftp: ftpVal || null,
     };
   }
 
   let totalSec = 0;
-  let sumFrac = 0;
-  let sumFrac4 = 0;
+  let sumFrac = 0;   // sum of relative power samples
+  let sumFrac4 = 0;  // sum of (relative power^4)
 
-  for (const seg of segments) {
-    const dur = Math.max(1, Math.round(Number(seg.durationSec) || 0));
-    const p0 = Number(seg.pStartRel) || 0;
-    const p1 = Number(seg.pEndRel) || 0;
-    const dp = p1 - p0;
+  for (const [minutes, startPct, endPct] of rawSegments) {
+    const dur = Math.max(1, Math.round(minutes * 60));
+    const p0 = startPct / 100;       // relative FTP 0–1
+    const dp = (endPct - startPct) / 100;  // delta relative FTP
 
     for (let i = 0; i < dur; i++) {
-      const tMid = (i + 0.5) / dur;
-      const frac = p0 + dp * tMid;
-      sumFrac += frac;
-      const f2 = frac * frac;
-      sumFrac4 += f2 * f2;
+      const rel = p0 + dp * ((i + 0.5) / dur); // mid-point power
+      sumFrac += rel;
+      sumFrac4 += rel ** 4;
       totalSec++;
     }
   }
 
-  if (totalSec === 0) {
-    return {
-      totalSec: 0,
-      durationMin: 0,
-      ifValue: null,
-      tss: null,
-      kj: null,
-      ftp: ftpVal,
-    };
-  }
-
-  const npRel = Math.pow(sumFrac4 / totalSec, 0.25);
-  const IF = npRel;
   const durationMin = totalSec / 60;
+  const IF = Math.pow(sumFrac4 / totalSec, 0.25);
   const tss = (totalSec * IF * IF) / 36;
-  const kJ = (ftpVal * sumFrac) / 1000;
+  const kj = ftpVal * sumFrac / 1000;
 
   return {
     totalSec,
     durationMin,
     ifValue: IF,
     tss,
-    kj: kJ,
+    kj,
     ftp: ftpVal,
   };
 }
@@ -213,167 +155,6 @@ export function inferCategoryFromSegments(rawSegments) {
   }
 
   return "Base";
-}
-
-// --------------------------- ZWO parsing helpers ---------------------------
-
-/**
- * Extracts segments from a <workout_file> XML DOM.
- * Returns:
- *   segmentsForMetrics: [{ durationSec, pStartRel, pEndRel }, ...]
- *   segmentsForCategory: [[minutes, startPct, endPct], ...]
- */
-export function extractSegmentsFromZwo(doc) {
-  const workoutEl = doc.querySelector("workout_file > workout");
-  if (!workoutEl) return {segmentsForMetrics: [], segmentsForCategory: []};
-
-  const segments = [];
-  const rawSegments = [];
-
-  const children = Array.from(workoutEl.children);
-
-  function pushSeg(durationSec, pLow, pHigh) {
-    segments.push({
-      durationSec,
-      pStartRel: pLow,
-      pEndRel: pHigh,
-    });
-    const minutes = durationSec / 60;
-    rawSegments.push([minutes, pLow * 100, pHigh * 100]);
-  }
-
-  for (const el of children) {
-    const tag = el.tagName;
-    if (!tag) continue;
-    const name = tag.toLowerCase();
-
-    if (name === "steadystate") {
-      const dur = Number(
-        el.getAttribute("Duration") || el.getAttribute("duration") || 0
-      );
-      const p = Number(
-        el.getAttribute("Power") || el.getAttribute("power") || 0
-      );
-      if (dur > 0 && Number.isFinite(p)) {
-        pushSeg(dur, p, p);
-      }
-    } else if (name === "warmup" || name === "cooldown") {
-      const dur = Number(
-        el.getAttribute("Duration") || el.getAttribute("duration") || 0
-      );
-      const pLow = Number(
-        el.getAttribute("PowerLow") || el.getAttribute("powerlow") || 0
-      );
-      const pHigh = Number(
-        el.getAttribute("PowerHigh") || el.getAttribute("powerhigh") || 0
-      );
-      if (dur > 0 && Number.isFinite(pLow) && Number.isFinite(pHigh)) {
-        pushSeg(dur, pLow, pHigh);
-      }
-    } else if (name === "intervalst") {
-      const repeat = Number(
-        el.getAttribute("Repeat") || el.getAttribute("repeat") || 1
-      );
-      const onDur = Number(
-        el.getAttribute("OnDuration") || el.getAttribute("onduration") || 0
-      );
-      const offDur = Number(
-        el.getAttribute("OffDuration") || el.getAttribute("offduration") || 0
-      );
-      const onP = Number(
-        el.getAttribute("OnPower") || el.getAttribute("onpower") || 0
-      );
-      const offP = Number(
-        el.getAttribute("OffPower") || el.getAttribute("offpower") || 0
-      );
-
-      const reps = Number.isFinite(repeat) && repeat > 0 ? repeat : 1;
-      for (let i = 0; i < reps; i++) {
-        if (onDur > 0 && Number.isFinite(onP)) {
-          pushSeg(onDur, onP, onP);
-        }
-        if (offDur > 0 && Number.isFinite(offP)) {
-          pushSeg(offDur, offP, offP);
-        }
-      }
-    }
-  }
-
-  return {
-    segmentsForMetrics: segments,
-    segmentsForCategory: rawSegments,
-  };
-}
-
-/**
- * Parses .zwo XML text into a normalized workout meta object.
- */
-export function parseZwo(xmlText, fileName) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, "application/xml");
-
-  const nameEl = doc.querySelector("workout_file > name");
-  const descEl = doc.querySelector("workout_file > description");
-  const tagEls = Array.from(
-    doc.querySelectorAll("workout_file > tags > tag")
-  );
-
-  const name = (nameEl && nameEl.textContent.trim()) || fileName;
-  const description = descEl ? descEl.textContent || "" : "";
-
-  const tags = tagEls
-    .map((t) => t.getAttribute("name") || "")
-    .filter(Boolean);
-
-  let source = null;
-  let ftpFromTag = null;
-
-  for (const tag of tags) {
-    const trimmed = tag.trim();
-    if (/^TrainerRoad$/i.test(trimmed)) source = "TrainerRoad";
-    else if (/^TrainerDay$/i.test(trimmed)) source = "TrainerDay";
-    else if (/^WhatsOnZwift$/i.test(trimmed)) source = "WhatsOnZwift";
-
-    const ftpMatch = trimmed.match(/^FTP:(\d+)/i);
-    if (ftpMatch) {
-      ftpFromTag = Number(ftpMatch[1]);
-    }
-  }
-
-  const {segmentsForMetrics, segmentsForCategory} =
-    extractSegmentsFromZwo(doc);
-
-  const ftpUsed =
-    Number.isFinite(ftpFromTag) && ftpFromTag > 0
-      ? ftpFromTag
-      : DEFAULT_FTP;
-  const metrics = computeMetricsFromSegments(segmentsForMetrics, ftpUsed);
-
-  const category = inferCategoryFromSegments(segmentsForCategory);
-
-  return {
-    fileName,
-    name,
-    description,
-    tags,
-    source: source || "Unknown",
-    ftpFromFile: ftpUsed,
-    baseKj: metrics.kj != null ? metrics.kj : null,
-    ifValue: metrics.ifValue != null ? metrics.ifValue : null,
-    tss: metrics.tss != null ? metrics.tss : null,
-    durationMin: metrics.durationMin != null ? metrics.durationMin : null,
-    totalSec: metrics.totalSec != null ? metrics.totalSec : null,
-    category,
-    segmentsForMetrics,
-    segmentsForCategory,
-    canonicalWorkout: {
-      source: source || "Unknown",
-      sourceURL: "",
-      workoutTitle: name,
-      rawSegments: segmentsForCategory,
-      description: description || "",
-    }
-  };
 }
 
 // --------------------------- Picker helpers ---------------------------

@@ -26,8 +26,8 @@ export function createWorkoutBuilder(options) {
   if (!rootEl) throw new Error("[WorkoutBuilder] rootEl is required");
 
   // ---------- State ----------
-  /** @type {Array<{durationSec:number,pStartRel:number,pEndRel:number}>} */
-  let currentSegments = [];
+  /** @type {Array<[number, number, number]>} */ // [minutes, startPct, endPct]
+  let currentRawSegments = [];
   let currentErrors = [];
   let currentMetrics = null;
   let currentCategory = null;
@@ -123,7 +123,7 @@ export function createWorkoutBuilder(options) {
   // Status bar
   const statusCard = document.createElement("div");
   statusCard.className = "wb-card wb-code-card";
-  // Error row
+
   const errorRow = document.createElement("div");
   errorRow.className = "wb-code-error-row";
 
@@ -165,7 +165,6 @@ export function createWorkoutBuilder(options) {
   urlBtn.type = "button";
   urlBtn.className = "picker-add-btn";
 
-  // SVG icon (currentColor stroke)
   const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   icon.setAttribute("viewBox", "0 0 24 24");
   icon.setAttribute("width", "16");
@@ -177,7 +176,6 @@ export function createWorkoutBuilder(options) {
   icon.setAttribute("stroke-linecap", "round");
   icon.setAttribute("stroke-linejoin", "round");
 
-  // Feather-style "download/import" arrow
   const path1 = document.createElementNS(
     "http://www.w3.org/2000/svg",
     "path",
@@ -203,15 +201,12 @@ export function createWorkoutBuilder(options) {
   icon.appendChild(path2);
   icon.appendChild(path3);
 
-  // Add text inside a <span>
   const textSpan = document.createElement("span");
   textSpan.textContent = "Import";
 
-  // Put icon + text inside button
   urlBtn.appendChild(icon);
   urlBtn.appendChild(textSpan);
 
-  // Assemble UI
   urlRow.appendChild(urlInput);
   urlRow.appendChild(urlBtn);
   urlSection.appendChild(urlTitle);
@@ -270,7 +265,6 @@ export function createWorkoutBuilder(options) {
     btn.className = "wb-code-insert-btn";
     btn.dataset.key = spec.key;
 
-    // Icon + label
     if (spec.icon) {
       const iconEl = createWorkoutElementIcon(spec.icon);
       btn.appendChild(iconEl);
@@ -291,11 +285,9 @@ export function createWorkoutBuilder(options) {
   toolbar.appendChild(toolbarLabel);
   toolbar.appendChild(toolbarButtons);
 
-  // Textarea
   const textareaWrapper = document.createElement("div");
   textareaWrapper.className = "wb-code-textarea-wrapper";
 
-  // Wrapper + highlight layer + textarea
   const codeWrapper = document.createElement("div");
   codeWrapper.className = "wb-code-wrapper";
 
@@ -327,7 +319,6 @@ export function createWorkoutBuilder(options) {
 
   // ---------- Events ----------
 
-  // Text changes
   codeTextarea.addEventListener("input", () => {
     handleAnyChange();
   });
@@ -338,7 +329,6 @@ export function createWorkoutBuilder(options) {
     updateErrorMessageForCaret();
   });
 
-  // Metadata changes
   [nameField.input, sourceField.input, descField.textarea].forEach((el) => {
     el.addEventListener("input", () => {
       handleAnyChange({skipParse: true});
@@ -358,10 +348,10 @@ export function createWorkoutBuilder(options) {
       "wb-code-error-message wb-code-error-message--neutral";
 
     try {
-      const {canonical, zwoSnippet, error} =
+      const {canonical, error} =
         await importWorkoutFromUrl(url);
 
-      if (error || !zwoSnippet) {
+      if (error) {
         console.warn("[WorkoutBuilder] Import error:", error);
         errorMessage.textContent =
           (error && error.message) ||
@@ -371,7 +361,6 @@ export function createWorkoutBuilder(options) {
         return;
       }
 
-      // Fill in metadata from canonical workout
       if (canonical) {
         if (canonical.workoutTitle) {
           nameField.input.value = canonical.workoutTitle;
@@ -386,7 +375,7 @@ export function createWorkoutBuilder(options) {
         }
       }
 
-      codeTextarea.value = zwoSnippet.trim();
+      codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
       refreshLayout();
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
@@ -399,13 +388,11 @@ export function createWorkoutBuilder(options) {
     }
   }
 
-  // Button click -> import
   urlBtn.addEventListener("click", (e) => {
     e.preventDefault();
     runUrlImport();
   });
 
-  // Press Enter in URL input -> import
   urlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -419,12 +406,14 @@ export function createWorkoutBuilder(options) {
     try {
       if (typeof loadWorkoutBuilderState === "function") {
         const saved = await loadWorkoutBuilderState();
-        if (saved && typeof saved === "object" && Array.isArray(saved.rawSegments)) {
+        if (
+          saved &&
+          typeof saved === "object" &&
+          Array.isArray(saved.rawSegments)
+        ) {
           nameField.input.value = saved.workoutTitle || "";
           sourceField.input.value = saved.source || "";
           descField.textarea.value = saved.description || "";
-
-          // regenerate the ZWO snippet from canonical segments
           codeTextarea.value = segmentsToZwoSnippet(saved.rawSegments);
         }
       }
@@ -452,14 +441,13 @@ export function createWorkoutBuilder(options) {
       (sourceField.input.value || "VeloDrive Builder").trim() ||
       "VeloDrive Builder";
     const description = descField.textarea.value || "";
-    const rawSegments = segmentsToRaw(currentSegments);
 
     /** @type {import("./zwo.js").CanonicalWorkout} */
     const canonical = {
       source,
-      sourceURL: "",         // created locally in the builder
+      sourceURL: "",
       workoutTitle: title,
-      rawSegments,
+      rawSegments: currentRawSegments.slice(),
       description,
     };
 
@@ -467,21 +455,19 @@ export function createWorkoutBuilder(options) {
   }
 
   function clearState() {
-    // Clear UI fields
     nameField.input.value = "";
     sourceField.input.value = "";
     descField.textarea.value = "";
     codeTextarea.value = "";
 
-    // Recompute everything & persist empty state
     setDefaultSnippet();
     refreshLayout();
   }
 
   /**
- * Load a canonical workout into the builder.
- * @param {import("./zwo.js").CanonicalWorkout} canonical
- */
+   * Load a canonical workout into the builder.
+   * @param {import("./zwo.js").CanonicalWorkout} canonical
+   */
   function loadCanonicalWorkout(canonical) {
     if (
       !canonical ||
@@ -497,13 +483,10 @@ export function createWorkoutBuilder(options) {
     descField.textarea.value = canonical.description || "";
     codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
 
-    // Recompute metrics, errors, stats, chart, and persist
     handleAnyChange();
   }
 
-
   function validateForSave() {
-    // Keep currentErrors / metrics up to date
     handleAnyChange();
 
     const name = (nameField.input.value || "").trim();
@@ -511,7 +494,6 @@ export function createWorkoutBuilder(options) {
     const desc = (descField.textarea.value || "").trim();
     const snippet = (codeTextarea.value || "").trim();
 
-    // Clear previous highlights
     nameField.input.classList.remove("wb-input-error");
     sourceField.input.classList.remove("wb-input-error");
     descField.textarea.classList.remove("wb-input-error");
@@ -520,24 +502,19 @@ export function createWorkoutBuilder(options) {
     /** @type {{field: string, message: string}[]} */
     const errors = [];
 
-    if (!name) {
-      errors.push({field: "name", message: "Name is required."});
-    }
-
+    if (!name) errors.push({field: "name", message: "Name is required."});
     if (!source) {
       errors.push({
         field: "source",
         message: "Author / Source is required.",
       });
     }
-
     if (!desc) {
       errors.push({
         field: "description",
         message: "Description is required.",
       });
     }
-
     if (!snippet) {
       errors.push({
         field: "code",
@@ -545,7 +522,6 @@ export function createWorkoutBuilder(options) {
       });
     }
 
-    // Syntax errors from parsing
     if (currentErrors && currentErrors.length) {
       const firstSyntax = currentErrors[0];
       errors.push({
@@ -557,7 +533,6 @@ export function createWorkoutBuilder(options) {
 
     const hasErrors = errors.length > 0;
 
-    // Highlight all fields with errors
     for (const err of errors) {
       switch (err.field) {
         case "name":
@@ -575,14 +550,12 @@ export function createWorkoutBuilder(options) {
       }
     }
 
-    // Update the bottom error message with the FIRST error only
     if (hasErrors) {
       const first = errors[0];
       errorMessage.textContent = first.message;
       errorMessage.className =
         "wb-code-error-message wb-code-error-message--error";
     } else {
-      // All good -> show “ok” styling or clear
       errorMessage.textContent = "Ready to save.";
       errorMessage.className =
         "wb-code-error-message wb-code-error-message--ok";
@@ -601,32 +574,21 @@ export function createWorkoutBuilder(options) {
       '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
   }
 
-  function segmentsToRaw(segments) {
-    return segments.map((s) => {
-      const minutes = s.durationSec / 60; // 60 sec → 1
-      const startPct = s.pStartRel * 100; // 0.40 → 40
-      const endPct = s.pEndRel * 100; // 0.40 → 40
-      return [minutes, startPct, endPct];
-    });
-  }
-
   function handleAnyChange(opts = {}) {
     const {skipParse = false} = opts;
 
     if (!skipParse) {
       const text = codeTextarea.value || "";
       const parsed = parseZwoSnippet(text);
-      currentSegments = parsed.segments;
-      currentErrors = parsed.errors;
+      currentRawSegments = parsed.rawSegments || [];
+      currentErrors = parsed.errors || [];
     }
 
     const ftp = getCurrentFtp() || 0;
 
-    if (currentSegments.length && ftp > 0) {
-      currentMetrics = computeMetricsFromSegments(currentSegments, ftp);
-      currentCategory = inferCategoryFromSegments(
-        segmentsToRaw(currentSegments),
-      );
+    if (currentRawSegments.length && ftp > 0) {
+      currentMetrics = computeMetricsFromSegments(currentRawSegments, ftp);
+      currentCategory = inferCategoryFromSegments(currentRawSegments);
     } else {
       currentMetrics = {
         totalSec: 0,
@@ -644,7 +606,6 @@ export function createWorkoutBuilder(options) {
     updateErrorStyling();
     updateErrorHighlights();
 
-    // Persist state
     try {
       if (typeof saveWorkoutBuilderState === "function") {
         saveWorkoutBuilderState(getState());
@@ -692,28 +653,15 @@ export function createWorkoutBuilder(options) {
   }
 
   function renderChart() {
+    // Canonical workout built from UI state
+    const canonical = getState();
     const ftp = getCurrentFtp() || 0;
-    const meta = {
-      name:
-        (nameField.input.value || "Custom workout").trim() ||
-        "Custom workout",
-      segmentsForMetrics: currentSegments.slice(),
-      totalSec: currentMetrics ? currentMetrics.totalSec : 0,
-      ftpFromFile: ftp || null,
-      tss: currentMetrics ? currentMetrics.tss : null,
-      ifValue: currentMetrics ? currentMetrics.ifValue : null,
-      baseKj: currentMetrics ? currentMetrics.kj : null,
-      category: currentCategory || null,
-    };
 
     chartMiniHost.innerHTML = "";
     try {
-      renderMiniWorkoutGraph(chartMiniHost, meta, ftp);
+      renderMiniWorkoutGraph(chartMiniHost, canonical, ftp);
     } catch (e) {
-      console.error(
-        "[WorkoutBuilder] Failed to render mini chart:",
-        e,
-      );
+      console.error("[WorkoutBuilder] Failed to render mini chart:", e);
     }
   }
 
@@ -782,7 +730,6 @@ export function createWorkoutBuilder(options) {
     const lines = text.split("\n");
     const lineCount = lines.length;
 
-    // No errors: just mirror text so height stays in sync
     if (!currentErrors.length) {
       const html = lines
         .map((line) => `<div>${escapeHtml(line) || " "}</div>`)
@@ -791,12 +738,10 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    // Build a table of where each line starts (by char index)
     const lineOffsets = [];
     let offset = 0;
     for (let i = 0; i < lineCount; i += 1) {
       lineOffsets.push(offset);
-      // +1 for the newline char that was split away
       offset += lines[i].length + 1;
     }
 
@@ -805,7 +750,6 @@ export function createWorkoutBuilder(options) {
       if (idx <= 0) return 0;
       if (idx >= text.length) return lineCount - 1;
 
-      // Simple linear search is fine here (text is small)
       for (let i = 0; i < lineOffsets.length; i += 1) {
         const start = lineOffsets[i];
         const nextStart =
@@ -825,14 +769,12 @@ export function createWorkoutBuilder(options) {
       let start = Number.isFinite(err.start) ? err.start : 0;
       let end = Number.isFinite(err.end) ? err.end : start;
 
-      // Clamp to valid range of characters
       start = Math.max(0, Math.min(start, text.length));
       end = Math.max(start, Math.min(end, text.length));
 
       const startLine = indexToLine(start);
       const endLine = indexToLine(end);
 
-      // Clamp line indices defensively too
       const s = Math.max(0, Math.min(startLine, lineCount - 1));
       const e = Math.max(s, Math.min(endLine, lineCount - 1));
 
@@ -870,23 +812,16 @@ export function createWorkoutBuilder(options) {
 
     switch (kind) {
       case "steady":
-        // Flat block
         path.setAttribute("d", "M4 14h16v6H4z");
         break;
-
       case "rampUp":
-        // Warmup: rising filled ramp (low left → high right)
         path.setAttribute("d", "M4 20 L20 20 20 8 4 16 Z");
         break;
-
       case "rampDown":
-        // Cooldown: descending filled ramp (high left → low right)
         path.setAttribute("d", "M4 8 L20 16 20 20 4 20 Z");
         break;
-
       case "intervals":
       default:
-        // Repeated blocks (ON/OFF pattern)
         path.setAttribute(
           "d",
           "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z",
@@ -982,7 +917,6 @@ export function createWorkoutBuilder(options) {
     autoGrowTextarea(textarea);
   }
 
-  // Expose minimal API if needed later (currently we only use side effects)
   return {
     getState,
     clearState,
