@@ -271,7 +271,6 @@
 
 /* Let chips wrap nicely inside their column */
 .picker-expanded-main-left .wb-stats-row {
-  margin-top: 10px;
   width: 100%;
 }
 
@@ -284,6 +283,7 @@
   flex: 0 0 100%;
   max-width: 100%;
   min-width: 0;
+  position: relative;
 }
 
 .picker-detail {

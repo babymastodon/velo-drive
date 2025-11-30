@@ -133,155 +133,131 @@ function toPlainText(value) {
  * Convert TrainerRoad chart "course data" into canonical [minutes, startPower, endPower].
  *
  * Assumptions:
- *  - courseData is an array of { seconds: number, ftpPercent: number }
+ *  - courseData is an array of { ftpPercent: number, ... }
  *  - entries are already in chronological order
- *  - seconds are milliseconds (TrainerRoad chart-data) but we do NOT sort
+ *  - there is exactly 1 row per second
+ *  - underlying workout is flats + ramps aligned to second boundaries
+ *  - ramps are at least 2 seconds long
  *
  * Output:
- *  - First return value: Array of [minutes, ftpPercentBegin, ftpPercentEnd]
- *  - Second return value: user-friendly error string or null if successful
+ *  - [segments, errorStringOrNull]
+ *    where segments is Array<[minutes, ftpPercentBegin, ftpPercentEnd]>
  *
- * The algorithm is adapted from buildBlocksFromSamples in the TR ZWO
- * downloader:
- *  - Convert to time/power samples (t in seconds, p in fraction of FTP)
- *  - Scan forward, grouping contiguous edges where the slope has the same
- *    "kind": steady, rampUp, or rampDown (based on sign of Δp)
- *  - Short ramps (≤ ~1s) are merged into the following segment
- *
- * @param {Array<{seconds: number, ftpPercent: number}>} courseData
+ * @param {Array<{ftpPercent: number}>} courseData
  * @returns {[Array<[number, number, number]>, (string|null)]}
  */
 function canonicalizeTrainerRoadSegments(courseData) {
   const errorPrefix = "Invalid courseData: ";
 
+  // Basic shape check
   if (!Array.isArray(courseData)) {
     return [[], errorPrefix + "must be an array"];
   }
-  if (courseData.length === 0) {
+  const n = courseData.length;
+  if (n === 0) {
     return [[], errorPrefix + "array is empty"];
   }
 
-  const n = courseData.length;
-  const t = new Array(n); // seconds
-  const p = new Array(n); // relative to FTP (0–1)
-
+  // Extract ftpPercent as numbers
+  const ftp = new Array(n);
   for (let i = 0; i < n; i++) {
     const row = courseData[i] || {};
-    const secMs = Number(row.seconds);
-    const ftpPct = Number(row.ftpPercent);
-
-    if (!Number.isFinite(ftpPct)) {
+    const val = Number(row.ftpPercent);
+    if (!Number.isFinite(val)) {
       return [
         [],
         errorPrefix + `row ${i} must have numeric 'ftpPercent'`,
       ];
     }
-
-    // If seconds is missing/invalid, just fall back to 1 Hz indexing
-    const tSec = Number.isFinite(secMs) ? secMs / 1000 : i;
-    t[i] = tSec;
-    p[i] = ftpPct / 100; // to fraction
+    ftp[i] = val;
   }
 
   // Single-point workout: treat as a 1-second flat segment
   if (n === 1) {
     const seconds = 1;
     const minutes = seconds / 60;
-    const pct = p[0] * 100;
-    return [[[minutes, pct, pct]], null];
+    const p = ftp[0];
+    return [[[minutes, p, p]], null];
   }
 
-  const EPS_POWER = 1e-4;
-  const MIN_RAMP_DURATION_SEC = 1.0 + 1e-6;
+  // Compute per-second deltas on each edge (i -> i+1)
+  const deltas = new Array(n - 1);
+  for (let i = 0; i < n - 1; i++) {
+    deltas[i] = ftp[i + 1] - ftp[i];
+  }
+
   const segments = [];
-  let carryToNext = 0;
+  const EPS = 1e-3; // less strict: treat tiny slope differences as equal
+  const almostEqual = (a, b) => Math.abs(a - b) <= EPS;
 
-  let i = 0;
-  while (i < n - 1) {
-    let tStart = t[i];
-    let pStart = p[i];
+  // Helper: push a segment defined by a run of edges [edgeStart .. edgeEnd] inclusive
+  function pushSegment(edgeStart, edgeEnd) {
+    if (edgeStart > edgeEnd) return;
 
-    let dt = t[i + 1] - t[i];
-    if (dt <= 0) {
-      // Bad time ordering here; skip this sample and move on.
-      i++;
+    const startSample = edgeStart;
+    const endSample = edgeEnd + 1; // edge i is between sample i and i+1
+
+    const seconds = endSample - startSample; // 1 second per edge
+    if (seconds <= 0) return;
+
+    const minutes = seconds / 60;
+    const startPower = ftp[startSample];
+    const endPower = ftp[endSample];
+
+    segments.push([minutes, startPower, endPower]);
+  }
+
+  // Run-length encode contiguous equal deltas
+  let edgeRunStart = 0;
+  for (let edge = 1; edge < n - 1; edge++) {
+    if (!almostEqual(deltas[edge], deltas[edgeRunStart])) {
+      // Close the previous run [edgeRunStart .. edge-1]
+      pushSegment(edgeRunStart, edge - 1);
+      edgeRunStart = edge;
+    }
+  }
+  // Flush the final run [edgeRunStart .. n-2]
+  pushSegment(edgeRunStart, n - 2);
+
+  // --- Post-process: remove spurious 1-second ramps (steps) -------------
+  // If a segment is exactly 1 second long AND is not flat, treat it as a step:
+  // extend the previous segment by 1s and drop this segment.
+  const cleaned = [];
+  const SEC_EPS = 1e-6;
+  for (let i = 0; i < segments.length; i++) {
+    const [minutes, startPower, endPower] = segments[i];
+    const seconds = minutes * 60;
+
+    const isOneSecond = Math.abs(seconds - 1) <= SEC_EPS;
+    const isRamp = !almostEqual(startPower, endPower);
+
+    if (
+      i > 0 &&         // we have a previous segment to extend
+      isOneSecond &&
+      isRamp
+    ) {
+      // Extend previous segment by 1 second and drop this 1s ramp.
+      cleaned[cleaned.length - 1][0] += minutes;
       continue;
     }
 
-    let dp = p[i + 1] - p[i];
-    let baseKind;
-    if (Math.abs(dp) <= EPS_POWER) baseKind = "steady";
-    else if (dp > 0) baseKind = "rampUp";
-    else baseKind = "rampDown";
-
-    let j = i + 1;
-
-    // Group edges with the same slope "kind" (steady / up / down)
-    while (j < n - 1) {
-      const dt2 = t[j + 1] - t[j];
-      if (dt2 <= 0) {
-        j++;
-        continue;
-      }
-      const dp2 = p[j + 1] - p[j];
-      let kind2;
-      if (Math.abs(dp2) <= EPS_POWER) kind2 = "steady";
-      else if (dp2 > 0) kind2 = "rampUp";
-      else kind2 = "rampDown";
-
-      if (kind2 !== baseKind) break;
-      j++;
-    }
-
-    const tEnd = t[j];
-    const pEnd = p[j];
-    let durationSec = tEnd - tStart;
-
-    if (durationSec > 0) {
-      if (baseKind !== "steady" && durationSec <= MIN_RAMP_DURATION_SEC) {
-        // Very short ramp: roll into the next segment instead of creating
-        // a tiny ramp on its own.
-        carryToNext += durationSec;
-      } else {
-        durationSec += carryToNext;
-        carryToNext = 0;
-
-        const minutes = durationSec / 60;
-
-        if (baseKind === "steady") {
-          const pct = pStart * 100;
-          segments.push([minutes, pct, pct]);
-        } else {
-          const startPct = pStart * 100;
-          const endPct = pEnd * 100;
-          segments.push([minutes, startPct, endPct]);
-        }
-      }
-    }
-
-    i = j;
+    cleaned.push(segments[i]);
   }
 
-  // Any leftover short-ramp time gets merged into the last segment
-  if (carryToNext > 0 && segments.length > 0) {
-    const extraMinutes = carryToNext / 60;
-    segments[segments.length - 1][0] += extraMinutes;
-  }
-
-  if (!segments.length) {
+  if (!cleaned.length) {
     return [
       [],
       "This TrainerRoad workout doesn’t have intervals VeloDrive can read.",
     ];
   }
 
-  return [segments, null];
+  return [cleaned, null];
 }
 
 
 /**
  * Parse the current TrainerRoad workout page into a CanonicalWorkout tuple.
- *
+ *       
  * @returns {Promise<[CanonicalWorkout|null, string|null]>}
  */
 export async function parseTrainerRoadPage() {

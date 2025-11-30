@@ -128,29 +128,49 @@ function createIconSvg(kind) {
     );
     svg.appendChild(p1);
     svg.appendChild(p2);
+
   } else if (kind === "delete") {
+    // Classic, normal trash can icon (Feather-style)
     const p1 = document.createElementNS(svgNS, "path");
-    p1.setAttribute("d", "M4 7h16");
+    p1.setAttribute("d", "M3 6h18"); // top bar
+
     const p2 = document.createElementNS(svgNS, "path");
-    p2.setAttribute("d", "M10 11v6");
+    p2.setAttribute("d", "M8 6V4h8v2"); // handle
+
     const p3 = document.createElementNS(svgNS, "path");
-    p3.setAttribute("d", "M14 11v6");
+    p3.setAttribute("d", "M6 6l1 14h10l1-14"); // can outline
+
     const p4 = document.createElementNS(svgNS, "path");
-    p4.setAttribute("d", "M6 7l1-3h10l1 3");
+    p4.setAttribute("d", "M10 11v6"); // inner line L
+
     const p5 = document.createElementNS(svgNS, "path");
-    p5.setAttribute(
-      "d",
-      "M8 7v11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7"
-    );
+    p5.setAttribute("d", "M14 11v6"); // inner line R
+
     svg.appendChild(p1);
     svg.appendChild(p2);
     svg.appendChild(p3);
     svg.appendChild(p4);
     svg.appendChild(p5);
+
+  } else if (kind === "link") {
+    // External-link style icon
+    const p1 = document.createElementNS(svgNS, "path");
+    p1.setAttribute("d", "M18 3h3v3");
+    const p2 = document.createElementNS(svgNS, "path");
+    p2.setAttribute("d", "M21 3l-9 9");
+    const p3 = document.createElementNS(svgNS, "path");
+    p3.setAttribute(
+      "d",
+      "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+    );
+    svg.appendChild(p1);
+    svg.appendChild(p2);
+    svg.appendChild(p3);
   }
 
   return svg;
 }
+
 
 // --------------------------- Singleton factory ---------------------------
 
@@ -454,6 +474,29 @@ function createWorkoutPicker(config) {
         // Button group (grid column 2)
         const actionsRow = document.createElement("div");
         actionsRow.className = "picker-expanded-actions";
+
+        // VISIT WEBSITE button (if URL exists)
+        if (canonical.sourceURL) {
+          const visitBtn = document.createElement("button");
+          visitBtn.type = "button";
+          visitBtn.className = "wb-code-insert-btn visit-website-btn";
+          visitBtn.title = "Open the workout's website in a new tab.";
+
+          const linkIcon = createIconSvg("link");  // uses your existing icon function
+          const linkText = document.createElement("span");
+          linkText.textContent = "Visit website";
+
+          visitBtn.appendChild(linkIcon);
+          visitBtn.appendChild(linkText);
+
+          visitBtn.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            window.open(canonical.sourceURL, "_blank");
+          });
+
+          // Insert BEFORE delete
+          actionsRow.appendChild(visitBtn);
+        }
 
         // DELETE button
         const deleteBtn = document.createElement("button");

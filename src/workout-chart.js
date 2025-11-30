@@ -171,7 +171,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     tooltipEl.textContent =
       p0 === p1
         ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}`
-        : `${zone}: ${p0}%–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
+        : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
@@ -301,7 +301,6 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   const rect = container.getBoundingClientRect();
   let width = rect.width;
   let height = rect.height;
-  console.log("bounding rect", rect);
 
   // Fallbacks in case the container has 0 size at render time
   if (!width) width = container.clientWidth || 400;
@@ -315,6 +314,7 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   svg.setAttribute("height", String(height));
   svg.setAttribute("preserveAspectRatio", "none");
   svg.classList.add("picker-graph-svg");
+  svg.setAttribute("shape-rendering", "crispEdges");
 
   // Transparent background rect so the whole area is hoverable
   const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
