@@ -12,6 +12,7 @@ import {
   parseZwo,
   getDurationBucket,
   getAdjustedKjForPicker,
+  inferCategoryFromSegments,
 } from "./workout-metrics.js";
 
 import {createWorkoutBuilder} from "./workout-builder.js";
@@ -26,6 +27,10 @@ import {
   loadZwoDirHandle,
   loadTrashDirHandle,
 } from "./storage.js";
+
+import {
+  canonicalWorkoutToZwoXml,
+} from "./zwo.js";
 
 let instance = null;
 
@@ -90,7 +95,6 @@ function createIconSvg(kind) {
   svg.setAttribute("stroke-linejoin", "round");
 
   if (kind === "edit") {
-    // Pencil icon — same as the inline one you had before
     const p1 = document.createElementNS(svgNS, "path");
     p1.setAttribute("d", "M12 20h9");
 
@@ -103,7 +107,6 @@ function createIconSvg(kind) {
     svg.appendChild(p1);
     svg.appendChild(p2);
   } else if (kind === "delete") {
-    // Trash can icon
     const p1 = document.createElementNS(svgNS, "path");
     p1.setAttribute("d", "M4 7h16");
 
@@ -165,6 +168,7 @@ function createWorkoutPicker(config) {
   let isPickerOpen = false;
   let isBuilderMode = false;
 
+  // IMPORTANT: workoutBuilder.getState() now returns a CanonicalWorkout
   const workoutBuilder =
     builderRoot &&
     createWorkoutBuilder({
@@ -389,24 +393,19 @@ function createWorkoutPicker(config) {
         editBtn.className = "wb-code-insert-btn edit-workout-btn";
         editBtn.title = "Open this workout in the builder.";
 
-        // --- SVG icon (pencil/edit) ---
         const editIcon = createIconSvg("edit");
-
-        // --- Text wrapped in a <span> ---
         const editText = document.createElement("span");
         editText.textContent = "Edit";
 
-        // Combine icon + text
         editBtn.appendChild(editIcon);
         editBtn.appendChild(editText);
 
-        // Click event
         editBtn.addEventListener("click", (evt) => {
           evt.stopPropagation();
           openWorkoutInBuilder(w);
         });
 
-        // SELECT button (existing)
+        // SELECT button
         const selectBtn = document.createElement("button");
         selectBtn.type = "button";
         selectBtn.className = "select-workout-btn";
@@ -462,10 +461,8 @@ function createWorkoutPicker(config) {
       return;
     }
 
-    // Switch UI into builder mode
     enterBuilderMode();
 
-    // Hand the meta to the builder so it can populate fields + code
     try {
       workoutBuilder.loadFromWorkoutMeta(workoutMeta);
     } catch (err) {
@@ -478,18 +475,15 @@ function createWorkoutPicker(config) {
     if (builderRoot) builderRoot.style.display = "block";
     if (titleEl) titleEl.textContent = "New Workout";
 
-    // Hide filters
     if (searchInput) searchInput.style.display = "none";
     if (categoryFilter) categoryFilter.style.display = "none";
     if (durationFilter) durationFilter.style.display = "none";
 
-    // Header buttons
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
     if (builderClearBtn) builderClearBtn.style.display = "inline-flex";
     if (builderSaveBtn) builderSaveBtn.style.display = "inline-flex";
     if (builderBackBtn) builderBackBtn.style.display = "inline-flex";
 
-    // Hide table/summary/footers via class + CSS
     modal.classList.add("workout-picker-modal--builder");
 
     if (emptyStateEl) emptyStateEl.style.display = "none";
@@ -519,12 +513,16 @@ function createWorkoutPicker(config) {
   }
 
   function clearBuilder() {
-    const state = workoutBuilder.getState();
+    if (!workoutBuilder) return;
+
+    /** @type {import('./zwo.js').CanonicalWorkout} */
+    const cw = workoutBuilder.getState();
+
     const hasContent =
-      (state.name && state.name.trim()) ||
-      (state.source && state.source.trim()) ||
-      (state.description && state.description.trim()) ||
-      (state.rawSnippet && state.rawSnippet.trim());
+      (cw.workoutTitle && cw.workoutTitle.trim()) ||
+      (cw.source && cw.source.trim()) ||
+      (cw.description && cw.description.trim()) ||
+      (Array.isArray(cw.rawSegments) && cw.rawSegments.length > 0);
 
     if (!hasContent) return;
 
@@ -535,7 +533,6 @@ function createWorkoutPicker(config) {
 
     workoutBuilder.clearState();
   }
-
 
   function movePickerExpansion(delta) {
     const shown = computeVisiblePickerWorkouts();
@@ -672,65 +669,14 @@ function createWorkoutPicker(config) {
   }
 
   // --------------------------- save to library ---------------------------
+
   function sanitizeZwoFileName(name) {
     const base = (name || "Custom workout").trim() || "Custom workout";
     return base
-      .replace(/[\\\/:*?"<>|]/g, "_") // illegal in file names
+      .replace(/[\\\/:*?"<>|]/g, "_")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 80); // keep it reasonable
-  }
-
-  function escapeXml(text) {
-    return (text || "").replace(/[<>&'"]/g, (ch) => {
-      switch (ch) {
-        case "<": return "&lt;";
-        case ">": return "&gt;";
-        case "&": return "&amp;";
-        case '"': return "&quot;";
-        case "'": return "&apos;";
-        default: return ch;
-      }
-    });
-  }
-
-  function cdataWrap(text) {
-    if (!text) return "<![CDATA[]]>";
-    return "<![CDATA[" + String(text).replace("]]>", "]]&gt;") + "]]>";
-  }
-
-  function buildZwoXmlFromBuilderState(state) {
-    const name =
-      (state.name || "Custom workout").trim() || "Custom workout";
-    const source =
-      (state.source || "VeloDrive Builder").trim() || "VeloDrive Builder";
-    const category = state.category || "Uncategorized";
-    const description = state.description || "";
-
-    const rawBody = (state.rawSnippet || "").trim();
-    const indentedBody = rawBody
-      ? rawBody
-        .split("\n")
-        .map((line) => "    " + line)
-        .join("\n")
-      : "";
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<workout_file>
-  <author>${escapeXml(source)}</author>
-  <name>${escapeXml(name)}</name>
-  <description>${cdataWrap(description)}</description>
-  <category>${escapeXml(category)}</category>
-  <sportType>bike</sportType>
-  <tags>
-    <tag name="${escapeXml(source)}"/>
-    <tag name="${escapeXml(category)}"/>
-  </tags>
-  <workout>
-${indentedBody}
-  </workout>
-</workout_file>
-`;
+      .slice(0, 80);
   }
 
   function resetPickerFilters() {
@@ -738,7 +684,6 @@ ${indentedBody}
     if (categoryFilter) categoryFilter.value = "";
     if (durationFilter) durationFilter.value = "";
 
-    // overwrite saved picker state so next open also starts clean
     persistPickerState();
   }
 
@@ -784,18 +729,15 @@ ${indentedBody}
     }
 
     try {
-      // Get the source file
       const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {create: false});
       const srcFile = await srcFileHandle.getFile();
 
-      // Build a destination name (avoid clashes in trash)
       const dotIdx = fileName.lastIndexOf(".");
       const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
       const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       let destFileName = `${base} (${stamp})${ext}`;
 
-      // Try to avoid extremely long names
       if (destFileName.length > 120) {
         const shortenedBase = base.slice(0, 80);
         destFileName = `${shortenedBase} (${stamp})${ext}`;
@@ -808,7 +750,6 @@ ${indentedBody}
       await writable.write(srcFile);
       await writable.close();
 
-      // Remove original from workouts folder
       await srcDirHandle.removeEntry(fileName);
 
       return true;
@@ -846,11 +787,9 @@ ${indentedBody}
     );
     if (!confirmed) return;
 
-    // Move to trash instead of permanently deleting
     const moved = await moveWorkoutFileToTrash(fileName);
     if (!moved) return;
 
-    // Refresh the list; picker state (filters, sort) is restored inside rescan
     await rescanWorkouts(dirHandle);
   }
 
@@ -861,14 +800,18 @@ ${indentedBody}
     }
 
     try {
-      // 1) Validate builder state
       const validation = workoutBuilder.validateForSave();
       if (!validation.ok) {
         return;
       }
 
-      // 2) Get state after validation (so metrics/errors are up to date)
-      const state = workoutBuilder.getState();
+      /** @type {import('./zwo.js').CanonicalWorkout} */
+      const canonical = workoutBuilder.getState();
+
+      if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+        alert("This workout has no intervals to save.");
+        return;
+      }
 
       let dirHandle = await loadZwoDirHandle();
       if (!dirHandle) {
@@ -888,16 +831,17 @@ ${indentedBody}
         return;
       }
 
-      const baseName = sanitizeZwoFileName(state.name);
+      const baseName = sanitizeZwoFileName(
+        canonical.workoutTitle || "Custom workout"
+      );
       const fileName = baseName + ".zwo";
 
-      // 3) Check overwrite
       let overwriting = false;
       try {
         await dirHandle.getFileHandle(fileName, {create: false});
         overwriting = true;
       } catch {
-        // file doesn't exist → fine
+        // file doesn't exist
       }
 
       const confirmMsg = overwriting
@@ -908,33 +852,34 @@ ${indentedBody}
       const confirmed = window.confirm(confirmMsg);
       if (!confirmed) return;
 
-      // 4) If overwriting, move the existing file into trash first
       if (overwriting) {
         const moved = await moveWorkoutFileToTrash(fileName);
         if (!moved) {
-          // If we couldn't move the old file safely, abort the save to avoid
-          // silently overwriting without a backup in trash.
           return;
         }
       }
 
-      // 5) Write new file
+      // Let workout-metrics decide Zwift category from canonical rawSegments
+      const inferredCategory =
+        inferCategoryFromSegments(canonical.rawSegments) || "Imported";
+
+      const zwoXml = canonicalWorkoutToZwoXml(canonical, {
+        category: inferredCategory,
+        sportType: "bike",
+      });
+
       const fileHandle = await dirHandle.getFileHandle(fileName, {create: true});
       const writable = await fileHandle.createWritable();
-      const zwoXml = buildZwoXmlFromBuilderState(state);
       await writable.write(zwoXml);
       await writable.close();
 
-      // 6) On success: clear builder, go back to library, refresh + focus
       workoutBuilder.clearState();
       exitBuilderMode();
 
       await rescanWorkouts(dirHandle);
       resetPickerFilters();
-      pickerExpandedKey = fileName; // key is fileName in render
+      pickerExpandedKey = fileName;
       renderWorkoutPickerTable();
-
-      // No alert on success
     } catch (err) {
       console.error("[WorkoutPicker] Save to ZWO dir failed:", err);
       alert(
@@ -946,7 +891,6 @@ ${indentedBody}
   // --------------------------- public API ---------------------------
 
   async function open() {
-    // Always start in library mode
     exitBuilderMode();
 
     const handle = await loadZwoDirHandle();
@@ -968,9 +912,6 @@ ${indentedBody}
     if (overlay) overlay.style.display = "none";
   }
 
-  /**
-   * Called when FTP changes; re-sorts/re-renders (if open) so adjusted kJ stays accurate.
-   */
   function syncFtpChanged() {
     if (isPickerOpen) {
       renderWorkoutPickerTable();
@@ -1046,3 +987,4 @@ ${indentedBody}
     syncFtpChanged,
   };
 }
+

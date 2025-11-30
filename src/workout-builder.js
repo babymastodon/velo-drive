@@ -419,14 +419,13 @@ export function createWorkoutBuilder(options) {
     try {
       if (typeof loadWorkoutBuilderState === "function") {
         const saved = await loadWorkoutBuilderState();
-        if (saved && typeof saved === "object") {
-          if (saved.name) nameField.input.value = saved.name;
-          if (saved.source) sourceField.input.value = saved.source;
-          if (saved.description)
-            descField.textarea.value = saved.description;
-          if (saved.rawSnippet) {
-            codeTextarea.value = saved.rawSnippet;
-          }
+        if (saved && typeof saved === "object" && Array.isArray(saved.rawSegments)) {
+          nameField.input.value = saved.workoutTitle || "";
+          sourceField.input.value = saved.source || "";
+          descField.textarea.value = saved.description || "";
+
+          // regenerate the ZWO snippet from canonical segments
+          codeTextarea.value = segmentsToZwoSnippet(saved.rawSegments);
         }
       }
     } catch (e) {
@@ -447,16 +446,24 @@ export function createWorkoutBuilder(options) {
   }
 
   function getState() {
-    return {
-      name: nameField.input.value || "",
-      source: sourceField.input.value || "",
-      description: descField.textarea.value || "",
-      segments: currentSegments.slice(),
-      metrics: currentMetrics,
-      category: currentCategory,
-      errors: currentErrors.slice(),
-      rawSnippet: codeTextarea.value || "",
+    const title =
+      (nameField.input.value || "Custom workout").trim() || "Custom workout";
+    const source =
+      (sourceField.input.value || "VeloDrive Builder").trim() ||
+      "VeloDrive Builder";
+    const description = descField.textarea.value || "";
+    const rawSegments = segmentsToRaw(currentSegments);
+
+    /** @type {import("./zwo.js").CanonicalWorkout} */
+    const canonical = {
+      source,
+      sourceURL: "",         // created locally in the builder
+      workoutTitle: title,
+      rawSegments,
+      description,
     };
+
+    return canonical;
   }
 
   function clearState() {
@@ -473,6 +480,16 @@ export function createWorkoutBuilder(options) {
 
   function loadFromWorkoutMeta(meta) {
     if (!meta || typeof meta !== "object") return;
+
+    // CanonicalWorkout path
+    if (Array.isArray(meta.rawSegments) && meta.workoutTitle) {
+      nameField.input.value = meta.workoutTitle || "";
+      sourceField.input.value = meta.source || "";
+      descField.textarea.value = meta.description || "";
+      codeTextarea.value = segmentsToZwoSnippet(meta.rawSegments);
+      handleAnyChange();
+      return;
+    }
 
     // Metadata
     nameField.input.value = meta.name || "";
