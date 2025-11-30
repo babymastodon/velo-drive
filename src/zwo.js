@@ -66,20 +66,48 @@ function cdataWrap(text) {
   return "<![CDATA[" + safe + "]]>";
 }
 
+/**
+ * fetchJson with basic CORS / extension-host-permission detection.
+ *
+ * In a Chrome extension options page, blocked cross-origin requests often show
+ * up as TypeError while the browser is online. We wrap those as a custom
+ * VeloDriveCorsError so callers can present better remediation instructions.
+ */
 async function fetchJson(url, options = {}) {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} for ${url}`);
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} for ${url}`);
+    }
+    return res.json();
+  } catch (err) {
+    const isOnline =
+      typeof navigator !== "undefined" &&
+        navigator != null &&
+        typeof navigator.onLine === "boolean"
+        ? navigator.onLine
+        : true;
+
+    if (err instanceof TypeError && isOnline) {
+      const corsErr = new Error(
+        "Request was blocked by the browser (CORS / site access)."
+      );
+      corsErr.name = "VeloDriveCorsError";
+      corsErr.isVeloDriveCorsError = true;
+      throw corsErr;
+    }
+
+    throw err;
   }
-  return res.json();
 }
 
-async function fetchTrainerRoadJson(url) {
+async function fetchTrainerRoadJson(url, options = {}) {
   return fetchJson(url, {
     credentials: "include",
     headers: {
       "trainerroad-jsonformat": "camel-case",
     },
+    ...options,
   });
 }
 
@@ -1231,6 +1259,20 @@ async function importTrainerDayFromUrl(url) {
     return {canonical, zwoSnippet, error: null};
   } catch (err) {
     console.error("[zwo] TrainerDay import error:", err);
+
+    if (err && (err.name === "VeloDriveCorsError" || err.isVeloDriveCorsError)) {
+      return {
+        canonical: null,
+        zwoSnippet: null,
+        error: {
+          type: "corsOrPermission",
+          message:
+            "VeloDrive couldn’t reach TrainerDay from this page.\n\n" +
+            "In Chrome, open chrome://extensions → VeloDrive → Details, then under “Site access” enable “Automatically allow access to these sites” for trainerday.com and app.api.trainerday.com, then try again.",
+        },
+      };
+    }
+
     return {
       canonical: null,
       zwoSnippet: null,
@@ -1315,6 +1357,27 @@ async function importWhatsOnZwiftFromUrl(url) {
     return {canonical, zwoSnippet, error: null};
   } catch (err) {
     console.error("[zwo] WhatsOnZwift import error:", err);
+
+    const isOnline =
+      typeof navigator !== "undefined" &&
+        navigator != null &&
+        typeof navigator.onLine === "boolean"
+        ? navigator.onLine
+        : true;
+
+    if (err instanceof TypeError && isOnline) {
+      return {
+        canonical: null,
+        zwoSnippet: null,
+        error: {
+          type: "corsOrPermission",
+          message:
+            "VeloDrive couldn’t reach WhatsOnZwift from this page.\n\n" +
+            "In Chrome, open chrome://extensions → VeloDrive → Details, then under “Site access” enable “Automatically allow access to these sites” for whatsonzwift.com, then try again.",
+        },
+      };
+    }
+
     return {
       canonical: null,
       zwoSnippet: null,
@@ -1326,3 +1389,4 @@ async function importWhatsOnZwiftFromUrl(url) {
     };
   }
 }
+
