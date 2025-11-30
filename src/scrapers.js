@@ -92,6 +92,36 @@ async function fetchTrainerDayWorkoutBySlug(slug) {
   return fetchJson(url, {credentials: "omit"});
 }
 
+// ---------------- Text helpers ----------------
+
+/**
+ * Ensure descriptions are plain text:
+ *  - Converts some common block tags to newlines
+ *  - Strips all remaining HTML tags
+ *  - Normalizes whitespace
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+function toPlainText(value) {
+  if (typeof value !== "string") return "";
+
+  return value
+    // convert common line-break tags to actual newlines
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p\s*>/gi, "\n\n")
+    .replace(/<\/div\s*>/gi, "\n\n")
+    // strip all remaining tags
+    .replace(/<[^>]*>/g, "")
+    // normalize whitespace
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // ---------------- Parsers for each site -> CanonicalWorkout -----------
 //
 // Each parser returns a tuple: [CanonicalWorkout|null, string|null]
@@ -99,22 +129,23 @@ async function fetchTrainerDayWorkoutBySlug(slug) {
 //   - On failure: [null, "user-friendly error message"]
 
 // ---------- TrainerRoad ----------
-
 /**
  * Convert TrainerRoad chart "course data" into canonical [minutes, startPower, endPower].
  *
- * Input `seconds` is actually milliseconds. There is one row per second.
+ * Assumptions:
+ *  - courseData is an array of { seconds: number, ftpPercent: number }
+ *  - entries are already in chronological order
+ *  - there is exactly 1 row per second
+ *
+ * Model:
+ *  - Points are samples at integer seconds.
+ *  - Ramps / flats are piecewise linear between samples.
+ *  - We group contiguous *edges* (between i and i+1) that share the same
+ *    per-second delta into a single segment.
  *
  * Output:
- *  - First return value: Array of [minutes, ftpPercentBegin, ftpPercentEnd]
- *  - Second return value: user-friendly error string or null if successful
- *
- * The function:
- *  - Validates and sorts the input by `seconds`
- *  - Ensures samples are 1 second (1000 ms) apart
- *  - Collapses 1-second samples into multi-second segments
- *    where the power changes linearly with a *constant* per-second delta
- *    (i.e. flat, steady slope up, or steady slope down).
+ *  - [segments, errorStringOrNull]
+ *    where segments is Array<[minutes, ftpPercentBegin, ftpPercentEnd]>
  *
  * @param {Array<{seconds: number, ftpPercent: number}>} courseData
  * @returns {[Array<[number, number, number]>, (string|null)]}
@@ -122,109 +153,76 @@ async function fetchTrainerDayWorkoutBySlug(slug) {
 function canonicalizeTrainerRoadSegments(courseData) {
   const errorPrefix = "Invalid courseData: ";
 
-  // Basic shape check
   if (!Array.isArray(courseData)) {
     return [[], errorPrefix + "must be an array"];
   }
-  if (courseData.length === 0) {
+  const n = courseData.length;
+  if (n === 0) {
     return [[], errorPrefix + "array is empty"];
   }
 
-  // Defensive copy & sort by time, in case it's not sorted
-  const data = courseData.slice().sort((a, b) => a.seconds - b.seconds);
-
-  // Validate rows and timing (1 Hz, seconds actually milliseconds)
-  for (let i = 0; i < data.length; i++) {
-    const row = data[i];
-
-    if (
-      !row ||
-      typeof row.seconds !== "number" ||
-      typeof row.ftpPercent !== "number" ||
-      !Number.isFinite(row.seconds) ||
-      !Number.isFinite(row.ftpPercent)
-    ) {
-      return [[], errorPrefix + `row ${i} must have numeric 'seconds' and 'ftpPercent'`];
+  const power = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const p = Number(courseData[i]?.ftpPercent);
+    if (!Number.isFinite(p)) {
+      return [
+        [],
+        errorPrefix + `row ${i} must have finite 'ftpPercent'`,
+      ];
     }
-
-    if (i > 0) {
-      const prev = data[i - 1];
-      const dtMs = row.seconds - prev.seconds;
-
-      if (dtMs <= 0) {
-        return [[], errorPrefix + `'seconds' must be strictly increasing (problem at index ${i})`];
-      }
-
-      // Expect 1 second spacing -> 1000 ms.
-      // Allow tiny numerical jitter, but be pretty strict.
-      const expectedMs = 1000;
-      if (Math.abs(dtMs - expectedMs) > 1e-3) {
-        return [
-          [],
-          errorPrefix +
-          `expected 1-second (1000 ms) spacing but found ${dtMs} ms between index ${i - 1} and ${i}`,
-        ];
-      }
-    }
+    power[i] = p;
   }
-
-  const segments = [];
-  const EPS = 1e-9;
-  const almostEqual = (a, b) => Math.abs(a - b) <= EPS;
-
-  const n = data.length;
 
   // Single-point workout: treat as a 1-second flat segment
   if (n === 1) {
     const seconds = 1;
     const minutes = seconds / 60;
-    const p = data[0].ftpPercent;
-    segments.push([minutes, p, p]);
-    return [segments, null];
+    const p = power[0];
+    return [[[minutes, p, p]], null];
   }
 
-  let segmentStartIndex = 0;
-  let prevDiff = null;
+  // Quantize deltas to avoid float noise causing 1-second segments on ramps.
+  const quantizeDelta = (d) => Math.round(d * 1000) / 1000; // 0.001 resolution
 
-  // Walk through and group by constant per-second delta of ftpPercent
-  for (let i = 1; i < n; i++) {
-    const currDiff = data[i].ftpPercent - data[i - 1].ftpPercent;
+  const segments = [];
 
-    if (prevDiff === null) {
-      // First delta
-      prevDiff = currDiff;
-      continue;
-    }
-
-    // If the delta changes, we close the previous segment at i - 1
-    if (!almostEqual(currDiff, prevDiff)) {
-      const endIndex = i - 1;
-      const seconds = endIndex - segmentStartIndex + 1; // one row per second
-      const minutes = seconds / 60;
-      const startPower = data[segmentStartIndex].ftpPercent;
-      const endPower = data[endIndex].ftpPercent;
-
-      segments.push([minutes, startPower, endPower]);
-
-      // New segment starts at the current row i
-      segmentStartIndex = i;
-      prevDiff = currDiff;
-    }
-  }
-
-  // Flush the final segment
-  {
-    const endIndex = n - 1;
-    const seconds = endIndex - segmentStartIndex + 1;
+  /**
+   * Push a segment covering edges [edgeStart .. edgeEnd], inclusive.
+   * - edge i spans from sample i to i+1 and is 1 second long.
+   * - duration in seconds = (edgeEnd - edgeStart + 1)
+   * - start power = power[edgeStart]
+   * - end power = power[edgeEnd + 1]
+   */
+  function pushSegment(edgeStart, edgeEnd) {
+    const seconds = edgeEnd - edgeStart + 1;
     const minutes = seconds / 60;
-    const startPower = data[segmentStartIndex].ftpPercent;
-    const endPower = data[endIndex].ftpPercent;
-
+    const startPower = power[edgeStart];
+    const endPower = power[edgeEnd + 1];
     segments.push([minutes, startPower, endPower]);
   }
 
+  // There are (n - 1) edges between n samples: edge i is between i and i+1.
+  let edgeStart = 0;
+  let prevDelta = quantizeDelta(power[1] - power[0]);
+
+  for (let i = 1; i < n - 1; i++) {
+    const delta = quantizeDelta(power[i + 1] - power[i]);
+
+    if (delta !== prevDelta) {
+      // Slope changed between edge (i - 1) and edge i.
+      // Close segment covering edges [edgeStart .. i - 1].
+      pushSegment(edgeStart, i - 1);
+      edgeStart = i;
+      prevDelta = delta;
+    }
+  }
+
+  // Flush final segment: covers edges [edgeStart .. n - 2]
+  pushSegment(edgeStart, n - 2);
+
   return [segments, null];
 }
+
 
 /**
  * Parse the current TrainerRoad workout page into a CanonicalWorkout tuple.
@@ -321,10 +319,11 @@ export async function parseTrainerRoadPage() {
       document.title ||
       "TrainerRoad Workout";
 
-    const description =
+    const description = toPlainText(
       summary.workoutDescription ||
       summary.goalDescription ||
-      "";
+      ""
+    );
 
     /** @type {CanonicalWorkout} */
     const cw = {
@@ -454,7 +453,7 @@ async function importTrainerDayFromPathAndSource(path, sourceURL) {
     sourceURL,
     workoutTitle: details?.title || "TrainerDay Workout",
     rawSegments,
-    description: details?.description || "",
+    description: toPlainText(details?.description || ""),
     filename: "",
   };
 
@@ -702,7 +701,9 @@ function buildWhatsOnZwiftCanonicalFromDoc(doc, sourceURL) {
   }
 
   const workoutTitle = extractWozTitleFromDoc(doc);
-  const description = extractWozDescriptionFromDoc(doc) || "";
+  const description = toPlainText(
+    extractWozDescriptionFromDoc(doc) || ""
+  );
 
   /** @type {CanonicalWorkout} */
   const cw = {
