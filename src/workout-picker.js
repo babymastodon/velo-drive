@@ -8,7 +8,7 @@
 //   - rendering mini workout graphs
 //   - keyboard navigation & state persistence
 //
-// NOTE: This version uses CanonicalWorkout as the primary data structure.
+// NOTE: CanonicalWorkout is the primary data structure.
 // ZWO files are parsed via parseZwoXmlToCanonicalWorkout, and ALL metrics
 // are derived from CanonicalWorkout.rawSegments + current FTP.
 
@@ -38,6 +38,18 @@ import {
 let instance = null;
 
 /**
+ * CanonicalWorkout shape (for reference):
+ *
+ * @typedef CanonicalWorkout
+ * @property {string} source
+ * @property {string} sourceURL
+ * @property {string} workoutTitle
+ * @property {Array<[number, number, number]>} rawSegments
+ * @property {string} description
+ * @property {string} filename
+ */
+
+/**
  * @typedef PickerConfig
  * @property {HTMLElement} overlay
  * @property {HTMLElement} modal
@@ -62,7 +74,7 @@ export function getWorkoutPicker(config) {
   return instance;
 }
 
-// --------------------------- ZWO scanning ---------------------------
+// --------------------------- ZWO scanning & metrics ---------------------------
 
 /**
  * Convert CanonicalWorkout.rawSegments into "segmentsForMetrics":
@@ -70,16 +82,17 @@ export function getWorkoutPicker(config) {
  * where pStartRel / pEndRel are 0–1 (fraction of FTP).
  *
  * Canonical rawSegments are:
- *   [minutes, startPct, endPct]
- * where pct is % of FTP (0–100).
+ *   [minutes, startPower, endPower]
+ * where power is % of FTP (0–100).
  *
- * @param {import('./zwo.js').CanonicalWorkout} canonical
+ * @param {CanonicalWorkout} canonical
  */
 function canonicalToMetricsSegments(canonical) {
   const raw = Array.isArray(canonical?.rawSegments)
     ? canonical.rawSegments
     : [];
   const out = [];
+
   for (const seg of raw) {
     if (!Array.isArray(seg) || seg.length < 2) continue;
 
@@ -112,10 +125,10 @@ function canonicalToMetricsSegments(canonical) {
  * Scan a directory and return an array of CanonicalWorkout.
  *
  * @param {FileSystemDirectoryHandle} handle
- * @returns {Promise<import('./zwo.js').CanonicalWorkout[]>}
+ * @returns {Promise<CanonicalWorkout[]>}
  */
 async function scanWorkoutsFromDirectory(handle) {
-  /** @type {import('./zwo.js').CanonicalWorkout[]} */
+  /** @type {CanonicalWorkout[]} */
   const workouts = [];
   try {
     for await (const entry of handle.values()) {
@@ -220,10 +233,10 @@ function createWorkoutPicker(config) {
   const emptyAddBtn = modal.querySelector("#pickerEmptyAddBtn");
   const titleEl = modal.querySelector("#workoutPickerTitle");
 
-  /** @type {import('./zwo.js').CanonicalWorkout[]} */
+  /** @type {CanonicalWorkout[]} */
   let pickerWorkouts = [];
-  let pickerExpandedKey = null;
-  let pickerSortKey = "kjAdj"; // header label preserved, but this is kJ @ current FTP
+  let pickerExpandedKey = null;  // key = canonical.filename
+  let pickerSortKey = "kjAdj";   // header label preserved, but this is kJ @ current FTP
   let pickerSortDir = "asc";
   let isPickerOpen = false;
   let isBuilderMode = false;
@@ -238,94 +251,63 @@ function createWorkoutPicker(config) {
 
   // --------------------------- helpers for derived info ---------------------------
 
-  function getCanonicalName(cw) {
-    return (
-      cw.workoutTitle ||
-      cw.filename ||
-      "Imported workout"
-    );
-  }
-
-  function getCanonicalKey(cw) {
-    return cw.filename || getCanonicalName(cw);
-  }
-
-  function getCanonicalDescription(cw) {
-    return cw.description || "";
-  }
-
-  function getCanonicalSource(cw) {
-    return cw.source || "Imported ZWO";
-  }
-
   function getCanonicalCategory(cw) {
-    return (
-      inferCategoryFromSegments(cw.rawSegments) ||
-      "Uncategorized"
-    );
+    return inferCategoryFromSegments(cw.rawSegments) || "Uncategorized";
+  }
+
+  function getDisplayTitle(cw) {
+    return cw.workoutTitle || cw.filename || "Imported workout";
   }
 
   /**
    * Structure returned from computeVisiblePickerWorkouts:
-   * { canonical, key, name, description, source, category, segmentsForMetrics, metrics }
+   *   { canonical, category, metrics }
+   *
+   * All display fields (title, description, source, key, etc.) are taken
+   * directly from `canonical` elsewhere. Only `category` + `metrics`
+   * are derived here.
    */
   function computeVisiblePickerWorkouts() {
-    const searchTerm =
-      ((searchInput && searchInput.value) || "").toLowerCase();
-    const catValue =
-      (categoryFilter && categoryFilter.value) || "";
-    const durValue =
-      (durationFilter && durationFilter.value) || "";
-
+    const searchTerm = (searchInput?.value || "").toLowerCase();
+    const catValue = categoryFilter?.value || "";
+    const durValue = durationFilter?.value || "";
     const currentFtp = getCurrentFtp();
 
+    /** @type {{ canonical: CanonicalWorkout, category: string, metrics: any }[]} */
     let items = pickerWorkouts.map((canonical) => {
-      const segmentsForMetrics =
-        canonicalToMetricsSegments(canonical);
+      const segmentsForMetrics = canonicalToMetricsSegments(canonical);
       const metrics = computeMetricsFromSegments(
         segmentsForMetrics,
         currentFtp
       );
-      const name = getCanonicalName(canonical);
-      const key = getCanonicalKey(canonical);
-      const description = getCanonicalDescription(canonical);
-      const source = getCanonicalSource(canonical);
       const category = getCanonicalCategory(canonical);
 
-      return {
-        canonical,
-        key,
-        name,
-        description,
-        source,
-        category,
-        segmentsForMetrics,
-        metrics,
-      };
+      return {canonical, category, metrics};
     });
 
     if (catValue) {
-      items = items.filter(
-        (item) => item.category === catValue
-      );
+      items = items.filter((item) => item.category === catValue);
     }
 
     if (durValue) {
       items = items.filter((item) => {
         return (
-          getDurationBucket(item.metrics.durationMin) ===
-          durValue
+          getDurationBucket(item.metrics.durationMin) === durValue
         );
       });
     }
 
     if (searchTerm) {
       items = items.filter((item) => {
+        const {canonical} = item;
+        const title = getDisplayTitle(canonical);
+        const source = canonical.source || "";
+        const description = canonical.description || "";
         const haystack = [
-          item.name,
+          title,
           item.category,
-          item.source,
-          item.description.slice(0, 300),
+          source,
+          description.slice(0, 300),
         ]
           .join(" ")
           .toLowerCase();
@@ -335,34 +317,27 @@ function createWorkoutPicker(config) {
 
     const sortKey = pickerSortKey;
     const dir = pickerSortDir === "asc" ? 1 : -1;
+    const num = (val) => (Number.isFinite(val) ? val : -Infinity);
 
     items = items.slice().sort((a, b) => {
-      const num = (val) => (Number.isFinite(val) ? val : -Infinity);
-
       if (sortKey === "kjAdj") {
-        // sort by kJ at current FTP
-        return (
-          num(a.metrics.kj) - num(b.metrics.kj)
-        ) * dir;
+        return (num(a.metrics.kj) - num(b.metrics.kj)) * dir;
       }
       if (sortKey === "if") {
-        return (
-          num(a.metrics.ifValue) - num(b.metrics.ifValue)
-        ) * dir;
+        return (num(a.metrics.ifValue) - num(b.metrics.ifValue)) * dir;
       }
       if (sortKey === "tss") {
-        return (
-          num(a.metrics.tss) - num(b.metrics.tss)
-        ) * dir;
+        return (num(a.metrics.tss) - num(b.metrics.tss)) * dir;
       }
       if (sortKey === "duration") {
         return (
-          num(a.metrics.durationMin) -
-          num(b.metrics.durationMin)
+          num(a.metrics.durationMin) - num(b.metrics.durationMin)
         ) * dir;
       }
       if (sortKey === "name") {
-        return a.name.localeCompare(b.name) * dir;
+        const titleA = getDisplayTitle(a.canonical);
+        const titleB = getDisplayTitle(b.canonical);
+        return titleA.localeCompare(titleB) * dir;
       }
       return 0;
     });
@@ -448,15 +423,18 @@ function createWorkoutPicker(config) {
     const currentFtp = getCurrentFtp();
 
     for (const item of shownItems) {
-      const {canonical, key, name, description, source, category, segmentsForMetrics, metrics} =
-        item;
+      const {canonical, category, metrics} = item;
+      const key = canonical.filename; // key = filename (may be "")
+      const title = getDisplayTitle(canonical);
+      const source = canonical.source || "";
+      const description = canonical.description || "";
 
       const tr = document.createElement("tr");
       tr.className = "picker-row";
       tr.dataset.key = key;
 
       const tdName = document.createElement("td");
-      tdName.textContent = name;
+      tdName.textContent = title;
       tdName.title = canonical.filename || "";
       tr.appendChild(tdName);
 
@@ -465,7 +443,7 @@ function createWorkoutPicker(config) {
       tr.appendChild(tdCat);
 
       const tdSource = document.createElement("td");
-      tdSource.textContent = source || "";
+      tdSource.textContent = source;
       tr.appendChild(tdSource);
 
       const tdIf = document.createElement("td");
@@ -578,8 +556,7 @@ function createWorkoutPicker(config) {
 
         if (description && description.trim()) {
           const descHtml = description.replace(/\n/g, "<br>");
-          const descContainer =
-            document.createElement("div");
+          const descContainer = document.createElement("div");
           descContainer.innerHTML = descHtml;
           detailDiv.appendChild(descContainer);
         } else {
@@ -595,9 +572,10 @@ function createWorkoutPicker(config) {
         expTr.appendChild(expTd);
         tbody.appendChild(expTr);
 
-        // Build a lightweight meta object for the chart
+        // For the chart, we keep using segmentsForMetrics for now.
+        const segmentsForMetrics = canonicalToMetricsSegments(canonical);
         const graphMeta = {
-          name,
+          name: title,
           description,
           source,
           category,
@@ -610,11 +588,7 @@ function createWorkoutPicker(config) {
       }
 
       tr.addEventListener("click", () => {
-        if (pickerExpandedKey === key) {
-          pickerExpandedKey = null;
-        } else {
-          pickerExpandedKey = key;
-        }
+        pickerExpandedKey = pickerExpandedKey === key ? null : key;
         renderWorkoutPickerTable();
       });
     }
@@ -650,12 +624,9 @@ function createWorkoutPicker(config) {
     if (durationFilter) durationFilter.style.display = "none";
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
-    if (builderClearBtn)
-      builderClearBtn.style.display = "inline-flex";
-    if (builderSaveBtn)
-      builderSaveBtn.style.display = "inline-flex";
-    if (builderBackBtn)
-      builderBackBtn.style.display = "inline-flex";
+    if (builderClearBtn) builderClearBtn.style.display = "inline-flex";
+    if (builderSaveBtn) builderSaveBtn.style.display = "inline-flex";
+    if (builderBackBtn) builderBackBtn.style.display = "inline-flex";
 
     modal.classList.add("workout-picker-modal--builder");
 
@@ -677,14 +648,10 @@ function createWorkoutPicker(config) {
     if (categoryFilter) categoryFilter.style.display = "";
     if (durationFilter) durationFilter.style.display = "";
 
-    if (addWorkoutBtn)
-      addWorkoutBtn.style.display = "inline-flex";
-    if (builderClearBtn)
-      builderClearBtn.style.display = "none";
-    if (builderSaveBtn)
-      builderSaveBtn.style.display = "none";
-    if (builderBackBtn)
-      builderBackBtn.style.display = "none";
+    if (addWorkoutBtn) addWorkoutBtn.style.display = "inline-flex";
+    if (builderClearBtn) builderClearBtn.style.display = "none";
+    if (builderSaveBtn) builderSaveBtn.style.display = "none";
+    if (builderBackBtn) builderBackBtn.style.display = "none";
 
     modal.classList.remove("workout-picker-modal--builder");
   }
@@ -692,15 +659,14 @@ function createWorkoutPicker(config) {
   function clearBuilder() {
     if (!workoutBuilder) return;
 
-    /** @type {import('./zwo.js').CanonicalWorkout} */
+    /** @type {CanonicalWorkout} */
     const cw = workoutBuilder.getState();
 
     const hasContent =
       (cw.workoutTitle && cw.workoutTitle.trim()) ||
       (cw.source && cw.source.trim()) ||
       (cw.description && cw.description.trim()) ||
-      (Array.isArray(cw.rawSegments) &&
-        cw.rawSegments.length > 0);
+      (Array.isArray(cw.rawSegments) && cw.rawSegments.length > 0);
 
     if (!hasContent) return;
 
@@ -717,7 +683,7 @@ function createWorkoutPicker(config) {
     if (!shownItems.length) return;
 
     let idx = shownItems.findIndex(
-      (item) => item.key === pickerExpandedKey
+      (item) => item.canonical.filename === pickerExpandedKey
     );
 
     if (idx === -1) {
@@ -727,7 +693,7 @@ function createWorkoutPicker(config) {
     }
 
     const next = shownItems[idx];
-    pickerExpandedKey = next.key;
+    pickerExpandedKey = next.canonical.filename;
     renderWorkoutPickerTable();
   }
 
@@ -735,15 +701,13 @@ function createWorkoutPicker(config) {
 
   function setupSorting() {
     if (!modal) return;
-    const headerCells =
-      modal.querySelectorAll("th[data-sort-key]");
+    const headerCells = modal.querySelectorAll("th[data-sort-key]");
     headerCells.forEach((th) => {
       th.addEventListener("click", () => {
         const key = th.getAttribute("data-sort-key");
         if (!key) return;
         if (pickerSortKey === key) {
-          pickerSortDir =
-            pickerSortDir === "asc" ? "desc" : "asc";
+          pickerSortDir = pickerSortDir === "asc" ? "desc" : "asc";
         } else {
           pickerSortKey = key;
           pickerSortDir = key === "kjAdj" ? "asc" : "desc";
@@ -760,12 +724,7 @@ function createWorkoutPicker(config) {
       if (!isPickerOpen) return;
 
       const tag = e.target?.tagName;
-      if (
-        tag === "INPUT" ||
-        tag === "SELECT" ||
-        tag === "TEXTAREA"
-      )
-        return;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
 
       const key = e.key;
 
@@ -790,10 +749,8 @@ function createWorkoutPicker(config) {
     if (!saved) return;
 
     if (searchInput) searchInput.value = saved.searchTerm || "";
-    if (categoryFilter) categoryFilter.value =
-      saved.category || "";
-    if (durationFilter) durationFilter.value =
-      saved.duration || "";
+    if (categoryFilter) categoryFilter.value = saved.category || "";
+    if (durationFilter) durationFilter.value = saved.duration || "";
     if (saved.sortKey) pickerSortKey = saved.sortKey;
     if (saved.sortDir === "asc" || saved.sortDir === "desc") {
       pickerSortDir = saved.sortDir;
@@ -823,7 +780,6 @@ function createWorkoutPicker(config) {
     const ok = await ensureDirPermission(handle);
     if (!ok) {
       pickerWorkouts = [];
-      handle = null;
       renderWorkoutPickerTable();
       return;
     }
@@ -848,7 +804,6 @@ function createWorkoutPicker(config) {
     if (searchInput) searchInput.value = "";
     if (categoryFilter) categoryFilter.value = "";
     if (durationFilter) durationFilter.value = "";
-
     persistPickerState();
   }
 
@@ -901,12 +856,9 @@ function createWorkoutPicker(config) {
       const srcFile = await srcFileHandle.getFile();
 
       const dotIdx = fileName.lastIndexOf(".");
-      const base =
-        dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
       const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
-      const stamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       let destFileName = `${base} (${stamp})${ext}`;
 
       if (destFileName.length > 120) {
@@ -983,7 +935,7 @@ function createWorkoutPicker(config) {
         return;
       }
 
-      /** @type {import('./zwo.js').CanonicalWorkout} */
+      /** @type {CanonicalWorkout} */
       const canonical = workoutBuilder.getState();
 
       if (
@@ -1046,11 +998,11 @@ function createWorkoutPicker(config) {
    *
    * This function is responsible for user-facing alerts.
    *
-   * @param {import('./zwo.js').CanonicalWorkout} canonical
+   * @param {CanonicalWorkout} canonical
    * @returns {Promise<{ ok: boolean, fileName?: string, dirHandle?: FileSystemDirectoryHandle }>}
    */
   async function saveCanonicalWorkoutToZwoDir(canonical) {
-    console.log('saving', canonical);
+    console.log("saving", canonical);
     let dirHandle = await loadZwoDirHandle();
     if (!dirHandle) {
       alert(
@@ -1116,7 +1068,6 @@ function createWorkoutPicker(config) {
     return {ok: true, fileName, dirHandle};
   }
 
-
   // --------------------------- public API ---------------------------
 
   async function open() {
@@ -1152,24 +1103,28 @@ function createWorkoutPicker(config) {
   if (closeBtn) {
     closeBtn.addEventListener("click", () => close());
   }
+
   if (addWorkoutBtn) {
     addWorkoutBtn.addEventListener("click", (e) => {
       e.preventDefault();
       enterBuilderMode();
     });
   }
+
   if (builderBackBtn) {
     builderBackBtn.addEventListener("click", (e) => {
       e.preventDefault();
       exitBuilderMode();
     });
   }
+
   if (builderSaveBtn) {
     builderSaveBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       await saveCurrentBuilderWorkoutToZwoDir();
     });
   }
+
   if (builderClearBtn) {
     builderClearBtn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1183,23 +1138,27 @@ function createWorkoutPicker(config) {
       enterBuilderMode();
     });
   }
+
   if (overlay) {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) close();
     });
   }
+
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       renderWorkoutPickerTable();
       persistPickerState();
     });
   }
+
   if (categoryFilter) {
     categoryFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
       persistPickerState();
     });
   }
+
   if (durationFilter) {
     durationFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
