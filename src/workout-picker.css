@@ -801,3 +801,16 @@
 .workout-picker-modal.workout-picker-modal--builder .workout-picker-summary {
   display: none;
 }
+
+/* Generic “this field is invalid” highlight */
+.wb-input-error {
+  border-color: #d87d73 !important;
+  box-shadow: 0 0 0 1px rgba(216, 125, 115, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  .wb-input-error {
+    border-color: #bd4d45 !important;
+    box-shadow: 0 0 0 1px rgba(189, 77, 69, 0.5);
+  }
+}

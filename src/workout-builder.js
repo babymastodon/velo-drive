@@ -444,6 +444,97 @@ export function createWorkoutBuilder(options) {
     refreshLayout();
   }
 
+  function validateForSave() {
+    // Keep currentErrors / metrics up to date
+    handleAnyChange();
+
+    const name = (nameField.input.value || "").trim();
+    const source = (sourceField.input.value || "").trim();
+    const desc = (descField.textarea.value || "").trim();
+    const snippet = (codeTextarea.value || "").trim();
+
+    // Clear previous highlights
+    nameField.input.classList.remove("wb-input-error");
+    sourceField.input.classList.remove("wb-input-error");
+    descField.textarea.classList.remove("wb-input-error");
+    codeTextarea.classList.remove("wb-input-error");
+
+    /** @type {{field: string, message: string}[]} */
+    const errors = [];
+
+    if (!name) {
+      errors.push({field: "name", message: "Name is required."});
+    }
+
+    if (!source) {
+      errors.push({
+        field: "source",
+        message: "Author / Source is required.",
+      });
+    }
+
+    if (!desc) {
+      errors.push({
+        field: "description",
+        message: "Description is required.",
+      });
+    }
+
+    if (!snippet) {
+      errors.push({
+        field: "code",
+        message: "Workout code is empty.",
+      });
+    }
+
+    // Syntax errors from parsing
+    if (currentErrors && currentErrors.length) {
+      const firstSyntax = currentErrors[0];
+      errors.push({
+        field: "code",
+        message: firstSyntax.message || "Fix syntax errors before saving.",
+      });
+    }
+
+    const hasErrors = errors.length > 0;
+
+    // Highlight all fields with errors
+    for (const err of errors) {
+      switch (err.field) {
+        case "name":
+          nameField.input.classList.add("wb-input-error");
+          break;
+        case "source":
+          sourceField.input.classList.add("wb-input-error");
+          break;
+        case "description":
+          descField.textarea.classList.add("wb-input-error");
+          break;
+        case "code":
+          codeTextarea.classList.add("wb-input-error");
+          break;
+      }
+    }
+
+    // Update the bottom error message with the FIRST error only
+    if (hasErrors) {
+      const first = errors[0];
+      errorMessage.textContent = first.message;
+      errorMessage.className =
+        "wb-code-error-message wb-code-error-message--error";
+    } else {
+      // All good -> show “ok” styling or clear
+      errorMessage.textContent = "Ready to save.";
+      errorMessage.className =
+        "wb-code-error-message wb-code-error-message--ok";
+    }
+
+    return {
+      ok: !hasErrors,
+      errors: errors.map((e) => e.message),
+    };
+  }
+
   function setDefaultSnippet() {
     codeTextarea.value =
       '<Warmup Duration="600" PowerLow="0.50" PowerHigh="0.75" />\n' +
@@ -1538,6 +1629,7 @@ export function createWorkoutBuilder(options) {
     getState,
     clearState,
     refreshLayout,
+    validateForSave,
   };
 }
 

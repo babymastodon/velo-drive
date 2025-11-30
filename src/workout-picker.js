@@ -613,67 +613,79 @@ ${indentedBody}
 
 
   async function saveCurrentBuilderWorkoutToZwoDir() {
+    if (!workoutBuilder) {
+      alert("Workout builder is not available. See logs for details.");
+      return;
+    }
+
     try {
-      const state = workoutBuilder.getState();
-      if (!state || !state.rawSnippet.trim()) {
-        alert("Cannot save an empty workout.");
+      // 1) Validate builder state
+      const validation = workoutBuilder.validateForSave();
+      if (!validation.ok) {
         return;
       }
 
-      // error warning
-      if (state.errors?.length) {
-        const ok = window.confirm(
-          "This workout contains syntax errors.\n\nSave anyway?"
-        );
-        if (!ok) return;
-      }
+      // 2) Get state after validation (so metrics/errors are up to date)
+      const state = workoutBuilder.getState();
 
       let dirHandle = await loadZwoDirHandle();
       if (!dirHandle) {
-        alert("No workout library folder configured.");
+        alert(
+          "No workout library folder configured.\n\n" +
+          "Open Settings and choose a workout library (.zwo) folder first.",
+        );
         return;
       }
 
-      const permitted = await ensureDirPermission(dirHandle);
-      if (!permitted) {
-        alert("VeloDrive does not have permission to write to this folder.");
+      const hasPerm = await ensureDirPermission(dirHandle);
+      if (!hasPerm) {
+        alert(
+          "VeloDrive does not have permission to write to your workout library folder.\n\n" +
+          "Please re-authorize the folder in Settings.",
+        );
         return;
       }
 
-      const safeName = sanitizeZwoFileName(state.name);
-      const fileName = safeName + ".zwo";
+      const baseName = sanitizeZwoFileName(state.name);
+      const fileName = baseName + ".zwo";
 
-      let exists = false;
+      // 3) Check overwrite
+      let overwriting = false;
       try {
         await dirHandle.getFileHandle(fileName, {create: false});
-        exists = true;
-      } catch {}
+        overwriting = true;
+      } catch {
+        // file doesn't exist → fine
+      }
 
-      const ok = window.confirm(
-        exists
-          ? `Overwrite existing workout "${fileName}"?`
-          : `Save workout as "${fileName}"?`
-      );
-      if (!ok) return;
+      const confirmMsg = overwriting
+        ? `A workout named "${fileName}" already exists in your workout folder.\n\nDo you want to overwrite it?`
+        : `Save this workout as "${fileName}" in your workout folder?`;
 
+      const confirmed = window.confirm(confirmMsg);
+      if (!confirmed) return;
+
+      // 4) Write file
       const fileHandle = await dirHandle.getFileHandle(fileName, {create: true});
       const writable = await fileHandle.createWritable();
-      const xml = buildZwoXmlFromBuilderState(state);
-
-      await writable.write(xml);
+      const zwoXml = buildZwoXmlFromBuilderState(state);
+      await writable.write(zwoXml);
       await writable.close();
 
-      // SUCCESS: no alert
+      // 5) On success: clear builder, go back to library, refresh + focus
       workoutBuilder.clearState();
       exitBuilderMode();
 
-      // refresh + focus
       await rescanWorkouts(dirHandle);
-      pickerExpandedKey = fileName;
+      pickerExpandedKey = fileName; // key is fileName in render
       renderWorkoutPickerTable();
+
+      // No alert on success
     } catch (err) {
-      console.error("Save failed:", err);
-      alert("Saving workout failed. See logs for details.");
+      console.error("[WorkoutPicker] Save to ZWO dir failed:", err);
+      alert(
+        "Saving workout to your library folder failed. See logs for details.",
+      );
     }
   }
 
