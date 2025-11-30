@@ -277,27 +277,6 @@
   white-space: nowrap;
 }
 
-/* Footer link styling inside the workout picker popup */
-.picker-footer a {
-  color: var(--text-muted);
-  text-decoration: underline;
-}
-
-.picker-footer a:hover {
-  color: var(--text-main);
-  text-decoration: underline;
-}
-
-@media (prefers-color-scheme: dark) {
-  .picker-footer a {
-    color: var(--text-muted);
-  }
-
-  .picker-footer a:hover {
-    color: var(--text-main);
-  }
-}
-
 .picker-close-btn {
   width: var(--nav-control-height);
   height: var(--nav-control-height);

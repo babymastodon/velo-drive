@@ -120,8 +120,26 @@ export function createWorkoutBuilder(options) {
 
   // ---------- Column 2: ZWO editor + error + URL import ----------
 
-  const codeCard = document.createElement("div");
-  codeCard.className = "wb-card wb-code-card";
+  // Status bar
+  const statusCard = document.createElement("div");
+  statusCard.className = "wb-card wb-code-card";
+  // Error row
+  const errorRow = document.createElement("div");
+  errorRow.className = "wb-code-error-row";
+
+  const errorLabel = document.createElement("div");
+  errorLabel.className = "wb-code-error-label";
+  errorLabel.textContent = "Status:";
+
+  const errorMessage = document.createElement("div");
+  errorMessage.className = "wb-code-error-message wb-code-error-message--neutral";
+  errorMessage.textContent = "Not checked yet.";
+
+  errorRow.appendChild(errorLabel);
+  errorRow.appendChild(errorMessage);
+  statusCard.appendChild(errorRow);
+
+  colCode.appendChild(statusCard);
 
   // URL import card
   const importCard = document.createElement("div");
@@ -131,7 +149,7 @@ export function createWorkoutBuilder(options) {
 
   const urlTitle = document.createElement("div");
   urlTitle.className = "wb-section-title";
-  urlTitle.textContent = "Import from URL";
+  urlTitle.innerHTML = `Import from URL - <a href="https://app.trainerday.com/search" target="_blank" rel="noopener noreferrer">TrainerDay</a> or <a href="https://whatsonzwift.com/workouts" target="_blank" rel="noopener noreferrer">WhatsOnZwift</a>`;
 
   const urlRow = document.createElement("div");
   urlRow.className = "wb-url-row";
@@ -189,34 +207,22 @@ export function createWorkoutBuilder(options) {
   urlSection.appendChild(urlTitle);
   urlSection.appendChild(urlRow);
 
-  // Error row
-  const errorRow = document.createElement("div");
-  errorRow.className = "wb-code-error-row";
-
-  const errorLabel = document.createElement("div");
-  errorLabel.className = "wb-code-error-label";
-  errorLabel.textContent = "Status:";
-
-  const errorMessage = document.createElement("div");
-  errorMessage.className = "wb-code-error-message wb-code-error-message--neutral";
-  errorMessage.textContent = "Not checked yet.";
-
-  errorRow.appendChild(errorLabel);
-  errorRow.appendChild(errorMessage);
 
   importCard.appendChild(urlSection);
-  importCard.appendChild(errorRow);
 
   colCode.appendChild(importCard);
 
 
   // Toolbar with ZWO elements
+  const codeCard = document.createElement("div");
+  codeCard.className = "wb-card wb-code-card";
+
   const toolbar = document.createElement("div");
   toolbar.className = "wb-code-toolbar";
 
   const toolbarLabel = document.createElement("div");
   toolbarLabel.className = "wb-code-toolbar-label";
-  toolbarLabel.textContent = "Blocks";
+  toolbarLabel.textContent = "Workout";
 
   const toolbarButtons = document.createElement("div");
   toolbarButtons.className = "wb-code-toolbar-buttons";
@@ -356,7 +362,6 @@ export function createWorkoutBuilder(options) {
       }
 
       codeTextarea.value = snippet.trim();
-      handleAnyChange();
       refreshLayout();
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
@@ -405,13 +410,13 @@ export function createWorkoutBuilder(options) {
     if (!codeTextarea.value.trim()) {
       setDefaultSnippet();
     }
-    handleAnyChange();
     refreshLayout();
   })();
 
   // ---------- Public API ----------
 
   function refreshLayout() {
+    handleAnyChange();
     autoGrowTextarea(descField.textarea);
     autoGrowTextarea(codeTextarea);
   }
@@ -438,7 +443,6 @@ export function createWorkoutBuilder(options) {
 
     // Recompute everything & persist empty state
     setDefaultSnippet();
-    handleAnyChange();
     refreshLayout();
   }
 
