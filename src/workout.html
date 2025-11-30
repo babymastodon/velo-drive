@@ -359,42 +359,21 @@
               <div class="settings-row-main">
                 <div class="settings-icon">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <!-- folder -->
-                    <path d="M4 6h5l2 2h9v10H4z" />
-                    <!-- clock overlay -->
-                    <path d="M13 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2v2.5l1.5 1.5" />
-                  </svg>
-                </div>
-                <div class="settings-row-text">
-                  <div class="settings-row-label">History folder</div>
-                </div>
-              </div>
-              <div class="settings-row-right">
-                <div class="settings-inline-group">
-                  <div class="settings-row-status" id="historyDirStatus"></div>
-                  <button id="historyDirButton" class="settings-button" type="button">
-                    Choose…
-                  </button>
-                </div>
-              </div>
-            </div>
-
-
-            <div class="settings-row">
-              <div class="settings-row-main">
-                <div class="settings-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <!-- generic folder icon -->
                     <path d="M4 5h6l2 2h8v12H4z" />
                   </svg>
                 </div>
                 <div class="settings-row-text">
-                  <div class="settings-row-label">Workout library (.zwo)</div>
+                  <div class="settings-row-label">VeloDrive folder</div>
+                  <div class="settings-row-description">
+                    All workouts, history, and trash live under this folder.
+                  </div>
                 </div>
               </div>
               <div class="settings-row-right">
                 <div class="settings-inline-group">
-                  <div class="settings-row-status" id="zwoDirStatus"></div>
-                  <button id="zwoDirButton" class="settings-button" type="button">
+                  <div class="settings-row-status" id="rootDirStatus"></div>
+                  <button id="rootDirButton" class="settings-button" type="button">
                     Choose…
                   </button>
                 </div>
@@ -402,23 +381,23 @@
             </div>
 
             <div id="settingsFoldersHelp" class="settings-help-content" hidden>
-              VeloDrive stores its data in two folders:
+              VeloDrive now uses a <strong>single folder</strong> for all of its data.
+              Inside the folder you choose, VeloDrive automatically creates:
               <ul>
-                <li><strong>History folder</strong> – each workout you
-                  complete is exported here as a <code>FIT</code> file with
-                  power, HR, cadence, and metadata.
-                </li>
-                <li><strong>Workout library folder</strong> – this points to
-                  the folder where your <code>.zwo</code> workouts will be
-                  stored.
-                </li>
+                <li><strong>workouts/</strong> – your <code>.zwo</code> workout files.</li>
+                <li><strong>history/</strong> – exported <code>.fit</code> files from completed workouts.</li>
+                <li><strong>trash/</strong> – items you delete from the workout library.</li>
               </ul>
-              If you are getting started, we recommend the following layout:
+              A good starting layout is:
               <pre>
-    ~/Documents/velodrive/
-    ├── history/      ← exported .fit files from completed workouts
-    └── workouts/     ← your .zwo workout files</pre>
+  ~/Documents/VeloDrive/
+  ├── workouts/   ← your .zwo workout files
+  ├── history/    ← completed workout .fit files
+  └── trash/      ← deleted workouts</pre>
+              You only need to pick this folder once. VeloDrive will manage the
+              <code>workouts</code>, <code>history</code>, and <code>trash</code> folders inside it.
             </div>
+
 
           </section>
 

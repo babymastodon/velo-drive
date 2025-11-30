@@ -24,6 +24,7 @@ import {
   savePickerState,
   saveSelectedWorkout,
   loadZwoDirHandle,
+  loadTrashDirHandle,
 } from "./storage.js";
 
 let instance = null;
@@ -741,12 +742,91 @@ ${indentedBody}
     persistPickerState();
   }
 
+  async function moveWorkoutFileToTrash(fileName) {
+    const srcDirHandle = await loadZwoDirHandle();
+    const trashDirHandle = await loadTrashDirHandle();
+
+    if (!srcDirHandle) {
+      alert(
+        "No workout library folder configured.\n\n" +
+        "Open Settings and choose a VeloDrive folder first."
+      );
+      return false;
+    }
+
+    if (!trashDirHandle) {
+      alert(
+        "No trash folder is configured.\n\n" +
+        "Open Settings and pick a VeloDrive folder so the trash folder can be created."
+      );
+      return false;
+    }
+
+    const [hasSrcPerm, hasTrashPerm] = await Promise.all([
+      ensureDirPermission(srcDirHandle),
+      ensureDirPermission(trashDirHandle),
+    ]);
+
+    if (!hasSrcPerm) {
+      alert(
+        "VeloDrive does not have permission to modify your workout library folder.\n\n" +
+        "Please re-authorize the folder in Settings."
+      );
+      return false;
+    }
+
+    if (!hasTrashPerm) {
+      alert(
+        "VeloDrive does not have permission to write to your trash folder.\n\n" +
+        "Please re-authorize the VeloDrive folder in Settings."
+      );
+      return false;
+    }
+
+    try {
+      // Get the source file
+      const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {create: false});
+      const srcFile = await srcFileHandle.getFile();
+
+      // Build a destination name (avoid clashes in trash)
+      const dotIdx = fileName.lastIndexOf(".");
+      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+      const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      let destFileName = `${base} (${stamp})${ext}`;
+
+      // Try to avoid extremely long names
+      if (destFileName.length > 120) {
+        const shortenedBase = base.slice(0, 80);
+        destFileName = `${shortenedBase} (${stamp})${ext}`;
+      }
+
+      const destFileHandle = await trashDirHandle.getFileHandle(destFileName, {
+        create: true,
+      });
+      const writable = await destFileHandle.createWritable();
+      await writable.write(srcFile);
+      await writable.close();
+
+      // Remove original from workouts folder
+      await srcDirHandle.removeEntry(fileName);
+
+      return true;
+    } catch (err) {
+      console.error("[WorkoutPicker] Failed to move workout to trash:", err);
+      alert(
+        "Moving this workout to the trash folder failed. See logs for details."
+      );
+      return false;
+    }
+  }
+
   async function deleteWorkoutFile(workoutMeta) {
     const fileName = workoutMeta.fileName;
 
     if (!fileName) {
       alert(
-        "This workout does not have an associated file name, so it cannot be deleted."
+        "This workout does not have an associated file name, so it cannot be moved to trash."
       );
       return;
     }
@@ -755,35 +835,20 @@ ${indentedBody}
     if (!dirHandle) {
       alert(
         "No workout library folder configured.\n\n" +
-        "Open Settings and choose a workout library (.zwo) folder first."
+        "Open Settings and choose a VeloDrive folder first."
       );
       return;
     }
 
     const confirmed = window.confirm(
-      `Delete workout file "${fileName}" from your workout folder?\n\n` +
-      "This cannot be undone."
+      `Move workout file "${fileName}" to the trash folder?\n\n` +
+      "You can restore it later from the trash folder, or delete it permanently from your file system."
     );
     if (!confirmed) return;
 
-    const hasPerm = await ensureDirPermission(dirHandle);
-    if (!hasPerm) {
-      alert(
-        "VeloDrive does not have permission to modify your workout library folder.\n\n" +
-        "Please re-authorize the folder in Settings."
-      );
-      return;
-    }
-
-    try {
-      await dirHandle.removeEntry(fileName);
-    } catch (err) {
-      console.error("[WorkoutPicker] Failed to delete workout:", err);
-      alert(
-        "Deleting this workout file failed. See logs for details."
-      );
-      return;
-    }
+    // Move to trash instead of permanently deleting
+    const moved = await moveWorkoutFileToTrash(fileName);
+    if (!moved) return;
 
     // Refresh the list; picker state (filters, sort) is restored inside rescan
     await rescanWorkouts(dirHandle);
@@ -809,7 +874,7 @@ ${indentedBody}
       if (!dirHandle) {
         alert(
           "No workout library folder configured.\n\n" +
-          "Open Settings and choose a workout library (.zwo) folder first.",
+          "Open Settings and choose a VeloDrive folder first.",
         );
         return;
       }
@@ -836,20 +901,31 @@ ${indentedBody}
       }
 
       const confirmMsg = overwriting
-        ? `A workout named "${fileName}" already exists in your workout folder.\n\nDo you want to overwrite it?`
+        ? `A workout named "${fileName}" already exists in your workout folder.\n\n` +
+        "If you continue, the existing file will be moved to the trash folder and a new version will be saved."
         : `Save this workout as "${fileName}" in your workout folder?`;
 
       const confirmed = window.confirm(confirmMsg);
       if (!confirmed) return;
 
-      // 4) Write file
+      // 4) If overwriting, move the existing file into trash first
+      if (overwriting) {
+        const moved = await moveWorkoutFileToTrash(fileName);
+        if (!moved) {
+          // If we couldn't move the old file safely, abort the save to avoid
+          // silently overwriting without a backup in trash.
+          return;
+        }
+      }
+
+      // 5) Write new file
       const fileHandle = await dirHandle.getFileHandle(fileName, {create: true});
       const writable = await fileHandle.createWritable();
       const zwoXml = buildZwoXmlFromBuilderState(state);
       await writable.write(zwoXml);
       await writable.close();
 
-      // 5) On success: clear builder, go back to library, refresh + focus
+      // 6) On success: clear builder, go back to library, refresh + focus
       workoutBuilder.clearState();
       exitBuilderMode();
 

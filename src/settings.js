@@ -3,7 +3,7 @@
 //
 // Responsibilities:
 //  - Show & manage settings modal (similar style to workout picker)
-//  - Configure workout history dir + workout library (.zwo) dir
+//  - Configure root VeloDrive data folder (workouts + history + trash)
 //  - FTP setting (FTP control-group with +/-10 buttons, saves on Enter/blur, no Save button)
 //  - Sound on/off toggle (replaces nav sound button)
 //  - Logs view (replaces old logs overlay; preserves selection when appending)
@@ -20,10 +20,8 @@ import {
   loadSoundPreference,
   saveSoundPreference,
   saveFtp,
-  loadWorkoutDirHandle,
-  loadZwoDirHandle,
-  pickWorkoutDir,          // selects / re-permissions history dir
-  pickZwoDirectory,        // selects / re-permissions ZWO dir
+  loadRootDirHandle,
+  pickRootDir,          // selects / re-permissions the single root dir
 } from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
@@ -46,12 +44,9 @@ const settingsLogsContent = document.getElementById("settingsLogsContent");
 // Attention banner (for startup guidance)
 const settingsAttentionBanner = document.getElementById("settingsAttentionBanner");
 
-// Directories
-const historyDirStatusEl = document.getElementById("historyDirStatus");
-const historyDirButton = document.getElementById("historyDirButton");
-
-const zwoDirStatusEl = document.getElementById("zwoDirStatus");
-const zwoDirButton = document.getElementById("zwoDirButton");
+// Root directory (single picker)
+const rootDirStatusEl = document.getElementById("rootDirStatus");
+const rootDirButton = document.getElementById("rootDirButton");
 
 // FTP
 const ftpInput = document.getElementById("settingsFtpInput");
@@ -85,8 +80,7 @@ let engine = null;
 
 // Track whether we auto-opened because of some issue
 let startupNeedsAttention = {
-  missingHistoryDir: false,
-  missingZwoDir: false,
+  missingRootDir: false,
   missingBtSupport: false,
 };
 
@@ -99,8 +93,6 @@ function isWebBluetoothAvailable() {
   return (
     typeof navigator !== "undefined" &&
     !!navigator.bluetooth &&
-
-    // New Bluetooth Devices API capabilities
     typeof navigator.bluetooth.getDevices === "function"
   );
 }
@@ -195,83 +187,48 @@ export function addLogLineToSettings(line) {
 // --------------------------- Directories section ---------------------------
 
 async function refreshDirectoryStatuses() {
-  if (!historyDirStatusEl || !zwoDirStatusEl) return;
+  if (!rootDirStatusEl) return;
 
   try {
-    const [historyHandle, zwoHandle] = await Promise.all([
-      loadWorkoutDirHandle?.() ?? null,
-      loadZwoDirHandle?.() ?? null,
-    ]);
+    const rootHandle =
+      typeof loadRootDirHandle === "function" ? await loadRootDirHandle() : null;
 
-    if (historyHandle) {
-      const name = historyHandle.name || "Selected folder";
-      historyDirStatusEl.textContent = name;
-      historyDirStatusEl.classList.remove("settings-status-missing");
-      historyDirStatusEl.classList.add("settings-status-ok");
-      startupNeedsAttention.missingHistoryDir = false;
+    if (rootHandle) {
+      const name = rootHandle.name || "Selected folder";
+      rootDirStatusEl.textContent = name;
+      rootDirStatusEl.classList.remove("settings-status-missing");
+      rootDirStatusEl.classList.add("settings-status-ok");
+      startupNeedsAttention.missingRootDir = false;
     } else {
-      historyDirStatusEl.textContent = "Not configured";
-      historyDirStatusEl.classList.remove("settings-status-ok");
-      historyDirStatusEl.classList.add("settings-status-missing");
-      startupNeedsAttention.missingHistoryDir = true;
-    }
-
-    if (zwoHandle) {
-      const name = zwoHandle.name || "Selected folder";
-      zwoDirStatusEl.textContent = name;
-      zwoDirStatusEl.classList.remove("settings-status-missing");
-      zwoDirStatusEl.classList.add("settings-status-ok");
-      startupNeedsAttention.missingZwoDir = false;
-    } else {
-      zwoDirStatusEl.textContent = "Not configured";
-      zwoDirStatusEl.classList.remove("settings-status-ok");
-      zwoDirStatusEl.classList.add("settings-status-missing");
-      startupNeedsAttention.missingZwoDir = true;
+      rootDirStatusEl.textContent = "Not configured";
+      rootDirStatusEl.classList.remove("settings-status-ok");
+      rootDirStatusEl.classList.add("settings-status-missing");
+      startupNeedsAttention.missingRootDir = true;
     }
   } catch (err) {
-    console.error("[Settings] Failed to load directory handles", err);
-    historyDirStatusEl.textContent = "Error loading folder";
-    zwoDirStatusEl.textContent = "Error loading folder";
-    historyDirStatusEl.classList.remove("settings-status-ok");
-    zwoDirStatusEl.classList.remove("settings-status-ok");
-    historyDirStatusEl.classList.add("settings-status-missing");
-    zwoDirStatusEl.classList.add("settings-status-missing");
+    console.error("[Settings] Failed to load root directory handle", err);
+    rootDirStatusEl.textContent = "Error loading folder";
+    rootDirStatusEl.classList.remove("settings-status-ok");
+    rootDirStatusEl.classList.add("settings-status-missing");
 
-    // Treat this as blocking too
-    startupNeedsAttention.missingHistoryDir = true;
-    startupNeedsAttention.missingZwoDir = true;
+    // Treat as blocking
+    startupNeedsAttention.missingRootDir = true;
   }
 }
 
-async function handleChooseHistoryDir() {
-  if (typeof pickWorkoutDir !== "function") {
+async function handleChooseRootDir() {
+  if (typeof pickRootDir !== "function") {
     alert("Folder selection is not available in this build.");
     return;
   }
   try {
-    const handle = await pickWorkoutDir();
+    const handle = await pickRootDir();
     if (!handle) return;
     await refreshDirectoryStatuses();
     updateAttentionBanner();
   } catch (err) {
-    console.error("[Settings] Failed to choose history folder:", err);
-    alert("Failed to choose workout history folder.");
-  }
-}
-
-async function handleChooseZwoDir() {
-  if (typeof pickZwoDirectory !== "function") {
-    alert("Folder selection is not available in this build.");
-    return;
-  }
-  try {
-    const handle = await pickZwoDirectory();
-    if (!handle) return;
-    await refreshDirectoryStatuses();
-    updateAttentionBanner();
-  } catch (err) {
-    console.error("[Settings] Failed to choose ZWO folder:", err);
-    alert("Failed to choose workout library (.zwo) folder.");
+    console.error("[Settings] Failed to choose VeloDrive folder:", err);
+    alert("Failed to choose VeloDrive folder.");
   }
 }
 
@@ -382,8 +339,8 @@ function updateAttentionBanner() {
 
   const issues = [];
 
-  if (startupNeedsAttention.missingHistoryDir || startupNeedsAttention.missingZwoDir) {
-    issues.push("Select workout history & library folders.");
+  if (startupNeedsAttention.missingRootDir) {
+    issues.push("Choose a VeloDrive folder for workouts, history, and trash.");
   }
   if (startupNeedsAttention.missingBtSupport) {
     issues.push("Use a supported browser with Web Bluetooth (Chrome on desktop/Android).");
@@ -391,8 +348,7 @@ function updateAttentionBanner() {
 
   // Any of these issues are now considered blocking, including Bluetooth.
   hasBlockingSettingsIssues =
-    startupNeedsAttention.missingHistoryDir ||
-    startupNeedsAttention.missingZwoDir ||
+    startupNeedsAttention.missingRootDir ||
     startupNeedsAttention.missingBtSupport;
 
   if (!issues.length) {
@@ -489,15 +445,9 @@ function wireSettingsEvents() {
     });
   }
 
-  if (historyDirButton) {
-    historyDirButton.addEventListener("click", () => {
-      handleChooseHistoryDir();
-    });
-  }
-
-  if (zwoDirButton) {
-    zwoDirButton.addEventListener("click", () => {
-      handleChooseZwoDir();
+  if (rootDirButton) {
+    rootDirButton.addEventListener("click", () => {
+      handleChooseRootDir();
     });
   }
 
@@ -567,9 +517,7 @@ export async function initSettings() {
   refreshEnvironmentStatus();
   updateAttentionBanner();
 
-  const shouldShowFileHelp =
-    startupNeedsAttention.missingHistoryDir ||
-    startupNeedsAttention.missingZwoDir;
+  const shouldShowFileHelp = startupNeedsAttention.missingRootDir;
   const shouldShowBtHelp = startupNeedsAttention.missingBtSupport;
 
   // Auto-open settings if we detect critical missing configuration
@@ -578,7 +526,7 @@ export async function initSettings() {
   if (shouldAutoOpen) {
     openSettings();
 
-    // If file dirs are missing, open file help by default
+    // If root dir is missing, open file help by default
     // (expects a help section with ID "settingsFoldersHelp" in the DOM)
     if (shouldShowFileHelp) {
       showHelpSectionById("settingsFoldersHelp");
@@ -591,4 +539,3 @@ export async function initSettings() {
     }
   }
 }
-

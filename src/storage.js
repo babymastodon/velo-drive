@@ -12,8 +12,11 @@ const DB_VERSION = 1;
 const SETTINGS_STORE = "settings";
 
 // Keys in the settings store
-export const WORKOUT_DIR_KEY = "workoutDirHandle";
-export const ZWO_DIR_KEY = "dirHandle"; // used for ZWO folder (shared with options.js)
+export const WORKOUT_DIR_KEY = "workoutDirHandle";       // history dir (per-workout data)
+export const ZWO_DIR_KEY = "dirHandle";                  // workouts (.zwo) dir (shared with options.js)
+
+export const ROOT_DIR_KEY = "rootDirHandle";
+export const TRASH_DIR_KEY = "trashDirHandle";
 
 export const STORAGE_SELECTED_WORKOUT = "selectedWorkout";
 export const STORAGE_ACTIVE_STATE = "activeWorkoutState";
@@ -28,6 +31,8 @@ const FTP_KEY = "ftp";
 let dbPromise = null;
 let workoutDirHandle = null;
 let zwoDirHandle = null;
+let rootDirHandle = null;
+let trashDirHandle = null;
 
 async function getDb() {
   if (dbPromise) return dbPromise;
@@ -38,7 +43,6 @@ async function getDb() {
     req.onupgradeneeded = (ev) => {
       const db = ev.target.result;
       if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-        // Store records as generic { key, value?, handle? }
         db.createObjectStore(SETTINGS_STORE, {keyPath: "key"});
       }
     };
@@ -92,7 +96,7 @@ async function removeSetting(key) {
   });
 }
 
-// --- handle-specific helpers (use same store, different field) ---
+// --- handle-specific helpers ---
 
 async function saveHandle(key, handle) {
   const db = await getDb();
@@ -111,15 +115,14 @@ async function loadHandle(key) {
     const tx = db.transaction(SETTINGS_STORE, "readonly");
     const store = tx.objectStore(SETTINGS_STORE);
     const req = store.get(key);
-    req.onsuccess = () => {
-      resolve(req.result ? req.result.handle : null);
-    };
+    req.onsuccess = () => resolve(req.result ? req.result.handle : null);
     req.onerror = () => reject(req.error);
   });
 }
 
-// Public helpers for specific handles
+// --------------------------- Persisted handles ---------------------------
 
+// History directory
 async function saveWorkoutDirHandle(handle) {
   workoutDirHandle = handle || null;
   return saveHandle(WORKOUT_DIR_KEY, workoutDirHandle);
@@ -127,11 +130,23 @@ async function saveWorkoutDirHandle(handle) {
 
 export async function loadWorkoutDirHandle() {
   if (workoutDirHandle) return workoutDirHandle;
-  const handle = await loadHandle(WORKOUT_DIR_KEY);
+
+  let handle = await loadHandle(WORKOUT_DIR_KEY);
+
+  // derive from root
+  if (!handle) {
+    const root = await loadRootDirHandle();
+    if (root) {
+      handle = await root.getDirectoryHandle("history", {create: true});
+      await saveWorkoutDirHandle(handle);
+    }
+  }
+
   workoutDirHandle = handle || null;
   return workoutDirHandle;
 }
 
+// Workouts (.zwo) directory
 async function saveZwoDirHandle(handle) {
   zwoDirHandle = handle || null;
   return saveHandle(ZWO_DIR_KEY, zwoDirHandle);
@@ -139,12 +154,60 @@ async function saveZwoDirHandle(handle) {
 
 export async function loadZwoDirHandle() {
   if (zwoDirHandle) return zwoDirHandle;
-  const handle = await loadHandle(ZWO_DIR_KEY);
+
+  let handle = await loadHandle(ZWO_DIR_KEY);
+
+  // derive from root
+  if (!handle) {
+    const root = await loadRootDirHandle();
+    if (root) {
+      handle = await root.getDirectoryHandle("workouts", {create: true});
+      await saveZwoDirHandle(handle);
+    }
+  }
+
   zwoDirHandle = handle || null;
   return zwoDirHandle;
 }
 
-// --------------------------- File system permission helper ---------------------------
+// Root
+async function saveRootDirHandle(handle) {
+  rootDirHandle = handle || null;
+  return saveHandle(ROOT_DIR_KEY, rootDirHandle);
+}
+
+export async function loadRootDirHandle() {
+  if (rootDirHandle) return rootDirHandle;
+  const handle = await loadHandle(ROOT_DIR_KEY);
+  rootDirHandle = handle || null;
+  return rootDirHandle;
+}
+
+// Trash
+async function saveTrashDirHandle(handle) {
+  trashDirHandle = handle || null;
+  return saveHandle(TRASH_DIR_KEY, trashDirHandle);
+}
+
+export async function loadTrashDirHandle() {
+  if (trashDirHandle) return trashDirHandle;
+
+  let handle = await loadHandle(TRASH_DIR_KEY);
+
+  // derive from root
+  if (!handle) {
+    const root = await loadRootDirHandle();
+    if (root) {
+      handle = await root.getDirectoryHandle("trash", {create: true});
+      await saveTrashDirHandle(handle);
+    }
+  }
+
+  trashDirHandle = handle || null;
+  return trashDirHandle;
+}
+
+// --------------------------- Permission helper ---------------------------
 
 export async function ensureDirPermission(handle) {
   if (!handle || !handle.queryPermission || !handle.requestPermission) return false;
@@ -155,9 +218,7 @@ export async function ensureDirPermission(handle) {
   return p === "granted";
 }
 
-// --------------------------- Settings using IndexedDB ---------------------------
-
-// ---- Sound preference ----
+// --------------------------- Settings (IndexedDB) ---------------------------
 
 export async function loadSoundPreference(defaultValue = true) {
   const raw = await getSetting(STORAGE_SOUND_ENABLED, defaultValue);
@@ -168,13 +229,9 @@ export function saveSoundPreference(enabled) {
   return setSetting(STORAGE_SOUND_ENABLED, !!enabled);
 }
 
-// ---- FTP (sync-ish, but still local IndexedDB here) ----
-
 export function saveFtp(ftpValue) {
   return setSetting(FTP_KEY, ftpValue);
 }
-
-// ---- Selected workout ----
 
 export async function loadSelectedWorkout() {
   return getSetting(STORAGE_SELECTED_WORKOUT, null);
@@ -183,8 +240,6 @@ export async function loadSelectedWorkout() {
 export function saveSelectedWorkout(payload) {
   return setSetting(STORAGE_SELECTED_WORKOUT, payload);
 }
-
-// ---- Active workout state ----
 
 export async function loadActiveState() {
   return getSetting(STORAGE_ACTIVE_STATE, null);
@@ -198,8 +253,6 @@ export function clearActiveState() {
   return removeSetting(STORAGE_ACTIVE_STATE);
 }
 
-// ---- Picker state ----
-
 export async function loadPickerState() {
   return getSetting(STORAGE_PICKER_STATE, null);
 }
@@ -207,8 +260,6 @@ export async function loadPickerState() {
 export function savePickerState(state) {
   return setSetting(STORAGE_PICKER_STATE, state);
 }
-
-// -------- Workout builder state persistence (stubs) --------
 
 export async function saveWorkoutBuilderState(state) {
   return setSetting(STORAGE_WORKOUT_BUILDER_STATE, state);
@@ -218,67 +269,48 @@ export async function loadWorkoutBuilderState() {
   return getSetting(STORAGE_WORKOUT_BUILDER_STATE, null);
 }
 
-// --------------------------- directory helpers ---------------------------
+// --------------------------- Root Directory Picker ---------------------------
 
-export async function pickZwoDirectory() {
+/**
+ * Prompts user once for a root directory, then ensures:
+ *   - root/workouts/
+ *   - root/history/
+ *   - root/trash/
+ *
+ * Saves all dir handles.
+ */
+export async function pickRootDir() {
   if (!("showDirectoryPicker" in window)) {
-    alert("Selecting ZWO workouts requires a recent Chromium-based browser.");
+    alert("Selecting a data folder requires a recent Chromium-based browser.");
     return null;
   }
 
   try {
-    // Always force the user to pick a directory
-    const handle = await window.showDirectoryPicker();
+    const root = await window.showDirectoryPicker();
 
-    const ok = await ensureDirPermission(handle);
-    if (!ok) {
-      alert("Permission was not granted to the selected ZWO folder.");
-      return null;
-    }
-
-    // Save the newly chosen folder
-    zwoDirHandle = handle;
-    await saveZwoDirHandle(handle);
-
-    return zwoDirHandle;
-  } catch (err) {
-    if (err && err.name === "AbortError") {
-      // user canceled
-      return null;
-    }
-    console.error("Error choosing ZWO folder: " + err);
-    alert("Failed to choose ZWO folder.");
-    return null;
-  }
-}
-
-export async function pickWorkoutDir() {
-  if (!("showDirectoryPicker" in window)) {
-    alert("Saving workouts requires a recent Chromium-based browser.");
-    return null;
-  }
-
-  try {
-    // Always prompt the user
-    const handle = await window.showDirectoryPicker();
-
-    const ok = await ensureDirPermission(handle);
+    const ok = await ensureDirPermission(root);
     if (!ok) {
       alert("Permission was not granted to the selected folder.");
       return null;
     }
 
-    workoutDirHandle = handle;
-    await saveWorkoutDirHandle(handle);
+    await saveRootDirHandle(root);
 
-    return workoutDirHandle;
+    // ensure subdirs exist
+    const workouts = await root.getDirectoryHandle("workouts", {create: true});
+    const history = await root.getDirectoryHandle("history", {create: true});
+    const trash = await root.getDirectoryHandle("trash", {create: true});
+
+    await saveZwoDirHandle(workouts);
+    await saveWorkoutDirHandle(history);
+    await saveTrashDirHandle(trash);
+
+    return root;
+
   } catch (err) {
-    if (err && err.name === "AbortError") {
-      // user canceled
-      return null;
-    }
-    console.error("Error choosing workout folder: " + err);
-    alert("Failed to choose workout folder.");
+    if (err?.name === "AbortError") return null;
+    console.error("Error choosing root folder:", err);
+    alert("Failed to choose folder.");
     return null;
   }
 }
