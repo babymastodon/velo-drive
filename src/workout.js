@@ -791,7 +791,8 @@ async function initPage() {
         alert("End the current workout before changing the workout selection.");
         return;
       }
-      picker.open().catch((err) =>
+      const name = vm.canonicalWorkout?.workoutTitle;
+      picker.open(name).catch((err) =>
         logDebug("Workout picker open error: " + err)
       );
     });
