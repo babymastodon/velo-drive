@@ -438,7 +438,7 @@ function setChartEmptyState(kind) {
     chartEmptyMessage.textContent = "Select a workout";
     chartEmptyArrow.classList.add("chart-empty-arrow--right");
   } else if (kind === "readyToStart") {
-    chartEmptyMessage.textContent = "Pedal to begin or click start";
+    chartEmptyMessage.textContent = "Begin pedaling or click start";
     chartEmptyArrow.classList.add("chart-empty-arrow--right");
   } else if (kind === "resume") {
     chartEmptyMessage.textContent = "Pedal to resume";

@@ -561,6 +561,11 @@ function createWorkoutEngine() {
      * Accept a CanonicalWorkout from the picker / builder.
      */
     setWorkoutFromPicker(canonical) {
+      if (workoutRunning || workoutPaused || workoutStarting) {
+        alert("Please end your current workout first.");
+        return;
+      }
+
       if (!canonical || !Array.isArray(canonical.rawSegments)) {
         console.warn("[WorkoutEngine] Invalid CanonicalWorkout payload:", canonical);
         return;

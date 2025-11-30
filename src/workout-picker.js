@@ -76,51 +76,6 @@ export function getWorkoutPicker(config) {
 // --------------------------- ZWO scanning & metrics ---------------------------
 
 /**
- * Convert CanonicalWorkout.rawSegments into "segmentsForMetrics":
- *   [{ durationSec, pStartRel, pEndRel }, ...]
- * where pStartRel / pEndRel are 0–1 (fraction of FTP).
- *
- * Canonical rawSegments are:
- *   [minutes, startPower, endPower]
- * where power is % of FTP (0–100).
- *
- * @param {CanonicalWorkout} canonical
- */
-function canonicalToMetricsSegments(canonical) {
-  const raw = Array.isArray(canonical?.rawSegments)
-    ? canonical.rawSegments
-    : [];
-  const out = [];
-
-  for (const seg of raw) {
-    if (!Array.isArray(seg) || seg.length < 2) continue;
-
-    const minutes = Number(seg[0]);
-    const startPct = Number(seg[1]);
-    const endPct =
-      seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-
-    if (
-      !Number.isFinite(minutes) ||
-      !Number.isFinite(startPct) ||
-      !Number.isFinite(endPct)
-    ) {
-      continue;
-    }
-
-    const durationSec = minutes * 60;
-    if (durationSec <= 0) continue;
-
-    out.push({
-      durationSec,
-      pStartRel: startPct / 100,
-      pEndRel: endPct / 100,
-    });
-  }
-  return out;
-}
-
-/**
  * Scan a directory and return an array of CanonicalWorkout.
  *
  * @param {FileSystemDirectoryHandle} handle
