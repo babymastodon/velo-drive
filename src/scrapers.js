@@ -135,17 +135,18 @@ function toPlainText(value) {
  * Assumptions:
  *  - courseData is an array of { seconds: number, ftpPercent: number }
  *  - entries are already in chronological order
- *  - there is exactly 1 row per second
- *
- * Model:
- *  - Points are samples at integer seconds.
- *  - Ramps / flats are piecewise linear between samples.
- *  - We group contiguous *edges* (between i and i+1) that share the same
- *    per-second delta into a single segment.
+ *  - seconds are milliseconds (TrainerRoad chart-data) but we do NOT sort
  *
  * Output:
- *  - [segments, errorStringOrNull]
- *    where segments is Array<[minutes, ftpPercentBegin, ftpPercentEnd]>
+ *  - First return value: Array of [minutes, ftpPercentBegin, ftpPercentEnd]
+ *  - Second return value: user-friendly error string or null if successful
+ *
+ * The algorithm is adapted from buildBlocksFromSamples in the TR ZWO
+ * downloader:
+ *  - Convert to time/power samples (t in seconds, p in fraction of FTP)
+ *  - Scan forward, grouping contiguous edges where the slope has the same
+ *    "kind": steady, rampUp, or rampDown (based on sign of Δp)
+ *  - Short ramps (≤ ~1s) are merged into the following segment
  *
  * @param {Array<{seconds: number, ftpPercent: number}>} courseData
  * @returns {[Array<[number, number, number]>, (string|null)]}
@@ -156,69 +157,123 @@ function canonicalizeTrainerRoadSegments(courseData) {
   if (!Array.isArray(courseData)) {
     return [[], errorPrefix + "must be an array"];
   }
-  const n = courseData.length;
-  if (n === 0) {
+  if (courseData.length === 0) {
     return [[], errorPrefix + "array is empty"];
   }
 
-  const power = new Array(n);
+  const n = courseData.length;
+  const t = new Array(n); // seconds
+  const p = new Array(n); // relative to FTP (0–1)
+
   for (let i = 0; i < n; i++) {
-    const p = Number(courseData[i]?.ftpPercent);
-    if (!Number.isFinite(p)) {
+    const row = courseData[i] || {};
+    const secMs = Number(row.seconds);
+    const ftpPct = Number(row.ftpPercent);
+
+    if (!Number.isFinite(ftpPct)) {
       return [
         [],
-        errorPrefix + `row ${i} must have finite 'ftpPercent'`,
+        errorPrefix + `row ${i} must have numeric 'ftpPercent'`,
       ];
     }
-    power[i] = p;
+
+    // If seconds is missing/invalid, just fall back to 1 Hz indexing
+    const tSec = Number.isFinite(secMs) ? secMs / 1000 : i;
+    t[i] = tSec;
+    p[i] = ftpPct / 100; // to fraction
   }
 
   // Single-point workout: treat as a 1-second flat segment
   if (n === 1) {
     const seconds = 1;
     const minutes = seconds / 60;
-    const p = power[0];
-    return [[[minutes, p, p]], null];
+    const pct = p[0] * 100;
+    return [[[minutes, pct, pct]], null];
   }
 
-  // Quantize deltas to avoid float noise causing 1-second segments on ramps.
-  const quantizeDelta = (d) => Math.round(d * 1000) / 1000; // 0.001 resolution
-
+  const EPS_POWER = 1e-4;
+  const MIN_RAMP_DURATION_SEC = 1.0 + 1e-6;
   const segments = [];
+  let carryToNext = 0;
 
-  /**
-   * Push a segment covering edges [edgeStart .. edgeEnd], inclusive.
-   * - edge i spans from sample i to i+1 and is 1 second long.
-   * - duration in seconds = (edgeEnd - edgeStart + 1)
-   * - start power = power[edgeStart]
-   * - end power = power[edgeEnd + 1]
-   */
-  function pushSegment(edgeStart, edgeEnd) {
-    const seconds = edgeEnd - edgeStart + 1;
-    const minutes = seconds / 60;
-    const startPower = power[edgeStart];
-    const endPower = power[edgeEnd + 1];
-    segments.push([minutes, startPower, endPower]);
-  }
+  let i = 0;
+  while (i < n - 1) {
+    let tStart = t[i];
+    let pStart = p[i];
 
-  // There are (n - 1) edges between n samples: edge i is between i and i+1.
-  let edgeStart = 0;
-  let prevDelta = quantizeDelta(power[1] - power[0]);
-
-  for (let i = 1; i < n - 1; i++) {
-    const delta = quantizeDelta(power[i + 1] - power[i]);
-
-    if (delta !== prevDelta) {
-      // Slope changed between edge (i - 1) and edge i.
-      // Close segment covering edges [edgeStart .. i - 1].
-      pushSegment(edgeStart, i - 1);
-      edgeStart = i;
-      prevDelta = delta;
+    let dt = t[i + 1] - t[i];
+    if (dt <= 0) {
+      // Bad time ordering here; skip this sample and move on.
+      i++;
+      continue;
     }
+
+    let dp = p[i + 1] - p[i];
+    let baseKind;
+    if (Math.abs(dp) <= EPS_POWER) baseKind = "steady";
+    else if (dp > 0) baseKind = "rampUp";
+    else baseKind = "rampDown";
+
+    let j = i + 1;
+
+    // Group edges with the same slope "kind" (steady / up / down)
+    while (j < n - 1) {
+      const dt2 = t[j + 1] - t[j];
+      if (dt2 <= 0) {
+        j++;
+        continue;
+      }
+      const dp2 = p[j + 1] - p[j];
+      let kind2;
+      if (Math.abs(dp2) <= EPS_POWER) kind2 = "steady";
+      else if (dp2 > 0) kind2 = "rampUp";
+      else kind2 = "rampDown";
+
+      if (kind2 !== baseKind) break;
+      j++;
+    }
+
+    const tEnd = t[j];
+    const pEnd = p[j];
+    let durationSec = tEnd - tStart;
+
+    if (durationSec > 0) {
+      if (baseKind !== "steady" && durationSec <= MIN_RAMP_DURATION_SEC) {
+        // Very short ramp: roll into the next segment instead of creating
+        // a tiny ramp on its own.
+        carryToNext += durationSec;
+      } else {
+        durationSec += carryToNext;
+        carryToNext = 0;
+
+        const minutes = durationSec / 60;
+
+        if (baseKind === "steady") {
+          const pct = pStart * 100;
+          segments.push([minutes, pct, pct]);
+        } else {
+          const startPct = pStart * 100;
+          const endPct = pEnd * 100;
+          segments.push([minutes, startPct, endPct]);
+        }
+      }
+    }
+
+    i = j;
   }
 
-  // Flush final segment: covers edges [edgeStart .. n - 2]
-  pushSegment(edgeStart, n - 2);
+  // Any leftover short-ramp time gets merged into the last segment
+  if (carryToNext > 0 && segments.length > 0) {
+    const extraMinutes = carryToNext / 60;
+    segments[segments.length - 1][0] += extraMinutes;
+  }
+
+  if (!segments.length) {
+    return [
+      [],
+      "This TrainerRoad workout doesn’t have intervals VeloDrive can read.",
+    ];
+  }
 
   return [segments, null];
 }
