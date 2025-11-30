@@ -9,6 +9,11 @@ import {
   saveWorkoutBuilderState,
   loadWorkoutBuilderState,
 } from "./storage.js";
+import {
+  parseZwoSnippet,
+  segmentsToZwoSnippet,
+  importWorkoutFromUrl,
+} from "./zwo.js";
 
 /**
  * @typedef WorkoutBuilderOptions
@@ -26,11 +31,6 @@ export function createWorkoutBuilder(options) {
   let currentErrors = [];
   let currentMetrics = null;
   let currentCategory = null;
-
-  // Hard safety limits to avoid runaway durations / repeats
-  const MAX_SEGMENT_DURATION_SEC = 12 * 3600;   // 12 hours per segment
-  const MAX_WORKOUT_DURATION_SEC = 24 * 3600;   // 24 hours total workout
-  const MAX_INTERVAL_REPEATS = 500;             // sanity cap on repeats
 
   // ---------- Layout ----------
   rootEl.innerHTML = "";
@@ -132,7 +132,8 @@ export function createWorkoutBuilder(options) {
   errorLabel.textContent = "Status:";
 
   const errorMessage = document.createElement("div");
-  errorMessage.className = "wb-code-error-message wb-code-error-message--neutral";
+  errorMessage.className =
+    "wb-code-error-message wb-code-error-message--neutral";
   errorMessage.textContent = "Not checked yet.";
 
   errorRow.appendChild(errorLabel);
@@ -177,13 +178,22 @@ export function createWorkoutBuilder(options) {
   icon.setAttribute("stroke-linejoin", "round");
 
   // Feather-style "download/import" arrow
-  const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  const path1 = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "path",
+  );
   path1.setAttribute("d", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4");
 
-  const path2 = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  const path2 = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "polyline",
+  );
   path2.setAttribute("points", "7 10 12 15 17 10");
 
-  const path3 = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  const path3 = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "line",
+  );
   path3.setAttribute("x1", "12");
   path3.setAttribute("y1", "3");
   path3.setAttribute("x2", "12");
@@ -207,11 +217,8 @@ export function createWorkoutBuilder(options) {
   urlSection.appendChild(urlTitle);
   urlSection.appendChild(urlRow);
 
-
   importCard.appendChild(urlSection);
-
   colCode.appendChild(importCard);
-
 
   // Toolbar with ZWO elements
   const codeCard = document.createElement("div");
@@ -300,8 +307,10 @@ export function createWorkoutBuilder(options) {
   codeTextarea.spellcheck = false;
   codeTextarea.rows = 18;
   codeTextarea.placeholder =
-    'Click the above buttons to add workout blocks.';
-  codeTextarea.addEventListener("input", () => autoGrowTextarea(codeTextarea));
+    "Click the above buttons to add workout blocks.";
+  codeTextarea.addEventListener("input", () =>
+    autoGrowTextarea(codeTextarea),
+  );
   codeTextarea.addEventListener("scroll", () => {
     codeHighlights.scrollTop = codeTextarea.scrollTop;
     codeHighlights.scrollLeft = codeTextarea.scrollLeft;
@@ -349,9 +358,10 @@ export function createWorkoutBuilder(options) {
       "wb-code-error-message wb-code-error-message--neutral";
 
     try {
-      const {snippet, error} = await importFromUrl(url);
+      const {canonical, zwoSnippet, error} =
+        await importWorkoutFromUrl(url);
 
-      if (error || !snippet) {
+      if (error || !zwoSnippet) {
         console.warn("[WorkoutBuilder] Import error:", error);
         errorMessage.textContent =
           (error && error.message) ||
@@ -361,7 +371,22 @@ export function createWorkoutBuilder(options) {
         return;
       }
 
-      codeTextarea.value = snippet.trim();
+      // Fill in metadata from canonical workout
+      if (canonical) {
+        if (canonical.workoutTitle) {
+          nameField.input.value = canonical.workoutTitle;
+        }
+        if (canonical.description) {
+          descField.textarea.value = canonical.description;
+        }
+        if (canonical.source) {
+          sourceField.input.value = canonical.source;
+        } else {
+          sourceField.input.value = "Imported workout";
+        }
+      }
+
+      codeTextarea.value = zwoSnippet.trim();
       refreshLayout();
     } catch (err) {
       console.error("[WorkoutBuilder] Import failed:", err);
@@ -388,7 +413,6 @@ export function createWorkoutBuilder(options) {
     }
   });
 
-
   // ---------- Init: restore from storage or default ----------
 
   (async () => {
@@ -398,7 +422,8 @@ export function createWorkoutBuilder(options) {
         if (saved && typeof saved === "object") {
           if (saved.name) nameField.input.value = saved.name;
           if (saved.source) sourceField.input.value = saved.source;
-          if (saved.description) descField.textarea.value = saved.description;
+          if (saved.description)
+            descField.textarea.value = saved.description;
           if (saved.rawSnippet) {
             codeTextarea.value = saved.rawSnippet;
           }
@@ -458,10 +483,13 @@ export function createWorkoutBuilder(options) {
     // Prefer a raw snippet if you ever store one; otherwise rebuild from segmentsForMetrics.
     if (meta.rawSnippet && meta.rawSnippet.trim()) {
       codeTextarea.value = meta.rawSnippet;
-    } else if (Array.isArray(meta.segmentsForMetrics) && meta.segmentsForMetrics.length) {
-      codeTextarea.value = segmentsToZwoSnippet(segmentsToRaw(
-        meta.segmentsForMetrics
-      ));
+    } else if (
+      Array.isArray(meta.segmentsForMetrics) &&
+      meta.segmentsForMetrics.length
+    ) {
+      codeTextarea.value = segmentsToZwoSnippet(
+        segmentsToRaw(meta.segmentsForMetrics),
+      );
     } else {
       codeTextarea.value = "";
     }
@@ -518,7 +546,8 @@ export function createWorkoutBuilder(options) {
       const firstSyntax = currentErrors[0];
       errors.push({
         field: "code",
-        message: firstSyntax.message || "Fix syntax errors before saving.",
+        message:
+          firstSyntax.message || "Fix syntax errors before saving.",
       });
     }
 
@@ -569,10 +598,10 @@ export function createWorkoutBuilder(options) {
   }
 
   function segmentsToRaw(segments) {
-    return segments.map(s => {
-      const minutes = s.durationSec / 60;          // 60 sec → 1
-      const startPct = s.pStartRel * 100;          // 0.40 → 40
-      const endPct = s.pEndRel * 100;              // 0.40 → 40
+    return segments.map((s) => {
+      const minutes = s.durationSec / 60; // 60 sec → 1
+      const startPct = s.pStartRel * 100; // 0.40 → 40
+      const endPct = s.pEndRel * 100; // 0.40 → 40
       return [minutes, startPct, endPct];
     });
   }
@@ -582,7 +611,7 @@ export function createWorkoutBuilder(options) {
 
     if (!skipParse) {
       const text = codeTextarea.value || "";
-      const parsed = parseWorkoutSnippet(text);
+      const parsed = parseZwoSnippet(text);
       currentSegments = parsed.segments;
       currentErrors = parsed.errors;
     }
@@ -591,7 +620,9 @@ export function createWorkoutBuilder(options) {
 
     if (currentSegments.length && ftp > 0) {
       currentMetrics = computeMetricsFromSegments(currentSegments, ftp);
-      currentCategory = inferCategoryFromSegments(segmentsToRaw(currentSegments));
+      currentCategory = inferCategoryFromSegments(
+        segmentsToRaw(currentSegments),
+      );
     } else {
       currentMetrics = {
         totalSec: 0,
@@ -627,25 +658,32 @@ export function createWorkoutBuilder(options) {
       statIf.value.textContent = "--";
       statKj.value.textContent = "--";
       statDuration.value.textContent = "--";
-      statFtp.value.textContent = ftp > 0 ? `${Math.round(ftp)} W` : "--";
+      statFtp.value.textContent =
+        ftp > 0 ? `${Math.round(ftp)} W` : "--";
       statCategory.value.textContent = currentCategory || "--";
       return;
     }
 
     statTss.value.textContent =
-      currentMetrics.tss != null ? String(Math.round(currentMetrics.tss)) : "--";
+      currentMetrics.tss != null
+        ? String(Math.round(currentMetrics.tss))
+        : "--";
     statIf.value.textContent =
       currentMetrics.ifValue != null
         ? currentMetrics.ifValue.toFixed(2)
         : "--";
     statKj.value.textContent =
-      currentMetrics.kj != null ? String(Math.round(currentMetrics.kj)) : "--";
+      currentMetrics.kj != null
+        ? String(Math.round(currentMetrics.kj))
+        : "--";
     statDuration.value.textContent =
       currentMetrics.durationMin != null
         ? `${Math.round(currentMetrics.durationMin)} min`
         : "--";
     statFtp.value.textContent =
-      currentMetrics.ftp != null ? `${Math.round(currentMetrics.ftp)} W` : "--";
+      currentMetrics.ftp != null
+        ? `${Math.round(currentMetrics.ftp)} W`
+        : "--";
     statCategory.value.textContent = currentCategory || "--";
   }
 
@@ -653,7 +691,8 @@ export function createWorkoutBuilder(options) {
     const ftp = getCurrentFtp() || 0;
     const meta = {
       name:
-        (nameField.input.value || "Custom workout").trim() || "Custom workout",
+        (nameField.input.value || "Custom workout").trim() ||
+        "Custom workout",
       segmentsForMetrics: currentSegments.slice(),
       totalSec: currentMetrics ? currentMetrics.totalSec : 0,
       ftpFromFile: ftp || null,
@@ -667,7 +706,10 @@ export function createWorkoutBuilder(options) {
     try {
       renderMiniWorkoutGraph(chartMiniHost, meta, ftp);
     } catch (e) {
-      console.error("[WorkoutBuilder] Failed to render mini chart:", e);
+      console.error(
+        "[WorkoutBuilder] Failed to render mini chart:",
+        e,
+      );
     }
   }
 
@@ -676,7 +718,8 @@ export function createWorkoutBuilder(options) {
 
     if (!text.trim()) {
       codeTextarea.classList.remove("wb-has-error");
-      errorMessage.textContent = "Empty workout. Add elements to begin.";
+      errorMessage.textContent =
+        "Empty workout. Add elements to begin.";
       errorMessage.className =
         "wb-code-error-message wb-code-error-message--neutral";
       return;
@@ -711,735 +754,19 @@ export function createWorkoutBuilder(options) {
     }
   }
 
-  // ---------- Parsing ----------
-
-  function parseWorkoutSnippet(text) {
-    const segments = [];
-    const errors = [];
-
-    const raw = (text || "")
-      .replace(/<\s*workout[^>]*>/gi, "")
-      .replace(/<\/\s*workout\s*>/gi, "");
-    const trimmed = raw.trim();
-    if (!trimmed) return {segments, errors};
-
-    const tagRegex = /<([A-Za-z]+)\b([^>]*)\/>/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = tagRegex.exec(trimmed)) !== null) {
-      const full = match[0];
-      const tagName = match[1];
-      const attrsText = match[2] || "";
-      const startIdx = match.index;
-      const endIdx = startIdx + full.length;
-
-      const between = trimmed.slice(lastIndex, startIdx);
-      if (between.trim().length > 0) {
-        errors.push({
-          start: lastIndex,
-          end: startIdx,
-          message:
-            "Unexpected text between elements; only ZWO workout elements are allowed.",
-        });
-      }
-
-      const {attrs, hasGarbage} = parseAttributes(attrsText);
-
-      if (hasGarbage) {
-        // There was stray text inside the tag (e.g. '?**')
-        errors.push({
-          start: startIdx,
-          end: endIdx,
-          message:
-            "Malformed element: unexpected text or tokens inside element.",
-        });
-        // Skip creating segments from this element
-        lastIndex = endIdx;
-        continue;
-      }
-
-      switch (tagName) {
-        case "SteadyState":
-          handleSteady(attrs, segments, errors, startIdx, endIdx);
-          break;
-        case "Warmup":
-        case "Cooldown":
-          handleRamp(tagName, attrs, segments, errors, startIdx, endIdx);
-          break;
-        case "IntervalsT":
-          handleIntervals(attrs, segments, errors, startIdx, endIdx);
-          break;
-        default:
-          errors.push({
-            start: startIdx,
-            end: endIdx,
-            message: `Unknown element <${tagName}>`,
-          });
-          break;
-      }
-
-      lastIndex = endIdx;
-    }
-
-    const trailing = trimmed.slice(lastIndex);
-    if (trailing.trim().length > 0) {
-      errors.push({
-        start: lastIndex,
-        end: lastIndex + trailing.length,
-        message: "Trailing text after last element.",
-      });
-    }
-
-    return {segments, errors};
-  }
-
-  function parseAttributes(attrText) {
-    const attrs = {};
-    let hasGarbage = false;
-
-    const attrRegex =
-      /([A-Za-z_:][A-Za-z0-9_:.-]*)\s*=\s*"([^"]*)"/g;
-
-    let m;
-    let lastIndex = 0;
-
-    while ((m = attrRegex.exec(attrText)) !== null) {
-      // Anything between the end of the previous match and this one?
-      if (m.index > lastIndex) {
-        const between = attrText.slice(lastIndex, m.index);
-        if (between.trim().length > 0) {
-          // Non-whitespace we don't understand → garbage
-          hasGarbage = true;
-        }
-      }
-
-      attrs[m[1]] = m[2];
-      lastIndex = attrRegex.lastIndex;
-    }
-
-    // Trailing text after the last attribute
-    const trailing = attrText.slice(lastIndex);
-    if (trailing.trim().length > 0) {
-      hasGarbage = true;
-    }
-
-    return {attrs, hasGarbage};
-  }
-
-  function handleSteady(attrs, segments, errors, start, end) {
-    const durStr = attrs.Duration;
-    const pStr = attrs.Power;
-    const duration = durStr != null ? Number(durStr) : NaN;
-    const power = pStr != null ? Number(pStr) : NaN;
-
-    if (!validateDuration(duration, "SteadyState", start, end, errors)) {
-      return;
-    }
-    if (!Number.isFinite(power) || power <= 0) {
-      errors.push({
-        start,
-        end,
-        message:
-          'SteadyState must have a positive numeric Power (relative FTP, e.g. 0.75).',
-      });
-      return;
-    }
-
-    segments.push({
-      durationSec: duration,
-      pStartRel: power,
-      pEndRel: power,
-    });
-  }
-
-  function handleRamp(tagName, attrs, segments, errors, start, end) {
-    const durStr = attrs.Duration;
-    const loStr = attrs.PowerLow;
-    const hiStr = attrs.PowerHigh;
-    const duration = durStr != null ? Number(durStr) : NaN;
-    const pLow = loStr != null ? Number(loStr) : NaN;
-    const pHigh = hiStr != null ? Number(hiStr) : NaN;
-
-    if (!validateDuration(duration, tagName, start, end, errors)) {
-      return;
-    }
-    if (!Number.isFinite(pLow) || !Number.isFinite(pHigh)) {
-      errors.push({
-        start,
-        end,
-        message:
-          `${tagName} must have PowerLow and PowerHigh as numbers (relative FTP).`,
-      });
-      return;
-    }
-
-    segments.push({
-      durationSec: duration,
-      pStartRel: pLow,
-      pEndRel: pHigh,
-    });
-  }
-
-  function validateDuration(duration, tagName, start, end, errors) {
-    if (!Number.isFinite(duration) || duration <= 0) {
-      errors.push({
-        start,
-        end,
-        message: `${tagName} must have a positive numeric Duration (seconds).`,
-      });
-      return false;
-    }
-    if (duration > MAX_SEGMENT_DURATION_SEC) {
-      errors.push({
-        start,
-        end,
-        message: `${tagName} Duration is unrealistically large (max ${MAX_SEGMENT_DURATION_SEC} seconds).`,
-      });
-      return false;
-    }
-    return true;
-  }
-
-  function handleIntervals(attrs, segments, errors, start, end) {
-    const repStr = attrs.Repeat;
-    const onDurStr = attrs.OnDuration;
-    const offDurStr = attrs.OffDuration;
-    const onPowStr = attrs.OnPower;
-    const offPowStr = attrs.OffPower;
-
-    const repeat = repStr != null ? Number(repStr) : NaN;
-    const onDur = onDurStr != null ? Number(onDurStr) : NaN;
-    const offDur = offDurStr != null ? Number(offDurStr) : NaN;
-    const onPow = onPowStr != null ? Number(onPowStr) : NaN;
-    const offPow = offPowStr != null ? Number(offPowStr) : NaN;
-
-    if (!Number.isFinite(repeat) || repeat <= 0 || repeat > MAX_INTERVAL_REPEATS) {
-      errors.push({
-        start,
-        end,
-        message: `IntervalsT must have Repeat as a positive integer (max ${MAX_INTERVAL_REPEATS}).`,
-      });
-      return;
-    }
-
-    if (!validateDuration(onDur, "IntervalsT OnDuration", start, end, errors)) {
-      return;
-    }
-    if (!validateDuration(offDur, "IntervalsT OffDuration", start, end, errors)) {
-      return;
-    }
-
-    // Also guard the total workout time this block would create
-    const totalBlockSec = repeat * (onDur + offDur);
-    if (!Number.isFinite(totalBlockSec) || totalBlockSec > MAX_WORKOUT_DURATION_SEC) {
-      errors.push({
-        start,
-        end,
-        message: "IntervalsT total duration is unrealistically large.",
-      });
-      return;
-    }
-    if (!Number.isFinite(onPow) || !Number.isFinite(offPow)) {
-      errors.push({
-        start,
-        end,
-        message:
-          "IntervalsT must have numeric OnPower and OffPower (relative FTP).",
-      });
-      return;
-    }
-
-    const reps = Math.round(repeat);
-    for (let i = 0; i < reps; i++) {
-      segments.push({
-        durationSec: onDur,
-        pStartRel: onPow,
-        pEndRel: onPow,
-      });
-      segments.push({
-        durationSec: offDur,
-        pStartRel: offPow,
-        pEndRel: offPow,
-      });
-    }
-  }
-
-  // ---------- URL import (using page URL, not a .zwo URL) ----------
-
-  async function importFromUrl(inputUrl) {
-    let url;
-    try {
-      url = new URL(inputUrl);
-    } catch {
-      return {
-        snippet: null,
-        error: {
-          type: "invalidUrl",
-          message: "That doesn’t look like a valid URL.",
-        },
-      };
-    }
-
-    if (url.host.includes("trainerday.com")) {
-      return importFromTrainerDay(url);
-    }
-
-    if (url.host.includes("whatsonzwift.com")) {
-      return importFromWhatsOnZwift(url);
-    }
-
-    console.info(
-      "[WorkoutBuilder] Import-from-URL currently only implemented for TrainerDay and WhatsOnZwift; got",
-      url.host,
-    );
-    return {
-      snippet: null,
-      error: {
-        type: "unsupportedHost",
-        message:
-          "This URL is not from a supported workout site (TrainerDay or WhatsOnZwift).",
-      },
-    };
-  }
-
-  // segments: [minutes, startPct, endPct?]
-  // Detects repeated steady on/off pairs and emits IntervalsT when possible.
-  function segmentsToZwoSnippet(segments) {
-    if (!Array.isArray(segments) || !segments.length) return "";
-
-    const blocks = [];
-
-    // ---------- 1) segments -> blocks ----------
-    for (const seg of segments) {
-      if (!Array.isArray(seg) || seg.length < 2) continue;
-
-      const minutes = Number(seg[0]);
-      const startPct = Number(seg[1]);
-      const endPct = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-
-      if (
-        !Number.isFinite(minutes) ||
-        minutes <= 0 ||
-        !Number.isFinite(startPct) ||
-        !Number.isFinite(endPct)
-      ) {
-        continue;
-      }
-
-      const durationSec = minutes * 60;
-      const pStartRel = startPct / 100;
-      const pEndRel = endPct / 100;
-
-      if (durationSec <= 0) continue;
-
-      if (Math.abs(pStartRel - pEndRel) < 1e-6) {
-        // steady
-        blocks.push({
-          kind: "steady",
-          durationSec,
-          powerRel: pStartRel,
-        });
-      } else if (pEndRel > pStartRel) {
-        // ramp up
-        blocks.push({
-          kind: "rampUp",
-          durationSec,
-          powerLowRel: pStartRel,
-          powerHighRel: pEndRel,
-        });
-      } else {
-        // ramp down
-        blocks.push({
-          kind: "rampDown",
-          durationSec,
-          powerLowRel: pStartRel,
-          powerHighRel: pEndRel,
-        });
-      }
-    }
-
-    if (!blocks.length) return "";
-
-    // ---------- 2) compress blocks -> ZWO lines ----------
-    const lines = [];
-    const DUR_TOL = 1;      // seconds
-    const PWR_TOL = 0.01;   // relative FTP (0.01 = 1%)
-
-    let i = 0;
-
-    while (i < blocks.length) {
-      // Try to detect repeated steady on/off pairs → IntervalsT
-      if (i + 3 < blocks.length) {
-        const firstA = blocks[i];
-        const firstB = blocks[i + 1];
-
-        if (firstA.kind === "steady" && firstB.kind === "steady") {
-          let repeat = 1;
-          let j = i + 2;
-
-          // Scan forward for more identical A/B pairs
-          while (j + 1 < blocks.length) {
-            const nextA = blocks[j];
-            const nextB = blocks[j + 1];
-
-            if (
-              nextA.kind !== "steady" ||
-              nextB.kind !== "steady" ||
-              !blocksSimilarSteady(firstA, nextA, DUR_TOL, PWR_TOL) ||
-              !blocksSimilarSteady(firstB, nextB, DUR_TOL, PWR_TOL)
-            ) {
-              break;
-            }
-
-            repeat++;
-            j += 2;
-          }
-
-          if (repeat >= 2) {
-            const onDur = Math.round(firstA.durationSec);
-            const offDur = Math.round(firstB.durationSec);
-            const onPow = firstA.powerRel.toFixed(2);
-            const offPow = firstB.powerRel.toFixed(2);
-
-            lines.push(
-              `<IntervalsT Repeat="${repeat}"` +
-              ` OnDuration="${onDur}" OffDuration="${offDur}"` +
-              ` OnPower="${onPow}" OffPower="${offPow}" />`,
-            );
-
-            i += repeat * 2;
-            continue;
-          }
-        }
-      }
-
-      // Fallback: single block -> SteadyState / Warmup / Cooldown
-      const b = blocks[i];
-
-      if (b.kind === "steady") {
-        lines.push(
-          `<SteadyState Duration="${Math.round(
-            b.durationSec,
-          )}" Power="${b.powerRel.toFixed(2)}" />`,
-        );
-      } else if (b.kind === "rampUp") {
-        lines.push(
-          `<Warmup Duration="${Math.round(
-            b.durationSec,
-          )}" PowerLow="${b.powerLowRel.toFixed(
-            2,
-          )}" PowerHigh="${b.powerHighRel.toFixed(2)}" />`,
-        );
-      } else if (b.kind === "rampDown") {
-        lines.push(
-          `<Cooldown Duration="${Math.round(
-            b.durationSec,
-          )}" PowerLow="${b.powerLowRel.toFixed(
-            2,
-          )}" PowerHigh="${b.powerHighRel.toFixed(2)}" />`,
-        );
-      }
-
-      i++;
-    }
-
-    return lines.join("\n");
-  }
-
-  // Helper: compare steady blocks
-  function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
-    if (a.kind !== "steady" || b.kind !== "steady") return false;
-    const durDiff = Math.abs(a.durationSec - b.durationSec);
-    const pDiff = Math.abs(a.powerRel - b.powerRel);
-    return durDiff <= durTolSec && pDiff <= pwrTol;
-  }
-
-  // ---------- TrainerDay ----------
-
-  async function importFromTrainerDay(url) {
-    try {
-      const slugMatch = url.pathname.match(/\/workouts\/([^/?#]+)/);
-      if (!slugMatch) {
-        return {
-          snippet: null,
-          error: {
-            type: "invalidTrainerDayPath",
-            message: "This TrainerDay URL does not look like a workout page.",
-          },
-        };
-      }
-      const slug = slugMatch[1];
-
-      const apiUrl = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
-        slug,
-      )}`;
-
-      const res = await fetch(apiUrl, {credentials: "omit"});
-      if (!res.ok) {
-        return {
-          snippet: null,
-          error: {
-            type: "network",
-            message: `TrainerDay request failed (HTTP ${res.status}).`,
-          },
-        };
-      }
-
-      const json = await res.json();
-      if (!Array.isArray(json.segments) || !json.segments.length) {
-        return {
-          snippet: null,
-          error: {
-            type: "noSegments",
-            message: "TrainerDay workout has no segments to import.",
-          },
-        };
-      }
-
-      const segments = json.segments.map((seg) => {
-        const minutes = Number(seg[0]);
-        const startPct = Number(seg[1]);
-        const endPct =
-          seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
-        return [minutes, startPct, endPct];
-      });
-
-      if (json.title) nameField.input.value = json.title;
-      if (json.description) descField.textarea.value = json.description;
-      sourceField.input.value = "TrainerDay";
-
-      const snippet = segmentsToZwoSnippet(segments);
-      if (!snippet) {
-        return {
-          snippet: null,
-          error: {
-            type: "emptySnippet",
-            message: "TrainerDay workout could not be converted to ZWO elements.",
-          },
-        };
-      }
-
-      return {snippet, error: null};
-    } catch (err) {
-      console.error("[WorkoutBuilder] TrainerDay import error:", err);
-      return {
-        snippet: null,
-        error: {
-          type: "exception",
-          message: "Import from TrainerDay failed. See console for details.",
-        },
-      };
-    }
-  }
-
-  // ---------- Whats On Zwift ----------
-  function extractWozTitleFromDoc(doc) {
-    const el = doc.querySelector("header.my-8 h1");
-    return el ? el.textContent.trim() : "WhatsOnZwift Workout";
-  }
-
-  function extractWozDescriptionFromDoc(doc) {
-    const ul = doc.querySelector("ul.items-baseline");
-    if (!ul) return "";
-    let el = ul.previousElementSibling;
-    while (el) {
-      if (el.tagName && el.tagName.toLowerCase() === "p") {
-        return el.textContent.trim();
-      }
-      el = el.previousElementSibling;
-    }
-    return "";
-  }
-
-  // Returns array of { minutes, startPct, endPct }
-  function extractWozSegmentsFromDoc(doc) {
-    const container = doc.querySelector("div.order-2");
-    if (!container) {
-      console.warn("[WorkoutBuilder][WhatsOnZwift] order-2 container not found.");
-      return [];
-    }
-
-    const bars = Array.from(container.querySelectorAll(".textbar"));
-    const segments = [];
-
-    for (const bar of bars) {
-      const text = (bar.textContent || "").replace(/\s+/g, " ").trim();
-      const powSpans = bar.querySelectorAll(
-        'span[data-unit="relpow"][data-value]',
-      );
-
-      // --- Intervals like "5x 4min @ 72% FTP, 2min @ 52% FTP" / "5x 30sec ..." ---
-      const repMatch = text.match(/(\d+)\s*x\b/i);
-      if (repMatch && powSpans.length >= 2) {
-        const reps = parseInt(repMatch[1], 10);
-        if (Number.isFinite(reps) && reps > 0) {
-          const durMatches = Array.from(
-            text.matchAll(/(\d+(?:\.\d+)?)\s*(min|sec)/gi),
-          );
-          const durations = durMatches
-            .map((m) => {
-              const val = parseFloat(m[1]);
-              const unit = (m[2] || "").toLowerCase();
-              if (!Number.isFinite(val)) return null;
-              if (unit === "sec") return val / 60;
-              return val; // minutes
-            })
-            .filter((v) => v != null);
-
-          if (durations.length >= 2) {
-            const onMinutes = durations[0];
-            const offMinutes = durations[1];
-
-            const pOn = Number(powSpans[0].getAttribute("data-value"));
-            const pOff = Number(powSpans[1].getAttribute("data-value"));
-
-            if (
-              Number.isFinite(onMinutes) &&
-              onMinutes > 0 &&
-              Number.isFinite(offMinutes) &&
-              offMinutes > 0 &&
-              Number.isFinite(pOn) &&
-              Number.isFinite(pOff)
-            ) {
-              for (let i = 0; i < reps; i++) {
-                segments.push({
-                  minutes: onMinutes,
-                  startPct: pOn,
-                  endPct: pOn,
-                });
-                segments.push({
-                  minutes: offMinutes,
-                  startPct: pOff,
-                  endPct: pOff,
-                });
-              }
-              continue; // handled this bar
-            }
-          }
-        }
-      }
-
-      // --- Regular single-interval bars (including ramps & seconds) ---
-
-      // Duration: minutes first, then seconds
-      let minutes = null;
-      const minMatch = text.match(/(\d+)\s*min/i);
-      if (minMatch) {
-        minutes = Number(minMatch[1]);
-      } else {
-        const secMatch = text.match(/(\d+)\s*sec/i);
-        if (secMatch) {
-          const secs = Number(secMatch[1]);
-          if (Number.isFinite(secs)) {
-            minutes = secs / 60;
-          }
-        }
-      }
-      if (!Number.isFinite(minutes) || minutes <= 0) continue;
-
-      if (powSpans.length === 1) {
-        const pct = Number(powSpans[0].getAttribute("data-value"));
-        if (!Number.isFinite(pct)) continue;
-        segments.push({
-          minutes,
-          startPct: pct,
-          endPct: pct,
-        });
-      } else if (powSpans.length >= 2) {
-        const pctLow = Number(powSpans[0].getAttribute("data-value"));
-        const pctHigh = Number(powSpans[1].getAttribute("data-value"));
-        if (!Number.isFinite(pctLow) || !Number.isFinite(pctHigh)) continue;
-        segments.push({
-          minutes,
-          startPct: pctLow,
-          endPct: pctHigh,
-        });
-      }
-    }
-
-    return segments;
-  }
-
-  async function importFromWhatsOnZwift(url) {
-    try {
-      const res = await fetch(url.toString(), {credentials: "omit"});
-      if (!res.ok) {
-        return {
-          snippet: null,
-          error: {
-            type: "network",
-            message: `WhatsOnZwift request failed (HTTP ${res.status}).`,
-          },
-        };
-      }
-
-      const html = await res.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-
-      const wozSegments = extractWozSegmentsFromDoc(doc);
-      if (!wozSegments || !wozSegments.length) {
-        console.warn(
-          "[WorkoutBuilder][WhatsOnZwift] No segments extracted from DOM.",
-        );
-        return {
-          snippet: null,
-          error: {
-            type: "noSegments",
-            message:
-              "Could not find any intervals on this WhatsOnZwift workout page.",
-          },
-        };
-      }
-
-      const segments = wozSegments.map((s) => [
-        s.minutes,
-        s.startPct,
-        s.endPct,
-      ]);
-
-      const title = extractWozTitleFromDoc(doc);
-      const description = extractWozDescriptionFromDoc(doc);
-
-      if (title) nameField.input.value = title;
-      if (description) descField.textarea.value = description;
-      sourceField.input.value = "WhatsOnZwift";
-
-      const snippet = segmentsToZwoSnippet(segments);
-      if (!snippet) {
-        return {
-          snippet: null,
-          error: {
-            type: "emptySnippet",
-            message:
-              "WhatsOnZwift workout could not be converted to ZWO elements.",
-          },
-        };
-      }
-
-      return {snippet, error: null};
-    } catch (err) {
-      console.error("[WorkoutBuilder] WhatsOnZwift import error:", err);
-      return {
-        snippet: null,
-        error: {
-          type: "exception",
-          message: "Import from WhatsOnZwift failed. See console for details.",
-        },
-      };
-    }
-  }
-
   // ---------- Small DOM helpers ----------
 
   function escapeHtml(str) {
     return (str || "").replace(/[&<>"]/g, (c) => {
       switch (c) {
-        case "&": return "&amp;";
-        case "<": return "&lt;";
-        case ">": return "&gt;";
-        default: return c;
+        case "&":
+          return "&amp;";
+        case "<":
+          return "&lt;";
+        case ">":
+          return "&gt;";
+        default:
+          return c;
       }
     });
   }
@@ -1474,11 +801,13 @@ export function createWorkoutBuilder(options) {
       if (idx <= 0) return 0;
       if (idx >= text.length) return lineCount - 1;
 
-      // Simple linear search is fine here (text is small),
-      // but you could do binary search if you ever need it faster.
+      // Simple linear search is fine here (text is small)
       for (let i = 0; i < lineOffsets.length; i += 1) {
         const start = lineOffsets[i];
-        const nextStart = i + 1 < lineOffsets.length ? lineOffsets[i + 1] : Infinity;
+        const nextStart =
+          i + 1 < lineOffsets.length
+            ? lineOffsets[i + 1]
+            : Infinity;
         if (idx >= start && idx < nextStart) {
           return i;
         }
@@ -1522,11 +851,17 @@ export function createWorkoutBuilder(options) {
   }
 
   function createWorkoutElementIcon(kind) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const svg = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
+    );
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.classList.add("wb-code-icon");
 
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const path = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path",
+    );
     path.setAttribute("fill", "currentColor");
 
     switch (kind) {
@@ -1537,18 +872,12 @@ export function createWorkoutBuilder(options) {
 
       case "rampUp":
         // Warmup: rising filled ramp (low left → high right)
-        path.setAttribute(
-          "d",
-          "M4 20 L20 20 20 8 4 16 Z"
-        );
+        path.setAttribute("d", "M4 20 L20 20 20 8 4 16 Z");
         break;
 
       case "rampDown":
         // Cooldown: descending filled ramp (high left → low right)
-        path.setAttribute(
-          "d",
-          "M4 8 L20 16 20 20 4 20 Z"
-        );
+        path.setAttribute("d", "M4 8 L20 16 20 20 4 20 Z");
         break;
 
       case "intervals":
@@ -1556,7 +885,7 @@ export function createWorkoutBuilder(options) {
         // Repeated blocks (ON/OFF pattern)
         path.setAttribute(
           "d",
-          "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z"
+          "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z",
         );
         break;
     }
