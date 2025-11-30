@@ -56,14 +56,14 @@ function unescapeXml(text) {
 }
 
 function cdataWrap(text) {
-  if (!text) return "<![CDATA[]]>";
+  if (text == null) return "<![CDATA[]]>";
   const safe = String(text).replace("]]>", "]]&gt;");
   return "<![CDATA[" + safe + "]]>";
 }
 
 function cdataUnwrap(text) {
-  if (!text) return "";
-  const str = String(text).trim();
+  if (text == null) return "";
+  const str = String(text);
   if (str.startsWith("<![CDATA[") && str.endsWith("]]>")) {
     const inner = str.slice(9, -3);
     return inner.replace("]]&gt;", "]]>");
@@ -76,19 +76,6 @@ function cdataUnwrap(text) {
 /**
  * Parse a ZWO-style snippet containing SteadyState / Warmup / Cooldown / IntervalsT
  * into canonical rawSegments and syntax errors.
- *
- * Returns:
- *   rawSegments: Array<[minutes:number, startPct:number, endPct:number]>
- *     where minutes is the segment duration in minutes,
- *     and startPct / endPct are FTP percentages (0–100).
- *
- * Errors have:
- *   { start: number, end: number, message: string }
- *
- * Safety limits (enforced by helper handlers):
- *   - Max per-segment duration  : 12 hours equivalent in minutes
- *   - Max total IntervalsT time : 24 hours equivalent
- *   - Max IntervalsT repeats    : 500
  *
  * @param {string} text
  * @returns {{rawSegments:Array<[number,number,number]>, errors:Array<{start:number,end:number,message:string}>}}
@@ -120,7 +107,8 @@ export function parseZwoSnippet(text) {
       errors.push({
         start: lastIndex,
         end: startIdx,
-        message: "Unexpected text between elements; only ZWO workout elements are allowed.",
+        message:
+          "Unexpected text between elements; only ZWO workout elements are allowed.",
       });
     }
 
@@ -130,7 +118,8 @@ export function parseZwoSnippet(text) {
       errors.push({
         start: startIdx,
         end: endIdx,
-        message: "Malformed element: unexpected text or tokens inside element.",
+        message:
+          "Malformed element: unexpected text or tokens inside element.",
       });
       lastIndex = endIdx;
       continue;
@@ -324,11 +313,6 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
 
 /**
  * segments: [minutes, startPower, endPower]
- * Detects repeated steady on/off pairs and emits IntervalsT when possible.
- *
- * startPower/endPower are assumed to be in “FTP-relative” units where:
- *   - <= 5 → treated as 0–1 (fraction of FTP)
- *   - >  5 → treated as 0–100 (% of FTP)
  *
  * @param {Array<[number, number, number]>} segments
  * @returns {string} ZWO <workout> body lines joined by "\n"
@@ -386,7 +370,7 @@ export function segmentsToZwoSnippet(segments) {
 
   // ---------- 2) compress blocks -> ZWO lines ----------
   const lines = [];
-  const DUR_TOL = 1;   // seconds
+  const DUR_TOL = 1;    // seconds
   const PWR_TOL = 0.01; // relative FTP
 
   let i = 0;
@@ -478,11 +462,8 @@ function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
 /**
  * Build a full ZWO XML file from a CanonicalWorkout.
  *
- * The original source URL is included:
- *   - Appended to the description inside CDATA
- *   - As a tag: <tag name="OriginalURL:..."/>
- *
- * The source is *not* encoded in tags; it is just the <author>.
+ * Values from `meta` are used as-is (escaped for XML), without adding
+ * default labels or modifying description.
  *
  * @param {CanonicalWorkout} meta
  * @param {Object} [options]
@@ -491,27 +472,19 @@ function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
  */
 export function canonicalWorkoutToZwoXml(meta) {
   const {
-    source = "Unknown",
+    source = "",
     sourceURL = "",
     workoutTitle = "",
     rawSegments = [],
     description = "",
   } = meta || {};
 
-  const name =
-    (workoutTitle || "Custom workout").trim() || "Custom workout";
-  const author =
-    (source || "External workout").trim() || "External workout";
+  const name = workoutTitle;
+  const author = source;
 
   const workoutSnippet = segmentsToZwoSnippet(rawSegments);
 
-  let descCombined = description || "";
-  if (sourceURL) {
-    const urlLine = `Original workout URL: ${sourceURL}`;
-    descCombined = descCombined
-      ? `${descCombined}\n\n${urlLine}`
-      : urlLine;
-  }
+  const descCombined = description;
 
   const urlTag = sourceURL
     ? `    <tag name="OriginalURL:${escapeXml(sourceURL)}"/>\n`
@@ -524,12 +497,14 @@ export function canonicalWorkoutToZwoXml(meta) {
       .join("\n")
     : "";
 
+  const sportType = "bike";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <workout_file>
   <author>${escapeXml(author)}</author>
   <name>${escapeXml(name)}</name>
   <description>${cdataWrap(descCombined)}</description>
-  <sportType>bike</sportType>
+  <sportType>${escapeXml(sportType)}</sportType>
   <tags>
 ${urlTag}  </tags>
   <workout>
@@ -540,11 +515,10 @@ ${indentedBody}
 }
 
 /**
- * Simple inverse of canonicalWorkoutToZwoXml:
  * Parse a full ZWO XML file into a CanonicalWorkout.
  *
- * This uses basic string-based parsing (not a full XML parser) and
- * focuses on the common fields produced by canonicalWorkoutToZwoXml.
+ * Values are taken directly from XML without injecting defaults or
+ * manipulating description contents.
  *
  * @param {string} xmlText
  * @returns {CanonicalWorkout|null}
@@ -553,26 +527,19 @@ export function parseZwoXmlToCanonicalWorkout(xmlText) {
   if (!xmlText) return null;
 
   // Title
+  let workoutTitle = "";
   const nameMatch = xmlText.match(/<name>([\s\S]*?)<\/name>/i);
-  const workoutTitle = unescapeXml(
-    cdataUnwrap(
-      (nameMatch ? nameMatch[1] : "Imported workout").trim()
-    )
-  );
+  if (nameMatch) {
+    const rawName = nameMatch[1];
+    workoutTitle = unescapeXml(cdataUnwrap(rawName));
+  }
 
-  // Description (strip "Original workout URL:" line if present)
+  // Description (use exactly what's in the tag)
   let description = "";
   const descMatch = xmlText.match(/<description>([\s\S]*?)<\/description>/i);
   if (descMatch) {
-    const rawDesc = unescapeXml(cdataUnwrap(descMatch[1].trim()));
-    description = rawDesc
-      .split(/\r?\n/)
-      .filter(
-        (line) =>
-          !line.trim().toLowerCase().startsWith("original workout url:")
-      )
-      .join("\n")
-      .trim();
+    const rawDesc = descMatch[1];
+    description = unescapeXml(cdataUnwrap(rawDesc));
   }
 
   // Original URL tag (if present)
@@ -584,11 +551,11 @@ export function parseZwoXmlToCanonicalWorkout(xmlText) {
     sourceURL = unescapeXml(urlTagMatch[1]);
   }
 
-  // Source = author if present, otherwise generic label
-  let source = "Imported ZWO";
+  // Source = author element, or empty if missing
+  let source = "";
   const authorMatch = xmlText.match(/<author>([\s\S]*?)<\/author>/i);
   if (authorMatch) {
-    source = unescapeXml(authorMatch[1].trim());
+    source = unescapeXml(authorMatch[1]);
   }
 
   // Extract <workout> body and parse into canonical rawSegments
@@ -607,4 +574,3 @@ export function parseZwoXmlToCanonicalWorkout(xmlText) {
     description,
   };
 }
-
