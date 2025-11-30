@@ -55,21 +55,15 @@
     {
       "resources": [
         "workout.html",
-        "workout.js",
-        "workout-builder.js",
-        "ble-manager.js",
-        "beeper.js",
-        "storage.js",
-        "settings.js",
-        "workout-metrics.js",
-        "workout-chart.js",
-        "workout-engine.js",
-        "workout-picker.js",
-        "settings.css",
-        "workout-base.css",
-        "workout-picker.css"
+        "workout.js"
       ],
       "matches": ["chrome-extension://*/*"]
+    },
+    {
+      "resources": [
+        "zwo.js"
+      ],
+      "matches": ["<all_urls>"]
     }
   ]
 }
