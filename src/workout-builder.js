@@ -353,13 +353,13 @@ export function createWorkoutBuilder(options) {
       "wb-code-error-message wb-code-error-message--neutral";
 
     try {
-      const {canonical, error} =
+      const [canonical, error_message] =
         await importWorkoutFromUrl(url);
 
-      if (error) {
-        console.warn("[WorkoutBuilder] Import error:", error);
+      if (error_message) {
+        console.warn("[WorkoutBuilder] Import error:", error_message);
         errorMessage.textContent =
-          (error && error.message) ||
+          (error_message) ||
           "Could not import workout from this URL yet.";
         errorMessage.className =
           "wb-code-error-message wb-code-error-message--error";

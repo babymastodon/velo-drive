@@ -85,7 +85,6 @@ async function fetchTrainerRoadJson(url, options = {}) {
   });
 }
 
-
 async function fetchTrainerDayWorkoutBySlug(slug) {
   const url = `https://app.api.trainerday.com/api/workouts/bySlug/${encodeURIComponent(
     slug
@@ -350,6 +349,8 @@ export async function parseTrainerRoadPage() {
 
 // ---------- TrainerDay ----------
 
+// ---------- TrainerDay shared logic ----------
+
 /**
  * Convert TrainerDay segments into canonical [minutes, startPower, endPower].
  * TrainerDay segments are typically [minutes, startPct, endPct?].
@@ -383,58 +384,135 @@ function canonicalizeTrainerDaySegments(segments) {
 }
 
 /**
+ * Extract TrainerDay workout slug from a pathname.
+ *
+ * @param {string} path
+ * @returns {string|null}
+ */
+function getTrainerDaySlugFromPath(path) {
+  const match = path.match(TRAINERDAY_WORKOUT_REGEX);
+  return match && match[1] ? match[1] : null;
+}
+
+/**
+ * Core TrainerDay importer: shared by page + URL wrappers.
+ *
+ * @param {string} path       e.g. window.location.pathname or url.pathname
+ * @param {string} sourceURL  e.g. window.location.href or url.toString()
+ * @returns {Promise<[CanonicalWorkout|null, string|null]>}
+ */
+async function importTrainerDayFromPathAndSource(path, sourceURL) {
+  const slug = getTrainerDaySlugFromPath(path || "");
+  if (!slug) {
+    return [
+      null,
+      "This TrainerDay link does not look like a workout page.",
+    ];
+  }
+
+  let details;
+  try {
+    details = await fetchTrainerDayWorkoutBySlug(slug);
+  } catch (err) {
+    console.error("[VeloDrive][TrainerDay] fetch error:", err);
+
+    if (err && err.isCorsError) {
+      return [
+        null,
+        "TrainerDay blocked this request. In Chrome, allow VeloDrive access to trainerday.com in Extensions → Site Access.",
+      ];
+    }
+
+    if (err && err.isNetworkError) {
+      return [
+        null,
+        "You appear to be offline. Check your connection and try again.",
+      ];
+    }
+
+    return [
+      null,
+      "VeloDrive couldn’t load this TrainerDay workout. Try again later.",
+    ];
+  }
+
+  const rawSegments = canonicalizeTrainerDaySegments(
+    Array.isArray(details?.segments) ? details.segments : []
+  );
+
+  if (!rawSegments.length) {
+    console.warn("[VeloDrive][TrainerDay] no usable segments in workout:", details?.segments);
+    return [
+      null,
+      "This TrainerDay workout doesn’t have any intervals that VeloDrive can use.",
+    ];
+  }
+
+  /** @type {CanonicalWorkout} */
+  const canonical = {
+    source: "TrainerDay",
+    sourceURL,
+    workoutTitle: details?.title || "TrainerDay Workout",
+    rawSegments,
+    description: details?.description || "",
+    filename: "",
+  };
+
+  return [canonical, null];
+}
+
+// ---------- Page wrapper ----------
+
+/**
  * Parse the current TrainerDay workout page into a CanonicalWorkout tuple.
  *
  * @returns {Promise<[CanonicalWorkout|null, string|null]>}
  */
 export async function parseTrainerDayPage() {
   try {
-    const path = window.location.pathname;
-    const match = path.match(TRAINERDAY_WORKOUT_REGEX);
-    if (!match) {
+    if (typeof window === "undefined") {
       return [
         null,
-        "This doesn’t look like a TrainerDay workout page. Open a workout on TrainerDay and try again.",
+        "VeloDrive can only run on a TrainerDay workout page in your browser.",
       ];
     }
 
-    const slug = match[1];
-    const details = await fetchTrainerDayWorkoutBySlug(slug);
-
-    const rawSegments = canonicalizeTrainerDaySegments(
-      Array.isArray(details.segments) ? details.segments : []
+    return importTrainerDayFromPathAndSource(
+      window.location.pathname,
+      window.location.href
     );
-
-    if (!rawSegments.length) {
-      return [
-        null,
-        "This TrainerDay workout doesn’t have any intervals that VeloDrive can use.",
-      ];
-    }
-
-    const workoutTitle =
-      details.title || document.title || "TrainerDay Workout";
-    const description = details.description || "";
-
-    /** @type {CanonicalWorkout} */
-    const cw = {
-      source: "TrainerDay",
-      sourceURL: window.location.href,
-      workoutTitle,
-      rawSegments,
-      description,
-      filename: "",
-    };
-
-    return [cw, null];
   } catch (err) {
     console.warn("[VeloDrive][TrainerDay] parse error:", err);
     return [
       null,
-      "VeloDrive couldn’t import this TrainerDay workout. Please check the URL and try again.",
+      "VeloDrive couldn’t import this TrainerDay workout. Please reload the page and try again.",
     ];
   }
 }
+
+// ---------- URL wrapper ----------
+
+/**
+ * Import a TrainerDay workout from a URL object into a CanonicalWorkout.
+ *
+ * @param {URL} url
+ * @returns {Promise<[CanonicalWorkout|null, string|null]>}
+ */
+export async function importTrainerDayFromUrl(url) {
+  try {
+    return importTrainerDayFromPathAndSource(
+      url.pathname,
+      url.toString()
+    );
+  } catch (err) {
+    console.error("[VeloDrive][TrainerDay] URL import error:", err);
+    return [
+      null,
+      "Import from TrainerDay failed. See console for details.",
+    ];
+  }
+}
+
 
 // ---------- WhatsOnZwift (DOM helpers) ----------
 
@@ -575,19 +653,6 @@ function extractWozSegmentsFromDoc(doc) {
   return segments;
 }
 
-// Convenience wrappers that use the current page DOM
-function extractWozTitle() {
-  return extractWozTitleFromDoc(document);
-}
-
-function extractWozDescription() {
-  return extractWozDescriptionFromDoc(document);
-}
-
-function extractWozSegmentsFromDom() {
-  return extractWozSegmentsFromDoc(document);
-}
-
 /**
  * Map WhatsOnZwift DOM segments into canonical [minutes, startPower, endPower].
  *
@@ -619,12 +684,53 @@ function canonicalizeWozSegments(segments) {
 }
 
 /**
+ * Core WhatsOnZwift canonical builder from a Document.
+ *
+ * @param {Document} doc
+ * @param {string} sourceURL
+ * @returns {[CanonicalWorkout|null, string|null]}
+ */
+function buildWhatsOnZwiftCanonicalFromDoc(doc, sourceURL) {
+  const segments = extractWozSegmentsFromDoc(doc);
+  const rawSegments = canonicalizeWozSegments(segments);
+
+  if (!rawSegments.length) {
+    return [
+      null,
+      "VeloDrive couldn’t find any intervals on this WhatsOnZwift workout page.",
+    ];
+  }
+
+  const workoutTitle = extractWozTitleFromDoc(doc);
+  const description = extractWozDescriptionFromDoc(doc) || "";
+
+  /** @type {CanonicalWorkout} */
+  const cw = {
+    source: "WhatsOnZwift",
+    sourceURL,
+    workoutTitle,
+    rawSegments,
+    description,
+    filename: "",
+  };
+
+  return [cw, null];
+}
+
+/**
  * Parse the current WhatsOnZwift workout page into a CanonicalWorkout tuple.
  *
  * @returns {Promise<[CanonicalWorkout|null, string|null]>}
  */
 export async function parseWhatsOnZwiftPage() {
   try {
+    if (typeof window === "undefined") {
+      return [
+        null,
+        "VeloDrive can only run on a WhatsOnZwift workout page in your browser.",
+      ];
+    }
+
     const path = window.location.pathname;
     if (!WHATSONZWIFT_WORKOUT_REGEX.test(path)) {
       return [
@@ -633,30 +739,7 @@ export async function parseWhatsOnZwiftPage() {
       ];
     }
 
-    const segments = extractWozSegmentsFromDom();
-    const rawSegments = canonicalizeWozSegments(segments);
-
-    if (!rawSegments.length) {
-      return [
-        null,
-        "VeloDrive couldn’t find any intervals on this WhatsOnZwift workout page.",
-      ];
-    }
-
-    const workoutTitle = extractWozTitle();
-    const description = extractWozDescription() || "";
-
-    /** @type {CanonicalWorkout} */
-    const cw = {
-      source: "WhatsOnZwift",
-      sourceURL: window.location.href,
-      workoutTitle,
-      rawSegments,
-      description,
-      filename: "",
-    };
-
-    return [cw, null];
+    return buildWhatsOnZwiftCanonicalFromDoc(document, window.location.href);
   } catch (err) {
     console.warn("[VeloDrive][WhatsOnZwift] parse error:", err);
     return [
@@ -672,26 +755,27 @@ export async function parseWhatsOnZwiftPage() {
  * Import a workout from a URL (TrainerDay or WhatsOnZwift).
  *
  * @param {string} inputUrl
- * @returns {Promise<{
- *   canonical: CanonicalWorkout|null,
- *   error: {type:string,message:string}|null
- * }>}
+ * @returns {Promise<[CanonicalWorkout|null, string|null]>}
  */
 export async function importWorkoutFromUrl(inputUrl) {
   let url;
   try {
     url = new URL(inputUrl);
   } catch {
-    return {
-      canonical: null,
-      error: {
-        type: "invalidUrl",
-        message: "That doesn’t look like a valid URL.",
-      },
-    };
+    return [
+      null,
+      "That doesn’t look like a valid URL.",
+    ];
   }
 
   const host = url.host.toLowerCase();
+
+  if (host.includes("trainerroad.com")) {
+    return [
+      null,
+      "TrainerRoad workouts can only be imported with the VeloDrive Chrome extension. Open the workout in TrainerRoad.com and then click the VeloDrive extension icon",
+    ];
+  }
 
   if (host.includes("trainerday.com")) {
     return importTrainerDayFromUrl(url);
@@ -701,138 +785,37 @@ export async function importWorkoutFromUrl(inputUrl) {
     return importWhatsOnZwiftFromUrl(url);
   }
 
-  return {
-    canonical: null,
-    error: {
-      type: "unsupportedHost",
-      message:
-        "This URL is not from a supported workout site (TrainerDay or WhatsOnZwift).",
-    },
-  };
+  return [
+    null,
+    "This URL is not from a supported workout site (TrainerDay or WhatsOnZwift).",
+  ];
 }
 
-async function importTrainerDayFromUrl(url) {
-  try {
-    const match = url.pathname.match(TRAINERDAY_WORKOUT_REGEX);
-    if (!match) {
-      return {
-        canonical: null,
-        error: {
-          type: "invalidTrainerDayPath",
-          message: "This TrainerDay URL does not look like a workout page.",
-        },
-      };
-    }
-
-    const slug = match[1];
-    const details = await fetchTrainerDayWorkoutBySlug(slug);
-
-    const rawSegments = canonicalizeTrainerDaySegments(
-      Array.isArray(details.segments) ? details.segments : []
-    );
-
-    if (!rawSegments.length) {
-      return {
-        canonical: null,
-        error: {
-          type: "noSegments",
-          message: "TrainerDay workout has no segments to import.",
-        },
-      };
-    }
-
-    /** @type {CanonicalWorkout} */
-    const canonical = {
-      source: "TrainerDay",
-      sourceURL: url.toString(),
-      workoutTitle: details.title || "TrainerDay Workout",
-      rawSegments,
-      description: details.description || "",
-      filename: "",
-    };
-
-    return {canonical, error: null};
-  } catch (err) {
-    console.error("[zwo] TrainerDay import error:", err);
-
-    if (err && (err.isCorsError)) {
-      return {
-        canonical: null,
-        error: {
-          type: "corsOrPermission",
-          message:
-            "VeloDrive couldn’t reach TrainerDay from this page.\n\n" +
-            "In Chrome, open chrome://extensions → VeloDrive → Details, then under “Site access” enable “Automatically allow access to these sites” for trainerday.com and app.api.trainerday.com, then try again.",
-        },
-      };
-    }
-
-    return {
-      canonical: null,
-      error: {
-        type: "exception",
-        message: "Import from TrainerDay failed. See console for details.",
-      },
-    };
-  }
-}
-
+/**
+ * Import a WhatsOnZwift workout from a URL into a CanonicalWorkout.
+ *
+ * @param {URL} url
+ * @returns {Promise<[CanonicalWorkout|null, string|null]>}
+ */
 async function importWhatsOnZwiftFromUrl(url) {
   try {
     const res = await fetch(url.toString(), {credentials: "omit"});
     if (!res.ok) {
-      return {
-        canonical: null,
-        error: {
-          type: "network",
-          message: `WhatsOnZwift request failed (HTTP ${res.status}).`,
-        },
-      };
+      return [
+        null,
+        "VeloDrive couldn’t load this WhatsOnZwift workout. Try again later.",
+      ];
     }
 
     const html = await res.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const wozSegments = extractWozSegmentsFromDoc(doc);
-    if (!wozSegments || !wozSegments.length) {
-      console.warn("[zwo][WhatsOnZwift] No segments extracted from DOM.");
-      return {
-        canonical: null,
-        error: {
-          type: "noSegments",
-          message:
-            "Could not find any intervals on this WhatsOnZwift workout page.",
-        },
-      };
-    }
-
-    const rawSegments = canonicalizeWozSegments(wozSegments);
-    if (!rawSegments.length) {
-      return {
-        canonical: null,
-        error: {
-          type: "noSegments",
-          message:
-            "WhatsOnZwift workout intervals could not be canonicalized.",
-        },
-      };
-    }
-
-    const workoutTitle = extractWozTitleFromDoc(doc);
-    const description = extractWozDescriptionFromDoc(doc);
-
-    /** @type {CanonicalWorkout} */
-    const canonical = {
-      source: "WhatsOnZwift",
-      sourceURL: url.toString(),
-      workoutTitle,
-      rawSegments,
-      description: description || "",
-      filename: "",
-    };
-
-    return {canonical, error: null};
+    const [canonical, errMsg] = buildWhatsOnZwiftCanonicalFromDoc(
+      doc,
+      url.toString()
+    );
+    return [canonical, errMsg];
   } catch (err) {
     console.error("[zwo] WhatsOnZwift import error:", err);
 
@@ -844,25 +827,23 @@ async function importWhatsOnZwiftFromUrl(url) {
         : true;
 
     if (err instanceof TypeError && isOnline) {
-      return {
-        canonical: null,
-        error: {
-          type: "corsOrPermission",
-          message:
-            "VeloDrive couldn’t reach WhatsOnZwift from this page.\n\n" +
-            "In Chrome, open chrome://extensions → VeloDrive → Details, then under “Site access” enable “Automatically allow access to these sites” for whatsonzwift.com, then try again.",
-        },
-      };
+      return [
+        null,
+        "VeloDrive couldn’t reach WhatsOnZwift from this page.\n\nIn Chrome, open chrome://extensions → VeloDrive → Details, then under “Site access” enable “Automatically allow access to these sites” for whatsonzwift.com, then try again.",
+      ];
     }
 
-    return {
-      canonical: null,
-      error: {
-        type: "exception",
-        message:
-          "Import from WhatsOnZwift failed. See console for details.",
-      },
-    };
+    if (err instanceof TypeError && !isOnline) {
+      return [
+        null,
+        "You appear to be offline. Check your connection and try again.",
+      ];
+    }
+
+    return [
+      null,
+      "Import from WhatsOnZwift failed. See console for details.",
+    ];
   }
 }
 
