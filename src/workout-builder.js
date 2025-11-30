@@ -478,42 +478,29 @@ export function createWorkoutBuilder(options) {
     refreshLayout();
   }
 
-  function loadFromWorkoutMeta(meta) {
-    if (!meta || typeof meta !== "object") return;
-
-    // CanonicalWorkout path
-    if (Array.isArray(meta.rawSegments) && meta.workoutTitle) {
-      nameField.input.value = meta.workoutTitle || "";
-      sourceField.input.value = meta.source || "";
-      descField.textarea.value = meta.description || "";
-      codeTextarea.value = segmentsToZwoSnippet(meta.rawSegments);
-      handleAnyChange();
+  /**
+ * Load a canonical workout into the builder.
+ * @param {import("./zwo.js").CanonicalWorkout} canonical
+ */
+  function loadCanonicalWorkout(canonical) {
+    if (
+      !canonical ||
+      typeof canonical !== "object" ||
+      !Array.isArray(canonical.rawSegments) ||
+      !canonical.rawSegments.length
+    ) {
       return;
     }
 
-    // Metadata
-    nameField.input.value = meta.name || "";
-    sourceField.input.value = meta.source || "";
-    descField.textarea.value = meta.description || "";
+    nameField.input.value = canonical.workoutTitle || "";
+    sourceField.input.value = canonical.source || "";
+    descField.textarea.value = canonical.description || "";
+    codeTextarea.value = segmentsToZwoSnippet(canonical.rawSegments);
 
-    // Code:
-    // Prefer a raw snippet if you ever store one; otherwise rebuild from segmentsForMetrics.
-    if (meta.rawSnippet && meta.rawSnippet.trim()) {
-      codeTextarea.value = meta.rawSnippet;
-    } else if (
-      Array.isArray(meta.segmentsForMetrics) &&
-      meta.segmentsForMetrics.length
-    ) {
-      codeTextarea.value = segmentsToZwoSnippet(
-        segmentsToRaw(meta.segmentsForMetrics),
-      );
-    } else {
-      codeTextarea.value = "";
-    }
-
-    // Recompute metrics, errors, stats, and persist
+    // Recompute metrics, errors, stats, chart, and persist
     handleAnyChange();
   }
+
 
   function validateForSave() {
     // Keep currentErrors / metrics up to date
@@ -1001,7 +988,7 @@ export function createWorkoutBuilder(options) {
     clearState,
     refreshLayout,
     validateForSave,
-    loadFromWorkoutMeta,
+    loadCanonicalWorkout,
   };
 }
 

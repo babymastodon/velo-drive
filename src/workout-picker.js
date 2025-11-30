@@ -631,7 +631,7 @@ function createWorkoutPicker(config) {
     enterBuilderMode();
 
     try {
-      workoutBuilder.loadFromWorkoutMeta(canonicalWorkout);
+      workoutBuilder.loadCanonicalWorkout(canonicalWorkout);
     } catch (err) {
       console.error(
         "[WorkoutPicker] Failed to load workout into builder:",
