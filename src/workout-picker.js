@@ -73,6 +73,65 @@ async function scanWorkoutsFromDirectory(handle) {
   return workouts;
 }
 
+// Small helper to create inline SVG icons used in picker buttons.
+function createIconSvg(kind) {
+  const svgNS = "http://www.w3.org/2000/svg";
+
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.classList.add("wb-code-icon");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+
+  if (kind === "edit") {
+    // Pencil icon — same as the inline one you had before
+    const p1 = document.createElementNS(svgNS, "path");
+    p1.setAttribute("d", "M12 20h9");
+
+    const p2 = document.createElementNS(svgNS, "path");
+    p2.setAttribute(
+      "d",
+      "M16.5 3.5l4 4-11 11H5.5v-4.5l11-11z"
+    );
+
+    svg.appendChild(p1);
+    svg.appendChild(p2);
+  } else if (kind === "delete") {
+    // Trash can icon
+    const p1 = document.createElementNS(svgNS, "path");
+    p1.setAttribute("d", "M4 7h16");
+
+    const p2 = document.createElementNS(svgNS, "path");
+    p2.setAttribute("d", "M10 11v6");
+
+    const p3 = document.createElementNS(svgNS, "path");
+    p3.setAttribute("d", "M14 11v6");
+
+    const p4 = document.createElementNS(svgNS, "path");
+    p4.setAttribute("d", "M6 7l1-3h10l1 3");
+
+    const p5 = document.createElementNS(svgNS, "path");
+    p5.setAttribute(
+      "d",
+      "M8 7v11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V7"
+    );
+
+    svg.appendChild(p1);
+    svg.appendChild(p2);
+    svg.appendChild(p3);
+    svg.appendChild(p4);
+    svg.appendChild(p5);
+  }
+
+  return svg;
+}
+
+
 // --------------------------- Singleton factory ---------------------------
 
 function createWorkoutPicker(config) {
@@ -305,6 +364,24 @@ function createWorkoutPicker(config) {
         headerRow.style.gap = "6px";
         headerRow.style.marginBottom = "4px";
 
+        // DELETE button
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "wb-code-insert-btn delete-workout-btn";
+        deleteBtn.title = "Delete this workout file from your library.";
+
+        const deleteIcon = createIconSvg("delete");
+        const deleteText = document.createElement("span");
+        deleteText.textContent = "Delete";
+
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.appendChild(deleteText);
+
+        deleteBtn.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          deleteWorkoutFile(w);
+        });
+
         // EDIT button
         const editBtn = document.createElement("button");
         editBtn.type = "button";
@@ -312,26 +389,7 @@ function createWorkoutPicker(config) {
         editBtn.title = "Open this workout in the builder.";
 
         // --- SVG icon (pencil/edit) ---
-        const editIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        editIcon.setAttribute("viewBox", "0 0 24 24");
-        editIcon.setAttribute("width", "16");
-        editIcon.setAttribute("height", "16");
-        editIcon.classList.add("wb-code-icon");
-        editIcon.setAttribute("fill", "none");
-        editIcon.setAttribute("stroke", "currentColor");
-        editIcon.setAttribute("stroke-width", "2");
-        editIcon.setAttribute("stroke-linecap", "round");
-        editIcon.setAttribute("stroke-linejoin", "round");
-
-        // Pencil icon paths
-        const p1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        p1.setAttribute("d", "M12 20h9");
-
-        const p2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        p2.setAttribute("d", "M16.5 3.5l4 4-11 11H5.5v-4.5l11-11z");
-
-        editIcon.appendChild(p1);
-        editIcon.appendChild(p2);
+        const editIcon = createIconSvg("edit");
 
         // --- Text wrapped in a <span> ---
         const editText = document.createElement("span");
@@ -358,6 +416,7 @@ function createWorkoutPicker(config) {
           doSelectWorkout(w);
         });
 
+        headerRow.appendChild(deleteBtn);
         headerRow.appendChild(editBtn);
         headerRow.appendChild(selectBtn);
         detailDiv.appendChild(headerRow);
@@ -682,6 +741,53 @@ ${indentedBody}
     persistPickerState();
   }
 
+  async function deleteWorkoutFile(workoutMeta) {
+    const fileName = workoutMeta.fileName;
+
+    if (!fileName) {
+      alert(
+        "This workout does not have an associated file name, so it cannot be deleted."
+      );
+      return;
+    }
+
+    const dirHandle = await loadZwoDirHandle();
+    if (!dirHandle) {
+      alert(
+        "No workout library folder configured.\n\n" +
+        "Open Settings and choose a workout library (.zwo) folder first."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete workout file "${fileName}" from your workout folder?\n\n` +
+      "This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    const hasPerm = await ensureDirPermission(dirHandle);
+    if (!hasPerm) {
+      alert(
+        "VeloDrive does not have permission to modify your workout library folder.\n\n" +
+        "Please re-authorize the folder in Settings."
+      );
+      return;
+    }
+
+    try {
+      await dirHandle.removeEntry(fileName);
+    } catch (err) {
+      console.error("[WorkoutPicker] Failed to delete workout:", err);
+      alert(
+        "Deleting this workout file failed. See logs for details."
+      );
+      return;
+    }
+
+    // Refresh the list; picker state (filters, sort) is restored inside rescan
+    await rescanWorkouts(dirHandle);
+  }
 
   async function saveCurrentBuilderWorkoutToZwoDir() {
     if (!workoutBuilder) {
