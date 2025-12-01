@@ -49,10 +49,11 @@ It simply makes it easier to **download workouts** as `.zwo` files directly from
   <img alt="Extension Install Instructions" src="docs/screenshots/extension_light.png">
 </picture>
 
+
 To install:
 
 1. Clone the repo:
-   ```sh
+```sh
    git clone https://github.com/babymastodon/velo-drive.git
 ````
 
