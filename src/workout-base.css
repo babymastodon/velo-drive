@@ -24,7 +24,7 @@
 
   /* interval colors (light mode, as in options.js) */
   --zone-recovery: #c9c9c9;
-  --zone-base: #489fff;
+  --zone-endurance: #489fff;
   --zone-tempo: #5dd987;
   --zone-threshold: #ffd738;
   --zone-vo2: #ff744c;
@@ -62,7 +62,7 @@
 
     /* slightly darkened versions of the light colors */
     --zone-recovery: #dddddd;
-    --zone-base: #6ac2ff;
+    --zone-endurance: #6ac2ff;
     --zone-tempo: #70e870;
     --zone-threshold: #ffe763;
     --zone-vo2: #ff8a58;

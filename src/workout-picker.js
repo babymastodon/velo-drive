@@ -301,36 +301,6 @@ function createWorkoutPicker(config) {
     return items;
   }
 
-  function refreshZoneFilterOptions() {
-    if (!zoneFilter) return;
-
-    const valueBefore = zoneFilter.value;
-    const cats = Array.from(
-      new Set(
-        pickerWorkouts.map(
-          (cw) => getCanonicalZone(cw) || "Uncategorized"
-        )
-      )
-    ).sort((a, b) => a.localeCompare(b));
-
-    zoneFilter.innerHTML = "";
-    const optAll = document.createElement("option");
-    optAll.value = "";
-    optAll.textContent = "All zones";
-    zoneFilter.appendChild(optAll);
-
-    for (const c of cats) {
-      const opt = document.createElement("option");
-      opt.value = c;
-      opt.textContent = c;
-      zoneFilter.appendChild(opt);
-    }
-
-    if (cats.includes(valueBefore)) {
-      zoneFilter.value = valueBefore;
-    }
-  }
-
   function updateSortHeaderIndicator() {
     if (!modal) return;
     const headers = modal.querySelectorAll("th[data-sort-key]");
@@ -853,7 +823,6 @@ function createWorkoutPicker(config) {
 
     pickerExpandedTitle = null;
     pickerWorkouts = await scanWorkoutsFromDirectory(handle);
-    refreshZoneFilterOptions();
 
     if (!skipRestoreState) {
       await restorePickerStateIntoControls();

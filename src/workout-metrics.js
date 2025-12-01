@@ -72,7 +72,7 @@ export function inferZoneFromSegments(rawSegments) {
 
   const zoneTime = {
     recovery: 0,
-    base: 0,
+    endurance: 0,
     tempo: 0,
     threshold: 0,
     vo2: 0,
@@ -105,7 +105,7 @@ export function inferZoneFromSegments(rawSegments) {
 
     let zoneKey;
     if (avgPct < 60) zoneKey = "recovery";
-    else if (avgPct < 76) zoneKey = "base";
+    else if (avgPct < 76) zoneKey = "endurance";
     else if (avgPct < 90) zoneKey = "tempo";
     else if (avgPct < 105) zoneKey = "threshold";
     else if (avgPct < 119) zoneKey = "vo2";
@@ -125,10 +125,10 @@ export function inferZoneFromSegments(rawSegments) {
 
   const workFrac = workSec / totalSec;
 
-  // Light / easy: mostly recovery / base
+  // Light / easy: mostly recovery / endurance
   if (workFrac < 0.15) {
     if (z.recovery / totalSec >= 0.7) return "Recovery";
-    return "Base";
+    return "Endurance";
   }
 
   const safeDiv = workSec || 1;
@@ -154,7 +154,7 @@ export function inferZoneFromSegments(rawSegments) {
     return "Tempo";
   }
 
-  return "Base";
+  return "Endurance";
 }
 
 // --------------------------- Picker helpers ---------------------------

@@ -48,7 +48,7 @@ export function zoneInfoFromRel(rel) {
   const pct = Math.max(0, rel) * 100;
   let key = "Recovery";
   if (pct < 60) key = "Recovery";
-  else if (pct < 76) key = "Base";
+  else if (pct < 76) key = "Endurance";
   else if (pct < 90) key = "Tempo";
   else if (pct < 105) key = "Threshold";
   else if (pct < 119) key = "VO2Max";
@@ -56,7 +56,7 @@ export function zoneInfoFromRel(rel) {
 
   const colorVarMap = {
     Recovery: "--zone-recovery",
-    Base: "--zone-base",
+    Endurance: "--zone-endurance",
     Tempo: "--zone-tempo",
     Threshold: "--zone-threshold",
     VO2Max: "--zone-vo2",
