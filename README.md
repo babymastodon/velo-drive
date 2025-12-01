@@ -38,11 +38,11 @@ Click it to install VeloDrive as an app. It will appear in your system’s app l
 ### Chrome extension (optional)
 
 The extension is not required for riding workouts.
-It simply makes it easier to **download workouts** as `.zwo` files directly from:
-
-- TrainerRoad
-- TrainerDay
-- WhatsOnZwift
+It simply makes it easier to **download workouts** as .zwo files directly from
+[WhatsOnZwift](https://whatsonzwift.com/workouts#zwift-workout-collections),
+[TrainerDay](https://app.trainerday.com/search),
+and
+[TrainerRoad](https://www.trainerroad.com/app/cycling/workouts).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/extension_dark.png">
@@ -78,7 +78,7 @@ To install:
 
 ## Platform support
 
-Runs in Chromium-based browsers on:
+Runs in Google Chrome on:
 
 * Linux (primary target)
 * Windows
