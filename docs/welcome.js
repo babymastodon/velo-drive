@@ -27,7 +27,7 @@ const SLIDES = [
   {
     id: "offline",
     kind: "video",
-    title: "Ride offline with local data",
+    title: "Local data. Offline workouts.",
     bodyLines: [
       "Install VeloDrive as a Progressive Web App so it runs like a native application.",
       "Workouts and history are stored on your filesystem, so you can ride with no internet connection.",
