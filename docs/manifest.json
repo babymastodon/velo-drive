@@ -47,14 +47,14 @@
   ],
 
   "options_ui": {
-    "page": "workout.html",
+    "page": "index.html",
     "open_in_tab": true
   },
 
   "web_accessible_resources": [
     {
       "resources": [
-        "workout.html",
+        "index.html",
         "workout.js"
       ],
       "matches": ["chrome-extension://*/*"]
