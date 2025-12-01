@@ -27,9 +27,9 @@ const SLIDES = [
   {
     id: "offline",
     kind: "video",
-    title: "Install once, run like an app, ride offline",
+    title: "Local data. Offline workouts.",
     bodyLines: [
-      "Install VeloDrive as a Progressive Web App so it opens like a native app from your launcher.",
+      "Install VeloDrive as a Progressive Web App so it runs like a native application.",
       "Workouts and history are stored on your filesystem, so you can ride with no internet connection.",
     ],
     videoLight: "media/welcome-offline-light.webm",
