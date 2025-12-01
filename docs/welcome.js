@@ -41,7 +41,7 @@ const SLIDES = [
     title: "Use community workouts or build your own",
     bodyLines: [
       "Import workouts from TrainerRoad, TrainerDay, and Zwift collections.",
-      "Keep them as .zwo or .fit files, or build your own sessions from scratch.",
+      "Export them as .zwo or .fit files, or build your own sessions from scratch.",
     ],
     videoLight: "media/welcome-workouts-light.webm",
     videoDark: "media/welcome-workouts-dark.webm",
