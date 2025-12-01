@@ -6,7 +6,7 @@
 
 # VeloDrive
 
-VeloDrive is a lightweight **Progressive Web App (PWA)** and optional **Chrome extension** for creating, organizing, and riding structured cycling workouts on FTMS-compatible smart trainers.
+VeloDrive is a lightweight **Progressive Web App (PWA)** and optional **Chrome extension** for creating, organizing, and riding structured cycling workouts on FTMS-compatible smart trainers like the [Wahoo Kickr](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) or [Tacx Neo](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/)
 
 You can open the app directly at:
 
@@ -21,7 +21,7 @@ The PWA works offline, installs locally, and runs entirely in the browser with n
 
 ## Installation
 
-### PWA (recommended)
+### Web App (recommended)
 
 Open:
 
@@ -37,12 +37,17 @@ Click it to install VeloDrive as an app. It will appear in your system’s app l
 
 ### Chrome extension (optional)
 
-The extension is not required for riding workouts.  
-It simply makes it easier to **import workouts** directly from:
+The extension is not required for riding workouts.
+It simply makes it easier to **download workouts** as `.zwo` files directly from:
 
-- TrainerRoad  
-- TrainerDay  
-- WhatsOnZwift  
+- TrainerRoad
+- TrainerDay
+- WhatsOnZwift
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/extension_dark.png">
+  <img alt="Extension Install Instructions" src="docs/screenshots/extension_light.png">
+</picture>
 
 To install:
 
