@@ -50,7 +50,7 @@
 .workout-picker-header-main {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .workout-picker-controls {
@@ -151,7 +151,7 @@
 
 .workout-picker-table th,
 .workout-picker-table td {
-  padding: 4px;
+  padding: 4px 8px 4px 8px;
   border-bottom: 1px solid var(--border-subtle);
   text-align: left;
   white-space: nowrap;
@@ -253,7 +253,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
   column-gap: 12px;
-  row-gap: 8px;
+  row-gap: 12px;
   width: 100%;
 }
 
@@ -267,7 +267,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* Content row: stats (left) + description (right) */
@@ -344,7 +344,7 @@
   color: var(--text-muted);
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -458,7 +458,7 @@
 @media (max-width: 1100px) {
   .workout-picker-header {
     flex-wrap: wrap;
-    row-gap: 8px;
+    row-gap: 12px;
     padding-right: 48px;
   }
 }
@@ -604,7 +604,7 @@
 .wb-meta-fields {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .wb-field {
@@ -645,7 +645,7 @@
 .wb-stats-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .wb-stat-chip {
@@ -697,7 +697,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
   font-size: 14px;
 }
@@ -811,7 +811,7 @@
 
 .wb-code-error-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   font-size: 14px;
 }
 
@@ -852,13 +852,13 @@
 .wb-url-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   font-size: 14px;
 }
 
 .wb-url-row {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
 .wb-url-input {
