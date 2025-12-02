@@ -992,7 +992,10 @@ async function initPage() {
 
     if (e.code === "Space") {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (vm.mode !== "workout") return;
+      const canToggle =
+        vm.mode === "workout" &&
+        !!vm.canonicalWorkout;
+      if (!canToggle) return;
       e.preventDefault();
       engine.startWorkout();
       return;
