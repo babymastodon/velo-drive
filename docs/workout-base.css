@@ -132,7 +132,7 @@ a:hover {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 20px 10px 54px;
+  padding: 16px 16px 54px;
   gap: 10px;
 }
 
@@ -244,7 +244,7 @@ a:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 6px 10px 8px;
+  padding: 16px;
   background: var(--nav-bg);
   border-top: none;
   display: flex;
