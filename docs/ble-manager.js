@@ -1,3 +1,9 @@
+import {
+  loadBleDeviceIds,
+  saveBikeBleDeviceId,
+  saveHrBleDeviceId,
+} from "./storage.js";
+
 // --------------------------- BLE singleton ---------------------------
 
 export const BleManager = (() => {
@@ -24,8 +30,6 @@ export const BleManager = (() => {
   };
 
   const TRAINER_SEND_MIN_INTERVAL_SEC = 10;
-  const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
-  const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 
   const MIN_RECONNECT_DELAY_MS = 1000; // 1s
   const MAX_RECONNECT_DELAY_MS = 10000; // cap at 10s
@@ -155,45 +159,30 @@ export const BleManager = (() => {
   // Storage helpers for device IDs
   // ---------------------------------------------------------------------------
 
-  function loadSavedBleDeviceIds() {
-    return new Promise((resolve) => {
-      try {
-        if (!chrome || !chrome.storage || !chrome.storage.local) {
-          resolve({bikeId: null, hrId: null});
-          return;
-        }
-      } catch {
-        resolve({bikeId: null, hrId: null});
-        return;
-      }
-
-      chrome.storage.local.get(
-        {
-          [STORAGE_LAST_BIKE_DEVICE_ID]: null,
-          [STORAGE_LAST_HR_DEVICE_ID]: null,
-        },
-        (data) => {
-          resolve({
-            bikeId: data[STORAGE_LAST_BIKE_DEVICE_ID],
-            hrId: data[STORAGE_LAST_HR_DEVICE_ID],
-          });
-        }
-      );
-    });
+  // Storage helpers: centralized through storage.js (works for extension, web, PWA)
+  async function loadSavedBleDeviceIds() {
+    try {
+      const ids = await loadBleDeviceIds();
+      return {
+        bikeId: ids?.bikeId || null,
+        hrId: ids?.hrId || null,
+      };
+    } catch (err) {
+      log("Failed to load saved BLE IDs: " + err);
+      return {bikeId: null, hrId: null};
+    }
   }
 
   function saveBikeDeviceId(id) {
-    try {
-      if (!chrome || !chrome.storage || !chrome.storage.local) return;
-      chrome.storage.local.set({[STORAGE_LAST_BIKE_DEVICE_ID]: id});
-    } catch {}
+    saveBikeBleDeviceId(id || null).catch((err) =>
+      log("Failed to save bike device ID: " + err)
+    );
   }
 
   function saveHrDeviceId(id) {
-    try {
-      if (!chrome || !chrome.storage || !chrome.storage.local) return;
-      chrome.storage.local.set({[STORAGE_LAST_HR_DEVICE_ID]: id});
-    } catch {}
+    saveHrBleDeviceId(id || null).catch((err) =>
+      log("Failed to save HR device ID: " + err)
+    );
   }
 
   // ---------------------------------------------------------------------------
