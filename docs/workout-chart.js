@@ -393,7 +393,7 @@ export function drawWorkoutChart({
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("x", "4");
     label.setAttribute("y", String(y - 6));
-    label.setAttribute("font-size", "14");
+    label.setAttribute("font-size", "16");
     label.setAttribute("fill", getCssVar("--text-muted"));
     label.setAttribute("pointer-events", "none");
     label.textContent = String(yVal);
@@ -459,25 +459,45 @@ export function drawWorkoutChart({
 
   // FTP line
   const ftpY = h - (ftp / maxY) * h;
+  const ftpLineWidth = 1.5;
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
   ftpLine.setAttribute("x2", String(w));
   ftpLine.setAttribute("y1", String(ftpY));
   ftpLine.setAttribute("y2", String(ftpY));
   ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
-  ftpLine.setAttribute("stroke-width", "1.5");
+  ftpLine.setAttribute("stroke-width", String(ftpLineWidth));
   ftpLine.setAttribute("pointer-events", "none");
   svg.appendChild(ftpLine);
 
+  const ftpFontSize = 16;
+  const ftpLabelOffset = 6;
   const ftpLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
   ftpLabel.setAttribute("x", String(w - 4));
-  ftpLabel.setAttribute("y", String(ftpY - 6));
-  ftpLabel.setAttribute("font-size", "14");
+  ftpLabel.setAttribute("y", String(ftpY - ftpLabelOffset));
+  ftpLabel.setAttribute("font-size", String(ftpFontSize));
   ftpLabel.setAttribute("fill", getCssVar("--ftp-line"));
   ftpLabel.setAttribute("text-anchor", "end");
   ftpLabel.setAttribute("pointer-events", "none");
   ftpLabel.textContent = `FTP ${ftp}`;
   svg.appendChild(ftpLabel);
+
+  const durationMinutes =
+    totalFromStructure > 0 ? Math.round(totalFromStructure / 60) : null;
+  if (durationMinutes) {
+    const durationLabel = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "text"
+    );
+    durationLabel.setAttribute("x", String(w - 4));
+    durationLabel.setAttribute("y", String(ftpY + ftpLabelOffset + ftpFontSize - ftpLineWidth * 2));
+    durationLabel.setAttribute("font-size", String(ftpFontSize));
+    durationLabel.setAttribute("fill", getCssVar("--ftp-line"));
+    durationLabel.setAttribute("text-anchor", "end");
+    durationLabel.setAttribute("pointer-events", "none");
+    durationLabel.textContent = `${durationMinutes} min`;
+    svg.appendChild(durationLabel);
+  }
 
   // position line
   const xNow = Math.min(w, (elapsedSec / safeTotalSec) * w);
@@ -529,4 +549,3 @@ export function drawWorkoutChart({
 
   attachSegmentHover(svg, tooltipEl, panel, ftp);
 }
-
