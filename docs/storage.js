@@ -26,6 +26,8 @@ export const STORAGE_WORKOUT_BUILDER_STATE = "workoutBuilderState";
 export const STORAGE_LAST_SCRAPED_WORKOUT = "lastScrapedWorkout";
 export const STORAGE_LAST_SCRAPED_FLAG = "lastScrapedWorkoutJustScraped";
 export const STORAGE_HAS_SEEN_WELCOME = "hasSeenWelcome";
+export const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
+export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 
 const FTP_KEY = "ftp";
 
@@ -315,6 +317,22 @@ export async function loadWorkoutBuilderState() {
 
 export async function clearWorkoutBuilderState() {
   return removeSetting(STORAGE_WORKOUT_BUILDER_STATE);
+}
+
+// --------------------------- BLE device IDs ---------------------------
+
+export async function loadBleDeviceIds() {
+  const bikeId = await getSetting(STORAGE_LAST_BIKE_DEVICE_ID, null);
+  const hrId = await getSetting(STORAGE_LAST_HR_DEVICE_ID, null);
+  return {bikeId, hrId};
+}
+
+export function saveBikeBleDeviceId(id) {
+  return setSetting(STORAGE_LAST_BIKE_DEVICE_ID, id || null);
+}
+
+export function saveHrBleDeviceId(id) {
+  return setSetting(STORAGE_LAST_HR_DEVICE_ID, id || null);
 }
 
 // --------------------------- Root Directory Picker ---------------------------
