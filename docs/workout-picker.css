@@ -26,6 +26,10 @@
   /* everything inside defaults to 16px */
 }
 
+.workout-picker-modal.workout-picker-modal--import {
+  justify-content: center;
+}
+
 .workout-picker-header {
   position: relative;
   display: flex;
@@ -584,22 +588,34 @@
 /* --- Import view --- */
 
 .workout-import-root {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  align-items: stretch;
+  height: auto;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  padding: 0 16px;
 }
 
 .workout-import-card {
   border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  padding: 16px;
+  border: none;
+  background: transparent;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 960px;
-  margin: 0 auto;
+  gap: 10px;
+  width: 75%;
+  min-width: 500px;
+  max-width: 100%;
+  margin: auto;
+  align-items: stretch;
+}
+
+.workout-import-hint {
+  margin: 0 0 4px 0;
+  text-align: center;
+  color: var(--text-muted);
 }
 
 .workout-import-title {
@@ -612,29 +628,6 @@
   color: var(--text-muted);
 }
 
-.workout-import-links {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.workout-import-links a {
-  color: inherit;
-  text-decoration: underline;
-}
-
-.workout-import-helper {
-  color: var(--text-muted);
-}
-
-.workout-import-notes {
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-muted);
-  display: grid;
-  gap: 4px;
-}
-
 .workout-import-form {
   display: flex;
   gap: 12px;
@@ -644,7 +637,7 @@
 
 .workout-import-input {
   flex: 1;
-  min-width: 260px;
+  min-width: 320px;
   height: var(--nav-control-height);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
@@ -686,7 +679,7 @@
 }
 
 .workout-import-scratch-btn {
-  height: var(--nav-control-height);
+  height: calc(var(--nav-control-height) * 2);
   justify-content: center;
 }
 
@@ -863,7 +856,7 @@
 .wb-toolbar-card {
   flex: 0 0 auto;
   justify-content: flex-start;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 /* Code toolbar & buttons (same vibe as other buttons) */
@@ -896,6 +889,10 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
+}
+
+.wb-code-insert-btn.workout-import-scratch-btn {
+  height: calc(var(--nav-control-height) * 3);
 }
 
 .wb-code-icon {
