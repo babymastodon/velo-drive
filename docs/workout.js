@@ -85,6 +85,10 @@ let isHandlingLastScrapedWorkout = false;
 // engine & picker are created in initPage
 let engine = null;
 let picker = null;
+let welcomeTour = null;
+let welcomeSeenAlready = false;
+const hasWelcomeOverlay = !!document.getElementById("welcomeOverlay");
+let isWelcomeActive = hasWelcomeOverlay;
 
 // --------------------------- Helpers ---------------------------
 
@@ -101,6 +105,23 @@ function logDebug(msg) {
   } catch (err) {
     console.error("[Workout] Failed to forward log to settings:", err);
   }
+}
+
+function setWelcomeActive(active) {
+  isWelcomeActive = !!active;
+  if (document && document.body) {
+    document.body.classList.toggle("welcome-active", isWelcomeActive);
+  }
+}
+
+function hideWelcomeOverlayFallback() {
+  const overlayEl = document.getElementById("welcomeOverlay");
+  if (!overlayEl) return;
+  overlayEl.style.display = "none";
+  overlayEl.classList.remove(
+    "welcome-overlay--visible",
+    "welcome-overlay--splash-only"
+  );
 }
 
 function formatTimeMMSS(sec) {
@@ -748,13 +769,55 @@ async function handleLastScrapedWorkout() {
 }
 
 async function maybeShowWelcome() {
-  if (await hasSeenWelcome()) return;
+  try {
+    if (!hasWelcomeOverlay) {
+      setWelcomeActive(false);
+      return;
+    }
 
-  const tour = initWelcomeTour({
-    onFinished: () => setWelcomeSeen()
-  });
+    welcomeTour = initWelcomeTour({
+      onFinished: () => {
+        if (!welcomeSeenAlready) {
+          setWelcomeSeen();
+          welcomeSeenAlready = true;
+        }
+        setWelcomeActive(false);
+      },
+      onVisibilityChanged: ({isOpen}) => {
+        setWelcomeActive(isOpen);
+      },
+    });
 
-  tour.open(0);
+    try {
+      welcomeSeenAlready = await hasSeenWelcome();
+    } catch (err) {
+      logDebug("Welcome seen check failed; treating as first run: " + err);
+      welcomeSeenAlready = false;
+    }
+
+    if (!welcomeTour || typeof welcomeTour.open !== "function") {
+      setWelcomeActive(false);
+      hideWelcomeOverlayFallback();
+      return;
+    }
+
+    setWelcomeActive(true);
+
+  if (welcomeSeenAlready) {
+    if (typeof welcomeTour.playSplash === "function") {
+      welcomeTour.playSplash(1100);
+    } else {
+      welcomeTour.open(0);
+    }
+  } else {
+    welcomeTour.open(0);
+  }
+  } catch (err) {
+    console.error("[Workout] Welcome init failed:", err);
+    logDebug("Welcome init failed: " + err);
+    setWelcomeActive(false);
+    hideWelcomeOverlayFallback();
+  }
 }
 
 
@@ -762,6 +825,9 @@ async function maybeShowWelcome() {
 
 async function initPage() {
   logDebug("Workout page init…");
+
+  setWelcomeActive(isWelcomeActive);
+  const welcomePromise = maybeShowWelcome();
 
   engine = getWorkoutEngine();
 
@@ -775,7 +841,7 @@ async function initPage() {
   updateHrBatteryLabel();
 
   await initSettings();
-  maybeShowWelcome();
+  await welcomePromise;
 
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -912,6 +978,7 @@ async function initPage() {
   }
 
   document.addEventListener("keydown", (e) => {
+    if (isWelcomeActive) return;
     const tag = e.target && e.target.tagName;
     const vm = engine.getViewModel();
 

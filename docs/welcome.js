@@ -72,7 +72,7 @@ function getCurrentColorScheme() {
 }
 
 export function initWelcomeTour(options = {}) {
-  const {onFinished} = options;
+  const {onFinished, onVisibilityChanged} = options;
 
   const overlay = document.getElementById("welcomeOverlay");
   const titleEl = document.getElementById("welcomeTitle");
@@ -111,6 +111,7 @@ export function initWelcomeTour(options = {}) {
       open() {},
       close() {},
       goToSlide() {},
+      playSplash() {},
     };
   }
 
@@ -118,6 +119,32 @@ export function initWelcomeTour(options = {}) {
   let isOpen = false;
   let isAnimating = false;
   let scheme = getCurrentColorScheme();
+  let currentMode = "full"; // "full" | "splash"
+  let autoCloseTimer = null;
+
+  const visibilityCb =
+    typeof onVisibilityChanged === "function" ? onVisibilityChanged : null;
+
+  function notifyVisibility(isVisible) {
+    if (visibilityCb) {
+      visibilityCb({isOpen: isVisible, mode: currentMode});
+    }
+  }
+
+  function clearAutoClose() {
+    if (autoCloseTimer) {
+      clearTimeout(autoCloseTimer);
+      autoCloseTimer = null;
+    }
+  }
+
+  function setOverlayMode(mode) {
+    currentMode = mode === "splash" ? "splash" : "full";
+    overlay.classList.toggle(
+      "welcome-overlay--splash-only",
+      currentMode === "splash"
+    );
+  }
 
   const mqlDark = window.matchMedia
     ? window.matchMedia("(prefers-color-scheme: dark)")
@@ -267,17 +294,24 @@ export function initWelcomeTour(options = {}) {
 
   function closeOverlay() {
     if (!isOpen) return;
+    clearAutoClose();
     isOpen = false;
     overlay.classList.remove("welcome-overlay--visible");
+    overlay.classList.remove("welcome-overlay--splash-only");
     overlay.style.display = "none";
+    notifyVisibility(false);
 
     if (typeof onFinished === "function") {
       onFinished();
     }
   }
 
-  function openOverlay(startIndex = 0) {
+  function openOverlay(startIndex = 0, opts = {}) {
     if (isOpen) return;
+    clearAutoClose();
+    const {mode = "full", autoCloseMs = null} =
+      opts && typeof opts === "object" ? opts : {};
+    setOverlayMode(mode);
     isOpen = true;
 
     if (startIndex < 0 || startIndex >= SLIDES.length) {
@@ -288,12 +322,21 @@ export function initWelcomeTour(options = {}) {
 
     overlay.style.display = "flex";
 
+    notifyVisibility(true);
+
     requestAnimationFrame(() => {
       overlay.classList.add("welcome-overlay--visible");
     });
+
+    if (autoCloseMs) {
+      autoCloseTimer = window.setTimeout(() => {
+        closeOverlay();
+      }, autoCloseMs);
+    }
   }
 
   function goToNext() {
+    if (currentMode === "splash") return;
     if (currentIndex >= SLIDES.length - 1) {
       closeOverlay();
       return;
@@ -303,6 +346,7 @@ export function initWelcomeTour(options = {}) {
   }
 
   function goToPrev() {
+    if (currentMode === "splash") return;
     if (currentIndex <= 0) return;
     const prevIndex = currentIndex - 1;
     animateSlideChange(prevIndex, "prev");
@@ -310,6 +354,10 @@ export function initWelcomeTour(options = {}) {
 
   function handleOverlayClick(event) {
     if (!isOpen) return;
+    if (currentMode === "splash") {
+      event.stopPropagation();
+      return;
+    }
 
     const target = event.target;
 
@@ -327,22 +375,42 @@ export function initWelcomeTour(options = {}) {
 
   function handleKeydown(event) {
     if (!isOpen) return;
+    event.stopPropagation();
+    event.stopImmediatePropagation();
 
     const {key} = event;
 
+    if (currentMode === "splash") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      if (key === "Escape") {
+        closeOverlay();
+      }
+      return;
+    }
+
     if (key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       closeOverlay();
     } else if (key === "ArrowRight" || key === "PageDown") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       goToNext();
     } else if (key === "ArrowLeft" || key === "PageUp") {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       goToPrev();
     } else if (key === " " || key === "Enter") {
       const active = document.activeElement;
       if (active === overlay || active === document.body) {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         goToNext();
       }
     }
@@ -431,6 +499,9 @@ export function initWelcomeTour(options = {}) {
   return {
     open: openOverlay,
     close: closeOverlay,
+    playSplash(durationMs = 1000) {
+      openOverlay(0, {mode: "splash", autoCloseMs: durationMs});
+    },
     goToSlide(index) {
       if (index < 0 || index >= SLIDES.length) return;
       if (!isOpen) {
@@ -442,4 +513,3 @@ export function initWelcomeTour(options = {}) {
     },
   };
 }
-

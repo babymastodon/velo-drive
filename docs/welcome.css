@@ -6,7 +6,7 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg);
@@ -347,6 +347,19 @@
 .welcome-step-detail--visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+.welcome-overlay--splash-only .welcome-nav,
+.welcome-overlay--splash-only .welcome-close-btn,
+.welcome-overlay--splash-only .welcome-header,
+.welcome-overlay--splash-only .welcome-body,
+.welcome-overlay--splash-only .welcome-step-detail,
+.welcome-overlay--splash-only .welcome-icon-row {
+  display: none !important;
+}
+
+.welcome-overlay--splash-only .welcome-shell {
+  pointer-events: none;
 }
 
 /* Mobile tweaks */
