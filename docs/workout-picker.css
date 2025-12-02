@@ -858,15 +858,12 @@
 
 .wb-stats-card {
   flex: 0 0 auto;
-  padding-top: 8px;
-  padding-bottom: 4px;
 }
 
 .wb-toolbar-card {
   flex: 0 0 auto;
   justify-content: flex-start;
   align-items: flex-end;
-  margin-bottom: 12px;
 }
 
 /* Code toolbar & buttons (same vibe as other buttons) */
