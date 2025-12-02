@@ -722,6 +722,8 @@ function createWorkoutPicker(config) {
     const text = payload?.text || "";
     const tone = payload?.tone || "neutral";
     const isActive = isBuilderMode || isImportMode;
+    const showInBuilder = isBuilderMode;
+    const showImportError = isImportMode && tone === "error" && !!text;
 
     builderStatusEl.textContent = text;
     builderStatusEl.dataset.tone = tone;
@@ -731,7 +733,8 @@ function createWorkoutPicker(config) {
       "builder-status--neutral"
     );
     builderStatusEl.classList.add(`builder-status--${tone}`);
-    builderStatusEl.style.display = isActive ? "inline-flex" : "none";
+    builderStatusEl.style.display =
+      isActive && (showInBuilder || showImportError) ? "inline-flex" : "none";
   }
 
   // --------------------------- Import view ---------------------------
@@ -744,59 +747,10 @@ function createWorkoutPicker(config) {
     const card = document.createElement("div");
     card.className = "workout-import-card";
 
-    const intro = document.createElement("div");
-    intro.className = "workout-import-intro";
-
-    const heading = document.createElement("div");
-    heading.className = "workout-import-title";
-    heading.textContent = "Add a workout from a URL";
-
-    const blurb = document.createElement("p");
-    blurb.className = "workout-import-copy";
-    blurb.textContent =
-      "Paste a WhatsOnZwift or TrainerDay workout link. We will scrape it, save it, and return you to the library.";
-
-    const linksRow = document.createElement("div");
-    linksRow.className = "workout-import-links";
-
-    const wozLink = document.createElement("a");
-    wozLink.href = "https://whatsonzwift.com/workouts";
-    wozLink.target = "_blank";
-    wozLink.rel = "noopener noreferrer";
-    wozLink.textContent = "Browse WhatsOnZwift workouts";
-
-    const tdLink = document.createElement("a");
-    tdLink.href = "https://app.trainerday.com/search";
-    tdLink.target = "_blank";
-    tdLink.rel = "noopener noreferrer";
-    tdLink.textContent = "Search TrainerDay";
-
-    const helper = document.createElement("div");
-    helper.className = "workout-import-helper";
-    helper.innerHTML =
-      "<strong>Tip:</strong> open a workout on either site, copy its URL, then paste it below.";
-
-    linksRow.appendChild(wozLink);
-    linksRow.appendChild(tdLink);
-
-    const list = document.createElement("ul");
-    list.className = "workout-import-notes";
-    const notes = [
-      "Use the search links above to find a workout you like.",
-      "Open the workout detail page and copy the full URL.",
-      "Paste it below and click Import — it saves straight into your library.",
-    ];
-    notes.forEach((text) => {
-      const li = document.createElement("li");
-      li.textContent = text;
-      list.appendChild(li);
-    });
-
-    intro.appendChild(heading);
-    intro.appendChild(blurb);
-    intro.appendChild(linksRow);
-    intro.appendChild(helper);
-    intro.appendChild(list);
+    const hint = document.createElement("p");
+    hint.className = "workout-import-hint";
+    hint.innerHTML =
+      'Go to <a href="https://whatsonzwift.com/workouts#zwift-workout-collections" target="_blank" rel="noreferrer noopener">WhatsOnZwift</a> or <a href="https://app.trainerday.com/search" target="_blank" rel="noreferrer noopener">TrainerDay</a> to pick a workout, then paste the link below.';
 
     const form = document.createElement("div");
     form.className = "workout-import-form";
@@ -814,11 +768,6 @@ function createWorkoutPicker(config) {
     form.appendChild(importUrlInput);
     form.appendChild(importSubmitBtn);
 
-    importStatusEl = document.createElement("div");
-    importStatusEl.className = "workout-import-status";
-    importStatusEl.dataset.tone = "neutral";
-    importStatusEl.textContent = "Paste a workout URL to import it.";
-
     const divider = document.createElement("div");
     divider.className = "workout-import-divider";
     divider.innerHTML = "<span>or</span>";
@@ -828,9 +777,8 @@ function createWorkoutPicker(config) {
     importScratchBtn.className = "wb-code-insert-btn workout-import-scratch-btn";
     importScratchBtn.textContent = "Build your own workout";
 
-    card.appendChild(intro);
+    card.appendChild(hint);
     card.appendChild(form);
-    card.appendChild(importStatusEl);
     card.appendChild(divider);
     card.appendChild(importScratchBtn);
 
@@ -848,7 +796,7 @@ function createWorkoutPicker(config) {
   function resetImportView() {
     if (importUrlInput) importUrlInput.value = "";
     isImportInProgress = false;
-    setImportStatus("Paste a workout URL to import it.", "neutral");
+    setImportStatus("", "neutral");
   }
 
   async function runImportFromUrl() {
@@ -907,7 +855,7 @@ function createWorkoutPicker(config) {
     isImportMode = true;
     isBuilderMode = false;
 
-    if (importRoot) importRoot.style.display = "block";
+    if (importRoot) importRoot.style.display = "grid";
     if (builderRoot) builderRoot.style.display = "none";
     if (titleEl) titleEl.textContent = "Add workout";
 
@@ -929,6 +877,7 @@ function createWorkoutPicker(config) {
     isImportMode = false;
     if (importRoot) importRoot.style.display = "none";
     modal.classList.remove("workout-picker-modal--import");
+    modal.classList.remove("workout-picker-modal--centered");
 
     if (!isBuilderMode) {
       if (titleEl) titleEl.textContent = "Workout library";
