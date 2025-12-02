@@ -7,6 +7,7 @@
 //   - manages picker UI
 //   - forwards logs to settings.js for display
 
+import {Beeper} from "./beeper.js";
 import {BleManager} from "./ble-manager.js";
 import {getWorkoutEngine} from "./workout-engine.js";
 import {getWorkoutPicker} from "./workout-picker.js";
@@ -122,6 +123,25 @@ function hideWelcomeOverlayFallback() {
     "welcome-overlay--visible",
     "welcome-overlay--splash-only"
   );
+}
+
+function primeAudioContext() {
+  const warm = () => {
+    try {
+      const maybe = Beeper && typeof Beeper.warmUp === "function" ? Beeper.warmUp() : null;
+      if (maybe && typeof maybe.catch === "function") {
+        maybe.catch((err) => logDebug("Audio warm-up failed: " + err));
+      }
+    } catch (err) {
+      logDebug("Audio warm-up failed: " + err);
+    }
+  };
+
+  warm();
+
+  const once = () => warm();
+  window.addEventListener("pointerdown", once, {once: true});
+  window.addEventListener("keydown", once, {once: true});
 }
 
 function formatTimeMMSS(sec) {
@@ -827,6 +847,7 @@ async function initPage() {
   logDebug("Workout page init…");
 
   setWelcomeActive(isWelcomeActive);
+  primeAudioContext();
   const welcomePromise = maybeShowWelcome();
 
   engine = getWorkoutEngine();

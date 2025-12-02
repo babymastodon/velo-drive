@@ -7,6 +7,7 @@ export const Beeper = (() => {
 
   let audioCtx = null;
   let enabled = true;
+  let warmUpPromise = null;
   let currentNodes = [];
   let countdownRunning = false;
   let timeouts = [];
@@ -138,6 +139,55 @@ export const Beeper = (() => {
 
     osc.start(now);
     osc.stop(end + 0.05);
+  }
+
+  // ---------------------------------------------------------------------------
+  // PUBLIC-ish: warm up audio context to avoid first-play lag
+  // ---------------------------------------------------------------------------
+
+  async function warmUp() {
+    if (warmUpPromise) return warmUpPromise;
+
+    warmUpPromise = (async () => {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      try {
+        if (ctx.state === "suspended" && typeof ctx.resume === "function") {
+          await ctx.resume();
+        }
+      } catch (err) {
+        console.warn("Audio resume failed:", err);
+      }
+
+      try {
+        const g = ctx.createGain();
+        g.gain.value = 0.0001;
+        g.connect(ctx.destination);
+
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = 440;
+        osc.connect(g);
+
+        const now = ctx.currentTime;
+        osc.start(now);
+        osc.stop(now + 0.02);
+
+        osc.onended = () => {
+          try {osc.disconnect();} catch {}
+          try {g.disconnect();} catch {}
+        };
+      } catch (err) {
+        console.warn("Audio warm-up failed:", err);
+      }
+    })();
+
+    try {
+      await warmUpPromise;
+    } finally {
+      warmUpPromise = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -438,6 +488,7 @@ export const Beeper = (() => {
   return {
     setEnabled,
     stop: stopAll,
+    warmUp,
     playBeepPattern,
     runStartCountdown,
     showPausedOverlay,
