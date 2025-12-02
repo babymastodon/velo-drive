@@ -886,7 +886,7 @@ async function initPage() {
         navigator.bluetooth &&
         typeof navigator.bluetooth.getDevices === "function";
       if (!btSupported) {
-        alert("Bluetooth not available in this browser. Opening settings.");
+        alert("Your browser doesn’t support Bluetooth. Let’s open Settings for options.");
         openSettingsModal();
         return;
       }
@@ -905,7 +905,7 @@ async function initPage() {
         navigator.bluetooth &&
         typeof navigator.bluetooth.getDevices === "function";
       if (!btSupported) {
-        alert("Bluetooth not available in this browser. Opening settings.");
+        alert("Your browser doesn’t support Bluetooth. Let’s open Settings for options.");
         openSettingsModal();
         return;
       }

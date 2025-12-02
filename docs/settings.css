@@ -253,7 +253,7 @@
 .settings-inline-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex-wrap: nowrap;
 }
 
