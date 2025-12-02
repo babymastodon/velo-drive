@@ -217,7 +217,7 @@ a:hover {
 .chart-tooltip {
   position: absolute;
   pointer-events: none;
-  font-size: 11px;
+  font-size: 16px;
   padding: 4px 6px;
   border-radius: var(--radius);
   background: #ffffff;
