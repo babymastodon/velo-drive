@@ -1459,10 +1459,6 @@ function createWorkoutPicker(config) {
 
     isPickerOpen = true;
     if (overlay) overlay.style.display = "flex";
-
-    if (searchInput && !isBuilderMode) {
-      searchInput.focus();
-    }
   }
 
   async function close() {
