@@ -137,6 +137,7 @@ function renderSegmentPolygon({
 
 // Track last hovered segment across charts (main + mini)
 let lastHoveredSegment = null;
+const hoverCleanupMap = new WeakMap();
 
 /**
  * Attaches hover behavior for segments: shows tooltip and highlights polygon.
@@ -144,7 +145,10 @@ let lastHoveredSegment = null;
 function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   if (!svg || !tooltipEl || !containerEl) return;
 
-  svg.addEventListener("mousemove", (e) => {
+  const cleanup = hoverCleanupMap.get(svg);
+  if (cleanup) cleanup();
+
+  const onMouseMove = (e) => {
     const segment = e.target.closest ? e.target.closest(".chart-segment") : null;
 
     if (!segment) {
@@ -202,12 +206,12 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       segment.dataset.hoverColor ||
       segment.dataset.color ||
       segment.dataset.mutedColor;
-    if (hoverColor) segment.setAttribute("fill", hoverColor);
+      if (hoverColor) segment.setAttribute("fill", hoverColor);
 
-    lastHoveredSegment = segment;
-  });
+      lastHoveredSegment = segment;
+  };
 
-  svg.addEventListener("mouseleave", () => {
+  const onMouseLeave = () => {
     tooltipEl.style.display = "none";
     if (lastHoveredSegment) {
       const prevColor =
@@ -216,6 +220,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
       lastHoveredSegment = null;
     }
+  };
+
+  svg.addEventListener("mousemove", onMouseMove);
+  svg.addEventListener("mouseleave", onMouseLeave);
+
+  hoverCleanupMap.set(svg, () => {
+    svg.removeEventListener("mousemove", onMouseMove);
+    svg.removeEventListener("mouseleave", onMouseLeave);
   });
 }
 
