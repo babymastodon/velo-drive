@@ -144,9 +144,26 @@ function createSceneFromLayout(layout) {
   const contentGroup = createSvgEl("g");
   contentGroup.setAttribute("transform", `translate(${offsetX} ${offsetY})`);
 
+  let maxDelay = 0;
+
   const addDelay = (el, delay) => {
     el.classList.add("scene-piece");
     el.style.setProperty("--delay", `${delay || 0}ms`);
+    if (delay && delay > maxDelay) {
+      maxDelay = delay;
+    }
+  };
+
+  const applyFlyOffset = (el, origin) => {
+    if (enterType !== "fly") return;
+    const cx = VIEWBOX_SIZE / 2;
+    const cy = VIEWBOX_SIZE / 2;
+    const tx = origin?.x ?? cx;
+    const ty = origin?.y ?? cy;
+    const dx = tx < cx ? -48 : tx > cx ? 48 : 0;
+    const dy = ty < cy ? -48 : ty > cy ? 48 : 0;
+    el.style.setProperty("--fly-x", `${dx}px`);
+    el.style.setProperty("--fly-y", `${dy}px`);
   };
 
   if (layout.orb) {
@@ -156,6 +173,7 @@ function createSceneFromLayout(layout) {
     orb.setAttribute("r", layout.orb.r);
     orb.classList.add("scene-orb");
     addDelay(orb, 20);
+    applyFlyOffset(orb, layout.orb);
     contentGroup.appendChild(orb);
   }
 
@@ -164,6 +182,7 @@ function createSceneFromLayout(layout) {
     path.setAttribute("d", layout.pathD);
     path.classList.add("scene-path");
     addDelay(path, 80);
+    applyFlyOffset(path, {x: VIEWBOX_SIZE / 2, y: VIEWBOX_SIZE / 2});
     contentGroup.appendChild(path);
   }
 
@@ -177,6 +196,7 @@ function createSceneFromLayout(layout) {
       rect.setAttribute("rx", 12);
       rect.classList.add("scene-pill");
       addDelay(rect, 120 + idx * 40);
+      applyFlyOffset(rect, {x: pill.x + pill.width / 2, y: pill.y + pill.height / 2});
       contentGroup.appendChild(rect);
     });
   }
@@ -187,6 +207,7 @@ function createSceneFromLayout(layout) {
       path.setAttribute("d", pulse.d);
       path.classList.add("scene-pulse");
       addDelay(path, 160 + idx * 60);
+      applyFlyOffset(path, {x: VIEWBOX_SIZE / 2, y: VIEWBOX_SIZE / 2});
       contentGroup.appendChild(path);
     });
   }
@@ -202,14 +223,15 @@ function createSceneFromLayout(layout) {
       image.setAttribute("href", asset.href);
       image.setAttribute("preserveAspectRatio", "xMidYMid meet");
       if (asset.center) {
-        image.setAttribute("x", "50%");
-        image.setAttribute("y", "50%");
-        const tx = -(asset.width || 0) / 2;
-        const ty = -(asset.height || 0) / 2;
-        image.setAttribute("transform", `translate(${tx} ${ty})`);
+        const cx = VIEWBOX_SIZE / 2 - (asset.width || 0) / 2;
+        const cy = VIEWBOX_SIZE / 2 - (asset.height || 0) / 2;
+        image.setAttribute("x", cx);
+        image.setAttribute("y", cy);
+        applyFlyOffset(g, {x: cx + (asset.width || 0) / 2, y: cy + (asset.height || 0) / 2});
       } else {
         image.setAttribute("x", asset.x);
         image.setAttribute("y", asset.y);
+        applyFlyOffset(g, {x: asset.x + asset.width / 2, y: asset.y + asset.height / 2});
       }
       g.appendChild(image);
 
@@ -219,7 +241,7 @@ function createSceneFromLayout(layout) {
 
   svg.appendChild(contentGroup);
 
-  return {root: svg};
+  return {root: svg, maxDelay};
 }
 
 function createSceneManager(rootEl) {
@@ -246,10 +268,11 @@ function createSceneManager(rootEl) {
       rootEl.appendChild(next.root);
       requestAnimationFrame(() => {
         next.root.classList.add(enterStateClass);
+        const settleMs = ENTER_MS + (next.maxDelay || 0) + 30;
         setTimeout(() => {
           next.root.classList.remove(enterStateClass);
           next.root.classList.add(steadyStateClass);
-        }, ENTER_MS);
+        }, settleMs);
       });
     };
 
