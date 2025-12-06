@@ -10,48 +10,222 @@ const SLIDES = [
       "Indoor bike workouts that run directly in your browser.",
       "Tap or press \u2192 to continue.",
     ],
-    videoLight: null,
-    videoDark: null,
   },
   {
     id: "trainers",
-    kind: "video",
+    kind: "scene",
     title: "Ride structured workouts on your smart trainer",
     bodyLines: [
       "Control Bluetooth-FTMS trainers like Wahoo KICKR, Tacx Neo.",
       "See live power, heart rate, cadence, and time.",
     ],
-    videoLight: "media/welcome-trainers-light.webm",
-    videoDark: "media/welcome-trainers-dark.webm",
   },
   {
     id: "offline",
-    kind: "video",
+    kind: "scene",
     title: "Local data. Offline workouts.",
     bodyLines: [
       "Install VeloDrive as a Progressive Web App so it runs like a native application.",
       "Workouts and history are stored on your filesystem, so you can ride with no internet connection.",
     ],
-    videoLight: "media/welcome-offline-light.webm",
-    videoDark: "media/welcome-offline-dark.webm",
   },
   {
     id: "workouts",
-    kind: "video",
+    kind: "scene",
     title: "Use community workouts or build your own",
     bodyLines: [
       "Import workouts from TrainerRoad, TrainerDay, and Zwift collections.",
       "Export them as .zwo or .fit files, or build your own sessions from scratch.",
     ],
-    videoLight: "media/welcome-workouts-light.webm",
-    videoDark: "media/welcome-workouts-dark.webm",
   },
 ];
 
-function getCurrentColorScheme() {
-  if (!window.matchMedia) return "light";
-  const mql = window.matchMedia("(prefers-color-scheme: dark)");
-  return mql.matches ? "dark" : "light";
+function createSvgEl(tag) {
+  return document.createElementNS("http://www.w3.org/2000/svg", tag);
+}
+
+const SCENE_LAYOUTS = {
+  splash: {
+    orb: {cx: 210, cy: 120, r: 104},
+    pathD: "M44 162 C 120 142, 190 214, 306 180",
+    pills: [
+      {x: 56, y: 76, width: 96, height: 30},
+      {x: 264, y: 126, width: 94, height: 26},
+    ],
+    pulses: [
+      {d: "M82 202 C 132 176, 208 204, 298 188"},
+    ],
+    assets: [
+      {href: "img/smart_frame.svg", x: 138, y: 72, width: 150, height: 120, delay: 40},
+      {href: "img/wahoo.svg", x: 30, y: 128, width: 130, height: 44, delay: 120},
+      {href: "img/tacx.svg", x: 252, y: 36, width: 126, height: 42, delay: 200},
+    ],
+  },
+  trainers: {
+    orb: {cx: 198, cy: 110, r: 112},
+    pathD: "M64 92 C 140 76, 224 132, 322 94",
+    pills: [
+      {x: 260, y: 146, width: 78, height: 26},
+      {x: 70, y: 144, width: 88, height: 30},
+    ],
+    pulses: [
+      {d: "M70 196 C 148 168, 224 226, 322 184"},
+    ],
+    assets: [
+      {href: "img/wahoo.svg", x: 38, y: 120, width: 124, height: 42, delay: 80},
+      {href: "img/tacx.svg", x: 254, y: 74, width: 118, height: 40, delay: 140},
+      {href: "img/smart_frame.svg", x: 150, y: 92, width: 136, height: 108, delay: 220},
+    ],
+  },
+  offline: {
+    orb: {cx: 220, cy: 126, r: 108},
+    pathD: "M58 142 C 140 108, 214 170, 332 124",
+    pills: [
+      {x: 86, y: 74, width: 78, height: 26},
+      {x: 252, y: 166, width: 104, height: 30},
+    ],
+    pulses: [
+      {d: "M84 204 C 156 180, 216 214, 310 194"},
+    ],
+    assets: [
+      {href: "img/smart_frame.svg", x: 104, y: 76, width: 150, height: 120, delay: 60},
+      {href: "img/wahoo.svg", x: 46, y: 156, width: 130, height: 44, delay: 140},
+      {href: "img/tacx.svg", x: 252, y: 48, width: 122, height: 40, delay: 220},
+    ],
+  },
+  workouts: {
+    orb: {cx: 196, cy: 118, r: 110},
+    pathD: "M70 96 C 132 72, 240 126, 316 94",
+    pills: [
+      {x: 74, y: 154, width: 96, height: 32},
+      {x: 244, y: 142, width: 96, height: 28},
+    ],
+    pulses: [
+      {d: "M84 202 C 166 172, 222 226, 312 186"},
+    ],
+    assets: [
+      {href: "img/smart_frame.svg", x: 140, y: 80, width: 150, height: 120, delay: 60},
+      {href: "img/wahoo.svg", x: 34, y: 124, width: 132, height: 44, delay: 140},
+      {href: "img/tacx.svg", x: 252, y: 38, width: 124, height: 42, delay: 220},
+    ],
+  },
+};
+
+function createSceneFromLayout(layout) {
+  const svg = createSvgEl("svg");
+  svg.setAttribute("viewBox", "0 0 420 240");
+  svg.setAttribute("role", "presentation");
+  svg.classList.add("welcome-scene-root");
+
+  const addDelay = (el, delay) => {
+    el.classList.add("scene-piece");
+    el.style.setProperty("--delay", `${delay || 0}ms`);
+  };
+
+  if (layout.orb) {
+    const orb = createSvgEl("circle");
+    orb.setAttribute("cx", layout.orb.cx);
+    orb.setAttribute("cy", layout.orb.cy);
+    orb.setAttribute("r", layout.orb.r);
+    orb.classList.add("scene-orb");
+    addDelay(orb, 20);
+    svg.appendChild(orb);
+  }
+
+  if (layout.pathD) {
+    const path = createSvgEl("path");
+    path.setAttribute("d", layout.pathD);
+    path.classList.add("scene-path");
+    addDelay(path, 80);
+    svg.appendChild(path);
+  }
+
+  if (Array.isArray(layout.pills)) {
+    layout.pills.forEach((pill, idx) => {
+      const rect = createSvgEl("rect");
+      rect.setAttribute("x", pill.x);
+      rect.setAttribute("y", pill.y);
+      rect.setAttribute("width", pill.width);
+      rect.setAttribute("height", pill.height);
+      rect.setAttribute("rx", 12);
+      rect.classList.add("scene-pill");
+      addDelay(rect, 120 + idx * 40);
+      svg.appendChild(rect);
+    });
+  }
+
+  if (Array.isArray(layout.pulses)) {
+    layout.pulses.forEach((pulse, idx) => {
+      const path = createSvgEl("path");
+      path.setAttribute("d", pulse.d);
+      path.classList.add("scene-pulse");
+      addDelay(path, 160 + idx * 60);
+      svg.appendChild(path);
+    });
+  }
+
+  if (Array.isArray(layout.assets)) {
+    layout.assets.forEach((asset, idx) => {
+      const g = createSvgEl("g");
+      addDelay(g, asset.delay || idx * 80);
+
+      const image = createSvgEl("image");
+      image.setAttribute("x", asset.x);
+      image.setAttribute("y", asset.y);
+      image.setAttribute("width", asset.width);
+      image.setAttribute("height", asset.height);
+      image.setAttribute("href", asset.href);
+      image.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      g.appendChild(image);
+
+      svg.appendChild(g);
+    });
+  }
+
+  return {root: svg};
+}
+
+function createSceneManager(rootEl) {
+  const ENTER_MS = 520;
+  const EXIT_MS = 420;
+  let activeScene = null;
+
+  function showScene(slideId) {
+    if (!rootEl) return;
+    const layout = SCENE_LAYOUTS[slideId] || SCENE_LAYOUTS.splash;
+    const next = createSceneFromLayout(layout);
+    if (!next || !next.root) return;
+
+    const prev = activeScene;
+    activeScene = next;
+
+    rootEl.appendChild(next.root);
+
+    requestAnimationFrame(() => {
+      next.root.classList.add("welcome-scene--enter");
+      setTimeout(() => {
+        next.root.classList.remove("welcome-scene--enter");
+        next.root.classList.add("welcome-scene--steady");
+      }, ENTER_MS + 30);
+    });
+
+    if (prev && prev.root) {
+      prev.root.classList.remove("welcome-scene--enter", "welcome-scene--steady");
+      prev.root.classList.add("welcome-scene--exit");
+      setTimeout(() => {
+        if (prev.root.parentNode === rootEl) {
+          rootEl.removeChild(prev.root);
+        }
+        if (typeof prev.cleanup === "function") {
+          prev.cleanup();
+        }
+      }, EXIT_MS + 40);
+    }
+  }
+
+  return {
+    showScene,
+  };
 }
 
 export function initWelcomeTour(options = {}) {
@@ -60,8 +234,7 @@ export function initWelcomeTour(options = {}) {
   const overlay = document.getElementById("welcomeOverlay");
   const titleEl = document.getElementById("welcomeTitle");
   const bodyEl = document.getElementById("welcomeBody");
-  const videoEl = document.getElementById("welcomeVideo");
-  const logoEl = document.getElementById("welcomeLogo");
+  const sceneEl = document.getElementById("welcomeScene");
 
   const prevBtn = document.getElementById("welcomePrevBtn");
   const nextBtn = document.getElementById("welcomeNextBtn");
@@ -74,8 +247,7 @@ export function initWelcomeTour(options = {}) {
     !overlay ||
     !titleEl ||
     !bodyEl ||
-    !videoEl ||
-    !logoEl ||
+    !sceneEl ||
     !slideContainer
   ) {
     console.warn("[Welcome] Required DOM elements not found; tour disabled.");
@@ -90,9 +262,9 @@ export function initWelcomeTour(options = {}) {
   let currentIndex = 0;
   let isOpen = false;
   let isAnimating = false;
-  let scheme = getCurrentColorScheme();
   let currentMode = "full"; // "full" | "splash"
   let autoCloseTimer = null;
+  const sceneManager = createSceneManager(sceneEl);
 
   const visibilityCb =
     typeof onVisibilityChanged === "function" ? onVisibilityChanged : null;
@@ -118,62 +290,11 @@ export function initWelcomeTour(options = {}) {
     );
   }
 
-  const mqlDark = window.matchMedia
-    ? window.matchMedia("(prefers-color-scheme: dark)")
-    : null;
-
   function computeBodyHtml(lines) {
     if (!lines || !lines.length) return "";
     return lines
       .map((line) => `<span class="welcome-body-line">${line}</span>`)
       .join("<br>");
-  }
-
-  function hideAllMedia() {
-    logoEl.style.display = "none";
-    videoEl.style.display = "none";
-    videoEl.removeAttribute("src");
-    videoEl.load();
-  }
-
-  function showSplashLogo() {
-    hideAllMedia();
-    logoEl.style.display = "block";
-  }
-
-  function showVideoForSlide(slide) {
-    if (!slide || !slide.videoLight || !slide.videoDark) {
-      hideAllMedia();
-      return;
-    }
-
-    const isDark = scheme === "dark";
-    const src = isDark ? slide.videoDark : slide.videoLight;
-
-    logoEl.style.display = "none";
-    videoEl.style.display = "block";
-
-    if (videoEl.getAttribute("src") === src) {
-      return;
-    }
-
-    videoEl.setAttribute("src", src);
-    videoEl.load();
-
-    videoEl
-      .play()
-      .catch(() => {
-        // Ignore autoplay failure.
-      });
-  }
-
-  function updateMediaForSlide(slide) {
-    if (slide.kind === "video") {
-      showVideoForSlide(slide);
-    } else {
-      // splash / logo-only
-      showSplashLogo();
-    }
   }
 
   function applySlideClasses(slide) {
@@ -195,7 +316,9 @@ export function initWelcomeTour(options = {}) {
     bodyEl.innerHTML = computeBodyHtml(slide.bodyLines);
 
     applySlideClasses(slide);
-    updateMediaForSlide(slide);
+    if (sceneManager) {
+      sceneManager.showScene(slide.id);
+    }
 
     if (prevBtn) {
       prevBtn.style.visibility = index === 0 ? "hidden" : "visible";
@@ -416,16 +539,6 @@ export function initWelcomeTour(options = {}) {
   }
 
   document.addEventListener("keydown", handleKeydown);
-
-  if (mqlDark && typeof mqlDark.addEventListener === "function") {
-    mqlDark.addEventListener("change", (event) => {
-      scheme = event.matches ? "dark" : "light";
-      if (isOpen) {
-        const slide = SLIDES[currentIndex];
-        updateMediaForSlide(slide);
-      }
-    });
-  }
 
   // Initial render (hidden until open())
   renderSlide(0);
