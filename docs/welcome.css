@@ -142,7 +142,7 @@
    Use fixed positioning so they hug the viewport edges. */
 
 .welcome-nav {
-  position: fixed;
+  position: absolute;
   top: 50%;
   transform: translateY(-50%);
   border: none;
