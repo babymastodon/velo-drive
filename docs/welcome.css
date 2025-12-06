@@ -185,76 +185,123 @@
 
 /* Media wrapper: square, capped at 60% of viewport width/height */
 
-.welcome-video-wrapper {
+.welcome-scene-wrapper {
   position: relative;
   width: 100%;
   max-width: 60vw;
   max-height: 60vh;
   margin: 0 auto;
   border-radius: var(--radius);
-  overflow: hidden;
-  border: none;
-  /* no visible border */
+  overflow: visible;
   background: var(--surface-elevated);
   aspect-ratio: 1 / 1;
-  /* square */
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  padding: 12px;
 }
 
-.welcome-video {
+.welcome-scene {
+  position: relative;
   width: 100%;
   height: 100%;
-  display: none;
-  object-fit: contain;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
 
-/* Large logo for splash */
+.welcome-scene-root {
+  width: 100%;
+  height: 100%;
+  grid-area: 1 / 1;
+}
 
-.welcome-logo {
-  display: none;
-  max-width: min(40vh, 40vw);
-  max-height: min(40vh, 40vw);
+.welcome-scene-root .scene-piece {
   opacity: 0;
+  transform-origin: center;
 }
 
-/* Splash animation (boot-style) */
-
-.welcome-slide--splash .welcome-logo {
-  opacity: 0;
-  animation: welcome-logo-boot 480ms ease-out forwards;
-  animation-delay: 80ms;
+.welcome-scene-root.welcome-scene--enter .scene-piece {
+  animation: welcome-scene-enter 520ms ease-out forwards;
+  animation-delay: var(--delay, 0ms);
 }
 
-@keyframes welcome-logo-boot {
+.welcome-scene-root.welcome-scene--steady .scene-piece {
+  opacity: 1;
+  animation: welcome-scene-float 2600ms ease-in-out infinite;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.welcome-scene--exit .scene-piece {
+  opacity: 1;
+  animation: welcome-scene-exit 420ms ease forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.scene-orb {
+  fill: var(--surface-subtle);
+}
+
+.scene-path {
+  stroke: var(--text-muted);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  opacity: 0.4;
+}
+
+.scene-pill {
+  fill: var(--surface-elevated);
+  stroke: var(--text-muted);
+  stroke-width: 2.5;
+  opacity: 0.85;
+}
+
+.scene-pulse {
+  fill: none;
+  stroke: var(--accent, #5ad);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 10 10;
+  opacity: 0.6;
+}
+
+.scene-pulse.scene-piece {
+  animation-duration: 1800ms;
+}
+
+@keyframes welcome-scene-enter {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: translateY(12px) scale(0.96);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
-.welcome-slide--splash .welcome-title,
-.welcome-slide--splash .welcome-body {
-  opacity: 0;
-  animation: welcome-text-boot 420ms ease-out forwards;
-  animation-delay: 520ms;
-}
-
-@keyframes welcome-text-boot {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
+@keyframes welcome-scene-float {
+  0% {
     transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes welcome-scene-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
   }
 }
 
@@ -336,13 +383,8 @@ body.welcome-active .bottom-nav {
     font-size: 16px;
   }
 
-  .welcome-video-wrapper {
+  .welcome-scene-wrapper {
     max-width: 80vw;
     max-height: 50vh;
-  }
-
-  .welcome-logo {
-    max-width: min(32vh, 32vw);
-    max-height: min(32vh, 32vw);
   }
 }
