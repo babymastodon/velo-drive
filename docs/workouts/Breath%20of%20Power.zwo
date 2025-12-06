@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>ChatGPT</author>
+  <name>Breath of Power</name>
+  <description><![CDATA[A focused VO2 max session built around steady breathing and controlled intensity. The efforts rise in steps, challenging your ability to stay composed as the power increases. Settle in, stay smooth, and let your breath guide you through the harder moments.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.40" PowerHigh="0.75" />
+    <SteadyState Duration="120" Power="0.75" />
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" />
+    <SteadyState Duration="180" Power="0.70" />
+    <IntervalsT Repeat="3" OnDuration="150" OffDuration="90" OnPower="1.12" OffPower="0.72" />
+    <SteadyState Duration="120" Power="0.60" />
+    <IntervalsT Repeat="4" OnDuration="90" OffDuration="60" OnPower="1.08" OffPower="0.95" />
+    <SteadyState Duration="750" Power="0.80" />
+    <Cooldown Duration="330" PowerLow="0.65" PowerHigh="0.45" />
+  </workout>
+</workout_file>

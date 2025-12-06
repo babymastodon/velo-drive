@@ -30,6 +30,14 @@ export const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
 export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 
 const FTP_KEY = "ftp";
+const DEFAULT_WORKOUT_FILES = [
+  "Basefire%20Waves.zwo",
+  "Breath%20of%20Power.zwo",
+  "Into%20the%20Black.zwo",
+  "Keep%20Turning.zwo",
+  "Rise%20Against%20the%20Odds.zwo",
+  "Sleepy%20Spin.zwo",
+];
 
 // --------------------------- IndexedDB helpers ---------------------------
 
@@ -337,6 +345,63 @@ export function saveHrBleDeviceId(id) {
 
 // --------------------------- Root Directory Picker ---------------------------
 
+async function directoryHasAnyZwoFiles(handle) {
+  try {
+    for await (const entry of handle.values()) {
+      if (entry.kind !== "file") continue;
+      if (entry.name.toLowerCase().endsWith(".zwo")) {
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error("[Storage] Failed to inspect workouts folder:", err);
+  }
+  return false;
+}
+
+async function copyDefaultWorkoutsToDir(handle) {
+  let copied = 0;
+  for (const fileName of DEFAULT_WORKOUT_FILES) {
+    try {
+      await handle.getFileHandle(fileName, {create: false});
+      continue; // already exists; skip
+    } catch (err) {
+      if (err?.name !== "NotFoundError") {
+        console.error("[Storage] Could not check workout file:", err);
+        continue;
+      }
+    }
+
+    try {
+      const fetchPath = `./workouts/${encodeURI(fileName)}`;
+      const resp = await fetch(fetchPath);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const fileHandle = await handle.getFileHandle(fileName, {
+        create: true,
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      copied += 1;
+    } catch (err) {
+      console.error(
+        `[Storage] Failed to copy default workout "${fileName}":`,
+        err
+      );
+    }
+  }
+  return copied;
+}
+
+async function maybeSeedDefaultWorkouts(handle) {
+  const hasExisting = await directoryHasAnyZwoFiles(handle);
+  if (hasExisting) return 0;
+  return copyDefaultWorkoutsToDir(handle);
+}
+
 /**
  * Prompts user once for a root directory, then ensures:
  *   - root/workouts/
@@ -366,6 +431,11 @@ export async function pickRootDir() {
     const workouts = await root.getDirectoryHandle("workouts", {create: true});
     const history = await root.getDirectoryHandle("history", {create: true});
     const trash = await root.getDirectoryHandle("trash", {create: true});
+
+    const hasWorkoutPerm = await ensureDirPermission(workouts);
+    if (hasWorkoutPerm) {
+      await maybeSeedDefaultWorkouts(workouts);
+    }
 
     await saveZwoDirHandle(workouts);
     await saveWorkoutDirHandle(history);

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>ChatGPT</author>
+  <name>Sleepy Spin</name>
+  <description><![CDATA[A gentle opening that eases you in, followed by two focused but manageable sections to wake up the legs and lift your rhythm. The effort stays comfortable overall, with just enough intensity in the middle to feel rewarding without leaving you fatigued. Just settle in, build gradually, and enjoy the flow.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" />
+    <SteadyState Duration="600" Power="0.55" />
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.72" OffPower="0.58" />
+    <SteadyState Duration="360" Power="0.58" />
+    <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.85" OffPower="0.60" />
+    <SteadyState Duration="480" Power="0.55" />
+    <SteadyState Duration="645" Power="0.50" />
+    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" />
+  </workout>
+</workout_file>

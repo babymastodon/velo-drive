@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>ChatGPT</author>
+  <name>Keep Turning</name>
+  <description><![CDATA[A steady, engaging tempo ride designed to help you feel strong, settled, and in control. The effort builds gradually, mixing smooth ramps with varied tempo work to keep things interesting without feeling overwhelming. Just keep turning the pedals, stay relaxed, and let the workout carry you forward.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.45" PowerHigh="0.70" />
+    <SteadyState Duration="180" Power="0.70" />
+    <IntervalsT Repeat="3" OnDuration="180" OffDuration="90" OnPower="0.82" OffPower="0.75" />
+    <Warmup Duration="120" PowerLow="0.75" PowerHigh="0.88" />
+    <SteadyState Duration="240" Power="0.88" />
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="45" OnPower="0.94" OffPower="0.82" />
+    <IntervalsT Repeat="2" OnDuration="300" OffDuration="120" OnPower="0.87" OffPower="0.80" />
+    <IntervalsT Repeat="3" OnDuration="75" OffDuration="45" OnPower="0.90" OffPower="0.78" />
+    <SteadyState Duration="120" Power="0.70" />
+    <Cooldown Duration="270" PowerLow="0.70" PowerHigh="0.45" />
+  </workout>
+</workout_file>
