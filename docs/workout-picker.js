@@ -1047,6 +1047,7 @@ function createWorkoutPicker(config) {
     document.addEventListener("keydown", (e) => {
       if (!isPickerOpen) return;
       if (isBuilderMode || isImportMode) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const tag = e.target?.tagName;
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
