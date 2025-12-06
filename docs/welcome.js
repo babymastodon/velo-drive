@@ -54,7 +54,7 @@ const SCENE_LAYOUTS = {
     enter: "grow",
     exit: "fade",
     assets: [
-      {href: "icons/logo_sq.svg", x: 120, y: 46, width: 180, height: 180, delay: 80},
+      {href: "icons/logo_sq.svg", x: 134, y: 60, width: 152, height: 152, delay: 80},
     ],
   },
   trainers: {
@@ -197,42 +197,46 @@ function createSceneFromLayout(layout) {
 
 function createSceneManager(rootEl) {
   const ENTER_MS = 900;
-  const EXIT_MS = 800;
   let activeScene = null;
+  let enterTimer = null;
 
   function showScene(slideId) {
     if (!rootEl) return;
+    if (enterTimer) {
+      clearTimeout(enterTimer);
+      enterTimer = null;
+    }
     const layout = SCENE_LAYOUTS[slideId] || SCENE_LAYOUTS.splash;
     const next = createSceneFromLayout(layout);
     if (!next || !next.root) return;
     const enterStateClass = "welcome-scene--enter";
     const steadyStateClass = "welcome-scene--steady";
-    const exitStateClass = "welcome-scene--exit";
 
     const prev = activeScene;
     activeScene = next;
 
-    rootEl.appendChild(next.root);
-
-    requestAnimationFrame(() => {
-      next.root.classList.add(enterStateClass);
-      setTimeout(() => {
-        next.root.classList.remove(enterStateClass);
-        next.root.classList.add(steadyStateClass);
-      }, ENTER_MS);
-    });
+    const startEnter = () => {
+      rootEl.appendChild(next.root);
+      requestAnimationFrame(() => {
+        next.root.classList.add(enterStateClass);
+        setTimeout(() => {
+          next.root.classList.remove(enterStateClass);
+          next.root.classList.add(steadyStateClass);
+        }, ENTER_MS);
+      });
+    };
 
     if (prev && prev.root) {
       prev.root.classList.remove(enterStateClass, steadyStateClass);
-      prev.root.classList.add(exitStateClass);
-      setTimeout(() => {
-        if (prev.root.parentNode === rootEl) {
-          rootEl.removeChild(prev.root);
-        }
-        if (typeof prev.cleanup === "function") {
-          prev.cleanup();
-        }
-      }, EXIT_MS);
+      if (prev.root.parentNode === rootEl) {
+        rootEl.removeChild(prev.root);
+      }
+      if (typeof prev.cleanup === "function") {
+        prev.cleanup();
+      }
+      startEnter();
+    } else {
+      startEnter();
     }
   }
 
@@ -349,39 +353,8 @@ export function initWelcomeTour(options = {}) {
 
     isAnimating = true;
 
-    const outDir = direction === "prev" ? 1 : -1;
-    const inDir = -outDir;
-
-    slideContainer.classList.add("welcome-slide--animating");
-    slideContainer.style.transform = `translateX(${outDir * 14}px)`;
-    slideContainer.style.opacity = "0";
-
-    const handleOutEnd = () => {
-      slideContainer.removeEventListener("transitionend", handleOutEnd);
-
-      renderSlide(targetIndex);
-      slideContainer.style.transition = "none";
-      slideContainer.style.transform = `translateX(${inDir * 14}px)`;
-      slideContainer.style.opacity = "0";
-
-      // Force reflow
-      // eslint-disable-next-line no-unused-expressions
-      slideContainer.offsetWidth;
-
-      slideContainer.style.transition = "";
-      slideContainer.style.transform = "translateX(0)";
-      slideContainer.style.opacity = "1";
-
-      const handleInEnd = () => {
-        slideContainer.removeEventListener("transitionend", handleInEnd);
-        slideContainer.classList.remove("welcome-slide--animating");
-        isAnimating = false;
-      };
-
-      slideContainer.addEventListener("transitionend", handleInEnd);
-    };
-
-    slideContainer.addEventListener("transitionend", handleOutEnd);
+    renderSlide(targetIndex);
+    isAnimating = false;
   }
 
   function closeOverlay() {
@@ -552,9 +525,6 @@ export function initWelcomeTour(options = {}) {
   }
 
   document.addEventListener("keydown", handleKeydown);
-
-  // Initial render (hidden until open())
-  renderSlide(0);
 
   return {
     open: openOverlay,
