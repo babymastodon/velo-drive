@@ -444,7 +444,7 @@ export function initWelcomeTour(options = {}) {
           finishIn();
         };
         slideContainer.addEventListener("transitionend", handleInEnd);
-        setTimeout(finishIn, 460);
+        setTimeout(finishIn, 330);
       });
     };
 
@@ -455,7 +455,7 @@ export function initWelcomeTour(options = {}) {
     };
 
     slideContainer.addEventListener("transitionend", handleOutEnd);
-    setTimeout(handleOutEnd, 460);
+    setTimeout(handleOutEnd, 330);
   }
 
   function closeOverlay() {
