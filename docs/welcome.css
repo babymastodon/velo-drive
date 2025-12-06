@@ -68,7 +68,7 @@
   height: 100%;
   position: relative;
   display: block;
-  transition: transform 230ms ease, opacity 230ms ease;
+  transition: transform 460ms ease, opacity 460ms ease;
   max-width: none;
   padding: 20px 0 52px;
 }
@@ -78,22 +78,22 @@
 }
 
 .welcome-slide.welcome-slide--animating-out-forward {
-  opacity: 0.4;
+  opacity: 0.3;
   transform: translateX(-8%);
 }
 
 .welcome-slide.welcome-slide--animating-out-backward {
-  opacity: 0.4;
+  opacity: 0.3;
   transform: translateX(8%);
 }
 
 .welcome-slide.welcome-slide--animating-in-forward {
-  opacity: 0.4;
+  opacity: 0.3;
   transform: translateX(8%);
 }
 
 .welcome-slide.welcome-slide--animating-in-backward {
-  opacity: 0.4;
+  opacity: 0.3;
   transform: translateX(-8%);
 }
 
