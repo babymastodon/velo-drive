@@ -68,13 +68,28 @@
   height: 100%;
   position: relative;
   display: block;
-  transition: transform 660ms ease, opacity 660ms ease;
+  transition: transform 460ms ease, opacity 460ms ease;
   max-width: none;
   padding: 20px 0 52px;
 }
 
 .welcome-slide--animating {
   will-change: transform, opacity;
+}
+
+.welcome-slide.welcome-slide--animating-out {
+  opacity: 0;
+  transform: translateX(var(--slide-dir, -4%));
+}
+
+.welcome-slide.welcome-slide--animating-in {
+  opacity: 0;
+  transform: translateX(var(--slide-dir, 4%));
+}
+
+.welcome-slide.welcome-slide--animating-in.welcome-slide--active {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* Header */

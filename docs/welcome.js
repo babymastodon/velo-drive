@@ -402,9 +402,32 @@ export function initWelcomeTour(options = {}) {
     }
 
     isAnimating = true;
+    const dir = direction === "prev" ? -1 : 1;
+    slideContainer.style.setProperty("--slide-dir", `${dir * -4}%`);
+    slideContainer.classList.add("welcome-slide--animating-out");
 
-    renderSlide(targetIndex);
-    isAnimating = false;
+    setTimeout(() => {
+      slideContainer.classList.remove("welcome-slide--animating-out");
+      slideContainer.style.transform = `translateX(${dir * 4}%)`;
+      slideContainer.style.opacity = "0";
+
+      renderSlide(targetIndex);
+
+      requestAnimationFrame(() => {
+        slideContainer.classList.add("welcome-slide--animating-in");
+        slideContainer.classList.add("welcome-slide--active");
+        slideContainer.style.transform = `translateX(0)`;
+        slideContainer.style.opacity = "1";
+
+        setTimeout(() => {
+          slideContainer.classList.remove("welcome-slide--animating-in", "welcome-slide--active");
+          slideContainer.style.removeProperty("--slide-dir");
+          slideContainer.style.transform = "";
+          slideContainer.style.opacity = "";
+          isAnimating = false;
+        }, 480);
+      });
+    }, 80);
   }
 
   function closeOverlay() {
