@@ -46,6 +46,8 @@ function createSvgEl(tag) {
 
 const SCENE_LAYOUTS = {
   splash: {
+    baseWidth: 360,
+    baseHeight: 360,
     orb: null,
     pathD: null,
     pills: [],
@@ -54,68 +56,76 @@ const SCENE_LAYOUTS = {
     enter: "grow",
     exit: "fade",
     assets: [
-      {href: "icons/logo_sq.svg", width: 152, height: 152, delay: 80, center: true},
+      {href: "icons/logo_sq.svg", width: 196, height: 196, delay: 80, center: true},
     ],
   },
   trainers: {
-    orb: {cx: 198, cy: 110, r: 112},
-    pathD: "M64 92 C 140 76, 224 132, 322 94",
+    baseWidth: 360,
+    baseHeight: 360,
+    orb: {cx: 180, cy: 150, r: 110},
+    pathD: "M60 140 C 130 110, 230 190, 300 140",
     pills: [
-      {x: 260, y: 146, width: 78, height: 26},
-      {x: 70, y: 144, width: 88, height: 30},
+      {x: 250, y: 188, width: 80, height: 26},
+      {x: 70, y: 182, width: 88, height: 30},
     ],
     pulses: [
-      {d: "M70 196 C 148 168, 224 226, 322 184"},
+      {d: "M70 230 C 150 200, 220 250, 300 210"},
     ],
     enter: "fly",
     exit: "rise",
     assets: [
-      {href: "img/wahoo.svg", x: 38, y: 120, width: 124, height: 42, delay: 80},
-      {href: "img/tacx.svg", x: 254, y: 74, width: 118, height: 40, delay: 140},
-      {href: "img/smart_frame.svg", x: 150, y: 92, width: 136, height: 108, delay: 220},
+      {href: "img/wahoo.svg", x: 40, y: 150, width: 124, height: 42, delay: 80},
+      {href: "img/tacx.svg", x: 240, y: 100, width: 118, height: 40, delay: 140},
+      {href: "img/smart_frame.svg", x: 140, y: 110, width: 136, height: 108, delay: 220},
     ],
   },
   offline: {
-    orb: {cx: 220, cy: 126, r: 108},
-    pathD: "M58 142 C 140 108, 214 170, 332 124",
+    baseWidth: 360,
+    baseHeight: 360,
+    orb: {cx: 190, cy: 170, r: 108},
+    pathD: "M60 180 C 140 140, 220 210, 320 160",
     pills: [
-      {x: 86, y: 74, width: 78, height: 26},
-      {x: 252, y: 166, width: 104, height: 30},
+      {x: 86, y: 110, width: 78, height: 26},
+      {x: 230, y: 210, width: 104, height: 30},
     ],
     pulses: [
-      {d: "M84 204 C 156 180, 216 214, 310 194"},
+      {d: "M80 240 C 160 210, 230 240, 310 220"},
     ],
     enter: "fly",
     exit: "rise",
     assets: [
-      {href: "img/smart_frame.svg", x: 104, y: 76, width: 150, height: 120, delay: 60},
-      {href: "img/wahoo.svg", x: 46, y: 156, width: 130, height: 44, delay: 140},
-      {href: "img/tacx.svg", x: 252, y: 48, width: 122, height: 40, delay: 220},
+      {href: "img/smart_frame.svg", x: 120, y: 120, width: 150, height: 120, delay: 60},
+      {href: "img/wahoo.svg", x: 50, y: 200, width: 130, height: 44, delay: 140},
+      {href: "img/tacx.svg", x: 230, y: 70, width: 122, height: 40, delay: 220},
     ],
   },
   workouts: {
-    orb: {cx: 196, cy: 118, r: 110},
-    pathD: "M70 96 C 132 72, 240 126, 316 94",
+    baseWidth: 360,
+    baseHeight: 360,
+    orb: {cx: 180, cy: 160, r: 110},
+    pathD: "M70 140 C 140 100, 240 170, 310 130",
     pills: [
-      {x: 74, y: 154, width: 96, height: 32},
-      {x: 244, y: 142, width: 96, height: 28},
+      {x: 80, y: 200, width: 96, height: 32},
+      {x: 230, y: 190, width: 96, height: 28},
     ],
     pulses: [
-      {d: "M84 202 C 166 172, 222 226, 312 186"},
+      {d: "M80 230 C 170 200, 230 250, 310 210"},
     ],
     enter: "fly",
     exit: "rise",
     assets: [
-      {href: "img/smart_frame.svg", x: 140, y: 80, width: 150, height: 120, delay: 60},
-      {href: "img/wahoo.svg", x: 34, y: 124, width: 132, height: 44, delay: 140},
-      {href: "img/tacx.svg", x: 252, y: 38, width: 124, height: 42, delay: 220},
+      {href: "img/smart_frame.svg", x: 140, y: 110, width: 150, height: 120, delay: 60},
+      {href: "img/wahoo.svg", x: 40, y: 170, width: 132, height: 44, delay: 140},
+      {href: "img/tacx.svg", x: 230, y: 70, width: 124, height: 42, delay: 220},
     ],
   },
 };
 
 function createSceneFromLayout(layout) {
+  const VIEWBOX_SIZE = 360;
   const svg = createSvgEl("svg");
-  svg.setAttribute("viewBox", "0 0 420 240");
+  svg.setAttribute("viewBox", `0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`);
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("role", "presentation");
   svg.classList.add("welcome-scene-root");
   const enterType = layout.enter || "fly";
@@ -126,6 +136,13 @@ function createSceneFromLayout(layout) {
     `scene-steady-${steadyType}`,
     `scene-exit-${exitType}`
   );
+
+  const baseWidth = layout.baseWidth || VIEWBOX_SIZE;
+  const baseHeight = layout.baseHeight || VIEWBOX_SIZE;
+  const offsetX = Math.max(0, (VIEWBOX_SIZE - baseWidth) / 2);
+  const offsetY = Math.max(0, (VIEWBOX_SIZE - baseHeight) / 2);
+  const contentGroup = createSvgEl("g");
+  contentGroup.setAttribute("transform", `translate(${offsetX} ${offsetY})`);
 
   const addDelay = (el, delay) => {
     el.classList.add("scene-piece");
@@ -139,7 +156,7 @@ function createSceneFromLayout(layout) {
     orb.setAttribute("r", layout.orb.r);
     orb.classList.add("scene-orb");
     addDelay(orb, 20);
-    svg.appendChild(orb);
+    contentGroup.appendChild(orb);
   }
 
   if (layout.pathD) {
@@ -147,7 +164,7 @@ function createSceneFromLayout(layout) {
     path.setAttribute("d", layout.pathD);
     path.classList.add("scene-path");
     addDelay(path, 80);
-    svg.appendChild(path);
+    contentGroup.appendChild(path);
   }
 
   if (Array.isArray(layout.pills)) {
@@ -160,7 +177,7 @@ function createSceneFromLayout(layout) {
       rect.setAttribute("rx", 12);
       rect.classList.add("scene-pill");
       addDelay(rect, 120 + idx * 40);
-      svg.appendChild(rect);
+      contentGroup.appendChild(rect);
     });
   }
 
@@ -170,7 +187,7 @@ function createSceneFromLayout(layout) {
       path.setAttribute("d", pulse.d);
       path.classList.add("scene-pulse");
       addDelay(path, 160 + idx * 60);
-      svg.appendChild(path);
+      contentGroup.appendChild(path);
     });
   }
 
@@ -196,9 +213,11 @@ function createSceneFromLayout(layout) {
       }
       g.appendChild(image);
 
-      svg.appendChild(g);
+      contentGroup.appendChild(g);
     });
   }
+
+  svg.appendChild(contentGroup);
 
   return {root: svg};
 }
