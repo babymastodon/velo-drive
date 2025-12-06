@@ -422,10 +422,11 @@ export function initWelcomeTour(options = {}) {
   }
 
   function animateSlideChange(targetIndex, direction) {
-    if (!slideContainer || targetIndex === currentIndex || isAnimating) {
+    if (!slideContainer || targetIndex === currentIndex) {
       renderSlide(targetIndex);
       return;
     }
+    if (isAnimating) return;
 
     isAnimating = true;
     const goingPrev = direction === "prev";
