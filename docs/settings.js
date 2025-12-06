@@ -430,6 +430,7 @@ function wireSettingsEvents() {
 
   // ESC key to close settings / exit logs view
   document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") {
       if (settingsOverlay && settingsOverlay.style.display === "flex") {
         if (settingsLogsView && settingsLogsView.style.display !== "none") {

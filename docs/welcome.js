@@ -350,6 +350,7 @@ export function initWelcomeTour(options = {}) {
 
   function handleKeydown(event) {
     if (!isOpen) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
     event.stopPropagation();
     event.stopImmediatePropagation();
 

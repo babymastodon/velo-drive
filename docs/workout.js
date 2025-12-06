@@ -1039,6 +1039,7 @@ async function initPage() {
 
   document.addEventListener("keydown", (e) => {
     if (isWelcomeActive) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = e.target && e.target.tagName;
     const vm = engine.getViewModel();
     const hasActiveWorkout =
