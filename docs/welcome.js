@@ -46,19 +46,15 @@ function createSvgEl(tag) {
 
 const SCENE_LAYOUTS = {
   splash: {
-    orb: {cx: 210, cy: 120, r: 104},
-    pathD: "M44 162 C 120 142, 190 214, 306 180",
-    pills: [
-      {x: 56, y: 76, width: 96, height: 30},
-      {x: 264, y: 126, width: 94, height: 26},
-    ],
-    pulses: [
-      {d: "M82 202 C 132 176, 208 204, 298 188"},
-    ],
+    orb: null,
+    pathD: null,
+    pills: [],
+    pulses: [],
+    steady: "none",
+    enter: "grow",
+    exit: "fade",
     assets: [
-      {href: "img/smart_frame.svg", x: 138, y: 72, width: 150, height: 120, delay: 40},
-      {href: "img/wahoo.svg", x: 30, y: 128, width: 130, height: 44, delay: 120},
-      {href: "img/tacx.svg", x: 252, y: 36, width: 126, height: 42, delay: 200},
+      {href: "icons/logo_sq.svg", x: 120, y: 46, width: 180, height: 180, delay: 80},
     ],
   },
   trainers: {
@@ -71,6 +67,8 @@ const SCENE_LAYOUTS = {
     pulses: [
       {d: "M70 196 C 148 168, 224 226, 322 184"},
     ],
+    enter: "fly",
+    exit: "rise",
     assets: [
       {href: "img/wahoo.svg", x: 38, y: 120, width: 124, height: 42, delay: 80},
       {href: "img/tacx.svg", x: 254, y: 74, width: 118, height: 40, delay: 140},
@@ -87,6 +85,8 @@ const SCENE_LAYOUTS = {
     pulses: [
       {d: "M84 204 C 156 180, 216 214, 310 194"},
     ],
+    enter: "fly",
+    exit: "rise",
     assets: [
       {href: "img/smart_frame.svg", x: 104, y: 76, width: 150, height: 120, delay: 60},
       {href: "img/wahoo.svg", x: 46, y: 156, width: 130, height: 44, delay: 140},
@@ -103,6 +103,8 @@ const SCENE_LAYOUTS = {
     pulses: [
       {d: "M84 202 C 166 172, 222 226, 312 186"},
     ],
+    enter: "fly",
+    exit: "rise",
     assets: [
       {href: "img/smart_frame.svg", x: 140, y: 80, width: 150, height: 120, delay: 60},
       {href: "img/wahoo.svg", x: 34, y: 124, width: 132, height: 44, delay: 140},
@@ -116,6 +118,14 @@ function createSceneFromLayout(layout) {
   svg.setAttribute("viewBox", "0 0 420 240");
   svg.setAttribute("role", "presentation");
   svg.classList.add("welcome-scene-root");
+  const enterType = layout.enter || "fly";
+  const steadyType = layout.steady || "float";
+  const exitType = layout.exit || "rise";
+  svg.classList.add(
+    `scene-enter-${enterType}`,
+    `scene-steady-${steadyType}`,
+    `scene-exit-${exitType}`
+  );
 
   const addDelay = (el, delay) => {
     el.classList.add("scene-piece");
@@ -186,8 +196,8 @@ function createSceneFromLayout(layout) {
 }
 
 function createSceneManager(rootEl) {
-  const ENTER_MS = 520;
-  const EXIT_MS = 420;
+  const ENTER_MS = 900;
+  const EXIT_MS = 800;
   let activeScene = null;
 
   function showScene(slideId) {
@@ -195,6 +205,9 @@ function createSceneManager(rootEl) {
     const layout = SCENE_LAYOUTS[slideId] || SCENE_LAYOUTS.splash;
     const next = createSceneFromLayout(layout);
     if (!next || !next.root) return;
+    const enterStateClass = "welcome-scene--enter";
+    const steadyStateClass = "welcome-scene--steady";
+    const exitStateClass = "welcome-scene--exit";
 
     const prev = activeScene;
     activeScene = next;
@@ -202,16 +215,16 @@ function createSceneManager(rootEl) {
     rootEl.appendChild(next.root);
 
     requestAnimationFrame(() => {
-      next.root.classList.add("welcome-scene--enter");
+      next.root.classList.add(enterStateClass);
       setTimeout(() => {
-        next.root.classList.remove("welcome-scene--enter");
-        next.root.classList.add("welcome-scene--steady");
-      }, ENTER_MS + 30);
+        next.root.classList.remove(enterStateClass);
+        next.root.classList.add(steadyStateClass);
+      }, ENTER_MS);
     });
 
     if (prev && prev.root) {
-      prev.root.classList.remove("welcome-scene--enter", "welcome-scene--steady");
-      prev.root.classList.add("welcome-scene--exit");
+      prev.root.classList.remove(enterStateClass, steadyStateClass);
+      prev.root.classList.add(exitStateClass);
       setTimeout(() => {
         if (prev.root.parentNode === rootEl) {
           rootEl.removeChild(prev.root);
@@ -219,7 +232,7 @@ function createSceneManager(rootEl) {
         if (typeof prev.cleanup === "function") {
           prev.cleanup();
         }
-      }, EXIT_MS + 40);
+      }, EXIT_MS);
     }
   }
 
@@ -340,7 +353,7 @@ export function initWelcomeTour(options = {}) {
     const inDir = -outDir;
 
     slideContainer.classList.add("welcome-slide--animating");
-    slideContainer.style.transform = `translateX(${outDir * 12}px)`;
+    slideContainer.style.transform = `translateX(${outDir * 14}px)`;
     slideContainer.style.opacity = "0";
 
     const handleOutEnd = () => {
@@ -348,7 +361,7 @@ export function initWelcomeTour(options = {}) {
 
       renderSlide(targetIndex);
       slideContainer.style.transition = "none";
-      slideContainer.style.transform = `translateX(${inDir * 12}px)`;
+      slideContainer.style.transform = `translateX(${inDir * 14}px)`;
       slideContainer.style.opacity = "0";
 
       // Force reflow
