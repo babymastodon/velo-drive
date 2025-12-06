@@ -332,6 +332,7 @@ export function initWelcomeTour(options = {}) {
   let currentMode = "full"; // "full" | "splash"
   let autoCloseTimer = null;
   let splashTextTimer = null;
+  let firstRenderDone = false;
   const sceneManager = createSceneManager(sceneEl);
 
   const visibilityCb =
@@ -393,15 +394,21 @@ export function initWelcomeTour(options = {}) {
       splashTextTimer = null;
     }
 
-    if (slide.id === "splash") {
+    if (slide.id === "splash" && !firstRenderDone) {
       slideContainer.classList.remove("welcome-text-visible");
       slideContainer.classList.add("welcome-text-hidden");
+      const navEls = [prevBtn, nextBtn, closeBtn].filter(Boolean);
+      navEls.forEach((el) => el.classList.add("welcome-nav-hidden"));
       splashTextTimer = setTimeout(() => {
         slideContainer.classList.remove("welcome-text-hidden");
         slideContainer.classList.add("welcome-text-visible");
+        navEls.forEach((el) => el.classList.remove("welcome-nav-hidden"));
       }, 1000);
     } else {
       slideContainer.classList.remove("welcome-text-hidden", "welcome-text-visible");
+      [prevBtn, nextBtn, closeBtn].filter(Boolean).forEach((el) => {
+        el.classList.remove("welcome-nav-hidden");
+      });
     }
 
     if (prevBtn) {
@@ -410,6 +417,8 @@ export function initWelcomeTour(options = {}) {
     if (nextBtn) {
       nextBtn.style.visibility = "visible";
     }
+
+    firstRenderDone = true;
   }
 
   function animateSlideChange(targetIndex, direction) {
