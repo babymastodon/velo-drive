@@ -490,6 +490,7 @@ export function initWelcomeTour(options = {}) {
     isOpen = false;
     const wasSplash = currentMode === "splash";
     overlay.classList.add("welcome-overlay--hiding");
+    document.body.classList.remove("welcome-active");
     overlay.classList.remove("welcome-overlay--visible");
 
     let done = false;
