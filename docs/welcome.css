@@ -72,7 +72,7 @@
   align-items: center;
   justify-items: center;
   gap: 12px;
-  transition: transform 220ms ease, opacity 220ms ease;
+  transition: transform 660ms ease, opacity 660ms ease;
   max-width: none;
   padding: 20px 0 52px;
 }
@@ -220,20 +220,37 @@
   transform-origin: center;
 }
 
-.welcome-scene-root.welcome-scene--enter .scene-piece {
-  animation: welcome-scene-enter 520ms ease-out forwards;
+/* State-aware animation hooks */
+.welcome-scene-root.scene-enter-grow.welcome-scene--enter .scene-piece {
+  animation: scene-enter-grow 900ms ease-out forwards;
   animation-delay: var(--delay, 0ms);
 }
 
-.welcome-scene-root.welcome-scene--steady .scene-piece {
-  opacity: 1;
-  animation: welcome-scene-float 2600ms ease-in-out infinite;
+.welcome-scene-root.scene-enter-fly.welcome-scene--enter .scene-piece {
+  animation: scene-enter-fly 900ms ease-out forwards;
   animation-delay: var(--delay, 0ms);
 }
 
-.welcome-scene-root.welcome-scene--exit .scene-piece {
+.welcome-scene-root.scene-steady-float.welcome-scene--steady .scene-piece {
   opacity: 1;
-  animation: welcome-scene-exit 420ms ease forwards;
+  animation: scene-float 2600ms ease-in-out infinite;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-steady-none.welcome-scene--steady .scene-piece {
+  opacity: 1;
+  animation: none;
+}
+
+.welcome-scene-root.scene-exit-fade.welcome-scene--exit .scene-piece {
+  opacity: 1;
+  animation: scene-exit-fade 700ms ease forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-exit-rise.welcome-scene--exit .scene-piece {
+  opacity: 1;
+  animation: scene-exit-rise 900ms ease forwards;
   animation-delay: var(--delay, 0ms);
 }
 
@@ -270,7 +287,19 @@
   animation-duration: 1800ms;
 }
 
-@keyframes welcome-scene-enter {
+@keyframes scene-enter-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scene-enter-fly {
   from {
     opacity: 0;
     transform: translateY(12px) scale(0.96);
@@ -282,7 +311,7 @@
   }
 }
 
-@keyframes welcome-scene-float {
+@keyframes scene-float {
   0% {
     transform: translateY(0);
   }
@@ -294,14 +323,25 @@
   }
 }
 
-@keyframes welcome-scene-exit {
+@keyframes scene-exit-fade {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes scene-exit-rise {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(-10px) scale(0.97);
+    transform: translateY(-8px) scale(0.98);
   }
 }
 
