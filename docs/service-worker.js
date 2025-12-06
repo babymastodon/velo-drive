@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v14";
+const CACHE_VERSION = "v15";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -32,6 +32,14 @@ const PRECACHE_URLS = [
 
   // PWA bits
   "./velodrive.webmanifest",
+
+  // Bundled default workouts
+  "./workouts/Basefire%2520Waves.zwo",
+  "./workouts/Breath%2520of%2520Power.zwo",
+  "./workouts/Into%2520the%2520Black.zwo",
+  "./workouts/Keep%2520Turning.zwo",
+  "./workouts/Rise%2520Against%2520the%2520Odds.zwo",
+  "./workouts/Sleepy%2520Spin.zwo",
 
   // Icons
   "./icons/logo_sq.svg",

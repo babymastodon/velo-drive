@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>ChatGPT</author>
+  <name>Rise Against the Odds</name>
+  <description><![CDATA[A threshold session built around the idea that strength isn’t random—it’s earned. Each block nudges the odds in your favor, showing that every controlled effort makes a stronger outcome more likely. Settle in, stay steady, and keep proving to yourself that when the pressure rises, you rise with it.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.50" PowerHigh="0.90" />
+    <SteadyState Duration="60" Power="0.90" />
+    <SteadyState Duration="300" Power="0.65" />
+    <IntervalsT Repeat="3" OnDuration="300" OffDuration="180" OnPower="0.95" OffPower="0.70" />
+    <SteadyState Duration="180" Power="0.82" />
+    <IntervalsT Repeat="2" OnDuration="420" OffDuration="150" OnPower="0.95" OffPower="0.75" />
+    <SteadyState Duration="120" Power="0.78" />
+    <SteadyState Duration="60" Power="0.60" />
+    <Cooldown Duration="60" PowerLow="0.60" PowerHigh="0.45" />
+  </workout>
+</workout_file>
