@@ -54,7 +54,7 @@ const SCENE_LAYOUTS = {
     enter: "grow",
     exit: "fade",
     assets: [
-      {href: "icons/logo_sq.svg", x: 134, y: 60, width: 152, height: 152, delay: 80},
+      {href: "icons/logo_sq.svg", width: 152, height: 152, delay: 80, center: true},
     ],
   },
   trainers: {
@@ -180,12 +180,20 @@ function createSceneFromLayout(layout) {
       addDelay(g, asset.delay || idx * 80);
 
       const image = createSvgEl("image");
-      image.setAttribute("x", asset.x);
-      image.setAttribute("y", asset.y);
       image.setAttribute("width", asset.width);
       image.setAttribute("height", asset.height);
       image.setAttribute("href", asset.href);
       image.setAttribute("preserveAspectRatio", "xMidYMid meet");
+      if (asset.center) {
+        image.setAttribute("x", "50%");
+        image.setAttribute("y", "50%");
+        const tx = -(asset.width || 0) / 2;
+        const ty = -(asset.height || 0) / 2;
+        image.setAttribute("transform", `translate(${tx} ${ty})`);
+      } else {
+        image.setAttribute("x", asset.x);
+        image.setAttribute("y", asset.y);
+      }
       g.appendChild(image);
 
       svg.appendChild(g);
