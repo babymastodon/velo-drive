@@ -20,9 +20,8 @@
   height: 100%;
   background: var(--bg);
   color: var(--text-main);
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   padding: 24px;
 }
 
@@ -154,11 +153,11 @@
 }
 
 .welcome-nav-prev {
-  left: 0;
+  left: 24px;
 }
 
 .welcome-nav-next {
-  right: 0;
+  right: 24px;
 }
 
 .welcome-nav span {
