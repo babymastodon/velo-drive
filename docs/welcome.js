@@ -515,7 +515,7 @@ export function initWelcomeTour(options = {}) {
     // Keep splash-only visuals until fully hidden to avoid caret flashing in splash mode.
 
     overlay.addEventListener("transitionend", finalize);
-    window.setTimeout(finalize, 260); // fallback if transitionend doesn’t fire
+    window.setTimeout(finalize, 1000); // fallback if transitionend doesn’t fire
   }
 
   function openOverlay(startIndex = 0, opts = {}) {
