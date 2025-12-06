@@ -1,5 +1,5 @@
 ## 🖥️ UI / UX Issues & Improvements
-- in product modals, or ideally local popup above FTP when selecting
+- don't use browser.alert
 - there should be time tick marks on the x axis
 
 ## ⚙️ Workout Execution & Behavior
