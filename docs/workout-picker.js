@@ -1053,6 +1053,20 @@ function createWorkoutPicker(config) {
 
       const key = e.key;
 
+      if (key === "Enter") {
+        // Allow Enter to select the expanded workout unless the search box is focused.
+        if (searchInput && document.activeElement === searchInput) return;
+
+        const expanded = computeVisiblePickerWorkouts().find(
+          (item) => item.canonical.workoutTitle === pickerExpandedTitle
+        );
+        if (expanded) {
+          e.preventDefault();
+          doSelectWorkout(expanded.canonical);
+        }
+        return;
+      }
+
       if (key === "ArrowDown" || key === "j" || key === "J") {
         e.preventDefault();
         movePickerExpansion(+1);
