@@ -68,7 +68,7 @@
   height: 100%;
   position: relative;
   display: block;
-  transition: transform 460ms ease, opacity 460ms ease;
+  transition: transform 460ms cubic-bezier(0.4, 0, 0.2, 1), opacity 460ms cubic-bezier(0.4, 0, 0.2, 1);
   max-width: none;
   padding: 20px 0 52px;
 }
@@ -78,29 +78,40 @@
 }
 
 .welcome-slide.welcome-slide--animating-out-forward {
-  opacity: 0.3;
+  opacity: 0.1;
   transform: translateX(-8%);
+  transition: transform 460ms cubic-bezier(0.42, 0, 1, 1), opacity 460ms cubic-bezier(0.42, 0, 1, 1);
 }
 
 .welcome-slide.welcome-slide--animating-out-backward {
-  opacity: 0.3;
+  opacity: 0.1;
   transform: translateX(8%);
+  transition: transform 460ms cubic-bezier(0.42, 0, 1, 1), opacity 460ms cubic-bezier(0.42, 0, 1, 1);
 }
 
 .welcome-slide.welcome-slide--animating-in-forward {
-  opacity: 0.3;
+  opacity: 0.1;
   transform: translateX(8%);
+  transition: transform 460ms cubic-bezier(0, 0, 0.58, 1), opacity 460ms cubic-bezier(0, 0, 0.58, 1);
 }
 
 .welcome-slide.welcome-slide--animating-in-backward {
-  opacity: 0.3;
+  opacity: 0.1;
   transform: translateX(-8%);
+  transition: transform 460ms cubic-bezier(0, 0, 0.58, 1), opacity 460ms cubic-bezier(0, 0, 0.58, 1);
 }
 
 .welcome-slide.welcome-slide--animating-in-forward.welcome-slide--active,
 .welcome-slide.welcome-slide--animating-in-backward.welcome-slide--active {
   opacity: 1;
   transform: translateX(0);
+}
+
+.welcome-slide-clone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Header */

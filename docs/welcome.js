@@ -410,6 +410,10 @@ export function initWelcomeTour(options = {}) {
       ? "welcome-slide--animating-in-backward"
       : "welcome-slide--animating-in-forward";
 
+    // Animate out current slide first
+    slideContainer.classList.remove(inClass, "welcome-slide--active");
+    slideContainer.classList.add(outClass);
+
     const finishIn = () => {
       slideContainer.classList.remove(inClass, "welcome-slide--active");
       slideContainer.style.transform = "";
@@ -417,31 +421,41 @@ export function initWelcomeTour(options = {}) {
       isAnimating = false;
     };
 
-    renderSlide(targetIndex);
-    slideContainer.classList.remove(outClass, inClass, "welcome-slide--active");
+    const startIn = () => {
+      renderSlide(targetIndex);
+      slideContainer.classList.remove(outClass, inClass, "welcome-slide--active");
 
-    // Prep start state for incoming slide
-    slideContainer.style.transition = "none";
-    slideContainer.style.transform = goingPrev ? "translateX(-8%)" : "translateX(8%)";
-    slideContainer.style.opacity = "0.4";
-    // force reflow
-    // eslint-disable-next-line no-unused-expressions
-    slideContainer.offsetWidth;
-    slideContainer.style.transition = "";
-    slideContainer.classList.add(inClass);
+      slideContainer.style.transition = "none";
+      slideContainer.style.transform = goingPrev ? "translateX(-8%)" : "translateX(8%)";
+      slideContainer.style.opacity = "0.1";
+      // force reflow
+      // eslint-disable-next-line no-unused-expressions
+      slideContainer.offsetWidth;
+      slideContainer.style.transition = "";
+      slideContainer.classList.add(inClass);
 
-    requestAnimationFrame(() => {
-      slideContainer.classList.add("welcome-slide--active");
-      slideContainer.style.transform = "translateX(0)";
-      slideContainer.style.opacity = "1";
-      const handleInEnd = (evt) => {
-        if (evt && evt.target !== slideContainer) return;
-        slideContainer.removeEventListener("transitionend", handleInEnd);
-        finishIn();
-      };
-      slideContainer.addEventListener("transitionend", handleInEnd);
-      setTimeout(finishIn, 320);
-    });
+      requestAnimationFrame(() => {
+        slideContainer.classList.add("welcome-slide--active");
+        slideContainer.style.transform = "translateX(0)";
+        slideContainer.style.opacity = "1";
+        const handleInEnd = (evt) => {
+          if (evt && evt.target !== slideContainer) return;
+          slideContainer.removeEventListener("transitionend", handleInEnd);
+          finishIn();
+        };
+        slideContainer.addEventListener("transitionend", handleInEnd);
+        setTimeout(finishIn, 460);
+      });
+    };
+
+    const handleOutEnd = (evt) => {
+      if (evt && evt.target !== slideContainer) return;
+      slideContainer.removeEventListener("transitionend", handleOutEnd);
+      startIn();
+    };
+
+    slideContainer.addEventListener("transitionend", handleOutEnd);
+    setTimeout(handleOutEnd, 460);
   }
 
   function closeOverlay() {
