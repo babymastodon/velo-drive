@@ -219,6 +219,11 @@
   cursor: default;
 }
 
+.welcome-nav-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (prefers-color-scheme: dark) {
   .welcome-nav:hover {
     background: rgba(255, 255, 255, 0.08);
