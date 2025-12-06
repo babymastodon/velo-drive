@@ -481,6 +481,7 @@
 .welcome-overlay--hiding {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 440ms ease;
 }
 
 /* Hide main UI while welcome is active to prevent flash */
