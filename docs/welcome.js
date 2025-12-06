@@ -331,6 +331,7 @@ export function initWelcomeTour(options = {}) {
   let isAnimating = false;
   let currentMode = "full"; // "full" | "splash"
   let autoCloseTimer = null;
+  let splashTextTimer = null;
   const sceneManager = createSceneManager(sceneEl);
 
   const visibilityCb =
@@ -385,6 +386,22 @@ export function initWelcomeTour(options = {}) {
     applySlideClasses(slide);
     if (sceneManager) {
       sceneManager.showScene(slide.id);
+    }
+
+    if (splashTextTimer) {
+      clearTimeout(splashTextTimer);
+      splashTextTimer = null;
+    }
+
+    if (slide.id === "splash") {
+      slideContainer.classList.remove("welcome-text-visible");
+      slideContainer.classList.add("welcome-text-hidden");
+      splashTextTimer = setTimeout(() => {
+        slideContainer.classList.remove("welcome-text-hidden");
+        slideContainer.classList.add("welcome-text-visible");
+      }, 1000);
+    } else {
+      slideContainer.classList.remove("welcome-text-hidden", "welcome-text-visible");
     }
 
     if (prevBtn) {
