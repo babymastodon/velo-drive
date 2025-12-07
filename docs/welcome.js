@@ -99,7 +99,7 @@ const SCENE_LAYOUTS = {
     baseHeight: 360,
     enter: "fly",
     exit: "rise",
-    groupAsset: {src: "img/browser.svg"},
+    groupAsset: {src: "img/trainer.svg"},
   },
   offline: {
     baseWidth: 360,
