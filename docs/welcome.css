@@ -349,7 +349,7 @@
 @keyframes scene-enter-fly {
   from {
     opacity: 0;
-    transform: translate(var(--fly-x, 0), var(--fly-y, 12px)) scale(0.96);
+    transform: translate(var(--fly-x, 0), var(--fly-y, 12px)) scale(var(--fly-scale, 0.96));
   }
 
   to {
