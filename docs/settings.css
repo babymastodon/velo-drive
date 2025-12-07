@@ -418,7 +418,6 @@
   border-radius: var(--radius);
   font-size: var(--font-size-base);
   line-height: 1.4;
-  border: 1px solid transparent;
 }
 
 .settings-alert-warning {
