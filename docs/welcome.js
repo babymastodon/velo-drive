@@ -90,9 +90,9 @@ const SCENE_LAYOUTS = {
     exit: "rise",
     assets: [
       {icon: "heart", center: true, width: 220, height: 160, delay: 40, colorVar: "--welcome-heart", className: "scene-heart-icon"},
-      {icon: "wahoo", x: 14, y: 108, width: 126, height: 96, delay: 150, colorVar: "--welcome-gear-wahoo", className: "scene-asset--wahoo scene-asset-hoverable"},
-      {icon: "tacx", x: 220, y: 110, width: 130, height: 98, delay: 170, colorVar: "--welcome-gear-tacx", className: "scene-asset--tacx scene-asset-hoverable"},
-      {icon: "bike", x: 92, y: 168, width: 176, height: 148, delay: 110, colorVar: "--welcome-gear-bike", className: "scene-bike-icon scene-asset--bike scene-asset-hoverable"},
+      {icon: "wahoo", x: 14, y: 108, width: 126, height: 96, delay: 150, colorVar: "--welcome-gear-wahoo", className: "scene-asset--wahoo"},
+      {icon: "tacx", x: 220, y: 86, width: 130, height: 98, delay: 170, colorVar: "--welcome-gear-tacx", className: "scene-asset--tacx"},
+      {icon: "bike", x: 92, y: 120, width: 176, height: 148, delay: 110, colorVar: "--welcome-gear-bike", className: "scene-bike-icon scene-asset--bike"},
     ],
   },
   offline: {
@@ -250,18 +250,21 @@ function createSceneFromLayout(layout) {
 
   if (Array.isArray(layout.assets)) {
     layout.assets.forEach((asset, idx) => {
-      const g = createSvgEl("g");
-      addDelay(g, asset.delay || idx * 80);
+      const wrapper = createSvgEl("g");
+      addDelay(wrapper, asset.delay || idx * 80);
       if (asset.colorVar) {
-        g.style.setProperty("color", `var(${asset.colorVar})`);
+        wrapper.style.setProperty("color", `var(${asset.colorVar})`);
       }
       // Per-asset float variation
-      g.style.setProperty("--float-ms", `${2200 + Math.random() * 900}ms`);
-      g.style.setProperty("--float-amp", `${4 + Math.random() * 6}px`);
-      g.classList.add("scene-asset");
+      wrapper.style.setProperty("--float-ms", `${2200 + Math.random() * 900}ms`);
+      wrapper.style.setProperty("--float-amp", `${4 + Math.random() * 6}px`);
+      wrapper.classList.add("scene-asset");
       if (asset.className) {
-        asset.className.split(" ").forEach((cls) => g.classList.add(cls));
+        asset.className.split(" ").forEach((cls) => wrapper.classList.add(cls));
       }
+
+      const graphic = createSvgEl("g");
+      graphic.classList.add("scene-asset-graphic");
 
       let child = null;
       if (asset.icon) {
@@ -277,20 +280,26 @@ function createSceneFromLayout(layout) {
 
       if (!child) return;
 
+      let tx = asset.x || 0;
+      let ty = asset.y || 0;
       if (asset.center) {
-        const cx = VIEWBOX_SIZE / 2 - (asset.width || 0) / 2;
-        const cy = VIEWBOX_SIZE / 2 - (asset.height || 0) / 2;
-        child.setAttribute("x", cx);
-        child.setAttribute("y", cy);
-        applyFlyOffset(g, {x: cx + (asset.width || 0) / 2, y: cy + (asset.height || 0) / 2});
-      } else {
-        child.setAttribute("x", asset.x);
-        child.setAttribute("y", asset.y);
-        applyFlyOffset(g, {x: asset.x + asset.width / 2, y: asset.y + asset.height / 2});
+        tx = VIEWBOX_SIZE / 2 - (asset.width || 0) / 2;
+        ty = VIEWBOX_SIZE / 2 - (asset.height || 0) / 2;
       }
-      g.appendChild(child);
 
-      contentGroup.appendChild(g);
+      graphic.setAttribute("transform", `translate(${tx} ${ty})`);
+
+      // Position child at origin of its graphic group
+      if (typeof child.setAttribute === "function") {
+        if (!child.getAttribute("x")) child.setAttribute("x", 0);
+        if (!child.getAttribute("y")) child.setAttribute("y", 0);
+      }
+
+      applyFlyOffset(wrapper, {x: tx + (asset.width || 0) / 2, y: ty + (asset.height || 0) / 2});
+
+      graphic.appendChild(child);
+      wrapper.appendChild(graphic);
+      contentGroup.appendChild(wrapper);
     });
   }
 
