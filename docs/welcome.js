@@ -164,7 +164,7 @@ function createSceneFromLayout(layout) {
     if (!Number.isFinite(len)) len = 0;
     const growRadius = options.growRadius ?? VIEWBOX_SIZE * 0.25;
     const clamped = Math.min(1, Math.max(0, len / growRadius));
-    const startScale = 0.5 + clamped * 0.5; // 0.5 at center, 1 at/after radius
+    const startScale = 0.7 + clamped * 0.3;
     el.style.setProperty("--fly-scale", `${startScale}`);
 
     let offsetX = 0;
