@@ -159,20 +159,27 @@ function createSceneFromLayout(layout) {
     let dx = tx - cx;
     let dy = ty - cy;
     let len = Math.hypot(dx, dy);
-    if (!len || !Number.isFinite(len)) {
-      const angle = Math.random() * Math.PI * 2;
-      dx = Math.cos(angle);
-      dy = Math.sin(angle);
-      len = 1;
+    if (!Number.isFinite(len)) len = 0;
+
+    const epsilon = options.epsilon ?? 1.5; // pixels; treat as centered if nearer than this
+    let offsetX = 0;
+    let offsetY = 0;
+    if (len > epsilon) {
+      const magnitude = options.magnitude ?? 0;
+      const jitter = options.jitter ?? 0;
+      const distScale = options.distScale ?? 0.9;
+      const dist = len * distScale + magnitude + (jitter ? Math.random() * jitter : 0);
+      offsetX = (dx / len) * dist;
+      offsetY = (dy / len) * dist;
     }
-    const magnitude = options.magnitude ?? 0;
-    const jitter = options.jitter ?? 0;
-    const distScale = options.distScale ?? 0.9;
-    const dist = len * distScale + magnitude + (jitter ? Math.random() * jitter : 0);
-    const offsetX = (dx / len) * dist;
-    const offsetY = (dy / len) * dist;
     el.style.setProperty("--fly-x", `${offsetX}px`);
     el.style.setProperty("--fly-y", `${offsetY}px`);
+
+    // Grow more near the center; no growth when far out (25% of view size).
+    const growRadius = options.growRadius ?? VIEWBOX_SIZE * 0.25;
+    const clamped = Math.min(1, Math.max(0, len / growRadius));
+    const startScale = 0.5 + clamped * 0.5; // 0.5 at center, 1 at/after radius
+    el.style.setProperty("--fly-scale", `${startScale}`);
   };
 
   const setFloatProps = (el, options = {}) => {
@@ -275,7 +282,11 @@ function createSceneFromLayout(layout) {
         const bbox = clone.getBBox ? clone.getBBox() : null;
         const gx = bbox ? bbox.x + bbox.width / 2 : VIEWBOX_SIZE / 2;
         const gy = bbox ? bbox.y + bbox.height / 2 : VIEWBOX_SIZE / 2;
-        applyFlyOffset(wrapper, {x: gx, y: gy}, {magnitude: 0, jitter: 0, distScale: 0.9});
+        applyFlyOffset(wrapper, {x: gx, y: gy}, {
+          magnitude: 0,
+          jitter: 0,
+          distScale: 0.9,
+        });
       });
       markReady();
     }).catch(() => {
