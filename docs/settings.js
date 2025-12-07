@@ -407,9 +407,9 @@ function refreshCompatibilityAlert() {
 
   let message = "";
   if (!os.supported) {
-    message = `${os.name} is not supported. Please use Linux, Windows, macOS, or Android.`;
+    message = `${os.name} does not support Web Bluetooth. Please use Linux, Windows, macOS, or Android.`;
   } else if (!browser.supported) {
-    message = `${browser.name} is not supported. Please use Google Chrome.`;
+    message = `${browser.name} does not support Web Bluetooth. Open VeloDrive in Google Chrome to pair your bike.`;
   }
 
   const shouldShow = !!message;
