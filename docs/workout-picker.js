@@ -1495,6 +1495,16 @@ function createWorkoutPicker(config) {
     }
   }
 
+  // Re-render theme-sensitive SVGs when OS theme toggles
+  function rerenderThemeSensitive() {
+    if (isPickerOpen) {
+      renderWorkoutPickerTable();
+    }
+    if (isBuilderMode && workoutBuilder) {
+      workoutBuilder.refreshLayout({skipParse: true, skipPersist: true});
+    }
+  }
+
   // --------------------------- initial DOM wiring ---------------------------
 
   if (closeBtn) {
@@ -1579,6 +1589,16 @@ function createWorkoutPicker(config) {
       renderWorkoutPickerTable();
       persistPickerState();
     });
+  }
+
+  if (window.matchMedia) {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const onThemeChange = () => rerenderThemeSensitive();
+    if (mql.addEventListener) {
+      mql.addEventListener("change", onThemeChange);
+    } else if (mql.addListener) {
+      mql.addListener(onThemeChange);
+    }
   }
 
   setupSorting();
