@@ -39,6 +39,8 @@ const settingsLogsView = document.getElementById("settingsLogsView");
 const settingsOpenLogsBtn = document.getElementById("settingsOpenLogsBtn");
 const settingsBackFromLogsBtn = document.getElementById("settingsBackFromLogsBtn");
 const settingsLogsContent = document.getElementById("settingsLogsContent");
+const compatibilityAlert = document.getElementById("settingsCompatibilityAlert");
+const compatibilityText = document.getElementById("settingsCompatibilityText");
 
 // Root directory (single picker)
 const rootDirStatusEl = document.getElementById("rootDirStatus");
@@ -77,6 +79,7 @@ let settingsIsOpen = false;
 let startupNeedsAttention = {
   missingRootDir: false,
   missingBtSupport: false,
+  incompatiblePlatform: false,
 };
 
 // --------------------------- Utility helpers ---------------------------
@@ -116,6 +119,62 @@ function isRunningAsPwa() {
   }
 
   return false;
+}
+
+function detectOs() {
+  const ua = (navigator?.userAgent || "").toLowerCase();
+  const platform = (navigator?.platform || "").toLowerCase();
+  let name = "Unknown OS";
+  let supported = false;
+
+  if (ua.includes("windows")) {
+    name = "Windows";
+    supported = true;
+  } else if (ua.includes("android")) {
+    name = "Android";
+    supported = true;
+  } else if (ua.includes("mac os x") || platform.includes("mac")) {
+    name = "macOS";
+    supported = true;
+  } else if (ua.includes("linux")) {
+    name = "Linux";
+    supported = true;
+  } else if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) {
+    name = "iOS";
+  }
+
+  return {name, supported};
+}
+
+function detectBrowser() {
+  const ua = navigator?.userAgent || "";
+  const brandData = navigator?.userAgentData?.brands || [];
+  const brandMatch = brandData.find((b) => (b.brand || "").toLowerCase().includes("chrome"));
+
+  let name = "Unknown browser";
+  let supported = false;
+
+  if (brandMatch) {
+    name = brandMatch.brand;
+  } else if (/chrome/i.test(ua)) {
+    name = ua.includes("Edg")
+      ? "Microsoft Edge"
+      : ua.includes("OPR")
+        ? "Opera"
+        : ua.toLowerCase().includes("brave")
+          ? "Brave"
+          : "Chrome";
+  } else if (/safari/i.test(ua) && !/chrome/i.test(ua)) {
+    name = "Safari";
+  } else if (/firefox/i.test(ua)) {
+    name = "Firefox";
+  }
+
+  const isChromiumBrand = (brandMatch && brandMatch.brand.toLowerCase().includes("chrom")) || false;
+  const isChromiumUa = /chrome|chromium|crios|edg|opr|brave/i.test(ua);
+  supported = isChromiumBrand || isChromiumUa;
+
+  return {name, supported};
 }
 
 function openSettings() {
@@ -340,6 +399,30 @@ function refreshEnvironmentStatus() {
   startupNeedsAttention.missingBtSupport = !hasBt;
 }
 
+function refreshCompatibilityAlert() {
+  if (!compatibilityAlert || !compatibilityText) return;
+
+  const os = detectOs();
+  const browser = detectBrowser();
+
+  let message = "";
+  if (!os.supported) {
+    message = `${os.name} is not supported. Please use Linux, Windows, macOS, or Android.`;
+  } else if (!browser.supported) {
+    message = `${browser.name} is not supported. Please use Google Chrome.`;
+  }
+
+  const shouldShow = !!message;
+  if (shouldShow) {
+    compatibilityText.textContent = message;
+    compatibilityAlert.removeAttribute("hidden");
+  } else {
+    compatibilityAlert.setAttribute("hidden", "true");
+  }
+
+  startupNeedsAttention.incompatiblePlatform = shouldShow;
+}
+
 function refreshOfflineStatus() {
   const runningAsPwa = isRunningAsPwa();
 
@@ -504,13 +587,15 @@ export async function initSettings() {
 
   refreshFtpFromEngine();
   refreshEnvironmentStatus();
+  refreshCompatibilityAlert();
   refreshOfflineStatus();
 
   const shouldShowFileHelp = startupNeedsAttention.missingRootDir;
   const shouldShowBtHelp = startupNeedsAttention.missingBtSupport;
+  const shouldShowPlatform = startupNeedsAttention.incompatiblePlatform;
 
   // Auto-open settings if we detect critical missing configuration
-  const shouldAutoOpen = shouldShowFileHelp || shouldShowBtHelp;
+  const shouldAutoOpen = shouldShowFileHelp || shouldShowBtHelp || shouldShowPlatform;
 
   if (shouldAutoOpen) {
     openSettings();

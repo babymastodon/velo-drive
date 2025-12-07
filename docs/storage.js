@@ -414,7 +414,11 @@ async function maybeSeedDefaultWorkouts(handle) {
  */
 export async function pickRootDir() {
   if (!("showDirectoryPicker" in window)) {
-    alert("Selecting a data folder requires a recent Chromium-based browser.");
+    alert(
+      "Selecting a data folder requires File System Access support.\n\n" +
+      "Please ensure you are on the latest Google Chrome and enable it by setting\n" +
+      "chrome://flags/file-system-access-api to Enabled."
+    );
     return null;
   }
 
