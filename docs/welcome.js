@@ -158,28 +158,23 @@ function createSceneFromLayout(layout) {
     const ty = origin?.y ?? cy;
     let dx = tx - cx;
     let dy = ty - cy;
-    let len = Math.hypot(dx, dy);
-    if (!Number.isFinite(len)) len = 0;
-
-    const epsilon = options.epsilon ?? 1.5; // pixels; treat as centered if nearer than this
-    let offsetX = 0;
-    let offsetY = 0;
-    if (len > epsilon) {
-      const magnitude = options.magnitude ?? 0;
-      const jitter = options.jitter ?? 0;
-      const distScale = options.distScale ?? 0.9;
-      const dist = len * distScale + magnitude + (jitter ? Math.random() * jitter : 0);
-      offsetX = (dx / len) * dist;
-      offsetY = (dy / len) * dist;
-    }
-    el.style.setProperty("--fly-x", `${offsetX}px`);
-    el.style.setProperty("--fly-y", `${offsetY}px`);
 
     // Grow more near the center; no growth when far out (25% of view size).
+    let len = Math.hypot(dx, dy);
+    if (!Number.isFinite(len)) len = 0;
     const growRadius = options.growRadius ?? VIEWBOX_SIZE * 0.25;
     const clamped = Math.min(1, Math.max(0, len / growRadius));
     const startScale = 0.5 + clamped * 0.5; // 0.5 at center, 1 at/after radius
     el.style.setProperty("--fly-scale", `${startScale}`);
+
+    let offsetX = 0;
+    let offsetY = 0;
+    const distScale = options.distScale ?? 0.9;
+    // Reduce travel when startScale is small so growth and translation balance, and subtract shrink comp per axis.
+    offsetX = (dx * distScale);
+    offsetY = (dy * distScale);
+    el.style.setProperty("--fly-x", `${offsetX}px`);
+    el.style.setProperty("--fly-y", `${offsetY}px`);
   };
 
   const setFloatProps = (el, options = {}) => {
@@ -245,7 +240,10 @@ function createSceneFromLayout(layout) {
         if (!child.getAttribute("y")) child.setAttribute("y", 0);
       }
 
-      applyFlyOffset(wrapper, {x: tx + (asset.width || 0) / 2, y: ty + (asset.height || 0) / 2});
+      applyFlyOffset(wrapper, {x: tx + (asset.width || 0) / 2, y: ty + (asset.height || 0) / 2}, {
+        sizeX: asset.width || 0,
+        sizeY: asset.height || 0,
+      });
 
       graphic.appendChild(child);
       wrapper.appendChild(graphic);
@@ -267,6 +265,15 @@ function createSceneFromLayout(layout) {
       const groups = data.groups || [];
       const baseDelay = config.startDelay ?? 60;
       const delayStep = config.delayStep ?? 70;
+      const measureViewBox = data.viewBox || `0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`;
+      const vbParts = measureViewBox
+        .trim()
+        .split(/\s+/)
+        .map((v) => parseFloat(v));
+      const vbWidth = Number.isFinite(vbParts[2]) ? vbParts[2] : VIEWBOX_SIZE;
+      const vbHeight = Number.isFinite(vbParts[3]) ? vbParts[3] : VIEWBOX_SIZE;
+      const scaleX = vbWidth ? VIEWBOX_SIZE / vbWidth : 1;
+      const scaleY = vbHeight ? VIEWBOX_SIZE / vbHeight : 1;
       groups.forEach((group, idx) => {
         const wrapper = createSvgEl("g");
         addDelay(wrapper, baseDelay + idx * delayStep);
@@ -277,15 +284,55 @@ function createSceneFromLayout(layout) {
         });
         wrapper.classList.add("scene-asset");
         const clone = group.cloneNode(true);
+        // Measure in a temporary SVG to ensure layout before appending to the scene.
+        const measureSvg = createSvgEl("svg");
+        measureSvg.setAttribute("viewBox", measureViewBox);
+        measureSvg.setAttribute("width", vbWidth);
+        measureSvg.setAttribute("height", vbHeight);
+        measureSvg.style.position = "absolute";
+        measureSvg.style.opacity = "0";
+        measureSvg.style.pointerEvents = "none";
+        document.body.appendChild(measureSvg);
+        const measureClone = clone.cloneNode(true);
+        measureSvg.appendChild(measureClone);
+        const rawBBox = measureClone.getBBox ? measureClone.getBBox() : null;
+        const ctm = measureClone.getCTM ? measureClone.getCTM() : null;
+        let bbox = rawBBox;
+        if (rawBBox && ctm) {
+          const transformPoint = (x, y) => {
+            return {
+              x: ctm.a * x + ctm.c * y + ctm.e,
+              y: ctm.b * x + ctm.d * y + ctm.f,
+            };
+          };
+          const p1 = transformPoint(rawBBox.x, rawBBox.y);
+          const p2 = transformPoint(rawBBox.x + rawBBox.width, rawBBox.y);
+          const p3 = transformPoint(rawBBox.x, rawBBox.y + rawBBox.height);
+          const p4 = transformPoint(rawBBox.x + rawBBox.width, rawBBox.y + rawBBox.height);
+          const xs = [p1.x, p2.x, p3.x, p4.x];
+          const ys = [p1.y, p2.y, p3.y, p4.y];
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+          const minY = Math.min(...ys);
+          const maxY = Math.max(...ys);
+          bbox = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+          };
+        }
+        measureSvg.remove();
+
         wrapper.appendChild(clone);
         contentGroup.appendChild(wrapper);
-        const bbox = clone.getBBox ? clone.getBBox() : null;
-        const gx = bbox ? bbox.x + bbox.width / 2 : VIEWBOX_SIZE / 2;
-        const gy = bbox ? bbox.y + bbox.height / 2 : VIEWBOX_SIZE / 2;
+        const gx = bbox ? (bbox.x + bbox.width / 2) * scaleX : VIEWBOX_SIZE / 2;
+        const gy = bbox ? (bbox.y + bbox.height / 2) * scaleY : VIEWBOX_SIZE / 2;
         applyFlyOffset(wrapper, {x: gx, y: gy}, {
           magnitude: 0,
-          jitter: 0,
           distScale: 0.9,
+          sizeX: bbox ? bbox.width * scaleX : 0,
+          sizeY: bbox ? bbox.height * scaleY : 0,
         });
       });
       markReady();
