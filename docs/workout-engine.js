@@ -6,6 +6,7 @@
 import {BleManager} from "./ble-manager.js";
 import {Beeper} from "./beeper.js";
 import {DEFAULT_FTP} from "./workout-metrics.js";
+import {buildFitFile} from "./fit-file.js";
 import {
   loadSelectedWorkout,
   loadActiveState,
@@ -188,25 +189,27 @@ function createWorkoutEngine() {
       .toISOString()
       .replace(/[:]/g, "-")
       .replace(/\.\d+Z$/, "Z");
-    const fileName = `${timestamp} - ${nameSafe}.json`;
+    const fileName = `${timestamp} - ${nameSafe}.fit`;
+
+    const lastSampleT = liveSamples.length
+      ? liveSamples[liveSamples.length - 1].t || 0
+      : elapsedSec;
+    const startDate =
+      workoutStartedAt ||
+      new Date(now.getTime() - Math.max(0, lastSampleT) * 1000);
+    const endDate = new Date(startDate.getTime() + Math.max(0, lastSampleT) * 1000);
+
+    const fitBytes = buildFitFile({
+      canonicalWorkout,
+      samples: liveSamples,
+      ftp: currentFtp,
+      startedAt: startDate,
+      endedAt: endDate,
+    });
 
     const fileHandle = await dir.getFileHandle(fileName, {create: true});
     const writable = await fileHandle.createWritable();
-
-    const payload = {
-      meta: {
-        workoutName: canonicalWorkout.workoutTitle,
-        fileName: canonicalWorkout.filename,
-        ftpUsed: currentFtp,
-        startedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
-        endedAt: now.toISOString(),
-        totalElapsedSec: elapsedSec,
-        modeHistory: "workout",
-      },
-      samples: liveSamples,
-    };
-
-    await writable.write(JSON.stringify(payload, null, 2));
+    await writable.write(fitBytes);
     await writable.close();
 
     log(`Workout saved to ${fileName}`);
