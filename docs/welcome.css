@@ -60,8 +60,7 @@
     background: rgba(255, 255, 255, 0.08);
   }
 
-  .welcome-overlay {
-  }
+  .welcome-overlay {}
 }
 
 /* Slide wrapper (animated) */
@@ -342,24 +341,18 @@
   }
 
   25% {
-    transform: translate(
-      calc(var(--float-x, 0px) * 0.35),
-      calc(var(--float-amp, 6px) * -0.35)
-    );
+    transform: translate(calc(var(--float-x, 0px) * 0.35),
+        calc(var(--float-amp, 6px) * -0.35));
   }
 
   50% {
-    transform: translate(
-      calc(var(--float-x, 0px) * -0.4),
-      calc(var(--float-amp, 6px) * -1)
-    );
+    transform: translate(calc(var(--float-x, 0px) * -0.4),
+        calc(var(--float-amp, 6px) * -1));
   }
 
   75% {
-    transform: translate(
-      calc(var(--float-x, 0px) * 0.3),
-      calc(var(--float-amp, 6px) * -0.3)
-    );
+    transform: translate(calc(var(--float-x, 0px) * 0.3),
+        calc(var(--float-amp, 6px) * -0.3));
   }
 
   100% {
@@ -398,8 +391,8 @@
   bottom: 6vh;
   left: 50%;
   transform: translateX(-50%);
-  width: auto;
-  max-width: 60vw;
+  width: 100%;
+  max-width: 90vw;
   right: auto;
   margin: 0;
   font-size: 18px;
