@@ -14,12 +14,12 @@
   transition: opacity 220ms ease;
   --welcome-orb: #ebebeb;
   --welcome-road: transparent;
-  --welcome-gear-bike: #c22c24;
-  --welcome-gear-wahoo: #6a809b;
-  --welcome-gear-tacx: #7d6b96;
+  --welcome-gear-bike: #C7160C;
+  --welcome-gear-wahoo: #7C99AD;
+  --welcome-gear-tacx: #947FB0;
   --welcome-gear-primary: var(--welcome-gear-wahoo);
   --welcome-gear-secondary: var(--welcome-gear-tacx);
-  --welcome-heart: #c0b28b;
+  --welcome-heart: #CCBB89;
   --welcome-metric-bg: var(--surface-elevated, #f9fbfd);
   --welcome-metric-text: var(--text-main, #0f1222);
   --welcome-metric-subtle: var(--text-muted, #6b7285);
@@ -74,12 +74,12 @@
   .welcome-overlay {
     --welcome-orb: #1c1c1c;
     --welcome-road: transparent;
-    --welcome-gear-bike: #922d29;
-    --welcome-gear-wahoo: #283a51;
-    --welcome-gear-tacx: #432a58;
+    --welcome-gear-bike: #C72E28;
+    --welcome-gear-wahoo: #253C4B;
+    --welcome-gear-tacx: #442E57;
     --welcome-gear-primary: var(--welcome-gear-wahoo);
     --welcome-gear-secondary: var(--welcome-gear-tacx);
-    --welcome-heart: #4a442f;
+    --welcome-heart: #594F2C;
     --welcome-metric-bg: var(--surface-elevated, #0f141e);
     --welcome-metric-text: var(--text-main, #f2f4ff);
     --welcome-metric-subtle: var(--text-muted, #9aa3b8);
