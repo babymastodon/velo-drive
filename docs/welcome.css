@@ -428,15 +428,32 @@
 
 @keyframes scene-float {
   0% {
-    transform: translateY(0);
+    transform: translate(0, 0);
+  }
+
+  25% {
+    transform: translate(
+      calc(var(--float-x, 0px) * 0.35),
+      calc(var(--float-amp, 6px) * -0.35)
+    );
   }
 
   50% {
-    transform: translateY(calc(var(--float-amp, 6px) * -1));
+    transform: translate(
+      calc(var(--float-x, 0px) * -0.4),
+      calc(var(--float-amp, 6px) * -1)
+    );
+  }
+
+  75% {
+    transform: translate(
+      calc(var(--float-x, 0px) * 0.3),
+      calc(var(--float-amp, 6px) * -0.3)
+    );
   }
 
   100% {
-    transform: translateY(0);
+    transform: translate(0, 0);
   }
 }
 

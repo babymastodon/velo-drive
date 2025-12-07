@@ -63,6 +63,45 @@ function createSvgEl(tag) {
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
 
+const svgGroupCache = new Map();
+
+function loadSvgGroupAsset(src) {
+  if (!src) return Promise.resolve(null);
+  if (svgGroupCache.has(src)) return svgGroupCache.get(src);
+
+  const promise = fetch(src)
+    .then((resp) => {
+      if (!resp.ok) {
+        throw new Error(`Failed to load SVG: ${resp.status}`);
+      }
+      return resp.text();
+    })
+    .then((text) => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, "image/svg+xml");
+      const svgEl = doc.querySelector("svg");
+      if (!svgEl) throw new Error("SVG root missing");
+      const viewBox = svgEl.getAttribute("viewBox") || null;
+      const defs = svgEl.querySelector("defs");
+      const groups = Array.from(svgEl.children || []).filter(
+        (node) => node.tagName && node.tagName.toLowerCase() === "g"
+      );
+
+      return {
+        viewBox,
+        defs: defs ? defs.cloneNode(true) : null,
+        groups: groups.map((g) => g.cloneNode(true)),
+      };
+    })
+    .catch((err) => {
+      console.warn("[Welcome] Unable to load SVG groups", err);
+      return null;
+    });
+
+  svgGroupCache.set(src, promise);
+  return promise;
+}
+
 const SCENE_LAYOUTS = {
   splash: {
     baseWidth: 360,
@@ -98,42 +137,16 @@ const SCENE_LAYOUTS = {
   offline: {
     baseWidth: 360,
     baseHeight: 360,
-    orb: {cx: 190, cy: 170, r: 108},
-    pathD: "M60 180 C 140 140, 220 210, 320 160",
-    pills: [
-      {x: 86, y: 110, width: 78, height: 26},
-      {x: 230, y: 210, width: 104, height: 30},
-    ],
-    pulses: [
-      {d: "M80 240 C 160 210, 230 240, 310 220"},
-    ],
     enter: "fly",
     exit: "rise",
-    assets: [
-      {href: "img/smart_frame.svg", x: 120, y: 120, width: 150, height: 120, delay: 60},
-      {href: "img/wahoo.svg", x: 50, y: 200, width: 130, height: 44, delay: 140},
-      {href: "img/tacx.svg", x: 230, y: 70, width: 122, height: 40, delay: 220},
-    ],
+    groupAsset: {src: "img/browser.svg"},
   },
   workouts: {
     baseWidth: 360,
     baseHeight: 360,
-    orb: {cx: 180, cy: 160, r: 110},
-    pathD: "M70 140 C 140 100, 240 170, 310 130",
-    pills: [
-      {x: 80, y: 200, width: 96, height: 32},
-      {x: 230, y: 190, width: 96, height: 28},
-    ],
-    pulses: [
-      {d: "M80 230 C 170 200, 230 250, 310 210"},
-    ],
     enter: "fly",
     exit: "rise",
-    assets: [
-      {href: "img/smart_frame.svg", x: 140, y: 110, width: 150, height: 120, delay: 60},
-      {href: "img/wahoo.svg", x: 40, y: 170, width: 132, height: 44, delay: 140},
-      {href: "img/tacx.svg", x: 230, y: 70, width: 124, height: 42, delay: 220},
-    ],
+    groupAsset: {src: "img/browser.svg"},
   },
 };
 
@@ -170,16 +183,29 @@ function createSceneFromLayout(layout) {
     }
   };
 
-  const applyFlyOffset = (el, origin) => {
+  const applyFlyOffset = (el, origin, options = {}) => {
     if (enterType !== "fly") return;
     const cx = VIEWBOX_SIZE / 2;
     const cy = VIEWBOX_SIZE / 2;
     const tx = origin?.x ?? cx;
     const ty = origin?.y ?? cy;
-    const dx = tx < cx ? -48 : tx > cx ? 48 : 0;
-    const dy = ty < cy ? -48 : ty > cy ? 48 : 0;
-    el.style.setProperty("--fly-x", `${dx}px`);
-    el.style.setProperty("--fly-y", `${dy}px`);
+    let dx = tx - cx;
+    let dy = ty - cy;
+    let len = Math.hypot(dx, dy);
+    if (!len || !Number.isFinite(len)) {
+      const angle = Math.random() * Math.PI * 2;
+      dx = Math.cos(angle);
+      dy = Math.sin(angle);
+      len = 1;
+    }
+    const magnitude = options.magnitude ?? 0;
+    const jitter = options.jitter ?? 0;
+    const distScale = options.distScale ?? 0.9;
+    const dist = len * distScale + magnitude + (jitter ? Math.random() * jitter : 0);
+    const offsetX = (dx / len) * dist;
+    const offsetY = (dy / len) * dist;
+    el.style.setProperty("--fly-x", `${offsetX}px`);
+    el.style.setProperty("--fly-y", `${offsetY}px`);
   };
 
   const createInlineAsset = (asset) => {
@@ -200,6 +226,28 @@ function createSceneFromLayout(layout) {
     path.setAttribute("fill", "currentColor");
     svg.appendChild(path);
     return svg;
+  };
+
+  const setFloatProps = (el, options = {}) => {
+    const amp = options.amp ?? 4 + Math.random() * 6;
+    const ms = options.ms ?? 2300 + Math.random() * 1100;
+    const driftX = options.driftX ?? 0;
+    el.style.setProperty("--float-ms", `${ms}ms`);
+    el.style.setProperty("--float-amp", `${amp}px`);
+    el.style.setProperty("--float-x", `${driftX}px`);
+  };
+
+  let readyResolve;
+  const ready = new Promise((resolve) => {
+    readyResolve = resolve;
+  });
+  let destroyed = false;
+
+  const markReady = () => {
+    if (readyResolve) {
+      readyResolve();
+      readyResolve = null;
+    }
   };
 
   if (layout.orb) {
@@ -256,8 +304,7 @@ function createSceneFromLayout(layout) {
         wrapper.style.setProperty("color", `var(${asset.colorVar})`);
       }
       // Per-asset float variation
-      wrapper.style.setProperty("--float-ms", `${2200 + Math.random() * 900}ms`);
-      wrapper.style.setProperty("--float-amp", `${4 + Math.random() * 6}px`);
+      setFloatProps(wrapper);
       wrapper.classList.add("scene-asset");
       if (asset.className) {
         asset.className.split(" ").forEach((cls) => wrapper.classList.add(cls));
@@ -303,6 +350,45 @@ function createSceneFromLayout(layout) {
     });
   }
 
+  const groupAsset = layout.groupAsset;
+  if (groupAsset && (groupAsset.src || typeof groupAsset === "string")) {
+    const config = typeof groupAsset === "string" ? {src: groupAsset} : groupAsset;
+    loadSvgGroupAsset(config.src).then((data) => {
+      if (!data || destroyed) {
+        markReady();
+        return;
+      }
+      if (data.defs) {
+        svg.insertBefore(data.defs.cloneNode(true), contentGroup);
+      }
+      const groups = data.groups || [];
+      const baseDelay = config.startDelay ?? 60;
+      const delayStep = config.delayStep ?? 70;
+      groups.forEach((group, idx) => {
+        const wrapper = createSvgEl("g");
+        addDelay(wrapper, baseDelay + idx * delayStep);
+        setFloatProps(wrapper, {
+          amp: 3 + Math.random() * 6,
+          ms: 2400 + Math.random() * 1400,
+          driftX: (Math.random() - 0.5) * 10,
+        });
+        wrapper.classList.add("scene-asset");
+        const clone = group.cloneNode(true);
+        wrapper.appendChild(clone);
+        contentGroup.appendChild(wrapper);
+        const bbox = clone.getBBox ? clone.getBBox() : null;
+        const gx = bbox ? bbox.x + bbox.width / 2 : VIEWBOX_SIZE / 2;
+        const gy = bbox ? bbox.y + bbox.height / 2 : VIEWBOX_SIZE / 2;
+        applyFlyOffset(wrapper, {x: gx, y: gy}, {magnitude: 0, jitter: 0, distScale: 0.9});
+      });
+      markReady();
+    }).catch(() => {
+      markReady();
+    });
+  } else {
+    markReady();
+  }
+
   if (Array.isArray(layout.metrics)) {
     layout.metrics.forEach((metric, idx) => {
       const g = createSvgEl("g");
@@ -343,7 +429,12 @@ function createSceneFromLayout(layout) {
 
   svg.appendChild(contentGroup);
 
-  return {root: svg, maxDelay};
+  const cleanup = () => {
+    destroyed = true;
+    markReady();
+  };
+
+  return {root: svg, maxDelay, ready, cleanup};
 }
 
 function createSceneManager(rootEl) {
@@ -370,11 +461,19 @@ function createSceneManager(rootEl) {
       rootEl.appendChild(next.root);
       requestAnimationFrame(() => {
         next.root.classList.add(enterStateClass);
-        const settleMs = ENTER_MS + (next.maxDelay || 0) + 30;
-        setTimeout(() => {
-          next.root.classList.remove(enterStateClass);
-          next.root.classList.add(steadyStateClass);
-        }, settleMs);
+        const beginSteady = () => {
+          const settleMs = ENTER_MS + (next.maxDelay || 0) + 160;
+          setTimeout(() => {
+            if (activeScene !== next) return;
+            next.root.classList.remove(enterStateClass);
+            next.root.classList.add(steadyStateClass);
+          }, settleMs);
+        };
+        if (next.ready && typeof next.ready.then === "function") {
+          next.ready.catch(() => {}).finally(beginSteady);
+        } else {
+          beginSteady();
+        }
       });
     };
 
