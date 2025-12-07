@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v19";
+const CACHE_VERSION = "v20";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -23,6 +23,7 @@ const PRECACHE_URLS = [
   "./scrapers.js",
   "./settings.js",
   "./welcome.js",
+  "./fit-file.js",
 
   // Styles
   "./workout-base.css",
@@ -50,6 +51,11 @@ const PRECACHE_URLS = [
   "./icons/icon128.png",
   "./icons/icon192.png",
   "./icons/icon512.png",
+
+  // images
+  "./img/browser.svg",
+  "./img/builder.svg",
+  "./img/trainer.svg",
 ];
 
 const OFFLINE_FALLBACK_PAGE = "./index.html";
