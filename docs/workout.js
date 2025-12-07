@@ -27,8 +27,6 @@ import {
   loadLastScrapedWorkout,
   wasWorkoutJustScraped,
   clearJustScrapedFlag,
-  hasSeenWelcome,
-  setWelcomeSeen,
   loadRootDirHandle,
 } from "./storage.js";
 import {isSettingsModalOpen} from "./settings.js";
@@ -89,7 +87,6 @@ let isHandlingLastScrapedWorkout = false;
 let engine = null;
 let picker = null;
 let welcomeTour = null;
-let welcomeSeenAlready = false;
 const hasWelcomeOverlay = !!document.getElementById("welcomeOverlay");
 let isWelcomeActive = hasWelcomeOverlay;
 
@@ -125,6 +122,57 @@ function hideWelcomeOverlayFallback() {
     "welcome-overlay--visible",
     "welcome-overlay--splash-only"
   );
+}
+
+function isRunningAsPwa() {
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+      return true;
+    }
+  } catch (err) {
+    logDebug("PWA display-mode check failed: " + err);
+  }
+
+  try {
+    if (window.navigator && window.navigator.standalone) {
+      return true;
+    }
+  } catch (err) {
+    logDebug("PWA standalone flag check failed: " + err);
+  }
+
+  try {
+    const proto = window.location && window.location.protocol;
+    if (proto && proto.startsWith("chrome-extension")) {
+      return true;
+    }
+  } catch (err) {
+    logDebug("PWA extension protocol check failed: " + err);
+  }
+
+  return false;
+}
+
+async function shouldForceFullWelcome() {
+  let missingRootDir = false;
+  try {
+    const handle =
+      typeof loadRootDirHandle === "function" ? await loadRootDirHandle() : null;
+    missingRootDir = !handle;
+  } catch (err) {
+    logDebug("Root dir lookup failed; assuming not configured: " + err);
+    missingRootDir = true;
+  }
+
+  let runningAsPwa = false;
+  try {
+    runningAsPwa = isRunningAsPwa();
+  } catch (err) {
+    logDebug("PWA detection failed; treating as not installed: " + err);
+    runningAsPwa = false;
+  }
+
+  return missingRootDir || !runningAsPwa;
 }
 
 async function ensureRootDirConfiguredForWorkouts() {
@@ -827,10 +875,6 @@ async function maybeShowWelcome() {
 
     welcomeTour = initWelcomeTour({
       onFinished: () => {
-        if (!welcomeSeenAlready) {
-          setWelcomeSeen();
-          welcomeSeenAlready = true;
-        }
         setWelcomeActive(false);
       },
       onVisibilityChanged: ({isOpen}) => {
@@ -838,11 +882,12 @@ async function maybeShowWelcome() {
       },
     });
 
+    let forceFullWelcome = false;
     try {
-      welcomeSeenAlready = await hasSeenWelcome();
+      forceFullWelcome = await shouldForceFullWelcome();
     } catch (err) {
-      logDebug("Welcome seen check failed; treating as first run: " + err);
-      welcomeSeenAlready = false;
+      logDebug("Welcome prereq check failed; showing full intro: " + err);
+      forceFullWelcome = true;
     }
 
     if (!welcomeTour || typeof welcomeTour.open !== "function") {
@@ -853,12 +898,10 @@ async function maybeShowWelcome() {
 
     setWelcomeActive(true);
 
-    if (welcomeSeenAlready) {
-      if (typeof welcomeTour.playSplash === "function") {
-        welcomeTour.playSplash(1100);
-      } else {
-        welcomeTour.open(0);
-      }
+    if (forceFullWelcome) {
+      welcomeTour.open(0);
+    } else if (typeof welcomeTour.playSplash === "function") {
+      welcomeTour.playSplash(1100);
     } else {
       welcomeTour.open(0);
     }
