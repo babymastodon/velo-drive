@@ -428,7 +428,7 @@ function refreshOfflineStatus() {
 
   if (pwaStatusText) {
     pwaStatusText.textContent = runningAsPwa
-      ? "Installed app (offline-ready)."
+      ? "Installed (offline-ready)."
       : "Not installed yet.";
     pwaStatusText.classList.toggle("settings-status-ok", runningAsPwa);
     pwaStatusText.classList.toggle("settings-status-missing", !runningAsPwa);
