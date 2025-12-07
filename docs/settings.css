@@ -412,6 +412,29 @@
   display: none;
 }
 
+.settings-alert {
+  margin: 0 0 8px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.settings-alert-warning {
+  background: #fff4e5;
+  color: #8a4b00;
+  border-color: #f3d19c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-alert-warning {
+    background: rgba(255, 184, 108, 0.12);
+    color: #ffb86c;
+    border-color: rgba(255, 184, 108, 0.35);
+  }
+}
+
 @media (max-width: 900px) {
   .settings-modal {
     width: 96vw;
