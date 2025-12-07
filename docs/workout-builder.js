@@ -290,6 +290,19 @@ export function createWorkoutBuilder(options) {
     autoGrowTextarea(codeTextarea);
   }
 
+  // Re-render chart when OS theme changes so SVG colors follow CSS vars
+  if (window.matchMedia) {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const onThemeChange = () => {
+      refreshLayout({skipParse: true, skipPersist: true});
+    };
+    if (mql.addEventListener) {
+      mql.addEventListener("change", onThemeChange);
+    } else if (mql.addListener) {
+      mql.addListener(onThemeChange);
+    }
+  }
+
   function getState() {
     const title =
       (nameField.input.value || "Custom workout").trim() || "Custom workout";
