@@ -166,9 +166,11 @@
       <div class="mode-toggle-inner">
         <!-- Mode toggle (shown when no workout is running) -->
         <div id="modeToggle" class="mode-toggle" title="Control mode">
-          <button class="mode-toggle-button active" data-mode="workout" title="Change to workout mode (W)">Workout</button>
+          <button class="mode-toggle-button active" data-mode="workout"
+            title="Change to workout mode (W)">Workout</button>
           <button class="mode-toggle-button" data-mode="erg" title="Change to erg mode (E)">ERG</button>
-          <button class="mode-toggle-button" data-mode="resistance" title="Change to resistance mode (R)">Resistance</button>
+          <button class="mode-toggle-button" data-mode="resistance"
+            title="Change to resistance mode (R)">Resistance</button>
         </div>
 
         <!-- Center workout title (shown when workout is running) -->
@@ -390,7 +392,8 @@
                 <div class="settings-row-text">
                   <div class="settings-row-label">
                     VeloDrive folder
-                    <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsFoldersHelp">
+                    <button class="settings-help-toggle-btn" type="button"
+                      data-settings-help-toggle="settingsFoldersHelp">
                       Help
                     </button>
                   </div>
@@ -515,6 +518,45 @@
                 <li><code>chrome://flags/#enable-web-bluetooth</code> → Enabled</li>
                 <li><code>chrome://flags/#enable-web-bluetooth-new-permissions-backend</code> → Enabled</li>
               </ul>
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-row-main">
+                <div class="settings-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M9.453 20.134h5.253M12.428 4.786H3.234v12.815h17.511v-3.343M20.586 9.244l-3.104 3.104-3.104-3.104m3.104-4.298v7.403"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div class="settings-row-text">
+                  <div class="settings-row-label">
+                    Offline Mode (PWA)
+                    <button class="settings-help-toggle-btn" type="button" data-settings-help-toggle="settingsPwaHelp">
+                      How do I install it?
+                    </button>
+                  </div>
+                  <div class="settings-row-description">
+                    Install the Progressive Web App for offline workouts.
+                  </div>
+                </div>
+              </div>
+              <div class="settings-row-right">
+                <div id="settingsPwaStatusText" class="settings-row-status"></div>
+              </div>
+            </div>
+
+            <div id="settingsPwaHelp" class="settings-help-content" hidden>
+              In Chrome on desktop, click the install icon in the address bar
+              on the right side → <strong>Install VeloDrive</strong>. On
+              Android, open Chrome’s menu and select <strong>Add to Home
+                screen</strong>. If you’re using the Chrome extension, you’re
+              already set.
             </div>
 
             <div class="settings-row">
