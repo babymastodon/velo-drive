@@ -87,10 +87,6 @@ const SCENE_LAYOUTS = {
   splash: {
     baseWidth: 360,
     baseHeight: 360,
-    orb: null,
-    pathD: null,
-    pills: [],
-    pulses: [],
     steady: "none",
     enter: "grow",
     exit: "fade",
