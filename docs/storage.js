@@ -417,7 +417,7 @@ export async function pickRootDir() {
     alert(
       "Selecting a data folder requires File System Access support.\n\n" +
       "Please ensure you are on the latest Google Chrome and enable it by setting\n" +
-      "chrome://flags/file-system-access-api to Enabled."
+      "chrome://flags/#file-system-access-api to Enabled."
     );
     return null;
   }
