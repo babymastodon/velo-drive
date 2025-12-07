@@ -56,6 +56,7 @@ const soundCheckbox = document.getElementById("settingsSoundCheckbox");
 
 // Environment status
 const btStatusText = document.getElementById("settingsBtStatusText");
+const pwaStatusText = document.getElementById("settingsPwaStatusText");
 
 // Help / user-guide toggles
 const helpToggleButtons = Array.from(
@@ -86,6 +87,35 @@ function isWebBluetoothAvailable() {
     !!navigator.bluetooth &&
     typeof navigator.bluetooth.getDevices === "function"
   );
+}
+
+function isRunningAsPwa() {
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Settings] PWA display-mode check failed:", err);
+  }
+
+  try {
+    if (window.navigator && window.navigator.standalone) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Settings] PWA standalone flag check failed:", err);
+  }
+
+  try {
+    const proto = window.location && window.location.protocol;
+    if (proto && proto.startsWith("chrome-extension")) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Settings] PWA extension protocol check failed:", err);
+  }
+
+  return false;
 }
 
 function openSettings() {
@@ -301,13 +331,25 @@ function refreshEnvironmentStatus() {
 
   if (btStatusText) {
     btStatusText.textContent = hasBt
-      ? "Web Bluetooth available in this browser."
+      ? "Web Bluetooth available."
       : "Web Bluetooth not detected.";
     btStatusText.classList.toggle("settings-status-ok", hasBt);
     btStatusText.classList.toggle("settings-status-missing", !hasBt);
   }
 
   startupNeedsAttention.missingBtSupport = !hasBt;
+}
+
+function refreshOfflineStatus() {
+  const runningAsPwa = isRunningAsPwa();
+
+  if (pwaStatusText) {
+    pwaStatusText.textContent = runningAsPwa
+      ? "Installed app (offline-ready)."
+      : "Not installed yet.";
+    pwaStatusText.classList.toggle("settings-status-ok", runningAsPwa);
+    pwaStatusText.classList.toggle("settings-status-missing", !runningAsPwa);
+  }
 }
 
 // --------------------------- Help / user-guide toggles ---------------------------
@@ -462,6 +504,7 @@ export async function initSettings() {
 
   refreshFtpFromEngine();
   refreshEnvironmentStatus();
+  refreshOfflineStatus();
 
   const shouldShowFileHelp = startupNeedsAttention.missingRootDir;
   const shouldShowBtHelp = startupNeedsAttention.missingBtSupport;
