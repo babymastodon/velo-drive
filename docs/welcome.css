@@ -366,36 +366,6 @@
   color: inherit;
 }
 
-.scene-heart-icon {
-  color: var(--welcome-heart);
-}
-
-.scene-metric {
-  color: var(--welcome-gear-primary);
-}
-
-.scene-metric-rect {
-  fill: var(--welcome-metric-bg);
-  stroke: currentColor;
-  stroke-width: 2.5;
-  opacity: 0.95;
-}
-
-.scene-metric-label {
-  fill: var(--welcome-metric-subtle);
-  font-size: 12px;
-  font-weight: 600;
-  text-anchor: middle;
-  letter-spacing: 0.05em;
-}
-
-.scene-metric-value {
-  fill: var(--welcome-metric-text);
-  font-size: 16px;
-  font-weight: 700;
-  text-anchor: middle;
-}
-
 .scene-asset {
   transform-box: fill-box;
   transform-origin: center center;
