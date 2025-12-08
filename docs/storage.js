@@ -27,6 +27,7 @@ export const STORAGE_LAST_SCRAPED_WORKOUT = "lastScrapedWorkout";
 export const STORAGE_LAST_SCRAPED_FLAG = "lastScrapedWorkoutJustScraped";
 export const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
 export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
+export const STORAGE_THEME_MODE = "themeMode";
 
 const FTP_KEY = "ftp";
 const DEFAULT_WORKOUT_FILES = [
@@ -283,6 +284,16 @@ export async function loadSoundPreference(defaultValue = true) {
 
 export function saveSoundPreference(enabled) {
   return setSetting(STORAGE_SOUND_ENABLED, !!enabled);
+}
+
+export async function loadThemeMode(defaultValue = "auto") {
+  const raw = await getSetting(STORAGE_THEME_MODE, defaultValue);
+  return raw === "dark" || raw === "light" ? raw : "auto";
+}
+
+export function saveThemeMode(mode) {
+  const next = mode === "dark" || mode === "light" ? mode : "auto";
+  return setSetting(STORAGE_THEME_MODE, next);
 }
 
 export function saveFtp(ftpValue) {
