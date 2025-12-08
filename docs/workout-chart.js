@@ -388,7 +388,11 @@ function computeBlockTimings(blocks) {
  * Adds block-level highlighting + click handling to select/deselect blocks.
  */
 export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options = {}) {
-  const {selectedBlockIndex = null, onSelectBlock} = options;
+  const {
+    selectedBlockIndex = null,
+    insertAfterBlockIndex = null,
+    onSelectBlock,
+  } = options;
 
   container.innerHTML = "";
 
@@ -494,6 +498,29 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   container.appendChild(svg);
   container.appendChild(tooltip);
+
+  if (
+    Number.isInteger(insertAfterBlockIndex) &&
+    insertAfterBlockIndex >= 0 &&
+    insertAfterBlockIndex < timings.length
+  ) {
+    const tInsert = timings[insertAfterBlockIndex].tEnd;
+    const x = (tInsert / totalSec) * width;
+    const line = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "line"
+    );
+    line.setAttribute("x1", String(x));
+    line.setAttribute("x2", String(x));
+    line.setAttribute("y1", "0");
+    line.setAttribute("y2", String(height));
+    line.setAttribute("stroke", getCssVar("--wb-insert-line"));
+    line.setAttribute("stroke-width", "2");
+    line.setAttribute("stroke-dasharray", "4 4");
+    line.setAttribute("pointer-events", "none");
+    line.classList.add("wb-insert-line");
+    svg.appendChild(line);
+  }
 
   attachSegmentHover(svg, tooltip, container, ftp);
 
