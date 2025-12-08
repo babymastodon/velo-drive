@@ -136,10 +136,6 @@ export function createWorkoutBuilder(options) {
   blockEditor.className = "wb-block-editor";
   blockEditor.style.display = "none";
 
-  const blockEditorTitle = document.createElement("div");
-  blockEditorTitle.className = "wb-block-editor-title";
-  blockEditor.appendChild(blockEditorTitle);
-
   const blockEditorFields = document.createElement("div");
   blockEditorFields.className = "wb-block-editor-fields";
   blockEditor.appendChild(blockEditorFields);
@@ -820,14 +816,12 @@ export function createWorkoutBuilder(options) {
       toolbarButtons.style.display = "";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
-      blockEditorTitle.textContent = "";
       return;
     }
 
     toolbarButtons.style.display = "none";
     blockEditor.style.display = "flex";
     blockEditorFields.innerHTML = "";
-    blockEditorTitle.textContent = `Editing ${formatBlockLabel(block)}`;
 
     const configs = buildBlockFieldConfigs(block);
     configs.forEach((cfg) => {
@@ -855,7 +849,7 @@ export function createWorkoutBuilder(options) {
         label: "Duration",
         tooltip: "Length of this steady block (seconds).",
         value: durationSec,
-        unit: "sec",
+        unit: "s",
         step: 60,
         onCommit: commitDuration,
       });
@@ -864,7 +858,8 @@ export function createWorkoutBuilder(options) {
         label: "Power",
         tooltip: "Target power as % of FTP.",
         value: powerPct,
-        unit: "% FTP",
+        unit: "%",
+        kind: "power",
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -879,7 +874,7 @@ export function createWorkoutBuilder(options) {
         label: "Duration",
         tooltip: "Length of this ramp block (seconds).",
         value: durationSec,
-        unit: "sec",
+        unit: "s",
         step: 60,
         onCommit: commitDuration,
       });
@@ -888,7 +883,8 @@ export function createWorkoutBuilder(options) {
         label: "Power Low",
         tooltip: "Starting power as % of FTP.",
         value: lowPct,
-        unit: "% FTP",
+        unit: "%",
+        kind: "power",
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -900,7 +896,8 @@ export function createWorkoutBuilder(options) {
         label: "Power High",
         tooltip: "Ending power as % of FTP.",
         value: highPct,
-        unit: "% FTP",
+        unit: "%",
+        kind: "power",
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -914,7 +911,7 @@ export function createWorkoutBuilder(options) {
         label: "On Duration",
         tooltip: "Work interval length (seconds).",
         value: Math.round(intervals.onDurationSec),
-        unit: "sec",
+        unit: "s",
         step: 60,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -926,7 +923,7 @@ export function createWorkoutBuilder(options) {
         label: "Off Duration",
         tooltip: "Recovery interval length (seconds).",
         value: Math.round(intervals.offDurationSec),
-        unit: "sec",
+        unit: "s",
         step: 60,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -938,7 +935,8 @@ export function createWorkoutBuilder(options) {
         label: "Repeats",
         tooltip: "Number of on/off pairs.",
         value: Math.max(1, Math.round(intervals.repeat)),
-        unit: "x",
+        unit: "",
+        kind: "repeat",
         step: 1,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {repeat: clampRepeat(val)}),
@@ -948,7 +946,8 @@ export function createWorkoutBuilder(options) {
         label: "On Power",
         tooltip: "Work interval power (% FTP).",
         value: Math.round(intervals.onPowerRel * 100),
-        unit: "% FTP",
+        unit: "%",
+        kind: "power",
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -960,7 +959,8 @@ export function createWorkoutBuilder(options) {
         label: "Off Power",
         tooltip: "Recovery interval power (% FTP).",
         value: Math.round(intervals.offPowerRel * 100),
-        unit: "% FTP",
+        unit: "%",
+        kind: "power",
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
@@ -982,9 +982,6 @@ export function createWorkoutBuilder(options) {
     if (config.tooltip) label.title = config.tooltip;
     wrapper.appendChild(label);
 
-    const row = document.createElement("div");
-    row.className = "wb-block-stepper-row";
-
     const group = document.createElement("div");
     group.className = "control-group wb-block-stepper";
 
@@ -992,6 +989,9 @@ export function createWorkoutBuilder(options) {
     minus.type = "button";
     minus.className = "control-btn";
     minus.textContent = "-";
+
+    const valueWrapper = document.createElement("div");
+    valueWrapper.className = "control-value";
 
     const input = document.createElement("input");
     input.type = "number";
@@ -1003,10 +1003,6 @@ export function createWorkoutBuilder(options) {
     plus.type = "button";
     plus.className = "control-btn";
     plus.textContent = "+";
-
-    const unit = document.createElement("span");
-    unit.className = "wb-block-unit";
-    unit.textContent = config.unit || "";
 
     const commitValue = (raw) => {
       const n = Number(raw);
@@ -1043,14 +1039,20 @@ export function createWorkoutBuilder(options) {
     });
 
     group.appendChild(minus);
-    group.appendChild(input);
-    group.appendChild(plus);
-    row.appendChild(group);
+    valueWrapper.appendChild(input);
     if (config.unit) {
-      row.appendChild(unit);
+      const unit = document.createElement("span");
+      unit.className = "settings-ftp-unit wb-block-unit";
+      unit.textContent = config.unit || "";
+      valueWrapper.appendChild(unit);
     }
+    group.appendChild(valueWrapper);
+    group.appendChild(plus);
 
-    wrapper.appendChild(row);
+    if (config.kind) {
+      wrapper.dataset.kind = config.kind;
+    }
+    wrapper.appendChild(group);
     return {wrapper, input};
   }
 
