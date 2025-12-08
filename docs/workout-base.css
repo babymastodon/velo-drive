@@ -131,15 +131,15 @@
     --cta-soft: rgba(189, 77, 69, 0.28);
     --cta-border: #bd4d45;
     --nav-bg: #222222;
-  --grid-line: #444444;
-  --grid-line-subtle: #333333;
-  --ftp-line: #5c7ea6;
-  --power-line: #ffb300;
-  --hr-line: #e82210;
-  --time-scrub: #fdd835;
-  --cad-line: #6ad60b;
-  --shade-bg: #ffffff;
-  --wb-block-active-filter: brightness(1.4) saturate(0.8);
+    --grid-line: #444444;
+    --grid-line-subtle: #333333;
+    --ftp-line: #5c7ea6;
+    --power-line: #ffb300;
+    --hr-line: #e82210;
+    --time-scrub: #fdd835;
+    --cad-line: #6ad60b;
+    --shade-bg: #ffffff;
+    --wb-block-active-filter: brightness(1.4) saturate(0.8);
 
     /* slightly darkened versions of the light colors */
     --zone-recovery: #dddddd;
