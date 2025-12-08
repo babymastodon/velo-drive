@@ -287,12 +287,30 @@ export function saveSoundPreference(enabled) {
 }
 
 export async function loadThemeMode(defaultValue = "auto") {
+  try {
+    const cached = typeof localStorage !== "undefined"
+      ? localStorage.getItem(STORAGE_THEME_MODE)
+      : null;
+    if (cached === "dark" || cached === "light" || cached === "auto") {
+      return cached;
+    }
+  } catch (_err) {
+    // ignore localStorage failures
+  }
+
   const raw = await getSetting(STORAGE_THEME_MODE, defaultValue);
   return raw === "dark" || raw === "light" ? raw : "auto";
 }
 
 export function saveThemeMode(mode) {
   const next = mode === "dark" || mode === "light" ? mode : "auto";
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(STORAGE_THEME_MODE, next);
+    }
+  } catch (_err) {
+    // ignore localStorage failures
+  }
   return setSetting(STORAGE_THEME_MODE, next);
 }
 
