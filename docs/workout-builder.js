@@ -593,10 +593,10 @@ export function createWorkoutBuilder(options) {
   function setSelectedBlock(idx) {
     const next =
       idx == null ||
-      !Number.isFinite(idx) ||
-      idx < 0 ||
-      !currentBlocks ||
-      idx >= currentBlocks.length
+        !Number.isFinite(idx) ||
+        idx < 0 ||
+        !currentBlocks ||
+        idx >= currentBlocks.length
         ? null
         : idx;
 
@@ -907,6 +907,17 @@ export function createWorkoutBuilder(options) {
     } else if (block.kind === "intervals") {
       const intervals = getIntervalParts(block);
       list.push({
+        key: "repeat",
+        label: "Reps",
+        tooltip: "Number of on/off pairs.",
+        value: Math.max(1, Math.round(intervals.repeat)),
+        unit: "",
+        kind: "repeat",
+        step: 1,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {repeat: clampRepeat(val)}),
+      });
+      list.push({
         key: "onDurationSec",
         label: "On Duration",
         tooltip: "Work interval length (seconds).",
@@ -916,6 +927,19 @@ export function createWorkoutBuilder(options) {
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
             onDurationSec: clampDuration(val),
+          }),
+      });
+      list.push({
+        key: "onPowerRel",
+        label: "Power",
+        tooltip: "Work interval power (% FTP).",
+        value: Math.round(intervals.onPowerRel * 100),
+        unit: "%",
+        kind: "power",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            onPowerRel: clampPowerPercent(val) / 100,
           }),
       });
       list.push({
@@ -931,32 +955,8 @@ export function createWorkoutBuilder(options) {
           }),
       });
       list.push({
-        key: "repeat",
-        label: "Repeats",
-        tooltip: "Number of on/off pairs.",
-        value: Math.max(1, Math.round(intervals.repeat)),
-        unit: "",
-        kind: "repeat",
-        step: 1,
-        onCommit: (val) =>
-          applyBlockAttrUpdate(idx, {repeat: clampRepeat(val)}),
-      });
-      list.push({
-        key: "onPowerRel",
-        label: "On Power",
-        tooltip: "Work interval power (% FTP).",
-        value: Math.round(intervals.onPowerRel * 100),
-        unit: "%",
-        kind: "power",
-        step: 5,
-        onCommit: (val) =>
-          applyBlockAttrUpdate(idx, {
-            onPowerRel: clampPowerPercent(val) / 100,
-          }),
-      });
-      list.push({
         key: "offPowerRel",
-        label: "Off Power",
+        label: "Power",
         tooltip: "Recovery interval power (% FTP).",
         value: Math.round(intervals.offPowerRel * 100),
         unit: "%",
