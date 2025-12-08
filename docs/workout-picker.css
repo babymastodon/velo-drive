@@ -826,6 +826,7 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+  flex: 1;
 }
 
 .wb-block-field {
@@ -864,10 +865,44 @@
   width: 3ch;
 }
 
+.wb-block-field[data-kind="repeat"] .control-value {
+  padding-left: 4px;
+  padding-right: 2px;
+}
+
+.wb-block-field[data-kind="repeat"] {
+  min-width: 140px;
+}
+
 .wb-block-unit {
   font-size: var(--font-size-base);
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+.wb-block-editor-actions {
+  display: none;
+  align-items: center;
+  margin-left: auto;
+}
+
+.wb-block-delete-btn {
+  width: var(--nav-control-height);
+  height: var(--nav-control-height);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: var(--interactive-transition);
+}
+
+.wb-block-delete-btn:hover {
+  background: var(--hover-medium);
 }
 
 .wb-code-toolbar-buttons {

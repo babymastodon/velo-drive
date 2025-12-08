@@ -140,6 +140,20 @@ export function createWorkoutBuilder(options) {
   blockEditorFields.className = "wb-block-editor-fields";
   blockEditor.appendChild(blockEditorFields);
 
+  const blockEditorActions = document.createElement("div");
+  blockEditorActions.className = "wb-block-editor-actions";
+  const deleteBlockBtn = document.createElement("button");
+  deleteBlockBtn.type = "button";
+  deleteBlockBtn.className = "wb-block-delete-btn";
+  deleteBlockBtn.title = "Delete selected block";
+  deleteBlockBtn.appendChild(createTrashIcon());
+  deleteBlockBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    deleteSelectedBlock();
+  });
+  blockEditorActions.appendChild(deleteBlockBtn);
+  blockEditor.appendChild(blockEditorActions);
+
   const buttonSpecs = [
     {
       key: "steady",
@@ -816,12 +830,14 @@ export function createWorkoutBuilder(options) {
       toolbarButtons.style.display = "";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
+      blockEditorActions.style.display = "none";
       return;
     }
 
     toolbarButtons.style.display = "none";
     blockEditor.style.display = "flex";
     blockEditorFields.innerHTML = "";
+    blockEditorActions.style.display = "flex";
 
     const configs = buildBlockFieldConfigs(block);
     configs.forEach((cfg) => {
@@ -1082,6 +1098,26 @@ export function createWorkoutBuilder(options) {
     );
   }
 
+  function deleteSelectedBlock() {
+    if (
+      selectedBlockIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[selectedBlockIndex]
+    ) {
+      return;
+    }
+
+    const updatedBlocks = currentBlocks.filter(
+      (_block, idx) => idx !== selectedBlockIndex,
+    );
+
+    const newSnippet = blocksToSnippet(updatedBlocks);
+    codeTextarea.value = newSnippet;
+    autoGrowTextarea(codeTextarea);
+    selectedBlockIndex = null;
+    handleAnyChange();
+  }
+
   function blocksToSnippet(blocks) {
     if (!Array.isArray(blocks) || !blocks.length) return "";
     const lines = [];
@@ -1251,6 +1287,32 @@ export function createWorkoutBuilder(options) {
     }
 
     svg.appendChild(path);
+    return svg;
+  }
+
+  function createTrashIcon() {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.classList.add("wb-code-icon");
+
+    const p1 = document.createElementNS(svgNS, "path");
+    p1.setAttribute("d", "M3 6h18");
+    const p2 = document.createElementNS(svgNS, "path");
+    p2.setAttribute("d", "M8 6V4h8v2");
+    const p3 = document.createElementNS(svgNS, "path");
+    p3.setAttribute("d", "M6 6l1 14h10l1-14");
+    const p4 = document.createElementNS(svgNS, "path");
+    p4.setAttribute("d", "M10 11v6");
+    const p5 = document.createElementNS(svgNS, "path");
+    p5.setAttribute("d", "M14 11v6");
+
+    [p1, p2, p3, p4, p5].forEach((p) => svg.appendChild(p));
     return svg;
   }
 
