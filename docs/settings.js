@@ -22,6 +22,8 @@ import {
   saveFtp,
   loadRootDirHandle,
   pickRootDir,          // selects / re-permissions the single root dir
+  loadThemeMode,
+  saveThemeMode,
 } from "./storage.js";
 
 // --------------------------- DOM refs ---------------------------
@@ -59,6 +61,12 @@ const soundCheckbox = document.getElementById("settingsSoundCheckbox");
 // Environment status
 const btStatusText = document.getElementById("settingsBtStatusText");
 const pwaStatusText = document.getElementById("settingsPwaStatusText");
+
+// Theme toggle
+const themeToggleRoot = document.getElementById("settingsThemeToggle");
+const themeToggleButtons = themeToggleRoot
+  ? Array.from(themeToggleRoot.querySelectorAll("[data-theme-mode]"))
+  : [];
 
 // Help / user-guide toggles
 const helpToggleButtons = Array.from(
@@ -435,6 +443,32 @@ function refreshOfflineStatus() {
   }
 }
 
+// --------------------------- Theme ---------------------------
+
+async function refreshThemeToggle() {
+  if (!themeToggleButtons.length) return;
+  const mode = await loadThemeMode("auto");
+  themeToggleButtons.forEach((btn) => {
+    const val = btn.getAttribute("data-theme-mode");
+    const isActive = val === mode || (!val && mode === "auto");
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function handleThemeToggleClick(value) {
+  const next = value === "dark" || value === "light" ? value : "auto";
+  saveThemeMode(next).catch?.((err) =>
+    console.error("[Settings] Failed to save theme mode:", err)
+  );
+  themeToggleButtons.forEach((btn) => {
+    const val = btn.getAttribute("data-theme-mode");
+    const isActive = val === next;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
 // --------------------------- Help / user-guide toggles ---------------------------
 
 // Helper to force a specific help section visible (used on startup issues)
@@ -553,6 +587,13 @@ function wireSettingsEvents() {
     });
   }
 
+  if (themeToggleButtons.length) {
+    themeToggleButtons.forEach((btn) => {
+      const val = btn.getAttribute("data-theme-mode");
+      btn.addEventListener("click", () => handleThemeToggleClick(val));
+    });
+  }
+
   // ESC key to close settings / exit logs view
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -583,6 +624,7 @@ export async function initSettings() {
   await Promise.all([
     refreshDirectoryStatuses(),
     refreshSoundToggle(),
+    refreshThemeToggle(),
   ]);
 
   refreshFtpFromEngine();
