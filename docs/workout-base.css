@@ -56,6 +56,7 @@
   --cad-line: #2d8201;
   --time-scrub: #ffff00;
   --shade-bg: #000000;
+  --wb-block-active-filter: brightness(0.7) saturate(1);
   --radius: 8px;
   --modal-radius: calc(var(--radius) * 2);
   --nav-control-height: 32px;
@@ -130,14 +131,15 @@
     --cta-soft: rgba(189, 77, 69, 0.28);
     --cta-border: #bd4d45;
     --nav-bg: #222222;
-    --grid-line: #444444;
-    --grid-line-subtle: #333333;
-    --ftp-line: #5c7ea6;
-    --power-line: #ffb300;
-    --hr-line: #e82210;
-    --time-scrub: #fdd835;
-    --cad-line: #6ad60b;
-    --shade-bg: #ffffff;
+  --grid-line: #444444;
+  --grid-line-subtle: #333333;
+  --ftp-line: #5c7ea6;
+  --power-line: #ffb300;
+  --hr-line: #e82210;
+  --time-scrub: #fdd835;
+  --cad-line: #6ad60b;
+  --shade-bg: #ffffff;
+  --wb-block-active-filter: brightness(1.4) saturate(0.8);
 
     /* slightly darkened versions of the light colors */
     --zone-recovery: #dddddd;
@@ -220,6 +222,7 @@
   --zone-vo2: #ff744c;
   --zone-anaerobic: #ff403d;
   --stat-number-color: #333333;
+  --wb-block-active-filter: brightness(0.7) saturate(1);
 }
 
 :root.theme-dark {
@@ -285,6 +288,7 @@
   --zone-vo2: #ff8a58;
   --zone-anaerobic: #ff5959;
   --stat-number-color: #f5f5f5;
+  --wb-block-active-filter: brightness(1.4) saturate(0.8);
 }
 
 * {

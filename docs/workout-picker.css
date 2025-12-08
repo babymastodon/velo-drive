@@ -39,7 +39,8 @@
   margin-bottom: 4px;
   font-size: var(--font-size-base);
   flex-wrap: nowrap;
-  padding-right: 46px; /* leave room for the absolute close button */
+  padding-right: 46px;
+  /* leave room for the absolute close button */
   padding-bottom: 12px;
 }
 
@@ -497,7 +498,8 @@
   border: none;
   border-radius: var(--radius);
   height: var(--nav-control-height);
-  padding: 0 12px 0 9px; /* icon on left, trim padding slightly */
+  padding: 0 12px 0 9px;
+  /* icon on left, trim padding slightly */
   font-size: var(--font-size-base);
   cursor: pointer;
   background: var(--cta-bg);
@@ -770,27 +772,23 @@
   width: 100%;
   height: 180px;
 }
+
 .wb-block-band {
-  transition: transform 0.14s ease, filter 0.14s ease, fill-opacity 0.14s ease;
+  transition: fill-opacity 0.14s ease;
 }
 
 .wb-block-band.is-active {
   fill: var(--hover-strong);
-  fill-opacity: 0.28;
-  stroke: var(--border);
-  stroke-width: 1.2;
-  transform: translateY(-1px) scale(1.01);
-  filter: drop-shadow(0 6px 12px var(--tooltip-shadow));
+  fill-opacity: 1;
 }
 
 .wb-block-segment {
   cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: fill 0.12s ease;
 }
 
 .wb-block-segment.is-active {
-  transform: translateY(-1px) scale(1.01);
-  filter: drop-shadow(0 6px 12px var(--tooltip-shadow));
+  filter: var(--wb-block-active-filter);
 }
 
 .wb-stats-card {
@@ -819,32 +817,29 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
   width: 100%;
-}
-
-.wb-block-editor-title {
-  font-weight: 600;
-  color: var(--text-muted);
 }
 
 .wb-block-editor-fields {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .wb-block-field {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 160px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
 }
 
 .wb-block-field-label {
   font-size: var(--font-size-base);
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .wb-block-stepper-row {
@@ -859,6 +854,14 @@
 
 .wb-block-stepper-input {
   width: 5ch;
+}
+
+.wb-block-field[data-kind="power"] .wb-block-stepper-input {
+  width: 4ch;
+}
+
+.wb-block-field[data-kind="repeat"] .wb-block-stepper-input {
+  width: 3ch;
 }
 
 .wb-block-unit {
@@ -877,7 +880,8 @@
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
   height: var(--nav-control-height);
-  padding: 0 12px 0 9px; /* icon on left, trim padding slightly */
+  padding: 0 12px 0 9px;
+  /* icon on left, trim padding slightly */
   font-size: var(--font-size-base);
   background: var(--surface-elevated);
   color: var(--text-main);
@@ -939,9 +943,8 @@
 }
 
 .wb-selected-line {
-  background: var(--hover-medium);
+  background: var(--success-soft);
   display: block;
-  outline: 1px dashed var(--border);
 }
 
 /* Textarea stays on top */
