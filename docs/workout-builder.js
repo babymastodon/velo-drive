@@ -43,6 +43,7 @@ export function createWorkoutBuilder(options) {
   let currentZone = null;
   let persistedState = null;
   let selectedBlockIndex = null;
+  let caretBlockIndex = null;
   const statusTarget = statusMessageEl || null;
 
   function setStatusMessage(text, tone = "neutral") {
@@ -295,12 +296,15 @@ export function createWorkoutBuilder(options) {
     updateErrorMessageForCaret();
     // Typing directly into the ZWO textarea should drop any active selection
     deselectBlock();
+    updateCaretBlockIndex();
   });
   codeTextarea.addEventListener("keyup", () => {
     updateErrorMessageForCaret();
+    updateCaretBlockIndex();
   });
   codeTextarea.addEventListener("focus", () => {
     deselectBlock();
+    updateCaretBlockIndex();
   });
 
   [nameField.input, sourceField.input, descField.textarea].forEach((el) => {
@@ -510,6 +514,7 @@ export function createWorkoutBuilder(options) {
       ) {
         selectedBlockIndex = null;
       }
+      updateCaretBlockIndex();
     }
 
     const ftp = getCurrentFtp() || 0;
@@ -599,6 +604,7 @@ export function createWorkoutBuilder(options) {
       if (currentBlocks && currentBlocks.length) {
         renderBuilderWorkoutGraph(chartMiniHost, currentBlocks, ftp, {
           selectedBlockIndex,
+          insertAfterBlockIndex: getInsertAfterIndex(),
           onSelectBlock: handleBlockSelectionFromChart,
         });
       } else {
@@ -625,15 +631,16 @@ export function createWorkoutBuilder(options) {
   function setSelectedBlock(idx) {
     const next =
       idx == null ||
-        !Number.isFinite(idx) ||
-        idx < 0 ||
-        !currentBlocks ||
-        idx >= currentBlocks.length
+      !Number.isFinite(idx) ||
+      idx < 0 ||
+      !currentBlocks ||
+      idx >= currentBlocks.length
         ? null
         : idx;
 
     if (next === selectedBlockIndex) return;
     selectedBlockIndex = next;
+    caretBlockIndex = null;
     updateBlockEditor();
     updateErrorHighlights();
     renderChart();
@@ -641,6 +648,7 @@ export function createWorkoutBuilder(options) {
 
   function deselectBlock() {
     if (selectedBlockIndex == null) return;
+    caretBlockIndex = selectedBlockIndex;
     selectedBlockIndex = null;
     updateBlockEditor();
     updateErrorHighlights();
@@ -1272,6 +1280,39 @@ export function createWorkoutBuilder(options) {
     return Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
   }
 
+  function updateCaretBlockIndex() {
+    if (!codeTextarea || !currentBlocks || !currentBlocks.length) {
+      caretBlockIndex = null;
+      renderChart();
+      return;
+    }
+    const pos = codeTextarea.selectionStart || 0;
+    const text = codeTextarea.value || "";
+    let line = 0;
+    for (let i = 0; i < Math.min(pos, text.length); i += 1) {
+      if (text[i] === "\n") line += 1;
+    }
+
+    let match = null;
+    for (let i = 0; i < currentBlocks.length; i += 1) {
+      const b = currentBlocks[i];
+      const start = Number.isFinite(b.lineStart) ? b.lineStart : 0;
+      const end = Number.isFinite(b.lineEnd) ? b.lineEnd : start;
+      if (line >= start && line <= end) {
+        match = i;
+        break;
+      }
+    }
+    caretBlockIndex = match;
+    renderChart();
+  }
+
+  function getInsertAfterIndex() {
+    if (selectedBlockIndex != null) return selectedBlockIndex;
+    if (caretBlockIndex != null) return caretBlockIndex;
+    return null;
+  }
+
   function createWorkoutElementIcon(kind) {
     const svg = document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -1451,6 +1492,7 @@ export function createWorkoutBuilder(options) {
     }
     autoGrowTextarea(el);
     handleAnyChange({skipPersist: false});
+    updateCaretBlockIndex();
   }
 
   return {

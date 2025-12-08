@@ -54,9 +54,9 @@
   --power-line: #a607a6;
   --hr-line: #c90f02;
   --cad-line: #2d8201;
-  --time-scrub: #ffff00;
   --shade-bg: #000000;
   --wb-block-active-filter: brightness(0.7) saturate(1);
+  --wb-insert-line: #3a7bff;
   --radius: 8px;
   --modal-radius: calc(var(--radius) * 2);
   --nav-control-height: 32px;
@@ -136,7 +136,6 @@
     --ftp-line: #5c7ea6;
     --power-line: #ffb300;
     --hr-line: #e82210;
-    --time-scrub: #fdd835;
     --cad-line: #6ad60b;
     --shade-bg: #ffffff;
     --wb-block-active-filter: brightness(1.4) saturate(0.8);
@@ -213,7 +212,6 @@
   --power-line: #a607a6;
   --hr-line: #c90f02;
   --cad-line: #2d8201;
-  --time-scrub: #ffff00;
   --shade-bg: #000000;
   --zone-recovery: #c9c9c9;
   --zone-endurance: #489fff;
@@ -279,7 +277,6 @@
   --ftp-line: #5c7ea6;
   --power-line: #ffb300;
   --hr-line: #e82210;
-  --time-scrub: #fdd835;
   --cad-line: #6ad60b;
   --zone-recovery: #dddddd;
   --zone-endurance: #6ac2ff;
@@ -289,6 +286,7 @@
   --zone-anaerobic: #ff5959;
   --stat-number-color: #f5f5f5;
   --wb-block-active-filter: brightness(1.4) saturate(0.8);
+  --wb-insert-line: #6ba8ff;
 }
 
 * {
