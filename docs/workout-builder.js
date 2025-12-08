@@ -142,6 +142,24 @@ export function createWorkoutBuilder(options) {
 
   const blockEditorActions = document.createElement("div");
   blockEditorActions.className = "wb-block-editor-actions";
+  const moveLeftBtn = document.createElement("button");
+  moveLeftBtn.type = "button";
+  moveLeftBtn.className = "wb-block-move-btn";
+  moveLeftBtn.title = "Move block up";
+  moveLeftBtn.appendChild(createCaretIcon("left"));
+  moveLeftBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    moveSelectedBlock(-1);
+  });
+  const moveRightBtn = document.createElement("button");
+  moveRightBtn.type = "button";
+  moveRightBtn.className = "wb-block-move-btn";
+  moveRightBtn.title = "Move block down";
+  moveRightBtn.appendChild(createCaretIcon("right"));
+  moveRightBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    moveSelectedBlock(1);
+  });
   const deleteBlockBtn = document.createElement("button");
   deleteBlockBtn.type = "button";
   deleteBlockBtn.className = "wb-block-delete-btn";
@@ -151,6 +169,8 @@ export function createWorkoutBuilder(options) {
     e.preventDefault();
     deleteSelectedBlock();
   });
+  blockEditorActions.appendChild(moveLeftBtn);
+  blockEditorActions.appendChild(moveRightBtn);
   blockEditorActions.appendChild(deleteBlockBtn);
   blockEditor.appendChild(blockEditorActions);
 
@@ -654,7 +674,7 @@ export function createWorkoutBuilder(options) {
 
     if (!currentErrors.length) {
       codeTextarea.classList.remove("wb-has-error");
-      setStatusMessage("No syntax errors detected.", "ok");
+      setStatusMessage("No errors detected.", "ok");
       return;
     }
 
@@ -1110,6 +1130,28 @@ export function createWorkoutBuilder(options) {
     setCodeValueAndRefresh(newSnippet, null);
   }
 
+  function moveSelectedBlock(direction) {
+    if (
+      selectedBlockIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[selectedBlockIndex]
+    ) {
+      return;
+    }
+
+    const idx = selectedBlockIndex;
+    const target = idx + direction;
+    if (target < 0 || target >= currentBlocks.length) return;
+
+    const updated = currentBlocks.slice();
+    const [moving] = updated.splice(idx, 1);
+    updated.splice(target, 0, moving);
+
+    const newSnippet = blocksToSnippet(updated);
+    selectedBlockIndex = target;
+    setCodeValueAndRefresh(newSnippet, null);
+  }
+
   function blocksToSnippet(blocks) {
     if (!Array.isArray(blocks) || !blocks.length) return "";
     const lines = [];
@@ -1290,6 +1332,27 @@ export function createWorkoutBuilder(options) {
     p5.setAttribute("d", "M14 11v6");
 
     [p1, p2, p3, p4, p5].forEach((p) => svg.appendChild(p));
+    return svg;
+  }
+
+  function createCaretIcon(direction) {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.classList.add("wb-code-icon");
+
+    const path = document.createElementNS(svgNS, "path");
+    if (direction === "left") {
+      path.setAttribute("d", "M14 6l-6 6 6 6");
+    } else {
+      path.setAttribute("d", "M10 6l6 6-6 6");
+    }
+    svg.appendChild(path);
     return svg;
   }
 

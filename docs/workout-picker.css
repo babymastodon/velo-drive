@@ -884,6 +884,7 @@
   display: none;
   align-items: center;
   margin-left: auto;
+  gap: 6px;
 }
 
 .wb-block-delete-btn {
@@ -902,6 +903,25 @@
 }
 
 .wb-block-delete-btn:hover {
+  background: var(--hover-medium);
+}
+
+.wb-block-move-btn {
+  width: var(--nav-control-height);
+  height: var(--nav-control-height);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: var(--interactive-transition);
+}
+
+.wb-block-move-btn:hover {
   background: var(--hover-medium);
 }
 
