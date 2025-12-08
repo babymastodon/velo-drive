@@ -83,13 +83,13 @@
 }
 
 .builder-status--ok {
-  color: #208c4f;
-  border-color: #208c4f33;
+  color: var(--success);
+  border-color: var(--success-soft);
 }
 
 .builder-status--error {
-  color: #b23b33;
-  border-color: #b23b3333;
+  color: var(--error);
+  border-color: var(--error-soft);
 }
 
 .builder-status--neutral {
@@ -136,22 +136,6 @@
 
 .workout-picker-controls select:hover {
   background-color: rgba(0, 0, 0, 0.03);
-}
-
-@media (prefers-color-scheme: dark) {
-  .workout-picker-controls select:hover {
-    background-color: rgba(255, 255, 255, 0.06);
-  }
-
-  .builder-status--ok {
-    color: #6fdb9c;
-    border-color: #6fdb9c44;
-  }
-
-  .builder-status--error {
-    color: #ffb3ac;
-    border-color: #ffb3ac44;
-  }
 }
 
 .workout-picker-controls input[type="search"]:focus,
@@ -241,13 +225,7 @@
 }
 
 .picker-row:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-@media (prefers-color-scheme: dark) {
-  .picker-row:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
+  background: var(--hover-light);
 }
 
 .picker-row:active {
@@ -255,16 +233,10 @@
 }
 
 .picker-expanded-row td {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--expanded-bg);
   white-space: normal;
   padding-top: 4px;
   padding-bottom: 4px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .picker-expanded-row td {
-    background: rgba(255, 255, 255, 0.04);
-  }
 }
 
 .picker-expanded {
@@ -364,21 +336,13 @@
   font-size: var(--font-size-base);
   padding: 8px;
   border-radius: var(--radius);
-  background: #ffffff;
-  color: #666666;
-  border: 1px solid rgba(0, 0, 0, 0.16);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--tooltip-border);
   white-space: nowrap;
   display: none;
   z-index: 10;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-
-@media (prefers-color-scheme: dark) {
-  .picker-tooltip {
-    background: #303030;
-    color: #dddddd;
-    border-color: rgba(255, 255, 255, 0.18);
-  }
+  box-shadow: 0 2px 6px var(--tooltip-shadow);
 }
 
 .picker-footer {
@@ -423,13 +387,7 @@
 }
 
 .picker-close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-@media (prefers-color-scheme: dark) {
-  .picker-close-btn:hover {
-    background: rgba(255, 255, 255, 0.10);
-  }
+  background: var(--hover-strong);
 }
 
 /* Select Workout button — slightly stronger color */
@@ -440,8 +398,8 @@
   padding: 0 12px;
   font-size: var(--font-size-base);
   cursor: pointer;
-  background: #d87d73;
-  color: #ffffff;
+  background: var(--cta-bg);
+  color: var(--cta-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -451,27 +409,12 @@
 }
 
 .select-workout-btn:hover {
-  background: #ac554c;
+  background: var(--cta-bg-hover);
 }
 
 .select-workout-btn:active {
   transform: scale(0.97);
-  background: #9f4d45;
-}
-
-@media (prefers-color-scheme: dark) {
-  .select-workout-btn {
-    background: #bd4d45;
-    color: #ffffff;
-  }
-
-  .select-workout-btn:hover {
-    background: #93463e;
-  }
-
-  .select-workout-btn:active {
-    background: #883f38;
-  }
+  background: var(--cta-bg-active);
 }
 
 @media (max-width: 800px) {
@@ -533,13 +476,13 @@
   height: var(--nav-control-height);
   padding: 0 12px;
   font-size: var(--font-size-base);
-  background: #d87d73;
-  color: #ffffff;
+  background: var(--cta-bg);
+  color: var(--cta-text);
   cursor: pointer;
 }
 
 .picker-empty-add-btn:hover {
-  background: #ac554c;
+  background: var(--cta-bg-hover);
 }
 
 /* --- Add / Back buttons (match select-workout-btn) --- */
@@ -551,8 +494,8 @@
   padding: 0 12px 0 9px; /* icon on left, trim padding slightly */
   font-size: var(--font-size-base);
   cursor: pointer;
-  background: #d87d73;
-  color: #ffffff;
+  background: var(--cta-bg);
+  color: var(--cta-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -562,27 +505,12 @@
 }
 
 .picker-add-btn:hover {
-  background: #ac554c;
+  background: var(--cta-bg-hover);
 }
 
 .picker-add-btn:active {
   transform: scale(0.97);
-  background: #9f4d45;
-}
-
-@media (prefers-color-scheme: dark) {
-
-  .picker-add-btn {
-    background: #bd4d45;
-  }
-
-  .picker-add-btn:hover {
-    background: #93463e;
-  }
-
-  .picker-add-btn:active {
-    background: #883f38;
-  }
+  background: var(--cta-bg-active);
 }
 
 /* --- Import view --- */
@@ -656,13 +584,13 @@
 }
 
 .workout-import-status[data-tone="ok"] {
-  color: #208c4f;
-  border-color: #208c4f33;
+  color: var(--success);
+  border-color: var(--success-soft);
 }
 
 .workout-import-status[data-tone="error"] {
-  color: #b23b33;
-  border-color: #b23b3333;
+  color: var(--error);
+  border-color: var(--error-soft);
 }
 
 .workout-import-divider {
@@ -682,18 +610,6 @@
 .workout-import-scratch-btn {
   height: calc(var(--nav-control-height) * 2);
   justify-content: center;
-}
-
-@media (prefers-color-scheme: dark) {
-  .workout-import-status[data-tone="ok"] {
-    color: #6fdb9c;
-    border-color: #6fdb9c44;
-  }
-
-  .workout-import-status[data-tone="error"] {
-    color: #ffb3ac;
-    border-color: #ffb3ac44;
-  }
 }
 
 /* --- Builder layout & scrolling --- */
@@ -903,13 +819,7 @@
 }
 
 .wb-code-insert-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-@media (prefers-color-scheme: dark) {
-  .wb-code-insert-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
+  background: var(--hover-medium);
 }
 
 /* Textarea + error */
@@ -968,8 +878,8 @@
 }
 
 .wb-code-textarea.wb-has-error {
-  border-color: #d87d73;
-  box-shadow: 0 0 0 1px rgba(216, 125, 115, 0.35);
+  border-color: var(--cta-border);
+  box-shadow: 0 0 0 1px var(--cta-soft);
 }
 
 .wb-code-textarea:focus {
@@ -998,21 +908,11 @@
 }
 
 .wb-code-error-message--ok {
-  color: #208c4f;
+  color: var(--success);
 }
 
 .wb-code-error-message--error {
-  color: #b23b33;
-}
-
-@media (prefers-color-scheme: dark) {
-  .wb-code-error-message--ok {
-    color: #6fdb9c;
-  }
-
-  .wb-code-error-message--error {
-    color: #ffb3ac;
-  }
+  color: var(--error);
 }
 
 /* URL section under code */
@@ -1047,13 +947,13 @@
   height: var(--nav-control-height);
   padding: 0 12px;
   font-size: var(--font-size-base);
-  background: #d87d73;
-  color: #ffffff;
+  background: var(--cta-bg);
+  color: var(--cta-text);
   cursor: pointer;
 }
 
 .wb-url-button:hover {
-  background: #ac554c;
+  background: var(--cta-bg-hover);
 }
 
 /* When builder/import mode is active, hide table+footer (JS adds this class) */
@@ -1068,13 +968,6 @@
 
 /* Generic “this field is invalid” highlight */
 .wb-input-error {
-  border-color: #d87d73 !important;
-  box-shadow: 0 0 0 1px rgba(216, 125, 115, 0.35);
-}
-
-@media (prefers-color-scheme: dark) {
-  .wb-input-error {
-    border-color: #bd4d45 !important;
-    box-shadow: 0 0 0 1px rgba(189, 77, 69, 0.5);
-  }
+  border-color: var(--cta-border) !important;
+  box-shadow: 0 0 0 1px var(--cta-soft);
 }

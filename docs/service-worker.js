@@ -24,6 +24,7 @@ const PRECACHE_URLS = [
   "./settings.js",
   "./welcome.js",
   "./fit-file.js",
+  "./theme.js",
 
   // Styles
   "./workout-base.css",

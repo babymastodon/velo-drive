@@ -23,8 +23,8 @@ import {
   loadRootDirHandle,
   pickRootDir,          // selects / re-permissions the single root dir
   loadThemeMode,
-  saveThemeMode,
 } from "./storage.js";
+import {saveAndApplyThemeMode} from "./theme.js";
 
 // --------------------------- DOM refs ---------------------------
 
@@ -458,15 +458,16 @@ async function refreshThemeToggle() {
 
 function handleThemeToggleClick(value) {
   const next = value === "dark" || value === "light" ? value : "auto";
-  saveThemeMode(next).catch?.((err) =>
-    console.error("[Settings] Failed to save theme mode:", err)
-  );
-  themeToggleButtons.forEach((btn) => {
-    const val = btn.getAttribute("data-theme-mode");
-    const isActive = val === next;
-    btn.classList.toggle("active", isActive);
-    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
-  });
+  saveAndApplyThemeMode(next)
+    .catch((err) => console.error("[Settings] Failed to save theme mode:", err))
+    .finally(() => {
+      themeToggleButtons.forEach((btn) => {
+        const val = btn.getAttribute("data-theme-mode");
+        const isActive = val === next;
+        btn.classList.toggle("active", isActive);
+        btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    });
 }
 
 // --------------------------- Help / user-guide toggles ---------------------------
