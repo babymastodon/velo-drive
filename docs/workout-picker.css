@@ -890,7 +890,7 @@
   width: var(--nav-control-height);
   height: var(--nav-control-height);
   border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border);
   background: var(--surface-elevated);
   color: var(--text-main);
   cursor: pointer;
