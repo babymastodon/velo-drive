@@ -115,6 +115,7 @@
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+  color-scheme: inherit;
 
   padding: 0 12px;
   padding-right: 28px;
@@ -134,8 +135,13 @@
   background-size: 9px 5px;
 }
 
+.workout-picker-controls select option {
+  background: var(--surface);
+  color: var(--text-main);
+}
+
 .workout-picker-controls select:hover {
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: var(--hover-light);
 }
 
 .workout-picker-controls input[type="search"]:focus,
