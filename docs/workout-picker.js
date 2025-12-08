@@ -1591,7 +1591,8 @@ function createWorkoutPicker(config) {
     });
   }
 
-  if (window.matchMedia) {
+  const themePref = document.documentElement?.dataset?.theme || "auto";
+  if (window.matchMedia && themePref === "auto") {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onThemeChange = () => rerenderThemeSensitive();
     if (mql.addEventListener) {

@@ -12,6 +12,7 @@ import {BleManager} from "./ble-manager.js";
 import {getWorkoutEngine} from "./workout-engine.js";
 import {getWorkoutPicker} from "./workout-picker.js";
 import {initWelcomeTour} from "./welcome.js";
+import {initThemeFromStorage, applyThemeMode} from "./theme.js";
 
 
 import {
@@ -89,6 +90,7 @@ let picker = null;
 let welcomeTour = null;
 const hasWelcomeOverlay = !!document.getElementById("welcomeOverlay");
 let isWelcomeActive = hasWelcomeOverlay;
+let currentThemeMode = "auto";
 
 // --------------------------- Helpers ---------------------------
 
@@ -919,6 +921,12 @@ async function maybeShowWelcome() {
 async function initPage() {
   logDebug("Workout page init…");
 
+  try {
+    currentThemeMode = await initThemeFromStorage();
+  } catch (err) {
+    console.error("[Workout] Theme init failed:", err);
+  }
+
   setWelcomeActive(isWelcomeActive);
   primeAudioContext();
   const welcomePromise = maybeShowWelcome();
@@ -937,7 +945,8 @@ async function initPage() {
   await initSettings();
   await welcomePromise;
 
-  if (window.matchMedia) {
+  const themePref = document.documentElement?.dataset?.theme || currentThemeMode;
+  if (window.matchMedia && themePref === "auto") {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => rerenderThemeSensitive();
     if (mql.addEventListener) mql.addEventListener("change", handler);

@@ -51,16 +51,8 @@
 }
 
 .welcome-close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--hover-strong);
   color: var(--text-main);
-}
-
-@media (prefers-color-scheme: dark) {
-  .welcome-close-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .welcome-overlay {}
 }
 
 /* Slide wrapper (animated) */
@@ -212,7 +204,7 @@
 }
 
 .welcome-nav:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--hover-strong);
   color: var(--text-main);
 }
 
@@ -225,13 +217,6 @@
   opacity: 0;
   pointer-events: none;
 }
-
-@media (prefers-color-scheme: dark) {
-  .welcome-nav:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-}
-
 /* Media wrapper: square, capped at 60% of viewport width/height */
 
 .welcome-scene-wrapper {
