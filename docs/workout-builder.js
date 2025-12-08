@@ -332,8 +332,6 @@ export function createWorkoutBuilder(options) {
     };
     if (mql.addEventListener) {
       mql.addEventListener("change", onThemeChange);
-    } else if (mql.addListener) {
-      mql.addListener(onThemeChange);
     }
   }
 
@@ -1090,12 +1088,8 @@ export function createWorkoutBuilder(options) {
     });
 
     const newSnippet = blocksToSnippet(updatedBlocks);
-    codeTextarea.value = newSnippet;
-    autoGrowTextarea(codeTextarea);
-    handleAnyChange();
-    setSelectedBlock(
-      blockIndex < currentBlocks.length ? blockIndex : null,
-    );
+    setCodeValueAndRefresh(newSnippet, null);
+    setSelectedBlock(blockIndex < currentBlocks.length ? blockIndex : null);
   }
 
   function deleteSelectedBlock() {
@@ -1112,10 +1106,8 @@ export function createWorkoutBuilder(options) {
     );
 
     const newSnippet = blocksToSnippet(updatedBlocks);
-    codeTextarea.value = newSnippet;
-    autoGrowTextarea(codeTextarea);
     selectedBlockIndex = null;
-    handleAnyChange();
+    setCodeValueAndRefresh(newSnippet, null);
   }
 
   function blocksToSnippet(blocks) {
@@ -1221,21 +1213,6 @@ export function createWorkoutBuilder(options) {
         ? attrs.offPowerRel
         : offSeg?.pStartRel || 0,
     };
-  }
-
-  function formatBlockLabel(block) {
-    switch (block?.kind) {
-      case "steady":
-        return "SteadyState";
-      case "warmup":
-        return "Warmup";
-      case "cooldown":
-        return "Cooldown";
-      case "intervals":
-        return "IntervalsT";
-      default:
-        return "Workout Block";
-    }
   }
 
   function clampDuration(val) {
@@ -1391,13 +1368,23 @@ export function createWorkoutBuilder(options) {
     const suffix = afterText && !afterText.startsWith("\n") ? "\n" : "";
 
     const newValue = beforeText + prefix + snippet + suffix + afterText;
-    textarea.value = newValue;
-
     const caretPos = (beforeText + prefix + snippet).length;
-    textarea.setSelectionRange(caretPos, caretPos);
-    textarea.focus();
+    setCodeValueAndRefresh(newValue, caretPos);
+  }
 
-    autoGrowTextarea(textarea);
+  function setCodeValueAndRefresh(newValue, caretPos) {
+    if (!codeTextarea) return;
+    const el = codeTextarea;
+    const next = newValue || "";
+    const caret = Number.isFinite(caretPos)
+      ? Math.max(0, Math.min(caretPos, next.length))
+      : null;
+    el.value = next;
+    if (caret != null) {
+      el.setSelectionRange(caret, caret);
+    }
+    autoGrowTextarea(el);
+    handleAnyChange({skipPersist: false});
   }
 
   return {
