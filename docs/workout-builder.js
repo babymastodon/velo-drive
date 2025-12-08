@@ -1356,7 +1356,10 @@ export function createWorkoutBuilder(options) {
 
     let insertPos = endSel;
     const after = value.slice(endSel);
-    const nextGt = after.indexOf(">");
+    const newlineIdx = after.indexOf("\n");
+    const scanSegment =
+      newlineIdx === -1 ? after : after.slice(0, newlineIdx);
+    const nextGt = scanSegment.indexOf(">");
     if (nextGt !== -1) {
       insertPos = endSel + nextGt + 1;
     }
