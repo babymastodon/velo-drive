@@ -1,6 +1,9 @@
 // workout-builder.js
 
-import {renderMiniWorkoutGraph} from "./workout-chart.js";
+import {
+  renderBuilderWorkoutGraph,
+  renderMiniWorkoutGraph,
+} from "./workout-chart.js";
 import {
   computeMetricsFromSegments,
   inferZoneFromSegments,
@@ -35,9 +38,11 @@ export function createWorkoutBuilder(options) {
   /** @type {Array<[number, number, number]>} */ // [minutes, startPct, endPct]
   let currentRawSegments = [];
   let currentErrors = [];
+  let currentBlocks = [];
   let currentMetrics = null;
   let currentZone = null;
   let persistedState = null;
+  let selectedBlockIndex = null;
   const statusTarget = statusMessageEl || null;
 
   function setStatusMessage(text, tone = "neutral") {
@@ -127,6 +132,18 @@ export function createWorkoutBuilder(options) {
   const toolbarButtons = document.createElement("div");
   toolbarButtons.className = "wb-code-toolbar-buttons";
 
+  const blockEditor = document.createElement("div");
+  blockEditor.className = "wb-block-editor";
+  blockEditor.style.display = "none";
+
+  const blockEditorTitle = document.createElement("div");
+  blockEditorTitle.className = "wb-block-editor-title";
+  blockEditor.appendChild(blockEditorTitle);
+
+  const blockEditorFields = document.createElement("div");
+  blockEditorFields.className = "wb-block-editor-fields";
+  blockEditor.appendChild(blockEditorFields);
+
   const buttonSpecs = [
     {
       key: "steady",
@@ -177,10 +194,11 @@ export function createWorkoutBuilder(options) {
       handleAnyChange();
     });
 
-  toolbarButtons.appendChild(btn);
-});
+    toolbarButtons.appendChild(btn);
+  });
 
   toolbar.appendChild(toolbarButtons);
+  toolbar.appendChild(blockEditor);
   toolbarCard.appendChild(toolbar);
 
   // Chart
@@ -245,9 +263,14 @@ export function createWorkoutBuilder(options) {
   });
   codeTextarea.addEventListener("click", () => {
     updateErrorMessageForCaret();
+    // Typing directly into the ZWO textarea should drop any active selection
+    deselectBlock();
   });
   codeTextarea.addEventListener("keyup", () => {
     updateErrorMessageForCaret();
+  });
+  codeTextarea.addEventListener("focus", () => {
+    deselectBlock();
   });
 
   [nameField.input, sourceField.input, descField.textarea].forEach((el) => {
@@ -452,6 +475,13 @@ export function createWorkoutBuilder(options) {
       const parsed = parseZwoSnippet(text);
       currentRawSegments = parsed.rawSegments || [];
       currentErrors = parsed.errors || [];
+      currentBlocks = parsed.blocks || [];
+      if (
+        selectedBlockIndex != null &&
+        !currentBlocks[selectedBlockIndex]
+      ) {
+        selectedBlockIndex = null;
+      }
     }
 
     const ftp = getCurrentFtp() || 0;
@@ -475,6 +505,7 @@ export function createWorkoutBuilder(options) {
     renderChart();
     updateErrorStyling();
     updateErrorHighlights();
+    updateBlockEditor();
 
     const state = getState();
 
@@ -533,16 +564,75 @@ export function createWorkoutBuilder(options) {
   }
 
   function renderChart() {
-    // Canonical workout built from UI state
-    const canonical = getState();
     const ftp = getCurrentFtp() || 0;
 
     chartMiniHost.innerHTML = "";
     try {
-      renderMiniWorkoutGraph(chartMiniHost, canonical, ftp);
+      if (currentBlocks && currentBlocks.length) {
+        renderBuilderWorkoutGraph(chartMiniHost, currentBlocks, ftp, {
+          selectedBlockIndex,
+          onSelectBlock: handleBlockSelectionFromChart,
+        });
+      } else {
+        // Fallback to raw segments if we couldn't parse blocks (should be rare)
+        const canonical = getState();
+        renderMiniWorkoutGraph(chartMiniHost, canonical, ftp);
+      }
     } catch (e) {
       console.error("[WorkoutBuilder] Failed to render mini chart:", e);
     }
+  }
+
+  function getSelectedBlock() {
+    if (
+      selectedBlockIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[selectedBlockIndex]
+    ) {
+      return null;
+    }
+    return currentBlocks[selectedBlockIndex];
+  }
+
+  function setSelectedBlock(idx) {
+    const next =
+      idx == null ||
+      !Number.isFinite(idx) ||
+      idx < 0 ||
+      !currentBlocks ||
+      idx >= currentBlocks.length
+        ? null
+        : idx;
+
+    if (next === selectedBlockIndex) return;
+    selectedBlockIndex = next;
+    updateBlockEditor();
+    updateErrorHighlights();
+    renderChart();
+  }
+
+  function deselectBlock() {
+    if (selectedBlockIndex == null) return;
+    selectedBlockIndex = null;
+    updateBlockEditor();
+    updateErrorHighlights();
+    renderChart();
+  }
+
+  function toggleBlockSelection(idx) {
+    if (selectedBlockIndex === idx) {
+      deselectBlock();
+    } else {
+      setSelectedBlock(idx);
+    }
+  }
+
+  function handleBlockSelectionFromChart(idx) {
+    if (idx == null) {
+      deselectBlock();
+      return;
+    }
+    toggleBlockSelection(idx);
   }
 
   function updateErrorStyling() {
@@ -644,70 +734,485 @@ export function createWorkoutBuilder(options) {
     const lines = text.split("\n");
     const lineCount = lines.length;
 
-    if (!currentErrors.length) {
-      const html = lines
-        .map((line) => `<div>${escapeHtml(line) || " "}</div>`)
-        .join("");
-      codeHighlights.innerHTML = html;
-      return;
-    }
+    const errorLines = new Set();
+    if (currentErrors.length) {
+      const lineOffsets = [];
+      let offset = 0;
+      for (let i = 0; i < lineCount; i += 1) {
+        lineOffsets.push(offset);
+        offset += lines[i].length + 1;
+      }
 
-    const lineOffsets = [];
-    let offset = 0;
-    for (let i = 0; i < lineCount; i += 1) {
-      lineOffsets.push(offset);
-      offset += lines[i].length + 1;
-    }
+      function indexToLine(idx) {
+        if (!Number.isFinite(idx)) return 0;
+        if (idx <= 0) return 0;
+        if (idx >= text.length) return lineCount - 1;
 
-    function indexToLine(idx) {
-      if (!Number.isFinite(idx)) return 0;
-      if (idx <= 0) return 0;
-      if (idx >= text.length) return lineCount - 1;
+        for (let i = 0; i < lineOffsets.length; i += 1) {
+          const start = lineOffsets[i];
+          const nextStart =
+            i + 1 < lineOffsets.length
+              ? lineOffsets[i + 1]
+              : Infinity;
+          if (idx >= start && idx < nextStart) {
+            return i;
+          }
+        }
+        return lineCount - 1;
+      }
 
-      for (let i = 0; i < lineOffsets.length; i += 1) {
-        const start = lineOffsets[i];
-        const nextStart =
-          i + 1 < lineOffsets.length
-            ? lineOffsets[i + 1]
-            : Infinity;
-        if (idx >= start && idx < nextStart) {
-          return i;
+      for (const err of currentErrors) {
+        let start = Number.isFinite(err.start) ? err.start : 0;
+        let end = Number.isFinite(err.end) ? err.end : start;
+
+        start = Math.max(0, Math.min(start, text.length));
+        end = Math.max(start, Math.min(end, text.length));
+
+        const startLine = indexToLine(start);
+        const endLine = indexToLine(end);
+
+        const s = Math.max(0, Math.min(startLine, lineCount - 1));
+        const e = Math.max(s, Math.min(endLine, lineCount - 1));
+
+        for (let i = s; i <= e; i += 1) {
+          errorLines.add(i);
         }
       }
-      return lineCount - 1;
     }
 
-    const errorLines = new Set();
-
-    for (const err of currentErrors) {
-      let start = Number.isFinite(err.start) ? err.start : 0;
-      let end = Number.isFinite(err.end) ? err.end : start;
-
-      start = Math.max(0, Math.min(start, text.length));
-      end = Math.max(start, Math.min(end, text.length));
-
-      const startLine = indexToLine(start);
-      const endLine = indexToLine(end);
-
+    const selectedLines = new Set();
+    const selected = getSelectedBlock();
+    if (selected) {
+      const startLine = Number.isFinite(selected.lineStart)
+        ? selected.lineStart
+        : 0;
+      const endLine = Number.isFinite(selected.lineEnd)
+        ? selected.lineEnd
+        : startLine;
       const s = Math.max(0, Math.min(startLine, lineCount - 1));
       const e = Math.max(s, Math.min(endLine, lineCount - 1));
-
       for (let i = s; i <= e; i += 1) {
-        errorLines.add(i);
+        selectedLines.add(i);
       }
     }
 
     const html = lines
       .map((line, idx) => {
         const safe = escapeHtml(line) || " ";
-        if (errorLines.has(idx)) {
-          return `<div class="wb-highlight-line">${safe}</div>`;
-        }
-        return `<div>${safe}</div>`;
+        const classes = [];
+        if (errorLines.has(idx)) classes.push("wb-highlight-line");
+        if (selectedLines.has(idx)) classes.push("wb-selected-line");
+        const classAttr = classes.length
+          ? ` class="${classes.join(" ")}"`
+          : "";
+        return `<div${classAttr}>${safe}</div>`;
       })
       .join("");
 
     codeHighlights.innerHTML = html;
+  }
+
+  function updateBlockEditor() {
+    if (!blockEditor || !toolbarButtons) return;
+
+    const block = getSelectedBlock();
+    if (!block) {
+      toolbarButtons.style.display = "";
+      blockEditor.style.display = "none";
+      blockEditorFields.innerHTML = "";
+      blockEditorTitle.textContent = "";
+      return;
+    }
+
+    toolbarButtons.style.display = "none";
+    blockEditor.style.display = "flex";
+    blockEditorFields.innerHTML = "";
+    blockEditorTitle.textContent = `Editing ${formatBlockLabel(block)}`;
+
+    const configs = buildBlockFieldConfigs(block);
+    configs.forEach((cfg) => {
+      const field = createStepperField(cfg, (val) => {
+        if (typeof cfg.onCommit === "function") {
+          cfg.onCommit(val);
+        }
+      });
+      blockEditorFields.appendChild(field.wrapper);
+    });
+  }
+
+  function buildBlockFieldConfigs(block) {
+    const idx = selectedBlockIndex;
+    const list = [];
+    const durationSec = Math.round(getBlockDurationSec(block));
+
+    const commitDuration = (val) =>
+      applyBlockAttrUpdate(idx, {durationSec: clampDuration(val)});
+
+    if (block.kind === "steady") {
+      const powerPct = Math.round(getBlockSteadyPower(block) * 100);
+      list.push({
+        key: "durationSec",
+        label: "Duration",
+        tooltip: "Length of this steady block (seconds).",
+        value: durationSec,
+        unit: "sec",
+        step: 60,
+        onCommit: commitDuration,
+      });
+      list.push({
+        key: "powerRel",
+        label: "Power",
+        tooltip: "Target power as % of FTP.",
+        value: powerPct,
+        unit: "% FTP",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            powerRel: clampPowerPercent(val) / 100,
+          }),
+      });
+    } else if (block.kind === "warmup" || block.kind === "cooldown") {
+      const lowPct = Math.round(getRampLow(block) * 100);
+      const highPct = Math.round(getRampHigh(block) * 100);
+      list.push({
+        key: "durationSec",
+        label: "Duration",
+        tooltip: "Length of this ramp block (seconds).",
+        value: durationSec,
+        unit: "sec",
+        step: 60,
+        onCommit: commitDuration,
+      });
+      list.push({
+        key: "powerLowRel",
+        label: "Power Low",
+        tooltip: "Starting power as % of FTP.",
+        value: lowPct,
+        unit: "% FTP",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            powerLowRel: clampPowerPercent(val) / 100,
+          }),
+      });
+      list.push({
+        key: "powerHighRel",
+        label: "Power High",
+        tooltip: "Ending power as % of FTP.",
+        value: highPct,
+        unit: "% FTP",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            powerHighRel: clampPowerPercent(val) / 100,
+          }),
+      });
+    } else if (block.kind === "intervals") {
+      const intervals = getIntervalParts(block);
+      list.push({
+        key: "onDurationSec",
+        label: "On Duration",
+        tooltip: "Work interval length (seconds).",
+        value: Math.round(intervals.onDurationSec),
+        unit: "sec",
+        step: 60,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            onDurationSec: clampDuration(val),
+          }),
+      });
+      list.push({
+        key: "offDurationSec",
+        label: "Off Duration",
+        tooltip: "Recovery interval length (seconds).",
+        value: Math.round(intervals.offDurationSec),
+        unit: "sec",
+        step: 60,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            offDurationSec: clampDuration(val),
+          }),
+      });
+      list.push({
+        key: "repeat",
+        label: "Repeats",
+        tooltip: "Number of on/off pairs.",
+        value: Math.max(1, Math.round(intervals.repeat)),
+        unit: "x",
+        step: 1,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {repeat: clampRepeat(val)}),
+      });
+      list.push({
+        key: "onPowerRel",
+        label: "On Power",
+        tooltip: "Work interval power (% FTP).",
+        value: Math.round(intervals.onPowerRel * 100),
+        unit: "% FTP",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            onPowerRel: clampPowerPercent(val) / 100,
+          }),
+      });
+      list.push({
+        key: "offPowerRel",
+        label: "Off Power",
+        tooltip: "Recovery interval power (% FTP).",
+        value: Math.round(intervals.offPowerRel * 100),
+        unit: "% FTP",
+        step: 5,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, {
+            offPowerRel: clampPowerPercent(val) / 100,
+          }),
+      });
+    }
+
+    return list;
+  }
+
+  function createStepperField(config, onCommit) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "wb-block-field";
+
+    const label = document.createElement("label");
+    label.className = "wb-block-field-label";
+    label.textContent = config.label || "";
+    if (config.tooltip) label.title = config.tooltip;
+    wrapper.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "wb-block-stepper-row";
+
+    const group = document.createElement("div");
+    group.className = "control-group wb-block-stepper";
+
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "control-btn";
+    minus.textContent = "-";
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "settings-ftp-input wb-block-stepper-input";
+    input.value = Number.isFinite(config.value) ? String(config.value) : "0";
+    input.inputMode = "numeric";
+
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "control-btn";
+    plus.textContent = "+";
+
+    const unit = document.createElement("span");
+    unit.className = "wb-block-unit";
+    unit.textContent = config.unit || "";
+
+    const commitValue = (raw) => {
+      const n = Number(raw);
+      const base = Number.isFinite(n) ? n : Number(config.value) || 0;
+      if (typeof onCommit === "function") {
+        onCommit(base);
+      }
+    };
+
+    minus.addEventListener("click", (e) => {
+      e.preventDefault();
+      const current = Number(input.value);
+      const step = Number(config.step) || 1;
+      const next = Number.isFinite(current) ? current - step : step * -1;
+      input.value = String(next);
+      commitValue(next);
+    });
+
+    plus.addEventListener("click", (e) => {
+      e.preventDefault();
+      const current = Number(input.value);
+      const step = Number(config.step) || 1;
+      const next = Number.isFinite(current) ? current + step : step;
+      input.value = String(next);
+      commitValue(next);
+    });
+
+    input.addEventListener("change", () => commitValue(input.value));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commitValue(input.value);
+      }
+    });
+
+    group.appendChild(minus);
+    group.appendChild(input);
+    group.appendChild(plus);
+    row.appendChild(group);
+    if (config.unit) {
+      row.appendChild(unit);
+    }
+
+    wrapper.appendChild(row);
+    return {wrapper, input};
+  }
+
+  function applyBlockAttrUpdate(blockIndex, attrs) {
+    if (
+      blockIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[blockIndex]
+    ) {
+      return;
+    }
+
+    const updatedBlocks = currentBlocks.map((block, idx) => {
+      if (idx !== blockIndex) return block;
+      return {
+        ...block,
+        attrs: {...(block.attrs || {}), ...attrs},
+      };
+    });
+
+    const newSnippet = blocksToSnippet(updatedBlocks);
+    codeTextarea.value = newSnippet;
+    autoGrowTextarea(codeTextarea);
+    handleAnyChange();
+    setSelectedBlock(
+      blockIndex < currentBlocks.length ? blockIndex : null,
+    );
+  }
+
+  function blocksToSnippet(blocks) {
+    if (!Array.isArray(blocks) || !blocks.length) return "";
+    const lines = [];
+
+    const formatRel = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+    };
+
+    for (const block of blocks) {
+      if (!block || !block.kind) continue;
+      const attrs = block.attrs || {};
+
+      if (block.kind === "steady") {
+        const duration = clampDuration(attrs.durationSec);
+        lines.push(
+          `<SteadyState Duration="${duration}" Power="${formatRel(
+            attrs.powerRel,
+          )}" />`,
+        );
+      } else if (block.kind === "warmup" || block.kind === "cooldown") {
+        const duration = clampDuration(attrs.durationSec);
+        const tag = block.kind === "cooldown" ? "Cooldown" : "Warmup";
+        lines.push(
+          `<${tag} Duration="${duration}" PowerLow="${formatRel(
+            attrs.powerLowRel,
+          )}" PowerHigh="${formatRel(attrs.powerHighRel)}" />`,
+        );
+      } else if (block.kind === "intervals") {
+        const repeat = clampRepeat(attrs.repeat);
+        const onDur = clampDuration(attrs.onDurationSec);
+        const offDur = clampDuration(attrs.offDurationSec);
+        lines.push(
+          `<IntervalsT Repeat="${repeat}" OnDuration="${onDur}" OffDuration="${offDur}" OnPower="${formatRel(
+            attrs.onPowerRel,
+          )}" OffPower="${formatRel(attrs.offPowerRel)}" />`,
+        );
+      }
+    }
+
+    return lines.join("\n");
+  }
+
+  function getBlockDurationSec(block) {
+    if (!block) return 0;
+    const attrVal = block.attrs?.durationSec;
+    if (Number.isFinite(attrVal) && attrVal > 0) return attrVal;
+    const segs = Array.isArray(block.segments) ? block.segments : [];
+    return segs.reduce(
+      (sum, seg) => sum + Math.max(0, Number(seg?.durationSec) || 0),
+      0,
+    );
+  }
+
+  function getBlockSteadyPower(block) {
+    if (!block) return 0;
+    const attrVal = block.attrs?.powerRel;
+    if (Number.isFinite(attrVal)) return attrVal;
+    const first = block.segments?.[0];
+    if (first && Number.isFinite(first.pStartRel)) return first.pStartRel;
+    return 0;
+  }
+
+  function getRampLow(block) {
+    if (!block) return 0;
+    const attrVal = block.attrs?.powerLowRel;
+    if (Number.isFinite(attrVal)) return attrVal;
+    const first = block.segments?.[0];
+    if (first && Number.isFinite(first.pStartRel)) return first.pStartRel;
+    return 0;
+  }
+
+  function getRampHigh(block) {
+    if (!block) return 0;
+    const attrVal = block.attrs?.powerHighRel;
+    if (Number.isFinite(attrVal)) return attrVal;
+    const last = block.segments?.[block.segments.length - 1];
+    if (last && Number.isFinite(last.pEndRel)) return last.pEndRel;
+    return getRampLow(block);
+  }
+
+  function getIntervalParts(block) {
+    const attrs = block?.attrs || {};
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    const onSeg = segs[0];
+    const offSeg = segs[1];
+    return {
+      repeat: Number.isFinite(attrs.repeat)
+        ? attrs.repeat
+        : Math.max(1, Math.round(segs.length / 2)),
+      onDurationSec: Number.isFinite(attrs.onDurationSec)
+        ? attrs.onDurationSec
+        : onSeg?.durationSec || 0,
+      offDurationSec: Number.isFinite(attrs.offDurationSec)
+        ? attrs.offDurationSec
+        : offSeg?.durationSec || 0,
+      onPowerRel: Number.isFinite(attrs.onPowerRel)
+        ? attrs.onPowerRel
+        : onSeg?.pStartRel || 0,
+      offPowerRel: Number.isFinite(attrs.offPowerRel)
+        ? attrs.offPowerRel
+        : offSeg?.pStartRel || 0,
+    };
+  }
+
+  function formatBlockLabel(block) {
+    switch (block?.kind) {
+      case "steady":
+        return "SteadyState";
+      case "warmup":
+        return "Warmup";
+      case "cooldown":
+        return "Cooldown";
+      case "intervals":
+        return "IntervalsT";
+      default:
+        return "Workout Block";
+    }
+  }
+
+  function clampDuration(val) {
+    const n = Number(val);
+    return Math.max(1, Math.round(Number.isFinite(n) ? n : 0));
+  }
+
+  function clampRepeat(val) {
+    const n = Number(val);
+    return Math.max(1, Math.round(Number.isFinite(n) ? n : 1));
+  }
+
+  function clampPowerPercent(val) {
+    const n = Number(val);
+    return Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
   }
 
   function createWorkoutElementIcon(kind) {

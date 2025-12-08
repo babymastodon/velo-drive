@@ -770,6 +770,28 @@
   width: 100%;
   height: 180px;
 }
+.wb-block-band {
+  transition: transform 0.14s ease, filter 0.14s ease, fill-opacity 0.14s ease;
+}
+
+.wb-block-band.is-active {
+  fill: var(--hover-strong);
+  fill-opacity: 0.28;
+  stroke: var(--border);
+  stroke-width: 1.2;
+  transform: translateY(-1px) scale(1.01);
+  filter: drop-shadow(0 6px 12px var(--tooltip-shadow));
+}
+
+.wb-block-segment {
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.wb-block-segment.is-active {
+  transform: translateY(-1px) scale(1.01);
+  filter: drop-shadow(0 6px 12px var(--tooltip-shadow));
+}
 
 .wb-stats-card {
   flex: 0 0 auto;
@@ -791,6 +813,58 @@
   gap: 12px;
   flex-wrap: wrap;
   font-size: var(--font-size-base);
+}
+
+.wb-block-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.wb-block-editor-title {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wb-block-editor-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.wb-block-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.wb-block-field-label {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+}
+
+.wb-block-stepper-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wb-block-stepper {
+  height: var(--nav-control-height);
+}
+
+.wb-block-stepper-input {
+  width: 5ch;
+}
+
+.wb-block-unit {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .wb-code-toolbar-buttons {
@@ -862,6 +936,12 @@
   background: rgba(216, 125, 115, 0.24);
   /* soft red, adjust to taste */
   display: block;
+}
+
+.wb-selected-line {
+  background: var(--hover-medium);
+  display: block;
+  outline: 1px dashed var(--border);
 }
 
 /* Textarea stays on top */

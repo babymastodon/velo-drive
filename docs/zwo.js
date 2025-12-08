@@ -78,31 +78,59 @@ function cdataUnwrap(text) {
  * into canonical rawSegments and syntax errors.
  *
  * @param {string} text
- * @returns {{rawSegments:Array<[number,number,number]>, errors:Array<{start:number,end:number,message:string}>}}
+ * @returns {{
+ *   rawSegments:Array<[number,number,number]>,
+ *   errors:Array<{start:number,end:number,message:string}>,
+ *   blocks:Array<{
+ *     kind:"steady"|"warmup"|"cooldown"|"intervals",
+ *     start:number,
+ *     end:number,
+ *     lineStart:number,
+ *     lineEnd:number,
+ *     segmentStart:number,
+ *     segmentCount:number,
+ *     segments:Array<{durationSec:number,pStartRel:number,pEndRel:number}>,
+ *     attrs:Record<string, number>
+ *   }>,
+ *   sourceText:string
+ * }}
  */
 export function parseZwoSnippet(text) {
   /** @type {Array<{durationSec:number,pStartRel:number,pEndRel:number}>} */
   const segments = [];
   const errors = [];
+  const blocks = [];
 
-  const raw = (text || "")
-    .replace(/<\s*workout[^>]*>/gi, "")
-    .replace(/<\/\s*workout\s*>/gi, "");
-  const trimmed = raw.trim();
-  if (!trimmed) return {rawSegments: [], errors};
+  const source = String(text || "");
+  const withoutWorkoutWrappers = source
+    // Preserve string length for position mapping by replacing wrappers with spaces
+    .replace(/<\s*workout[^>]*>/gi, (m) => " ".repeat(m.length))
+    .replace(/<\/\s*workout\s*>/gi, (m) => " ".repeat(m.length));
+
+  const working = withoutWorkoutWrappers;
+  if (!working.trim()) return {rawSegments: [], errors, blocks, sourceText: working};
 
   const tagRegex = /<([A-Za-z]+)\b([^>]*)\/>/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = tagRegex.exec(trimmed)) !== null) {
+  const lineFromIndex = (idx) => {
+    const safeIdx = Math.max(0, Math.min(idx, working.length));
+    let line = 0;
+    for (let i = 0; i < safeIdx; i += 1) {
+      if (working[i] === "\n") line += 1;
+    }
+    return line;
+  };
+
+  while ((match = tagRegex.exec(working)) !== null) {
     const full = match[0];
     const tagName = match[1];
     const attrsText = match[2] || "";
     const startIdx = match.index;
     const endIdx = startIdx + full.length;
 
-    const between = trimmed.slice(lastIndex, startIdx);
+    const between = working.slice(lastIndex, startIdx);
     if (between.trim().length > 0) {
       errors.push({
         start: lastIndex,
@@ -125,16 +153,20 @@ export function parseZwoSnippet(text) {
       continue;
     }
 
+    const blockSegmentStart = segments.length;
+    const blockLineStart = lineFromIndex(startIdx);
+    let blockResult = null;
+
     switch (tagName) {
       case "SteadyState":
-        handleZwoSteady(attrs, segments, errors, startIdx, endIdx);
+        blockResult = handleZwoSteady(attrs, segments, errors, startIdx, endIdx);
         break;
       case "Warmup":
       case "Cooldown":
-        handleZwoRamp(tagName, attrs, segments, errors, startIdx, endIdx);
+        blockResult = handleZwoRamp(tagName, attrs, segments, errors, startIdx, endIdx);
         break;
       case "IntervalsT":
-        handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
+        blockResult = handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
         break;
       default:
         errors.push({
@@ -145,10 +177,24 @@ export function parseZwoSnippet(text) {
         break;
     }
 
+    if (blockResult && blockResult.segments && blockResult.segments.length) {
+      blocks.push({
+        kind: blockResult.kind,
+        start: startIdx,
+        end: endIdx,
+        lineStart: blockLineStart,
+        lineEnd: lineFromIndex(endIdx),
+        segmentStart: blockSegmentStart,
+        segmentCount: blockResult.segments.length,
+        segments: blockResult.segments.slice(),
+        attrs: {...blockResult.attrs},
+      });
+    }
+
     lastIndex = endIdx;
   }
 
-  const trailing = trimmed.slice(lastIndex);
+  const trailing = working.slice(lastIndex);
   if (trailing.trim().length > 0) {
     errors.push({
       start: lastIndex,
@@ -163,7 +209,7 @@ export function parseZwoSnippet(text) {
     seg.pEndRel * 100       // endPct
   ]));
 
-  return {rawSegments, errors};
+  return {rawSegments, errors, blocks, sourceText: working};
 }
 
 function parseZwoAttributes(attrText) {
@@ -207,11 +253,21 @@ function handleZwoSteady(attrs, segments, errors, start, end) {
     return;
   }
 
-  segments.push({
+  const seg = {
     durationSec: duration,
     pStartRel: power,
     pEndRel: power,
-  });
+  };
+  segments.push(seg);
+
+  return {
+    kind: "steady",
+    segments: [seg],
+    attrs: {
+      durationSec: duration,
+      powerRel: power,
+    },
+  };
 }
 
 function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
@@ -229,11 +285,23 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
     return;
   }
 
-  segments.push({
+  const seg = {
     durationSec: duration,
     pStartRel: pLow,
     pEndRel: pHigh,
-  });
+  };
+
+  segments.push(seg);
+
+  return {
+    kind: tagName === "Warmup" ? "warmup" : "cooldown",
+    segments: [seg],
+    attrs: {
+      durationSec: duration,
+      powerLowRel: pLow,
+      powerHighRel: pHigh,
+    },
+  };
 }
 
 function validateZwoDuration(duration, tagName, start, end, errors) {
@@ -294,19 +362,37 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
     return;
   }
 
+  const blockSegments = [];
+
   const reps = Math.round(repeat);
   for (let i = 0; i < reps; i++) {
-    segments.push({
+    const onSeg = {
       durationSec: onDur,
       pStartRel: onPow,
       pEndRel: onPow,
-    });
-    segments.push({
+    };
+    const offSeg = {
       durationSec: offDur,
       pStartRel: offPow,
       pEndRel: offPow,
-    });
+    };
+
+    segments.push(onSeg);
+    segments.push(offSeg);
+    blockSegments.push(onSeg, offSeg);
   }
+
+  return {
+    kind: "intervals",
+    segments: blockSegments,
+    attrs: {
+      repeat: reps,
+      onDurationSec: onDur,
+      offDurationSec: offDur,
+      onPowerRel: onPow,
+      offPowerRel: offPow,
+    },
+  };
 }
 
 // ---------------- Canonical segments -> ZWO body ----------------

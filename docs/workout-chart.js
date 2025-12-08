@@ -133,6 +133,8 @@ function renderSegmentPolygon({
   poly.dataset.hoverColor = hover;
 
   svg.appendChild(poly);
+
+  return poly;
 }
 
 // Track last hovered segment across charts (main + mini)
@@ -206,9 +208,9 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       segment.dataset.hoverColor ||
       segment.dataset.color ||
       segment.dataset.mutedColor;
-      if (hoverColor) segment.setAttribute("fill", hoverColor);
+    if (hoverColor) segment.setAttribute("fill", hoverColor);
 
-      lastHoveredSegment = segment;
+    lastHoveredSegment = segment;
   };
 
   const onMouseLeave = () => {
@@ -360,6 +362,156 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
 
   // Hover handling shared with main chart
   attachSegmentHover(svg, tooltip, container, ftp);
+}
+
+// --------------------------- Builder mini chart ---------------------------
+
+function computeBlockTimings(blocks) {
+  const timings = [];
+  let totalSec = 0;
+
+  (blocks || []).forEach((block, idx) => {
+    const start = totalSec;
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    for (const seg of segs) {
+      const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
+      totalSec += durSec;
+    }
+    timings.push({index: idx, tStart: start, tEnd: totalSec});
+  });
+
+  return {timings, totalSec};
+}
+
+/**
+ * Renders the builder workout chart that operates on parsed blocks (not just flattened rawSegments).
+ * Adds block-level highlighting + click handling to select/deselect blocks.
+ */
+export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options = {}) {
+  const {selectedBlockIndex = null, onSelectBlock} = options;
+
+  container.innerHTML = "";
+
+  if (!Array.isArray(blocks) || !blocks.length) {
+    container.textContent = "No workout structure available.";
+    container.classList.add("picker-detail-empty");
+    return;
+  }
+
+  const ftp =
+    currentFtp ||
+    DEFAULT_FTP;
+
+  const {timings, totalSec} = computeBlockTimings(blocks);
+  if (!totalSec) {
+    container.textContent = "No workout structure available.";
+    container.classList.add("picker-detail-empty");
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  let width = rect.width;
+  let height = rect.height;
+
+  if (!width) width = container.clientWidth || 400;
+  if (!height) height = container.clientHeight || 120;
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.classList.add("picker-graph-svg");
+  svg.setAttribute("shape-rendering", "crispEdges");
+
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("x", "0");
+  bg.setAttribute("y", "0");
+  bg.setAttribute("width", String(width));
+  bg.setAttribute("height", String(height));
+  bg.setAttribute("fill", "transparent");
+  svg.appendChild(bg);
+
+  const maxY = Math.max(200, ftp * 2);
+
+  // Block-wide highlight bands (pointer-events none so hover still works)
+  timings.forEach(({index, tStart, tEnd}) => {
+    const x1 = (tStart / totalSec) * width;
+    const x2 = (tEnd / totalSec) * width;
+    const w = Math.max(1, x2 - x1);
+
+    const band = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    band.setAttribute("x", String(x1));
+    band.setAttribute("y", "0");
+    band.setAttribute("width", String(w));
+    band.setAttribute("height", String(height));
+    band.setAttribute("fill", "transparent");
+    band.setAttribute("pointer-events", "none");
+    band.classList.add("wb-block-band");
+    band.dataset.blockIndex = String(index);
+    if (index === selectedBlockIndex) {
+      band.classList.add("is-active");
+    }
+    svg.appendChild(band);
+  });
+
+  // Workout segments, preserving block ownership for styling
+  let cursor = 0;
+  (blocks || []).forEach((block, idx) => {
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    for (const seg of segs) {
+      const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
+      const pStartRel = seg?.pStartRel || 0;
+      const pEndRel = seg?.pEndRel != null ? seg.pEndRel : pStartRel;
+
+      const poly = renderSegmentPolygon({
+        svg,
+        totalSec,
+        width,
+        height,
+        ftp,
+        maxY,
+        tStart: cursor,
+        tEnd: cursor + durSec,
+        pStartRel,
+        pEndRel,
+      });
+
+      if (poly) {
+        poly.dataset.blockIndex = String(idx);
+        poly.classList.add("wb-block-segment");
+        if (idx === selectedBlockIndex) {
+          poly.classList.add("is-active");
+        }
+      }
+
+      cursor += durSec;
+    }
+  });
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "picker-tooltip";
+
+  container.appendChild(svg);
+  container.appendChild(tooltip);
+
+  attachSegmentHover(svg, tooltip, container, ftp);
+
+  svg.addEventListener("click", (e) => {
+    if (typeof onSelectBlock !== "function") return;
+
+    const targetBlock =
+      e.target && e.target.closest
+        ? e.target.closest("[data-block-index]")
+        : null;
+
+    if (targetBlock && targetBlock.dataset.blockIndex != null) {
+      const idx = Number(targetBlock.dataset.blockIndex);
+      onSelectBlock(Number.isFinite(idx) ? idx : null);
+    } else {
+      onSelectBlock(null);
+    }
+  });
 }
 
 
