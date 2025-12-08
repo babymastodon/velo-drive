@@ -933,7 +933,7 @@ export function createWorkoutBuilder(options) {
       });
       list.push({
         key: "onDurationSec",
-        label: "On Duration",
+        label: "On",
         tooltip: "Work interval length (seconds).",
         value: Math.round(intervals.onDurationSec),
         unit: "s",
@@ -958,7 +958,7 @@ export function createWorkoutBuilder(options) {
       });
       list.push({
         key: "offDurationSec",
-        label: "Off Duration",
+        label: "Off",
         tooltip: "Recovery interval length (seconds).",
         value: Math.round(intervals.offDurationSec),
         unit: "s",
