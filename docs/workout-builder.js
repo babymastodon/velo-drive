@@ -304,6 +304,9 @@ export function createWorkoutBuilder(options) {
   });
   codeTextarea.addEventListener("focus", () => {
     deselectBlock();
+    // caret update handled on mouseup/keyup
+  });
+  codeTextarea.addEventListener("mouseup", () => {
     updateCaretBlockIndex();
   });
 
