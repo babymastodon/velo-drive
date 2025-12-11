@@ -140,6 +140,7 @@ function renderSegmentPolygon({
 // Track last hovered segment across charts (main + mini)
 let lastHoveredSegment = null;
 const hoverCleanupMap = new WeakMap();
+const lastHoverPosByContainer = new WeakMap();
 
 /**
  * Attaches hover behavior for segments: shows tooltip and highlights polygon.
@@ -150,10 +151,16 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   const cleanup = hoverCleanupMap.get(svg);
   if (cleanup) cleanup();
 
-  const onMouseMove = (e) => {
-    const segment = e.target.closest ? e.target.closest(".chart-segment") : null;
+  const applyHoverAtClientPos = (clientX, clientY, {remember = true} = {}) => {
+    if (lastHoveredSegment && !document.contains(lastHoveredSegment)) {
+      lastHoveredSegment = null;
+    }
 
-    if (!segment) {
+    const hitEl = document.elementFromPoint(clientX, clientY);
+    const segment =
+      hitEl && hitEl.closest ? hitEl.closest(".chart-segment") : null;
+
+    if (!segment || !svg.contains(segment)) {
       tooltipEl.style.display = "none";
       if (lastHoveredSegment) {
         const prevColor =
@@ -163,6 +170,10 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
         lastHoveredSegment = null;
       }
       return;
+    }
+
+    if (remember) {
+      lastHoverPosByContainer.set(containerEl, {clientX, clientY});
     }
 
     const zone = segment.dataset.zone;
@@ -181,8 +192,8 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
-    let tx = e.clientX - panelRect.left + 8;
-    let ty = e.clientY - panelRect.top + 8;
+    let tx = clientX - panelRect.left + 8;
+    let ty = clientY - panelRect.top + 8;
 
     const ttRect = tooltipEl.getBoundingClientRect();
     if (tx + ttRect.width > panelRect.width - 4) {
@@ -213,6 +224,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     lastHoveredSegment = segment;
   };
 
+  const onMouseMove = (e) => {
+    lastHoverPosByContainer.set(containerEl, {
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
+    applyHoverAtClientPos(e.clientX, e.clientY, {remember: false});
+  };
+
   const onMouseLeave = () => {
     tooltipEl.style.display = "none";
     if (lastHoveredSegment) {
@@ -222,6 +241,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
       lastHoveredSegment = null;
     }
+    lastHoverPosByContainer.delete(containerEl);
   };
 
   svg.addEventListener("mousemove", onMouseMove);
@@ -230,7 +250,15 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   hoverCleanupMap.set(svg, () => {
     svg.removeEventListener("mousemove", onMouseMove);
     svg.removeEventListener("mouseleave", onMouseLeave);
+    lastHoverPosByContainer.delete(containerEl);
   });
+
+  const lastPos = lastHoverPosByContainer.get(containerEl);
+  if (lastPos && Number.isFinite(lastPos.clientX) && Number.isFinite(lastPos.clientY)) {
+    requestAnimationFrame(() =>
+      applyHoverAtClientPos(lastPos.clientX, lastPos.clientY, {remember: false})
+    );
+  }
 }
 
 // --------------------------- rawSegments helpers ---------------------------
