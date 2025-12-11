@@ -584,6 +584,7 @@ function drawChart(vm) {
     vm &&
     vm.mode === "workout" &&
     vm.canonicalWorkout &&
+    !vm.workoutStarting &&
     !vm.workoutRunning &&
     (vm.elapsedSec || 0) === 0;
 
