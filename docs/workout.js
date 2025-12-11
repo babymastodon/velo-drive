@@ -174,7 +174,8 @@ async function shouldForceFullWelcome() {
     runningAsPwa = false;
   }
 
-  return missingRootDir || !runningAsPwa;
+  const forceFullWelcome = !runningAsPwa || missingRootDir;
+  return {forceFullWelcome, runningAsPwa, missingRootDir};
 }
 
 async function ensureRootDirConfiguredForWorkouts() {
@@ -869,7 +870,7 @@ async function handleLastScrapedWorkout() {
   }
 }
 
-async function maybeShowWelcome() {
+async function maybeShowWelcome(vm) {
   try {
     if (!hasWelcomeOverlay) {
       setWelcomeActive(false);
@@ -885,12 +886,26 @@ async function maybeShowWelcome() {
       },
     });
 
+    const hasActiveWorkout =
+      vm &&
+      (vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
     let forceFullWelcome = false;
+    let runningAsPwa = false;
     try {
-      forceFullWelcome = await shouldForceFullWelcome();
+      const res = await shouldForceFullWelcome();
+      forceFullWelcome = !!res.forceFullWelcome;
+      runningAsPwa = !!res.runningAsPwa;
     } catch (err) {
       logDebug("Welcome prereq check failed; showing full intro: " + err);
       forceFullWelcome = true;
+      runningAsPwa = false;
+    }
+
+    // If a workout is running/paused, skip the welcome entirely.
+    if (hasActiveWorkout) {
+      setWelcomeActive(false);
+      hideWelcomeOverlayFallback();
+      return;
     }
 
     if (!welcomeTour || typeof welcomeTour.open !== "function") {
@@ -901,9 +916,11 @@ async function maybeShowWelcome() {
 
     setWelcomeActive(true);
 
+    // Web always shows full welcome; PWA/extension shows splash if root dir is set,
+    // otherwise full welcome for missing config.
     if (forceFullWelcome) {
       welcomeTour.open(0);
-    } else if (typeof welcomeTour.playSplash === "function") {
+    } else if (runningAsPwa && typeof welcomeTour.playSplash === "function") {
       welcomeTour.playSplash(1100);
     } else {
       welcomeTour.open(0);
@@ -930,8 +947,6 @@ async function initPage() {
 
   setWelcomeActive(isWelcomeActive);
   primeAudioContext();
-  const welcomePromise = maybeShowWelcome();
-
   engine = getWorkoutEngine();
 
   await engine.init({
@@ -944,6 +959,7 @@ async function initPage() {
   updateHrBatteryLabel();
 
   await initSettings();
+  const welcomePromise = maybeShowWelcome(engine.getViewModel());
   await welcomePromise;
 
   const themePref = document.documentElement?.dataset?.theme || currentThemeMode;
