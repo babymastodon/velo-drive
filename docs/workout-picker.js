@@ -1090,7 +1090,11 @@ function createWorkoutPicker(config) {
 
     if (searchInput) searchInput.value = saved.searchTerm || "";
     if (zoneFilter) zoneFilter.value = saved.zone || "";
-    if (durationFilter) durationFilter.value = saved.duration || "";
+    if (durationFilter) {
+      const allowedValues = Array.from(durationFilter.options).map((opt) => opt.value);
+      const nextVal = saved.duration || "";
+      durationFilter.value = allowedValues.includes(nextVal) ? nextVal : "";
+    }
     if (saved.sortKey) pickerSortKey = saved.sortKey;
     if (saved.sortDir === "asc" || saved.sortDir === "desc") {
       pickerSortDir = saved.sortDir;

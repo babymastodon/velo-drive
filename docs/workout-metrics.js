@@ -164,14 +164,14 @@ export function inferZoneFromSegments(rawSegments) {
  */
 export function getDurationBucket(durationMin) {
   if (!Number.isFinite(durationMin)) return ">240";
-  if (durationMin <= 30) return "0-30";
-  if (durationMin <= 60) return "30-60";
-  if (durationMin <= 90) return "60-90";
-  if (durationMin <= 120) return "90-120";
-  if (durationMin <= 150) return "120-150";
-  if (durationMin <= 180) return "150-180";
-  if (durationMin <= 210) return "180-210";
-  if (durationMin <= 240) return "210-240";
+  if (durationMin <= 30) return "1-30";
+  if (durationMin <= 60) return "31-60";
+  if (durationMin <= 90) return "61-90";
+  if (durationMin <= 120) return "91-120";
+  if (durationMin <= 150) return "121-150";
+  if (durationMin <= 180) return "151-180";
+  if (durationMin <= 210) return "181-210";
+  if (durationMin <= 240) return "211-240";
   return ">240";
 }
 
@@ -189,4 +189,3 @@ export function getAdjustedKjForPicker(baseKj, baseFtp, currentFtp) {
   if (baseFtp <= 0) return workout.baseKj;
   return baseKj * (currentFtp / baseFtp);
 }
-
