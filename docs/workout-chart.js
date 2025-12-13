@@ -587,6 +587,9 @@ export function drawWorkoutChart({
   if (!svg || !panel) return;
   clearSvg(svg);
 
+  // Treat long data gaps as breaks in the line so we don't visually interpolate
+  const GAP_BREAK_SECONDS = 6;
+
   const w = width;
   const h = height;
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
@@ -735,34 +738,59 @@ export function drawWorkoutChart({
   const cadColor = getCssVar("--cad-line");
 
   if (samples.length) {
-    const pathForKey = (key) => {
+    const pathsForKey = (key) => {
+      const paths = [];
       let d = "";
+      let lastT = null;
+
       samples.forEach((s) => {
         const t = s.t;
         const val = s[key];
-        if (val == null) return;
+        const hasVal = val != null && Number.isFinite(val);
+        const hasTime = Number.isFinite(t);
+
+        if (!hasVal || !hasTime) {
+          if (d) {
+            paths.push(d);
+            d = "";
+          }
+          lastT = null;
+          return;
+        }
+
+        const gap = lastT == null ? 0 : t - lastT;
+        if (lastT != null && gap > GAP_BREAK_SECONDS) {
+          if (d) paths.push(d);
+          d = "";
+        }
+
         const x = Math.min(w, (t / safeTotalSec) * w);
         const yVal = Math.min(maxY, Math.max(0, val));
         const y = h - (yVal / maxY) * h;
         d += (d ? " L " : "M ") + x + " " + y;
+        lastT = t;
       });
-      return d;
+
+      if (d) paths.push(d);
+      return paths;
     };
 
-    const addPath = (d, color, strokeWidth) => {
-      if (!d) return;
-      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", d);
-      p.setAttribute("fill", "none");
-      p.setAttribute("stroke", color);
-      p.setAttribute("stroke-width", String(strokeWidth));
-      p.setAttribute("pointer-events", "none");
-      svg.appendChild(p);
+    const addPaths = (segments, color, strokeWidth) => {
+      segments.forEach((d) => {
+        if (!d) return;
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p.setAttribute("d", d);
+        p.setAttribute("fill", "none");
+        p.setAttribute("stroke", color);
+        p.setAttribute("stroke-width", String(strokeWidth));
+        p.setAttribute("pointer-events", "none");
+        svg.appendChild(p);
+      });
     };
 
-    addPath(pathForKey("power"), powerColor, 2.5);
-    addPath(pathForKey("hr"), hrColor, 1.5);
-    addPath(pathForKey("cadence"), cadColor, 1.5);
+    addPaths(pathsForKey("power"), powerColor, 2.5);
+    addPaths(pathsForKey("hr"), hrColor, 1.5);
+    addPaths(pathsForKey("cadence"), cadColor, 1.5);
   }
 
   attachSegmentHover(svg, tooltipEl, panel, ftp);
