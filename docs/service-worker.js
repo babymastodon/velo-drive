@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v28";
+const CACHE_VERSION = "v29";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -63,24 +63,28 @@ const PRECACHE_URLS = [
 const OFFLINE_FALLBACK_PAGE = "./index.html";
 
 // Install: pre-cache everything in PRECACHE_URLS
-self.addEventListener("install", event => {
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)),
   );
   // Activate this SW immediately
   self.skipWaiting();
 });
 
 // Activate: delete old caches
-self.addEventListener("activate", event => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key.startsWith("velodrive-cache-") && key !== CACHE_NAME)
-          .map(key => caches.delete(key))
-      )
-    )
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter(
+              (key) => key.startsWith("velodrive-cache-") && key !== CACHE_NAME,
+            )
+            .map((key) => caches.delete(key)),
+        ),
+      ),
   );
   self.clients.claim();
 });
@@ -88,7 +92,7 @@ self.addEventListener("activate", event => {
 // Fetch:
 // - For navigations: network-first, fallback to cached index.html when offline
 // - For other GETs: cache-first, fallback to network
-self.addEventListener("fetch", event => {
+self.addEventListener("fetch", (event) => {
   const request = event.request;
 
   if (request.method !== "GET") return;
@@ -100,10 +104,10 @@ self.addEventListener("fetch", event => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then(response => {
+        .then((response) => {
           // On successful navigation, update the cached shell
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
+          caches.open(CACHE_NAME).then((cache) => {
             cache.put(OFFLINE_FALLBACK_PAGE, copy);
           });
           return response;
@@ -111,18 +115,18 @@ self.addEventListener("fetch", event => {
         .catch(() => {
           // Offline → fallback to cached app shell
           return caches.match(OFFLINE_FALLBACK_PAGE);
-        })
+        }),
     );
     return;
   }
 
   // Other same-origin GET requests: cache-first
   event.respondWith(
-    caches.match(request).then(cached => {
+    caches.match(request).then((cached) => {
       if (cached) return cached;
 
       // Not in cache → go to network
       return fetch(request);
-    })
+    }),
   );
 });
