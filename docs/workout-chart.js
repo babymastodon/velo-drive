@@ -250,7 +250,6 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   hoverCleanupMap.set(svg, () => {
     svg.removeEventListener("mousemove", onMouseMove);
     svg.removeEventListener("mouseleave", onMouseLeave);
-    lastHoverPosByContainer.delete(containerEl);
   });
 
   const lastPos = lastHoverPosByContainer.get(containerEl);
