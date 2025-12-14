@@ -589,11 +589,13 @@ export function createWorkoutPlanner({
       renderInitialRows();
       const resetOffset = weekOffsetForDate(date);
       const row = resetOffset - firstIndex;
-      calendarBody.scrollTop = Math.max(0, row * rowHeight);
+      const targetRow = Math.max(0, row - 1);
+      calendarBody.scrollTop = Math.max(0, targetRow * rowHeight);
       return;
     }
 
-    calendarBody.scrollTop = Math.max(0, relativeRow * rowHeight);
+    const targetRow = Math.max(0, relativeRow - 1);
+    calendarBody.scrollTop = Math.max(0, targetRow * rowHeight);
   }
 
   function recycleRows(direction) {
