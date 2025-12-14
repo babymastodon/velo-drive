@@ -116,6 +116,48 @@ export function createWorkoutPlanner({
     });
   }
 
+  function ensureSelectionRendered() {
+    if (!selectedDate) return null;
+    const key = formatKey(selectedDate);
+    let cell = calendarBody.querySelector(`.planner-day[data-date="${key}"]`);
+    if (!cell) {
+      anchorStart = startOfWeek(selectedDate);
+      renderInitialRows();
+      applySelectionStyles();
+      cell = calendarBody.querySelector(`.planner-day[data-date="${key}"]`);
+      if (cell) {
+        centerOnDate(selectedDate);
+      }
+    }
+    return cell;
+  }
+
+  function scrollCellIntoView(cell) {
+    if (!cell) return;
+    const containerRect = calendarBody.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+    const padding = 8;
+    if (cellRect.top < containerRect.top + padding) {
+      calendarBody.scrollTop -= (containerRect.top - cellRect.top) + padding;
+    } else if (cellRect.bottom > containerRect.bottom - padding) {
+      calendarBody.scrollTop += (cellRect.bottom - containerRect.bottom) + padding;
+    }
+  }
+
+  function setSelectedDate(nextDate) {
+    selectedDate = nextDate;
+    updateSelectedLabel();
+    applySelectionStyles();
+    const cell = ensureSelectionRendered();
+    scrollCellIntoView(cell);
+  }
+
+  function moveSelection(daysDelta) {
+    const base = selectedDate || new Date();
+    const next = addDays(base, daysDelta);
+    setSelectedDate(next);
+  }
+
   function buildWeekRow(weekOffset) {
     const row = document.createElement("div");
     row.className = "planner-week-row";
@@ -321,15 +363,40 @@ export function createWorkoutPlanner({
   function onCellClick(ev) {
     const cell = ev.target.closest(".planner-day");
     if (!cell || !cell.dataset.date) return;
-    selectedDate = keyToDate(cell.dataset.date);
-    updateSelectedLabel();
-    applySelectionStyles();
+    setSelectedDate(keyToDate(cell.dataset.date));
   }
 
   function onKeyDown(ev) {
     if (!isOpen) return;
-    if (ev.key === "Escape") {
+    const key = (ev.key || "").toLowerCase();
+    if (key === "escape") {
       close();
+      return;
+    }
+
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const tag = ev.target && ev.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    if (key === "arrowdown" || key === "j") {
+      ev.preventDefault();
+      moveSelection(7);
+      return;
+    }
+    if (key === "arrowup" || key === "k") {
+      ev.preventDefault();
+      moveSelection(-7);
+      return;
+    }
+    if (key === "arrowleft" || key === "h") {
+      ev.preventDefault();
+      moveSelection(-1);
+      return;
+    }
+    if (key === "arrowright" || key === "l") {
+      ev.preventDefault();
+      moveSelection(1);
+      return;
     }
   }
 
