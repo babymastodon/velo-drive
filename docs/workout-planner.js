@@ -1,7 +1,7 @@
-import {parseFitFile} from "./fit-file.js";
-import {drawMiniHistoryChart} from "./workout-chart.js";
-import {DEFAULT_FTP} from "./workout-metrics.js";
-import {loadWorkoutDirHandle} from "./storage.js";
+import { parseFitFile } from "./fit-file.js";
+import { drawMiniHistoryChart } from "./workout-chart.js";
+import { DEFAULT_FTP } from "./workout-metrics.js";
+import { loadWorkoutDirHandle } from "./storage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
@@ -106,7 +106,9 @@ export function createWorkoutPlanner({
   }
 
   async function ensureHistoryIndex() {
-    if (historyIndexPromise) return historyIndexPromise;
+    // Always rebuild when called to pick up new files
+    historyIndex.clear();
+    historyCache.clear();
     historyIndexPromise = (async () => {
       const dir = await loadWorkoutDirHandle();
       if (!dir) return;
@@ -117,7 +119,7 @@ export function createWorkoutPlanner({
           if (!dateKey) continue;
           const current = historyIndex.get(dateKey);
           if (!current || name > current.name) {
-            historyIndex.set(dateKey, {name, handle});
+            historyIndex.set(dateKey, { name, handle });
           }
         }
       } catch (err) {
@@ -152,7 +154,9 @@ export function createWorkoutPlanner({
     const ftpVal = Number(ftp) || DEFAULT_FTP;
     const durationSec =
       durationSecHint ||
-      (samples?.length ? Math.max(1, Math.round(samples[samples.length - 1].t || 0)) : 0);
+      (samples?.length
+        ? Math.max(1, Math.round(samples[samples.length - 1].t || 0))
+        : 0);
     if (!durationSec || !samples?.length) {
       return {
         durationSec: 0,
@@ -247,7 +251,8 @@ export function createWorkoutPlanner({
     if (data.durationSec) parts.push(formatDuration(data.durationSec));
     if (Number.isFinite(data.kj)) parts.push(`${Math.round(data.kj)} kJ`);
     if (Number.isFinite(data.tss)) parts.push(`TSS ${Math.round(data.tss)}`);
-    if (Number.isFinite(data.ifValue)) parts.push(`IF ${data.ifValue.toFixed(2)}`);
+    if (Number.isFinite(data.ifValue))
+      parts.push(`IF ${data.ifValue.toFixed(2)}`);
     stats.textContent = parts.join(" · ");
     header.appendChild(stats);
 
@@ -294,14 +299,16 @@ export function createWorkoutPlanner({
           meta.startedAt && meta.endedAt
             ? Math.max(
                 1,
-                Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000)
+                Math.round(
+                  (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
+                ),
               )
             : Math.max(1, Math.round(lastSample?.t || 0));
 
         const metrics = computeMetricsFromSamples(
           parsed.samples || [],
           ftp,
-          durationSecHint
+          durationSecHint,
         );
 
         return {
@@ -314,7 +321,12 @@ export function createWorkoutPlanner({
           tss: metrics.tss,
         };
       } catch (err) {
-        console.warn("[Planner] Failed to load history for", dateKey, err);
+        console.warn(
+          "[Planner] Failed to load history for",
+          dateKey,
+          entry?.name,
+          err,
+        );
         return null;
       }
     })();
@@ -375,9 +387,10 @@ export function createWorkoutPlanner({
     const cellRect = cell.getBoundingClientRect();
     const padding = 8;
     if (cellRect.top < containerRect.top + padding) {
-      calendarBody.scrollTop -= (containerRect.top - cellRect.top) + padding;
+      calendarBody.scrollTop -= containerRect.top - cellRect.top + padding;
     } else if (cellRect.bottom > containerRect.bottom - padding) {
-      calendarBody.scrollTop += (cellRect.bottom - containerRect.bottom) + padding;
+      calendarBody.scrollTop +=
+        cellRect.bottom - containerRect.bottom + padding;
     }
   }
 
@@ -442,7 +455,9 @@ export function createWorkoutPlanner({
           monthLabel.textContent = "Today";
         } else {
           try {
-            monthLabel.textContent = dayDate.toLocaleString(undefined, {month: "long"});
+            monthLabel.textContent = dayDate.toLocaleString(undefined, {
+              month: "long",
+            });
           } catch (_err) {
             monthLabel.textContent = String(dayDate.getMonth() + 1);
           }
@@ -479,7 +494,7 @@ export function createWorkoutPlanner({
       if (monthMeta.has(k)) return monthMeta.get(k);
       const firstDow = new Date(year, month, 1).getDay();
       const lastDow = new Date(year, month + 1, 0).getDay();
-      const meta = {firstDow, lastDow};
+      const meta = { firstDow, lastDow };
       monthMeta.set(k, meta);
       return meta;
     };
@@ -490,7 +505,7 @@ export function createWorkoutPlanner({
         cell.classList.remove(
           "month-top-boundary",
           "month-left-boundary",
-          "month-bottom-boundary"
+          "month-bottom-boundary",
         );
         const month = Number(cell.dataset.month);
         const year = Number(cell.dataset.year);
@@ -629,7 +644,7 @@ export function createWorkoutPlanner({
   function maybeRecycleRows() {
     const rowHeight = measureRowHeight();
     const bufferPx = rowHeight * SCROLL_BUFFER_ROWS;
-    const {scrollTop, clientHeight, scrollHeight} = calendarBody;
+    const { scrollTop, clientHeight, scrollHeight } = calendarBody;
 
     if (scrollTop + clientHeight > scrollHeight - bufferPx) {
       recycleRows(1);
