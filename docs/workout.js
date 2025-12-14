@@ -13,6 +13,7 @@ import {getWorkoutEngine} from "./workout-engine.js";
 import {getWorkoutPicker} from "./workout-picker.js";
 import {initWelcomeTour} from "./welcome.js";
 import {initThemeFromStorage, applyThemeMode} from "./theme.js";
+import {createWorkoutPlanner} from "./workout-planner.js";
 
 
 import {
@@ -69,6 +70,7 @@ const startBtn = document.getElementById("startBtn");
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
+const calendarBtn = document.getElementById("calendarBtn");
 const workoutNameLabel = document.getElementById("workoutNameLabel");
 const workoutTitleCenter = document.getElementById("workoutTitleCenter");
 
@@ -87,6 +89,7 @@ let isHandlingLastScrapedWorkout = false;
 // engine & picker are created in initPage
 let engine = null;
 let picker = null;
+let planner = null;
 let welcomeTour = null;
 const hasWelcomeOverlay = !!document.getElementById("welcomeOverlay");
 let isWelcomeActive = hasWelcomeOverlay;
@@ -225,7 +228,10 @@ function isAnyModalOpen() {
   const settingsOpen = typeof isSettingsModalOpen === "function"
     ? isSettingsModalOpen()
     : false;
-  return pickerOpen || settingsOpen;
+  const plannerOpen = planner && typeof planner.isOpen === "function"
+    ? planner.isOpen()
+    : false;
+  return pickerOpen || settingsOpen || plannerOpen;
 }
 
 function formatTimeMMSS(sec) {
@@ -640,6 +646,12 @@ function updatePlaybackButtons(vm) {
     if (btn) btn.classList.remove("visible");
   });
 
+  if (calendarBtn) {
+    const workoutActive =
+      vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+    calendarBtn.classList.toggle("visible", !workoutActive);
+  }
+
   if (vm.mode === "workout" && !vm.canonicalWorkout) {
     return;
   }
@@ -752,6 +764,15 @@ function renderFromEngine(vm) {
   updateWorkoutTitleUI(vm);
   updateStatsDisplay(vm);
   updatePlaybackButtons(vm);
+  // Hide planner if a workout becomes active
+  if (
+    planner &&
+    typeof planner.isOpen === "function" &&
+    planner.isOpen() &&
+    (vm.workoutRunning || vm.workoutPaused || vm.workoutStarting)
+  ) {
+    planner.close();
+  }
   drawChart(vm);
   updateStatusOverlay(vm);
 }
@@ -984,6 +1005,15 @@ async function initPage() {
     },
   });
 
+  planner = createWorkoutPlanner({
+    overlay: document.getElementById("workoutPlannerOverlay"),
+    modal: document.getElementById("workoutPlannerModal"),
+    closeBtn: document.getElementById("workoutPlannerCloseBtn"),
+    calendarBody: document.getElementById("plannerCalendarBody"),
+    selectedLabel: document.getElementById("plannerSelectedDateLabel"),
+    scheduleBtn: document.getElementById("plannerScheduleBtn"),
+  });
+
   if (workoutNameLabel) {
     workoutNameLabel.dataset.clickable = "true";
     workoutNameLabel.title = "Select a workout (W)";
@@ -1080,6 +1110,18 @@ async function initPage() {
     });
   }
 
+  if (calendarBtn) {
+    calendarBtn.addEventListener("click", () => {
+      const vm = engine.getViewModel();
+      const workoutActive =
+        vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+      if (workoutActive) return;
+      if (planner && typeof planner.open === "function") {
+        planner.open();
+      }
+    });
+  }
+
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       engine.startWorkout();
@@ -1169,6 +1211,10 @@ async function initPage() {
     }
 
     if (e.key === "Escape") {
+      if (planner && typeof planner.isOpen === "function" && planner.isOpen()) {
+        planner.close();
+        return;
+      }
       if (picker) picker.close();
     }
   });
