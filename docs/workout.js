@@ -1012,6 +1012,7 @@ async function initPage() {
     calendarBody: document.getElementById("plannerCalendarBody"),
     selectedLabel: document.getElementById("plannerSelectedDateLabel"),
     scheduleBtn: document.getElementById("plannerScheduleBtn"),
+    footerEl: document.getElementById("plannerFooter"),
   });
 
   if (workoutNameLabel) {

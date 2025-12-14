@@ -246,6 +246,13 @@
   height: 100%;
   display: block;
 }
+
+.planner-footer {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: right;
+}
 .planner-day:hover {
   background: var(--hover-light);
 }
