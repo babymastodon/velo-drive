@@ -262,7 +262,18 @@ export function createWorkoutPlanner({
     if (Number.isFinite(data.tss)) parts.push(`TSS ${Math.round(data.tss)}`);
     if (Number.isFinite(data.ifValue))
       parts.push(`IF ${data.ifValue.toFixed(2)}`);
-    stats.textContent = parts.join(" · ");
+    parts.forEach((p, idx) => {
+      const chip = document.createElement("span");
+      chip.className = "planner-workout-stat-chip";
+      chip.textContent = p;
+      stats.appendChild(chip);
+      if (idx !== parts.length - 1) {
+        const sep = document.createElement("span");
+        sep.className = "planner-workout-stat-chip planner-workout-stat-sep";
+        sep.textContent = "·";
+        stats.appendChild(sep);
+      }
+    });
     header.appendChild(stats);
 
     const chartWrap = document.createElement("div");
@@ -410,6 +421,7 @@ export function createWorkoutPlanner({
     selectedDate = nextDate;
     updateSelectedLabel();
     applySelectionStyles();
+    updateScheduleButton();
     const cell = ensureSelectionRendered();
     scrollCellIntoView(cell);
   }
@@ -418,6 +430,18 @@ export function createWorkoutPlanner({
     const base = selectedDate || new Date();
     const next = addDays(base, daysDelta);
     setSelectedDate(next);
+  }
+
+  function updateScheduleButton() {
+    if (!scheduleBtn) return;
+    if (!selectedDate) {
+      scheduleBtn.style.display = "none";
+      return;
+    }
+    const todayMid = new Date();
+    todayMid.setHours(0, 0, 0, 0);
+    const isPast = selectedDate < todayMid;
+    scheduleBtn.style.display = isPast ? "none" : "";
   }
 
   function isPastDate(dateKey) {
@@ -732,6 +756,7 @@ export function createWorkoutPlanner({
     updateRowHeightVar();
     renderInitialRows();
     updateSelectedLabel();
+    updateScheduleButton();
 
     window.requestAnimationFrame(() => {
       centerOnDate(selectedDate);

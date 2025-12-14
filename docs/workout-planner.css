@@ -19,7 +19,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 4px;
-  padding-right: 46px;
+  padding: 0 46px 0 0;
 }
 
 .workout-planner-title {
@@ -28,10 +28,16 @@
   text-transform: uppercase;
   font-size: var(--font-size-base);
   color: var(--text-muted);
+  min-height: var(--nav-control-height);
+  display: flex;
+  align-items: center;
 }
 
 .workout-planner-selected {
-  justify-self: center;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
   font-weight: 700;
   font-size: 20px;
@@ -217,8 +223,17 @@
 }
 
 .planner-workout-stats {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  row-gap: 0;
+}
+
+.planner-workout-stat-chip {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .planner-workout-chart {
