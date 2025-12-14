@@ -137,6 +137,84 @@ function renderSegmentPolygon({
   return poly;
 }
 
+export function drawMiniHistoryChart({
+  svg,
+  width = 320,
+  height = 120,
+  ftp = DEFAULT_FTP,
+  rawSegments = [],
+  actualPower = [],
+}) {
+  if (!svg) return;
+  clearSvg(svg);
+
+  const w = Math.max(120, width);
+  const h = Math.max(80, height);
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+
+  const totalSegSec = rawSegments.reduce(
+    (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
+    0
+  );
+  const totalActualSec = actualPower.length * 60;
+  const totalSec = Math.max(1, totalSegSec, totalActualSec);
+
+  const maxTarget =
+    rawSegments.reduce((max, [minutes, p0, p1]) => {
+      void minutes;
+      const a = (p0 || 0) * ftp * 0.01;
+      const b = (p1 != null ? p1 : p0 || 0) * ftp * 0.01;
+      return Math.max(max, a, b);
+    }, 0) || ftp * 1.2;
+  const maxActual = actualPower.reduce((m, p) => Math.max(m, p || 0), 0);
+  const maxY = Math.max(100, maxTarget, maxActual, ftp * 1.1);
+
+  // Target bands
+  if (rawSegments.length) {
+    let acc = 0;
+    rawSegments.forEach(([minutes, startPct, endPct]) => {
+      const dur = Math.max(1, Math.round((minutes || 0) * 60));
+      const tStart = acc;
+      const tEnd = acc + dur;
+      acc = tEnd;
+      renderSegmentPolygon({
+        svg,
+        totalSec,
+        width: w,
+        height: h,
+        ftp,
+        maxY,
+        tStart,
+        tEnd,
+        pStartRel: (startPct || 0) / 100,
+        pEndRel: (endPct != null ? endPct : startPct || 0) / 100,
+      });
+    });
+  }
+
+  // Actual power line (minute-avg)
+  if (actualPower.length) {
+    const pts = actualPower.map((p, i) => {
+      const t = i * 60 + 30; // mid-minute
+      const x = (t / totalSec) * w;
+      const y = h - (Math.min(maxY, Math.max(0, p || 0)) / maxY) * h;
+      return {x, y};
+    });
+    const d = pts
+      .map((pt, idx) => `${idx === 0 ? "M" : "L"}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`)
+      .join(" ");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", getCssVar("--power-line") || "#a607a6");
+    path.setAttribute("stroke-width", "1.6");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+  }
+}
+
 // Track last hovered segment across charts (main + mini)
 let lastHoveredSegment = null;
 const hoverCleanupMap = new WeakMap();
