@@ -174,6 +174,24 @@ export function createWorkoutPlanner({
       cell.dataset.year = String(dayDate.getFullYear());
       cell.dataset.dow = String(dayDate.getDay());
 
+      const isFirstOfMonth = dayDate.getDate() === 1;
+      const isToday = isSameDay(dayDate, today);
+      if (isFirstOfMonth || isToday) {
+        const monthLabel = document.createElement("div");
+        monthLabel.className = "planner-month-label";
+        if (isToday) {
+          monthLabel.textContent = "Today";
+        } else {
+          try {
+            monthLabel.textContent = dayDate.toLocaleString(undefined, {month: "long"});
+          } catch (_err) {
+            monthLabel.textContent = String(dayDate.getMonth() + 1);
+          }
+        }
+        cell.appendChild(monthLabel);
+        cell.classList.add("has-month-label");
+      }
+
       const num = document.createElement("div");
       num.className = "planner-day-number";
       num.textContent = String(dayDate.getDate());
