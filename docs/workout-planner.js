@@ -66,6 +66,9 @@ export function createWorkoutPlanner({
   calendarBody,
   selectedLabel,
   scheduleBtn,
+  agg7dEl,
+  agg30dEl,
+  footerEl,
 } = {}) {
   if (!overlay || !calendarBody) {
     return {
@@ -86,7 +89,12 @@ export function createWorkoutPlanner({
   const today = new Date();
   const historyIndex = new Map(); // dateKey -> {handle, name}
   const historyCache = new Map(); // dateKey -> Promise<{...}>
+  const historyData = new Map(); // dateKey -> Array<preview>
   let historyIndexPromise = null;
+  const aggTotals = {
+    "7": {sec: 0, kj: 0, tss: 0},
+    "30": {sec: 0, kj: 0, tss: 0},
+  };
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -108,6 +116,7 @@ export function createWorkoutPlanner({
   function resetHistoryIndex() {
     historyIndex.clear();
     historyCache.clear();
+    historyData.clear();
     historyIndexPromise = null;
   }
 
@@ -232,11 +241,8 @@ export function createWorkoutPlanner({
 
   function formatDuration(sec) {
     const s = Math.max(0, Math.round(sec || 0));
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const mm = String(m).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss.padStart(2, "0")}`;
+    const m = Math.round(s / 60);
+    return `${m} min`;
   }
 
   function renderHistoryCard(cell, data) {
@@ -341,6 +347,7 @@ export function createWorkoutPlanner({
             kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
             ifValue: metrics.ifValue,
             tss: metrics.tss,
+            startedAt: meta.startedAt,
           });
         } catch (err) {
           console.warn(
@@ -422,6 +429,7 @@ export function createWorkoutPlanner({
     updateSelectedLabel();
     applySelectionStyles();
     updateScheduleButton();
+    recomputeAgg(selectedDate);
     const cell = ensureSelectionRendered();
     scrollCellIntoView(cell);
   }
@@ -450,6 +458,61 @@ export function createWorkoutPlanner({
     return d < TODAY;
   }
 
+  function resetAgg() {
+    aggTotals["7"] = {sec: 0, kj: 0, tss: 0};
+    aggTotals["30"] = {sec: 0, kj: 0, tss: 0};
+    updateAggUi();
+  }
+  function recomputeAgg(baseDate) {
+    resetAgg();
+    const base = baseDate ? new Date(baseDate) : new Date();
+    base.setHours(0, 0, 0, 0);
+    const baseMs = base.getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const cutoff7 = baseMs - 7 * dayMs;
+    const cutoff30 = baseMs - 30 * dayMs;
+
+    historyData.forEach((items) => {
+      items.forEach((item) => {
+        const start = item.startedAt ? item.startedAt.getTime() : null;
+        if (start == null) return;
+        if (start <= baseMs && start >= cutoff7) {
+          aggTotals["7"].sec += item.durationSec || 0;
+          aggTotals["7"].kj += item.kj || 0;
+          aggTotals["7"].tss += item.tss || 0;
+        }
+        if (start <= baseMs && start >= cutoff30) {
+          aggTotals["30"].sec += item.durationSec || 0;
+          aggTotals["30"].kj += item.kj || 0;
+          aggTotals["30"].tss += item.tss || 0;
+        }
+      });
+    });
+    updateAggUi();
+  }
+
+  function formatAggDuration(sec) {
+    const m = Math.round(Math.max(0, sec || 0) / 60);
+    return `${m} min`;
+  }
+
+  function updateAggUi() {
+    if (footerEl) {
+      const parts = [];
+      parts.push(
+        `Past 7d: ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
+          aggTotals["7"].kj,
+        )} kJ, TSS ${Math.round(aggTotals["7"].tss)}`,
+      );
+      parts.push(
+        `Past 30d: ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
+          aggTotals["30"].kj,
+        )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
+      );
+      footerEl.textContent = parts.join(" · ");
+    }
+  }
+
   async function maybeAttachHistory(cell) {
     if (!cell || cell.dataset.historyAttached === "true") return;
     const dateKey = cell.dataset.date;
@@ -459,6 +522,8 @@ export function createWorkoutPlanner({
     const previews = await loadHistoryPreview(dateKey);
     if (Array.isArray(previews) && previews.length) {
       previews.forEach((data) => renderHistoryCard(cell, data));
+      historyData.set(dateKey, previews);
+      recomputeAgg(selectedDate);
     }
   }
 
@@ -757,9 +822,11 @@ export function createWorkoutPlanner({
     renderInitialRows();
     updateSelectedLabel();
     updateScheduleButton();
+    resetAgg();
 
     window.requestAnimationFrame(() => {
       centerOnDate(selectedDate);
+      recomputeAgg(selectedDate);
     });
   }
 
