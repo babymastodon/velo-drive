@@ -26,6 +26,7 @@
   <script src="theme-init.js"></script>
 
   <link rel="stylesheet" href="workout-base.css">
+  <link rel="stylesheet" href="workout-planner.css">
   <link rel="stylesheet" href="workout-picker.css">
   <link rel="stylesheet" href="settings.css">
   <link rel="stylesheet" href="welcome.css">
@@ -198,15 +199,23 @@
       <!-- Workout controls: FTP + title + playback -->
       <div id="workoutControls" class="workout-controls">
 
-        <div id="workoutNameLabel" class="inline-clicktoggle">
-          Selected workout
-        </div>
+      <div id="workoutNameLabel" class="inline-clicktoggle">
+        Selected workout
+      </div>
 
-        <!-- START button -->
-        <button id="startBtn" class="playback-button" title="Start workout (Space)">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 7v10l8-5z" />
-          </svg>
+      <button id="calendarBtn" class="playback-button calendar-button" title="Open workout planner">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 4v3M17 4v3" />
+          <rect x="4" y="7" width="16" height="14" rx="2" />
+          <path d="M4 11h16" />
+        </svg>
+      </button>
+
+      <!-- START button -->
+      <button id="startBtn" class="playback-button" title="Start workout (Space)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 7v10l8-5z" />
+        </svg>
         </button>
 
         <!-- PLAY button (for resume) -->
@@ -350,6 +359,48 @@
         <span id="pickerSummary" class="workout-picker-summary"></span>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Workout planner overlay -->
+  <div id="workoutPlannerOverlay" class="workout-picker-overlay workout-planner-overlay" aria-modal="true"
+    role="dialog">
+    <div id="workoutPlannerModal" class="workout-picker-modal workout-planner-modal">
+      <header class="workout-planner-header">
+        <div class="workout-planner-title">Workout planner</div>
+        <div id="plannerSelectedDateLabel" class="workout-planner-selected" aria-live="polite"></div>
+        <div class="workout-planner-actions">
+          <button id="plannerScheduleBtn" class="picker-add-btn planner-schedule-btn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+              <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>Schedule workout</span>
+          </button>
+          <button id="workoutPlannerCloseBtn" class="picker-close-btn" title="Close planner">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="workout-planner-body">
+        <div class="planner-calendar">
+          <div class="planner-calendar-header" id="plannerCalendarHeader">
+            <div class="planner-day-head">Sun</div>
+            <div class="planner-day-head">Mon</div>
+            <div class="planner-day-head">Tue</div>
+            <div class="planner-day-head">Wed</div>
+            <div class="planner-day-head">Thu</div>
+            <div class="planner-day-head">Fri</div>
+            <div class="planner-day-head">Sat</div>
+          </div>
+          <div class="planner-calendar-body" id="plannerCalendarBody">
+            <!-- rows injected by JS -->
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

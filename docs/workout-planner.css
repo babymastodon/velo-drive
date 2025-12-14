@@ -1,0 +1,202 @@
+:root {
+  --planner-row-height: 24vh;
+}
+
+.workout-planner-overlay {
+  z-index: 50;
+}
+
+.workout-planner-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workout-planner-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+  padding-right: 46px;
+}
+
+.workout-planner-title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+}
+
+.workout-planner-selected {
+  justify-self: center;
+  text-align: center;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text-main);
+  min-height: var(--nav-control-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workout-planner-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.workout-planner-header .picker-close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.planner-schedule-btn {
+  padding-inline-start: 10px;
+}
+
+.workout-planner-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.planner-calendar {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.planner-calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.planner-day-head {
+  padding: 8px 10px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.planner-day-head:first-child {
+  border-left: none;
+}
+
+.planner-calendar-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.planner-week-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 160px;
+  height: var(--planner-row-height);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.planner-week-row:last-child {
+  border-bottom: none;
+}
+
+.planner-day {
+  position: relative;
+  padding: 10px 10px 8px 10px;
+  border-left: 1px solid var(--border-subtle);
+  border-top: 1px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  cursor: pointer;
+  background: var(--surface);
+  transition: var(--interactive-transition);
+}
+
+.planner-day:first-child {
+  border-left: none;
+}
+
+.planner-day-number {
+  font-weight: 700;
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.planner-day:hover {
+  background: var(--hover-light);
+}
+
+.planner-day.is-selected {
+  background: var(--cta-soft);
+  box-shadow: inset 0 0 0 1px var(--cta-border);
+}
+
+.planner-day.is-today .planner-day-number {
+  color: var(--accent);
+}
+
+.planner-day.month-top-boundary {
+  border-top: 2px solid var(--border);
+}
+
+.planner-day.month-left-boundary {
+  border-left: 2px solid var(--border);
+}
+
+.planner-day.month-bottom-boundary {
+  border-bottom: 2px solid var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  .planner-day:hover {
+    background: var(--hover-medium);
+  }
+}
+
+@media (max-width: 900px) {
+  .workout-planner-modal {
+    width: 96vw;
+    height: 80vh;
+  }
+
+  .workout-planner-header {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .workout-planner-selected {
+    justify-content: flex-start;
+  }
+
+  .workout-planner-actions {
+    justify-content: flex-start;
+  }
+}
