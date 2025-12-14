@@ -67,6 +67,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: auto;
 }
 
 .planner-calendar {
@@ -78,6 +79,7 @@
   border: 1px solid var(--border-subtle);
   overflow: hidden;
   background: var(--surface);
+  min-width: 900px;
 }
 
 .planner-calendar-header {
@@ -128,7 +130,7 @@
 
 .planner-day {
   position: relative;
-  padding: 10px 10px 8px 10px;
+  padding: 12px;
   border-left: 1px solid var(--border-subtle);
   border-top: 1px solid transparent;
   display: flex;
@@ -150,6 +152,22 @@
   line-height: 1;
 }
 
+.planner-day.has-month-label {
+  padding-top: 12px;
+}
+
+.planner-month-label {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+}
+
 .planner-day:hover {
   background: var(--hover-light);
 }
@@ -159,8 +177,9 @@
   box-shadow: inset 0 0 0 1px var(--cta-border);
 }
 
-.planner-day.is-today .planner-day-number {
-  color: var(--accent);
+.planner-day.is-today:not(.is-selected) {
+  background: var(--warning-bg);
+  box-shadow: inset 0 0 0 1px var(--warning-border);
 }
 
 .planner-day.month-top-boundary {
