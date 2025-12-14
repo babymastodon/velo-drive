@@ -1,6 +1,13 @@
+import {parseFitFile} from "./fit-file.js";
+import {drawMiniHistoryChart} from "./workout-chart.js";
+import {DEFAULT_FTP} from "./workout-metrics.js";
+import {loadWorkoutDirHandle} from "./storage.js";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
 const SCROLL_BUFFER_ROWS = 2;
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -77,6 +84,9 @@ export function createWorkoutPlanner({
   let rowHeightPx = Math.max(140, Math.round(window.innerHeight * 0.24));
   let scrollTicking = false;
   const today = new Date();
+  const historyIndex = new Map(); // dateKey -> {handle, name}
+  const historyCache = new Map(); // dateKey -> Promise<{...}>
+  let historyIndexPromise = null;
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -84,6 +94,233 @@ export function createWorkoutPlanner({
     if (modal) {
       modal.style.setProperty("--planner-row-height", `${next}px`);
     }
+  }
+
+  function dateKeyFromHandleName(name) {
+    const parts = name.split(" ");
+    if (!parts.length) return null;
+    const isoPart = parts[0];
+    const datePart = isoPart.split("T")[0];
+    if (!datePart || datePart.length < 10) return null;
+    return datePart;
+  }
+
+  async function ensureHistoryIndex() {
+    if (historyIndexPromise) return historyIndexPromise;
+    historyIndexPromise = (async () => {
+      const dir = await loadWorkoutDirHandle();
+      if (!dir) return;
+      try {
+        for await (const [name, handle] of dir.entries()) {
+          if (!name || !name.toLowerCase().endsWith(".fit")) continue;
+          const dateKey = dateKeyFromHandleName(name);
+          if (!dateKey) continue;
+          const current = historyIndex.get(dateKey);
+          if (!current || name > current.name) {
+            historyIndex.set(dateKey, {name, handle});
+          }
+        }
+      } catch (err) {
+        console.warn("[Planner] Failed to list history dir:", err);
+      }
+    })();
+    return historyIndexPromise;
+  }
+
+  function buildPerSecondPower(samples, durationSec) {
+    const totalSec = Math.max(1, Math.ceil(durationSec || 0));
+    const arr = new Float32Array(totalSec);
+    if (!Array.isArray(samples) || !samples.length) return arr;
+
+    const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
+    let idx = 0;
+    let current = sorted[0];
+    let power = Number(current?.power) || 0;
+
+    for (let s = 0; s < totalSec; s += 1) {
+      while (idx + 1 < sorted.length && (sorted[idx + 1].t || 0) <= s) {
+        idx += 1;
+        current = sorted[idx];
+        power = Number(current?.power) || 0;
+      }
+      arr[s] = power;
+    }
+    return arr;
+  }
+
+  function computeMetricsFromSamples(samples, ftp, durationSecHint) {
+    const ftpVal = Number(ftp) || DEFAULT_FTP;
+    const durationSec =
+      durationSecHint ||
+      (samples?.length ? Math.max(1, Math.round(samples[samples.length - 1].t || 0)) : 0);
+    if (!durationSec || !samples?.length) {
+      return {
+        durationSec: 0,
+        kj: null,
+        ifValue: null,
+        tss: null,
+        ftp: ftpVal,
+        minutePower: [],
+      };
+    }
+
+    const perSec = buildPerSecondPower(samples, durationSec);
+
+    let sumJ = 0;
+    const perMin = [];
+    let minSum = 0;
+    let minCount = 0;
+    for (let i = 0; i < perSec.length; i += 1) {
+      const p = perSec[i] || 0;
+      sumJ += p;
+      minSum += p;
+      minCount += 1;
+      const atBoundary = (i + 1) % 60 === 0 || i === perSec.length - 1;
+      if (atBoundary) {
+        perMin.push(minCount ? minSum / minCount : 0);
+        minSum = 0;
+        minCount = 0;
+      }
+    }
+
+    // Normalized power via 30s rolling avg
+    const window = 30;
+    let sumPow4 = 0;
+    if (perSec.length <= window) {
+      const avg = perSec.reduce((s, v) => s + v, 0) / perSec.length;
+      sumPow4 = avg ** 4 * perSec.length;
+    } else {
+      let windowSum = 0;
+      for (let i = 0; i < perSec.length; i += 1) {
+        windowSum += perSec[i];
+        if (i >= window) {
+          windowSum -= perSec[i - window];
+        }
+        if (i >= window - 1) {
+          const avg = windowSum / window;
+          sumPow4 += avg ** 4;
+        }
+      }
+    }
+    const samplesForNp = Math.max(1, perSec.length - (window - 1));
+    const np = Math.pow(sumPow4 / samplesForNp, 0.25);
+    const IF = np && ftpVal ? np / ftpVal : null;
+    const tss = IF != null ? (durationSec * IF * IF) / 36 : null;
+
+    return {
+      durationSec,
+      kj: sumJ / 1000,
+      ifValue: IF,
+      tss,
+      ftp: ftpVal,
+      minutePower: perMin,
+    };
+  }
+
+  function formatDuration(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss.padStart(2, "0")}`;
+  }
+
+  function renderHistoryCard(cell, data) {
+    if (!cell || !data) return;
+    const content = cell.querySelector(".planner-day-content");
+    if (!content) return;
+    content.classList.add("has-history");
+    const card = document.createElement("div");
+    card.className = "planner-workout-card";
+
+    const header = document.createElement("div");
+    header.className = "planner-workout-header";
+    const name = document.createElement("div");
+    name.className = "planner-workout-name";
+    name.textContent = data.workoutTitle || "Workout";
+    header.appendChild(name);
+
+    const stats = document.createElement("div");
+    stats.className = "planner-workout-stats";
+    const parts = [];
+    if (data.durationSec) parts.push(formatDuration(data.durationSec));
+    if (Number.isFinite(data.kj)) parts.push(`${Math.round(data.kj)} kJ`);
+    if (Number.isFinite(data.tss)) parts.push(`TSS ${Math.round(data.tss)}`);
+    if (Number.isFinite(data.ifValue)) parts.push(`IF ${data.ifValue.toFixed(2)}`);
+    stats.textContent = parts.join(" · ");
+    header.appendChild(stats);
+
+    const chartWrap = document.createElement("div");
+    chartWrap.className = "planner-workout-chart";
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chartWrap.appendChild(svg);
+
+    card.appendChild(header);
+    card.appendChild(chartWrap);
+    content.appendChild(card);
+
+    requestAnimationFrame(() => {
+      const rect = chartWrap.getBoundingClientRect();
+      drawMiniHistoryChart({
+        svg,
+        width: rect.width || 240,
+        height: rect.height || 120,
+        rawSegments: data.rawSegments || [],
+        actualPower: data.minutePower || [],
+      });
+    });
+  }
+
+  async function loadHistoryPreview(dateKey) {
+    const existing = historyCache.get(dateKey);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      await ensureHistoryIndex();
+      const entry = historyIndex.get(dateKey);
+      if (!entry) return null;
+      try {
+        const file = await entry.handle.getFile();
+        const buf = await file.arrayBuffer();
+        const parsed = parseFitFile(buf);
+        const cw = parsed.canonicalWorkout || {};
+        const meta = parsed.meta || {};
+        const ftp = meta.ftp || DEFAULT_FTP;
+        const lastSample = parsed.samples?.length
+          ? parsed.samples[parsed.samples.length - 1]
+          : null;
+        const durationSecHint =
+          meta.startedAt && meta.endedAt
+            ? Math.max(
+                1,
+                Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000)
+              )
+            : Math.max(1, Math.round(lastSample?.t || 0));
+
+        const metrics = computeMetricsFromSamples(
+          parsed.samples || [],
+          ftp,
+          durationSecHint
+        );
+
+        return {
+          workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
+          rawSegments: cw.rawSegments || [],
+          minutePower: metrics.minutePower || [],
+          durationSec: metrics.durationSec || durationSecHint || 0,
+          kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
+          ifValue: metrics.ifValue,
+          tss: metrics.tss,
+        };
+      } catch (err) {
+        console.warn("[Planner] Failed to load history for", dateKey, err);
+        return null;
+      }
+    })();
+
+    historyCache.set(dateKey, promise);
+    return promise;
   }
 
   function measureRowHeight() {
@@ -158,6 +395,25 @@ export function createWorkoutPlanner({
     setSelectedDate(next);
   }
 
+  function isPastDate(dateKey) {
+    const d = keyToDate(dateKey);
+    d.setHours(0, 0, 0, 0);
+    return d < TODAY;
+  }
+
+  async function maybeAttachHistory(cell) {
+    if (!cell || cell.dataset.historyAttached === "true") return;
+    const dateKey = cell.dataset.date;
+    if (!dateKey || !isPastDate(dateKey)) return;
+    await ensureHistoryIndex();
+    if (!historyIndex.has(dateKey)) return;
+    cell.dataset.historyAttached = "true";
+    const data = await loadHistoryPreview(dateKey);
+    if (data) {
+      renderHistoryCard(cell, data);
+    }
+  }
+
   function buildWeekRow(weekOffset) {
     const row = document.createElement("div");
     row.className = "planner-week-row";
@@ -174,6 +430,9 @@ export function createWorkoutPlanner({
       cell.dataset.year = String(dayDate.getFullYear());
       cell.dataset.dow = String(dayDate.getDay());
 
+      const content = document.createElement("div");
+      content.className = "planner-day-content";
+
       const isFirstOfMonth = dayDate.getDate() === 1;
       const isToday = isSameDay(dayDate, today);
       if (isFirstOfMonth || isToday) {
@@ -188,15 +447,16 @@ export function createWorkoutPlanner({
             monthLabel.textContent = String(dayDate.getMonth() + 1);
           }
         }
-        cell.appendChild(monthLabel);
+        content.appendChild(monthLabel);
         cell.classList.add("has-month-label");
       }
 
       const num = document.createElement("div");
       num.className = "planner-day-number";
       num.textContent = String(dayDate.getDate());
-      cell.appendChild(num);
+      content.appendChild(num);
 
+      cell.appendChild(content);
       if (isSameDay(dayDate, today)) {
         cell.classList.add("is-today");
       }
@@ -287,6 +547,9 @@ export function createWorkoutPlanner({
       const row = buildWeekRow(idx);
       weekRows.push(row);
       frag.appendChild(row);
+      row.querySelectorAll(".planner-day").forEach((cell) => {
+        maybeAttachHistory(cell);
+      });
     }
     calendarBody.appendChild(frag);
     updateMonthBoundaries();
@@ -329,6 +592,9 @@ export function createWorkoutPlanner({
       const newRow = buildWeekRow(nextOffset);
       calendarBody.appendChild(newRow);
       weekRows.push(newRow);
+      newRow.querySelectorAll(".planner-day").forEach((cell) => {
+        maybeAttachHistory(cell);
+      });
 
       const removed = weekRows.shift();
       if (removed) removed.remove();
@@ -344,6 +610,9 @@ export function createWorkoutPlanner({
       const insertedHeight =
         newRow.getBoundingClientRect().height || measureRowHeight();
       weekRows.unshift(newRow);
+      newRow.querySelectorAll(".planner-day").forEach((cell) => {
+        maybeAttachHistory(cell);
+      });
 
       const removed = weekRows.pop();
       if (removed) removed.remove();
@@ -426,6 +695,10 @@ export function createWorkoutPlanner({
     overlay.style.display = "flex";
     overlay.removeAttribute("aria-hidden");
     isOpen = true;
+
+    ensureHistoryIndex().catch((err) => {
+      console.warn("[Planner] history index load failed:", err);
+    });
 
     updateRowHeightVar();
     renderInitialRows();
