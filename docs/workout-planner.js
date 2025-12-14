@@ -105,10 +105,14 @@ export function createWorkoutPlanner({
     return datePart;
   }
 
-  async function ensureHistoryIndex() {
-    // Always rebuild when called to pick up new files
+  function resetHistoryIndex() {
     historyIndex.clear();
     historyCache.clear();
+    historyIndexPromise = null;
+  }
+
+  async function ensureHistoryIndex() {
+    if (historyIndexPromise) return historyIndexPromise;
     historyIndexPromise = (async () => {
       const dir = await loadWorkoutDirHandle();
       if (!dir) return;
@@ -117,11 +121,16 @@ export function createWorkoutPlanner({
           if (!name || !name.toLowerCase().endsWith(".fit")) continue;
           const dateKey = dateKeyFromHandleName(name);
           if (!dateKey) continue;
-          const current = historyIndex.get(dateKey);
-          if (!current || name > current.name) {
-            historyIndex.set(dateKey, { name, handle });
-          }
+          const arr = historyIndex.get(dateKey) || [];
+          arr.push({ name, handle });
+          historyIndex.set(dateKey, arr);
         }
+        historyIndex.forEach((arr, key) => {
+          historyIndex.set(
+            key,
+            arr.sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0)),
+          );
+        });
       } catch (err) {
         console.warn("[Planner] Failed to list history dir:", err);
       }
@@ -283,52 +292,55 @@ export function createWorkoutPlanner({
 
     const promise = (async () => {
       await ensureHistoryIndex();
-      const entry = historyIndex.get(dateKey);
-      if (!entry) return null;
-      try {
-        const file = await entry.handle.getFile();
-        const buf = await file.arrayBuffer();
-        const parsed = parseFitFile(buf);
-        const cw = parsed.canonicalWorkout || {};
-        const meta = parsed.meta || {};
-        const ftp = meta.ftp || DEFAULT_FTP;
-        const lastSample = parsed.samples?.length
-          ? parsed.samples[parsed.samples.length - 1]
-          : null;
-        const durationSecHint =
-          meta.startedAt && meta.endedAt
-            ? Math.max(
-                1,
-                Math.round(
-                  (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
-                ),
-              )
-            : Math.max(1, Math.round(lastSample?.t || 0));
+      const entries = historyIndex.get(dateKey) || [];
+      if (!entries.length) return [];
+      const results = [];
+      for (const entry of entries) {
+        try {
+          const file = await entry.handle.getFile();
+          const buf = await file.arrayBuffer();
+          const parsed = parseFitFile(buf);
+          const cw = parsed.canonicalWorkout || {};
+          const meta = parsed.meta || {};
+          const ftp = meta.ftp || DEFAULT_FTP;
+          const lastSample = parsed.samples?.length
+            ? parsed.samples[parsed.samples.length - 1]
+            : null;
+          const durationSecHint =
+            meta.startedAt && meta.endedAt
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
+                  ),
+                )
+              : Math.max(1, Math.round(lastSample?.t || 0));
 
-        const metrics = computeMetricsFromSamples(
-          parsed.samples || [],
-          ftp,
-          durationSecHint,
-        );
+          const metrics = computeMetricsFromSamples(
+            parsed.samples || [],
+            ftp,
+            durationSecHint,
+          );
 
-        return {
-          workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
-          rawSegments: cw.rawSegments || [],
-          minutePower: metrics.minutePower || [],
-          durationSec: metrics.durationSec || durationSecHint || 0,
-          kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
-          ifValue: metrics.ifValue,
-          tss: metrics.tss,
-        };
-      } catch (err) {
-        console.warn(
-          "[Planner] Failed to load history for",
-          dateKey,
-          entry?.name,
-          err,
-        );
-        return null;
+          results.push({
+            workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
+            rawSegments: cw.rawSegments || [],
+            minutePower: metrics.minutePower || [],
+            durationSec: metrics.durationSec || durationSecHint || 0,
+            kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
+            ifValue: metrics.ifValue,
+            tss: metrics.tss,
+          });
+        } catch (err) {
+          console.warn(
+            "[Planner] Failed to load history for",
+            dateKey,
+            entry?.name,
+            err,
+          );
+        }
       }
+      return results;
     })();
 
     historyCache.set(dateKey, promise);
@@ -419,11 +431,10 @@ export function createWorkoutPlanner({
     const dateKey = cell.dataset.date;
     if (!dateKey || !isPastDate(dateKey)) return;
     await ensureHistoryIndex();
-    if (!historyIndex.has(dateKey)) return;
     cell.dataset.historyAttached = "true";
-    const data = await loadHistoryPreview(dateKey);
-    if (data) {
-      renderHistoryCard(cell, data);
+    const previews = await loadHistoryPreview(dateKey);
+    if (Array.isArray(previews) && previews.length) {
+      previews.forEach((data) => renderHistoryCard(cell, data));
     }
   }
 
@@ -706,6 +717,7 @@ export function createWorkoutPlanner({
 
   function open() {
     if (!overlay) return;
+    resetHistoryIndex();
     selectedDate = selectedDate || new Date();
     anchorStart = startOfWeek(selectedDate);
 
