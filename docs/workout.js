@@ -976,7 +976,13 @@ async function initPage() {
   await engine.init({
     onStateChanged: (vm) => renderFromEngine(vm),
     onLog: logDebug,
-    onWorkoutEnded: () => {},
+    onWorkoutEnded: (info) => {
+      if (!planner) return;
+      planner.open();
+      if (info && info.fileName && typeof planner.openDetailByFile === "function") {
+        planner.openDetailByFile(info.fileName, info.startedAt);
+      }
+    },
   });
 
   initBleIntegration();
