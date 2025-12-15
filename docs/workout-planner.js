@@ -612,6 +612,13 @@ export function createWorkoutPlanner({
       ev.stopPropagation();
       openDetailView(dateKey, data);
     });
+    const attachHover = () => {
+      const day = card.closest(".planner-day");
+      if (!day) return;
+      card.addEventListener("mouseenter", () => day.classList.add("suppress-hover"));
+      card.addEventListener("mouseleave", () => day.classList.remove("suppress-hover"));
+    };
+    attachHover();
 
     requestAnimationFrame(() => {
       const rect = chartWrap.getBoundingClientRect();
@@ -716,6 +723,13 @@ export function createWorkoutPlanner({
         onScheduledLoadRequested(entry);
       }
     });
+    const attachHover = () => {
+      const day = card.closest(".planner-day");
+      if (!day) return;
+      card.addEventListener("mouseenter", () => day.classList.add("suppress-hover"));
+      card.addEventListener("mouseleave", () => day.classList.remove("suppress-hover"));
+    };
+    attachHover();
 
     requestAnimationFrame(() => {
       const rect = chartWrap.getBoundingClientRect();
