@@ -814,8 +814,7 @@ export function createWorkoutPlanner({
     if (!detailState || !detailState.fileName) return;
     const { fileName, workoutTitle, dateKey } = detailState;
     const confirmed = window.confirm(
-      `Move workout "${workoutTitle || fileName}" to the trash folder?\n\n` +
-        "You can restore it later from the trash folder, or delete it permanently from your file system.",
+      `Move workout "${workoutTitle || fileName}" to the trash folder?`,
     );
     if (!confirmed) return;
     const moved = await moveHistoryFileToTrash(fileName);
@@ -871,6 +870,65 @@ export function createWorkoutPlanner({
     if (pickerBackBtn) pickerBackBtn.style.display = "none";
   }
 
+  async function deleteFirstItemInCell(dateKey) {
+    if (!dateKey) return false;
+    const scheduled = scheduledMap.get(dateKey);
+    if (scheduled && scheduled.length) {
+      const entry = scheduled[0];
+      const confirmed = window.confirm(
+        `Delete scheduled workout "${entry.workoutTitle}" on ${dateKey}?`,
+      );
+      if (!confirmed) return false;
+      await removeScheduledEntryInternal(entry);
+      return true;
+    }
+
+    let previews = historyData.get(dateKey);
+    if (!previews) {
+      previews = await loadHistoryPreview(dateKey);
+      if (Array.isArray(previews)) {
+        historyData.set(dateKey, previews);
+      }
+    }
+    const first = Array.isArray(previews) ? previews[0] : null;
+    if (!first || !first.fileName) return false;
+    const confirmed = window.confirm(
+      `Move workout "${first.workoutTitle || first.fileName}" to the trash folder?`,
+    );
+    if (!confirmed) return false;
+    const moved = await moveHistoryFileToTrash(first.fileName);
+    if (!moved) return false;
+
+    const idxArr = historyIndex.get(dateKey) || [];
+    historyIndex.set(
+      dateKey,
+      idxArr.filter((e) => e.name !== first.fileName),
+    );
+    if (historyIndex.get(dateKey)?.length === 0) {
+      historyIndex.delete(dateKey);
+    }
+    const dataArr = historyData.get(dateKey) || [];
+    historyData.set(
+      dateKey,
+      dataArr.filter((d) => d.fileName !== first.fileName),
+    );
+    if (historyData.get(dateKey)?.length === 0) {
+      historyData.delete(dateKey);
+    }
+    const cell = calendarBody.querySelector(
+      `.planner-day[data-date="${dateKey}"]`,
+    );
+    if (cell) {
+      cell
+        .querySelectorAll(
+          `.planner-workout-card[data-file-name="${first.fileName}"]`,
+        )
+        .forEach((n) => n.remove());
+    }
+    recomputeAgg(selectedDate);
+    return true;
+  }
+
   async function openDetailView(dateKey, preview) {
     if (!dateKey || !preview || !isPastOrTodayDate(dateKey)) return false;
     await ensureHistoryIndex();
@@ -894,7 +952,9 @@ export function createWorkoutPlanner({
         metaStartedAt && metaEndedAt
           ? Math.max(
               1,
-              Math.round((metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000),
+              Math.round(
+                (metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000,
+              ),
             )
           : Math.max(1, Math.round(lastSample?.t || 0));
 
@@ -903,13 +963,16 @@ export function createWorkoutPlanner({
         ftp,
         durationSecHint,
       );
-      const totalTimerSec = meta.totalTimerSec || metrics.durationSec || durationSecHint || 0;
+      const totalTimerSec =
+        meta.totalTimerSec || metrics.durationSec || durationSecHint || 0;
       const totalElapsedSec =
         meta.totalElapsedSec ||
         (metaStartedAt && metaEndedAt
           ? Math.max(
               0,
-              Math.round((metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000),
+              Math.round(
+                (metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000,
+              ),
             )
           : totalTimerSec);
       const pausedSec = Math.max(0, totalElapsedSec - totalTimerSec);
@@ -1053,7 +1116,9 @@ export function createWorkoutPlanner({
             metaStarted && metaEnded
               ? Math.max(
                   1,
-                  Math.round((metaEnded.getTime() - metaStarted.getTime()) / 1000),
+                  Math.round(
+                    (metaEnded.getTime() - metaStarted.getTime()) / 1000,
+                  ),
                 )
               : Math.max(1, Math.round(lastSample?.t || 0));
 
@@ -1706,6 +1771,29 @@ export function createWorkoutPlanner({
       return;
     }
 
+    if (key === "e") {
+      ev.preventDefault();
+      const dateKey = selectedDate ? formatKey(selectedDate) : null;
+      if (!dateKey) return;
+      const scheduled = scheduledMap.get(dateKey);
+      if (
+        scheduled &&
+        scheduled.length &&
+        typeof onScheduledEditRequested === "function"
+      ) {
+        onScheduledEditRequested(dateKey, scheduled[0]);
+      }
+      return;
+    }
+
+    if (key === "d") {
+      ev.preventDefault();
+      const dateKey = selectedDate ? formatKey(selectedDate) : null;
+      if (!dateKey) return;
+      deleteFirstItemInCell(dateKey);
+      return;
+    }
+
     if (key === "arrowdown" || key === "j") {
       ev.preventDefault();
       moveSelection(7);
@@ -1832,9 +1920,7 @@ export function createWorkoutPlanner({
           : startedAt
             ? new Date(startedAt)
             : null;
-      const dateKey = d
-        ? formatKey(d)
-        : dateKeyFromHandleName(fileName);
+      const dateKey = d ? formatKey(d) : dateKeyFromHandleName(fileName);
       if (!dateKey) return;
       await ensureHistoryIndex();
       const previews = await loadHistoryPreview(dateKey);
