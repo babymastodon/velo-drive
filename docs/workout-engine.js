@@ -37,6 +37,11 @@ function createWorkoutEngine() {
   let workoutStarting = false;
   /** @type {Date | null} */
   let workoutStartedAt = null;
+  /** @type {Array<{type: "start" | "stop" | "stop_all", at: string}>} */
+  let pauseEvents = [];
+  let pauseStartedAtMs = null;
+  let totalPausedMs = 0;
+  let lastTickWallMs = null;
   let elapsedSec = 0;
   let currentIntervalIndex = 0;
   let intervalElapsedSec = 0;
@@ -58,6 +63,12 @@ function createWorkoutEngine() {
   let onWorkoutEnded = () => {};
 
   const log = (msg) => onLog(msg);
+
+  function recordPauseEvent(type) {
+    if (!workoutStartedAt) return;
+    const now = new Date();
+    pauseEvents.push({type, at: now.toISOString()});
+  }
 
   // --------- helpers for rawSegments ---------
 
@@ -170,6 +181,10 @@ function createWorkoutEngine() {
       zeroPowerSeconds,
       autoPauseDisabledUntilSec,
       manualPauseAutoResumeBlockedUntilMs,
+      pauseEvents,
+      pauseStartedAtMs,
+      totalPausedMs,
+      lastTickWallMs,
       workoutStartedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
     });
   }
@@ -187,7 +202,13 @@ function createWorkoutEngine() {
     const startDate =
       workoutStartedAt ||
       new Date(now.getTime() - Math.max(0, lastSampleT) * 1000);
-    const endDate = new Date(startDate.getTime() + Math.max(0, lastSampleT) * 1000);
+    const endDate = lastTickWallMs
+      ? new Date(lastTickWallMs)
+      : new Date(startDate.getTime() + Math.max(0, lastSampleT) * 1000);
+    const totalElapsedSec = Math.max(
+      0,
+      Math.round((endDate.getTime() - startDate.getTime()) / 1000)
+    );
 
     const nameSafe =
       canonicalWorkout.workoutTitle
@@ -205,6 +226,8 @@ function createWorkoutEngine() {
       ftp: currentFtp,
       startedAt: startDate,
       endedAt: endDate,
+      pauseEvents,
+      totalElapsedSec,
     });
 
     const fileHandle = await dir.getFileHandle(fileName, {create: true});
@@ -275,7 +298,9 @@ function createWorkoutEngine() {
 
   function startTicker() {
     if (workoutTicker) return;
+    lastTickWallMs = Date.now();
     workoutTicker = setInterval(async () => {
+      lastTickWallMs = Date.now();
       const shouldAdvance = workoutRunning && !workoutPaused;
 
       if (!workoutRunning && !workoutPaused) {
@@ -362,9 +387,26 @@ function createWorkoutEngine() {
   }
 
   function setPaused(paused, {showOverlay = false} = {}) {
+    if (paused === workoutPaused) return;
+    const nowMs = Date.now();
+    if (paused) {
+      if (workoutRunning && pauseStartedAtMs == null) {
+        pauseStartedAtMs = nowMs;
+        recordPauseEvent("stop");
+      }
+    } else {
+      if (pauseStartedAtMs != null) {
+        totalPausedMs += nowMs - pauseStartedAtMs;
+        pauseStartedAtMs = null;
+      }
+      if (workoutRunning) {
+        recordPauseEvent("start");
+      }
+    }
     workoutPaused = paused;
     if (paused && showOverlay) Beeper.showPausedOverlay();
     emitStateChanged();
+    scheduleSaveActiveState();
   }
 
   function startWorkout() {
@@ -390,6 +432,11 @@ function createWorkoutEngine() {
 
         currentIntervalIndex = 0;
         workoutStartedAt = new Date();
+        pauseEvents = [];
+        pauseStartedAtMs = null;
+        totalPausedMs = 0;
+        lastTickWallMs = workoutStartedAt.getTime();
+        recordPauseEvent("start");
         zeroPowerSeconds = 0;
         autoPauseDisabledUntilSec = 15;
         manualPauseAutoResumeBlockedUntilMs = 0;
@@ -420,6 +467,14 @@ function createWorkoutEngine() {
 
   async function endWorkout() {
     log("Ending workout, stopping ticker, then writing FIT if samples exist.");
+    const endWallMs = Date.now();
+    if (pauseStartedAtMs != null) {
+      totalPausedMs += endWallMs - pauseStartedAtMs;
+      pauseStartedAtMs = null;
+    }
+    if (workoutRunning) {
+      recordPauseEvent("stop_all");
+    }
     stopTicker();
     let savedInfo = null;
     if (liveSamples.length) {
@@ -435,6 +490,9 @@ function createWorkoutEngine() {
     elapsedSec = 0;
     intervalElapsedSec = 0;
     liveSamples = [];
+    pauseEvents = [];
+    totalPausedMs = 0;
+    pauseStartedAtMs = null;
     zeroPowerSeconds = 0;
     autoPauseDisabledUntilSec = 0;
     manualPauseAutoResumeBlockedUntilMs = 0;
@@ -482,6 +540,10 @@ function createWorkoutEngine() {
       lastSampleHr,
       lastSampleCadence,
       liveSamples,
+      pauseEvents,
+      pauseStartedAtMs,
+      totalPausedMs,
+      lastTickWallMs,
     };
   }
 
@@ -525,6 +587,13 @@ function createWorkoutEngine() {
       autoPauseDisabledUntilSec = active.autoPauseDisabledUntilSec || 0;
       manualPauseAutoResumeBlockedUntilMs =
         active.manualPauseAutoResumeBlockedUntilMs || 0;
+      pauseEvents = Array.isArray(active.pauseEvents) ? active.pauseEvents : [];
+      pauseStartedAtMs =
+        typeof active.pauseStartedAtMs === "number"
+          ? active.pauseStartedAtMs
+          : null;
+      totalPausedMs = active.totalPausedMs || 0;
+      lastTickWallMs = active.lastTickWallMs || null;
       workoutStartedAt = active.workoutStartedAt
         ? new Date(active.workoutStartedAt)
         : null;
