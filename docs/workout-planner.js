@@ -8,6 +8,8 @@ import {
   loadScheduleEntries,
   saveScheduleEntries,
   loadZwoDirHandle,
+  loadTrashDirHandle,
+  ensureDirPermission,
 } from "./storage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -87,6 +89,7 @@ export function createWorkoutPlanner({
   detailChartPanel,
   detailChartTooltip,
   backBtn,
+  deleteBtn,
   titleEl,
   onScheduleRequested,
   onScheduledEditRequested,
@@ -195,6 +198,68 @@ export function createWorkoutPlanner({
       }
     })();
     return historyIndexPromise;
+  }
+
+  async function moveHistoryFileToTrash(fileName) {
+    const srcDirHandle = await loadWorkoutDirHandle();
+    const trashDirHandle = await loadTrashDirHandle();
+
+    if (!srcDirHandle) {
+      alert(
+        "No history folder configured.\n\nOpen Settings and choose a VeloDrive folder first.",
+      );
+      return false;
+    }
+    if (!trashDirHandle) {
+      alert(
+        "No trash folder is configured.\n\nOpen Settings and pick a VeloDrive folder so the trash folder can be created.",
+      );
+      return false;
+    }
+
+    const [hasSrcPerm, hasTrashPerm] = await Promise.all([
+      ensureDirPermission(srcDirHandle),
+      ensureDirPermission(trashDirHandle),
+    ]);
+    if (!hasSrcPerm) {
+      alert(
+        "VeloDrive does not have permission to modify your history folder.\n\nPlease re-authorize the folder in Settings.",
+      );
+      return false;
+    }
+    if (!hasTrashPerm) {
+      alert(
+        "VeloDrive does not have permission to write to your trash folder.\n\nPlease re-authorize the VeloDrive folder in Settings.",
+      );
+      return false;
+    }
+
+    try {
+      const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {
+        create: false,
+      });
+      const srcFile = await srcFileHandle.getFile();
+      const dotIdx = fileName.lastIndexOf(".");
+      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+      const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      let destFileName = `${base} (${stamp})${ext}`;
+      if (destFileName.length > 160) {
+        destFileName = `${base.slice(0, 120)} (${stamp})${ext}`;
+      }
+      const destFileHandle = await trashDirHandle.getFileHandle(destFileName, {
+        create: true,
+      });
+      const writable = await destFileHandle.createWritable();
+      await writable.write(srcFile);
+      await writable.close();
+      await srcDirHandle.removeEntry(fileName);
+      return true;
+    } catch (err) {
+      console.error("[Planner] Failed to move history file to trash:", err);
+      alert("Moving this workout to the trash folder failed. See logs for details.");
+      return false;
+    }
   }
 
   async function ensureScheduleLoaded() {
@@ -562,6 +627,7 @@ export function createWorkoutPlanner({
     const card = document.createElement("div");
     card.className = "planner-workout-card";
     card.title = "View workout analysis";
+    if (data.fileName) card.dataset.fileName = data.fileName;
 
     const header = document.createElement("div");
     header.className = "planner-workout-header";
@@ -650,25 +716,40 @@ export function createWorkoutPlanner({
     const card = document.createElement("div");
     card.className = "planner-workout-card planner-scheduled-card";
     card.title = "Start scheduled workout";
+    if (entry.fileName) card.dataset.fileName = entry.fileName;
 
     const topRow = document.createElement("div");
     topRow.className = "planner-scheduled-top";
     const tag = document.createElement("div");
     tag.className = "planner-scheduled-tag";
     tag.textContent = "Scheduled";
+    const isPast = isPastDate(entry.date || cell.dataset.date);
+    if (isPast) tag.classList.add("planner-scheduled-tag-past");
     topRow.appendChild(tag);
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "nav-icon-button planner-scheduled-edit-btn";
-    editBtn.title = "Edit scheduled workout";
-    editBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-    editBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (typeof onScheduledEditRequested === "function") {
-        onScheduledEditRequested(cell.dataset.date, entry);
-      }
-    });
+    if (isPast) {
+      editBtn.title = "Delete scheduled workout";
+      editBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" stroke-width="2" /><path d="M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
+      editBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (typeof removeScheduledEntry === "function") {
+          removeScheduledEntry(entry);
+        }
+      });
+    } else {
+      editBtn.title = "Edit scheduled workout";
+      editBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      editBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (typeof onScheduledEditRequested === "function") {
+          onScheduledEditRequested(cell.dataset.date, entry);
+        }
+      });
+    }
     topRow.appendChild(editBtn);
     card.appendChild(topRow);
 
@@ -808,6 +889,43 @@ export function createWorkoutPlanner({
     }
   }
 
+  async function deleteCurrentDetail() {
+    if (!detailState || !detailState.fileName) return;
+    const {fileName, workoutTitle, dateKey} = detailState;
+    const confirmed = window.confirm(
+      `Move workout "${workoutTitle || fileName}" to the trash folder?\n\n` +
+      "You can restore it later from the trash folder, or delete it permanently from your file system.",
+    );
+    if (!confirmed) return;
+    const moved = await moveHistoryFileToTrash(fileName);
+    if (!moved) return;
+
+    if (dateKey) {
+      const idxArr = historyIndex.get(dateKey) || [];
+      historyIndex.set(
+        dateKey,
+        idxArr.filter((e) => e.name !== fileName),
+      );
+      if (historyIndex.get(dateKey)?.length === 0) {
+        historyIndex.delete(dateKey);
+      }
+      const dataArr = historyData.get(dateKey) || [];
+      historyData.set(
+        dateKey,
+        dataArr.filter((d) => d.fileName !== fileName),
+      );
+      if (historyData.get(dateKey)?.length === 0) {
+        historyData.delete(dateKey);
+      }
+      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      if (cell) {
+        cell.querySelectorAll(`.planner-workout-card[data-file-name="${fileName}"]`).forEach((n) => n.remove());
+      }
+    }
+    exitDetailMode();
+    recomputeAgg(selectedDate);
+  }
+
   function renderPowerCurve(detail) {
     if (!powerCurveSvg) return;
     const rect = powerCurveSvg.getBoundingClientRect();
@@ -854,6 +972,10 @@ export function createWorkoutPlanner({
     updateSelectedLabel();
     updateScheduleButton();
     if (backBtn) backBtn.style.display = "none";
+    if (deleteBtn) {
+      deleteBtn.style.display = "none";
+      deleteBtn.dataset.fileName = "";
+    }
     const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
     if (pickerBackBtn) pickerBackBtn.style.display = "none";
   }
@@ -938,6 +1060,11 @@ export function createWorkoutPlanner({
         selectedLabel.textContent = detailState.workoutTitle || "";
       }
       if (backBtn) backBtn.style.display = "inline-flex";
+      if (deleteBtn) {
+        deleteBtn.style.display = "inline-flex";
+        deleteBtn.dataset.fileName = detailState.fileName || "";
+        deleteBtn.title = "Delete this workout";
+      }
       const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
       if (pickerBackBtn) pickerBackBtn.style.display = "inline-flex";
 
@@ -1746,6 +1873,12 @@ export function createWorkoutPlanner({
       const dateKey = formatKey(selectedDate);
       if (!dateKey || isPastDate(dateKey)) return;
       requestSchedule(dateKey);
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", () => {
+      deleteCurrentDetail();
     });
   }
 
