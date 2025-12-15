@@ -1206,7 +1206,16 @@ function createWorkoutPicker(config) {
         );
         if (expanded) {
           e.preventDefault();
-          doSelectWorkout(expanded.canonical);
+          e.stopPropagation();
+          if (scheduleMode && typeof onScheduleSelected === "function") {
+            onScheduleSelected({
+              canonical: expanded.canonical,
+              dateKey: scheduleMode.dateKey,
+              existingEntry: scheduleMode.entry || null,
+            });
+          } else {
+            doSelectWorkout(expanded.canonical);
+          }
         }
         return;
       }
