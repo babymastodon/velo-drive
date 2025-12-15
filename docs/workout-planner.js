@@ -817,7 +817,7 @@ export function createWorkoutPlanner({
   }
 
   async function openDetailView(dateKey, preview) {
-    if (!dateKey || !preview || !isPastDate(dateKey)) return;
+    if (!dateKey || !preview || !isPastOrTodayDate(dateKey)) return;
     await ensureHistoryIndex();
     const entries = historyIndex.get(dateKey) || [];
     const entry =
@@ -1165,7 +1165,7 @@ export function createWorkoutPlanner({
   async function openSelectedDayDetail() {
     if (!selectedDate) return;
     const dateKey = formatKey(selectedDate);
-    if (!isPastDate(dateKey)) return;
+    if (!isPastOrTodayDate(dateKey)) return;
     let previews = historyData.get(dateKey);
     if (!previews) {
       previews = await loadHistoryPreview(dateKey);
@@ -1198,6 +1198,12 @@ export function createWorkoutPlanner({
     const d = keyToDate(dateKey);
     d.setHours(0, 0, 0, 0);
     return d < TODAY;
+  }
+
+  function isPastOrTodayDate(dateKey) {
+    const d = keyToDate(dateKey);
+    d.setHours(0, 0, 0, 0);
+    return d <= TODAY;
   }
 
   function resetAgg() {
@@ -1296,7 +1302,7 @@ export function createWorkoutPlanner({
   async function maybeAttachHistory(cell) {
     if (!cell || cell.dataset.historyAttached === "true") return;
     const dateKey = cell.dataset.date;
-    if (!dateKey || !isPastDate(dateKey)) return;
+    if (!dateKey || !isPastOrTodayDate(dateKey)) return;
     await ensureHistoryIndex();
     cell.dataset.historyAttached = "true";
     const previews = await loadHistoryPreview(dateKey);
