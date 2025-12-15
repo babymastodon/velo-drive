@@ -40,6 +40,10 @@
   gap: 8px;
 }
 
+.settings-header-actions:last-of-type {
+  justify-self: end;
+}
+
 .settings-header-main {
   display: flex;
   flex-direction: column;
