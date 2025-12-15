@@ -830,12 +830,12 @@ export function createWorkoutPlanner({
   }
 
   async function openDetailView(dateKey, preview) {
-    if (!dateKey || !preview || !isPastOrTodayDate(dateKey)) return;
+    if (!dateKey || !preview || !isPastOrTodayDate(dateKey)) return false;
     await ensureHistoryIndex();
     const entries = historyIndex.get(dateKey) || [];
     const entry =
       entries.find((e) => e.name === preview.fileName) || entries[0] || null;
-    if (!entry) return;
+    if (!entry) return false;
     try {
       const file = await entry.handle.getFile();
       const buf = await file.arrayBuffer();
@@ -930,8 +930,10 @@ export function createWorkoutPlanner({
         detailState,
       );
       detailChartData = { detail: detailState };
+      return true;
     } catch (err) {
       console.warn("[Planner] Failed to open detail view:", err);
+      return false;
     }
   }
   function rerenderCharts() {
@@ -1186,8 +1188,7 @@ export function createWorkoutPlanner({
       }
     }
     if (Array.isArray(previews) && previews.length) {
-      openDetailView(dateKey, previews[0]);
-      return true;
+      return openDetailView(dateKey, previews[0]);
     }
     return false;
   }
