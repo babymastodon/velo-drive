@@ -16,7 +16,7 @@ const PRECACHE_URLS = [
   "./workout-builder.js",
   "./workout-engine.js",
   "./workout-metrics.js",
-  "./workout-analysis.js",
+  "./planner-analysis.js",
   "./ble-manager.js",
   "./beeper.js",
   "./storage.js",

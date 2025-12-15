@@ -20,7 +20,7 @@ import {
   moveHistoryFileToTrash,
   computeHrCadStats,
   buildPowerCurve,
-} from "./workout-analysis.js";
+} from "./planner-analysis.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
