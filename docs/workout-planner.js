@@ -859,7 +859,7 @@ export function createWorkoutPlanner({
     detailChartData = null;
     if (modal) modal.classList.remove("planner-detail-mode");
     if (detailView) detailView.style.display = "none";
-    if (titleEl) titleEl.textContent = "Workout planner";
+    if (titleEl) titleEl.textContent = "Calendar";
     updateSelectedLabel();
     updateScheduleButton();
     if (backBtn) backBtn.style.display = "none";
