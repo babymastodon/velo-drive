@@ -551,9 +551,7 @@ function createWorkoutPicker(config) {
         selectBtn.type = "button";
         selectBtn.className = "select-workout-btn";
         if (scheduleMode) {
-          selectBtn.textContent = scheduleMode.editMode
-            ? "Reschedule Workout"
-            : "Schedule Workout";
+          selectBtn.textContent = "Schedule Workout";
           selectBtn.title = "Schedule this workout on the selected day.";
           selectBtn.addEventListener("click", (evt) => {
             evt.stopPropagation();
