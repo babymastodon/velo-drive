@@ -1224,9 +1224,9 @@ export function createWorkoutPlanner({
   }
 
   async function openSelectedDayDetail() {
-    if (!selectedDate) return;
+    if (!selectedDate) return false;
     const dateKey = formatKey(selectedDate);
-    if (!isPastOrTodayDate(dateKey)) return;
+    if (!isPastOrTodayDate(dateKey)) return false;
     let previews = historyData.get(dateKey);
     if (!previews) {
       previews = await loadHistoryPreview(dateKey);
@@ -1236,7 +1236,9 @@ export function createWorkoutPlanner({
     }
     if (Array.isArray(previews) && previews.length) {
       openDetailView(dateKey, previews[0]);
+      return true;
     }
+    return false;
   }
 
   function updateScheduleButton() {
@@ -1641,7 +1643,7 @@ export function createWorkoutPlanner({
     setSelectedDate(keyToDate(cell.dataset.date));
   }
 
-  function onKeyDown(ev) {
+  async function onKeyDown(ev) {
     if (!isOpen) return;
 
     if (detailMode) {
@@ -1666,6 +1668,8 @@ export function createWorkoutPlanner({
       ev.preventDefault();
       const dateKey = selectedDate ? formatKey(selectedDate) : null;
       if (!dateKey) return;
+      const opened = await openSelectedDayDetail();
+      if (opened) return;
       if (!isPastDate(dateKey)) {
         const scheduled = scheduledMap.get(dateKey);
         if (
