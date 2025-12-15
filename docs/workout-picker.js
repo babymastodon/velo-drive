@@ -201,6 +201,7 @@ function createWorkoutPicker(config) {
   const emptyStateEl = modal.querySelector("#pickerEmptyState");
   const emptyAddBtn = modal.querySelector("#pickerEmptyAddBtn");
   const titleEl = modal.querySelector("#workoutPickerTitle");
+  const pickerBackToPlannerBtn = modal.querySelector("#pickerBackToPlannerBtn");
   const controlsEl = modal.querySelector(".workout-picker-controls");
   const scheduleUnscheduleBtn = document.createElement("button");
   scheduleUnscheduleBtn.className = "picker-add-btn delete-workout-btn";
@@ -228,6 +229,14 @@ function createWorkoutPicker(config) {
   let suppressBuilderDirty = false;
   let importUrlInput = null;
   let importStatusEl = null;
+  function syncScheduleUi() {
+    if (titleEl) {
+      titleEl.style.display = scheduleMode ? "none" : "";
+    }
+    if (pickerBackToPlannerBtn) {
+      pickerBackToPlannerBtn.style.display = scheduleMode ? "inline-flex" : "none";
+    }
+  }
   let importSubmitBtn = null;
   let importScratchBtn = null;
   let isImportInProgress = false;
@@ -1516,6 +1525,7 @@ function createWorkoutPicker(config) {
       overlay.removeAttribute("aria-hidden");
     }
     if (scheduleMode && addWorkoutBtn) addWorkoutBtn.style.display = "none";
+    syncScheduleUi();
   }
 
   async function openScheduleMode({dateKey, entry, editMode = false} = {}) {
@@ -1527,6 +1537,7 @@ function createWorkoutPicker(config) {
     if (controlsEl) controlsEl.classList.add("picker-schedule-mode");
     scheduleUnscheduleBtn.style.display = editMode ? "" : "none";
     await open(entry?.workoutTitle);
+    syncScheduleUi();
   }
 
   async function close() {
@@ -1554,7 +1565,11 @@ function createWorkoutPicker(config) {
       }
     }
     scheduleMode = null;
-    if (titleEl) titleEl.textContent = "Workout library";
+    if (titleEl) {
+      titleEl.textContent = "Workout library";
+      titleEl.style.display = "";
+    }
+    if (pickerBackToPlannerBtn) pickerBackToPlannerBtn.style.display = "none";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "";
     if (builderBackBtn) builderBackBtn.style.display = "";
     if (builderSaveBtn) builderSaveBtn.style.display = "";
@@ -1582,6 +1597,11 @@ function createWorkoutPicker(config) {
 
   if (closeBtn) {
     closeBtn.addEventListener("click", async () => {
+      await close();
+    });
+  }
+  if (pickerBackToPlannerBtn) {
+    pickerBackToPlannerBtn.addEventListener("click", async () => {
       await close();
     });
   }

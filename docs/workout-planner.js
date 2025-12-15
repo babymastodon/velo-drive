@@ -738,6 +738,16 @@ export function createWorkoutPlanner({
   function renderDetailStats(detail) {
     if (!detailStatsEl) return;
     detailStatsEl.innerHTML = "";
+    if (detail.startedAt) {
+      const header = document.createElement("div");
+      header.className = "planner-detail-date";
+      try {
+        header.textContent = formatSelectedLabel(detail.startedAt);
+      } catch (_err) {
+        header.textContent = detail.startedAt.toDateString();
+      }
+      detailStatsEl.appendChild(header);
+    }
     const row = document.createElement("div");
     row.className = "wb-stats-row";
     const pushStat = (label, value) => {
@@ -837,6 +847,8 @@ export function createWorkoutPlanner({
     updateSelectedLabel();
     updateScheduleButton();
     if (backBtn) backBtn.style.display = "none";
+    const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
+    if (pickerBackBtn) pickerBackBtn.style.display = "none";
   }
 
   async function openDetailView(dateKey, preview) {
@@ -913,13 +925,14 @@ export function createWorkoutPlanner({
       if (modal) modal.classList.add("planner-detail-mode");
       if (detailView) detailView.style.display = "flex";
       if (titleEl) {
-        const d = detailState.startedAt || keyToDate(dateKey);
-        titleEl.textContent = formatSelectedLabel(d);
+        titleEl.textContent = "";
       }
       if (selectedLabel) {
         selectedLabel.textContent = detailState.workoutTitle || "";
       }
       if (backBtn) backBtn.style.display = "inline-flex";
+      const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
+      if (pickerBackBtn) pickerBackBtn.style.display = "inline-flex";
 
       renderDetailStats(detailState);
       renderPowerCurve(detailState);
@@ -1679,6 +1692,8 @@ export function createWorkoutPlanner({
       centerOnDate(selectedDate);
       recomputeAgg(selectedDate);
     });
+    const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
+    if (pickerBackBtn) pickerBackBtn.style.display = "none";
   }
 
   function close() {
