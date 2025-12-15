@@ -380,6 +380,7 @@ function createWorkoutEngine() {
     if (!workoutRunning && !workoutStarting) {
       workoutStarting = true;
       log("Starting workout (countdown)...");
+      emitStateChanged();
       Beeper.runStartCountdown(async () => {
         liveSamples = [];
         elapsedSec = 0;
@@ -418,7 +419,7 @@ function createWorkoutEngine() {
   }
 
   async function endWorkout() {
-    log("Ending workout, saving file if samples exist.");
+    log("Ending workout, stopping ticker, then writing FIT if samples exist.");
     stopTicker();
     let savedInfo = null;
     if (liveSamples.length) {

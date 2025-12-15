@@ -1303,7 +1303,7 @@ async function initPage() {
     stopBtn.addEventListener("click", async () => {
       const sure = confirm("End current workout and save it?");
       if (!sure) return;
-      engine.endWorkout();
+      await engine.endWorkout();
     });
   }
 
