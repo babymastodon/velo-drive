@@ -60,7 +60,7 @@
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
-  height: 100%;
+  min-height: var(--nav-control-height);
 }
 
 .workout-picker-header-main {
@@ -76,8 +76,7 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  height: 100%;
-  min-height: var(--nav-control-height);
+  height: var(--nav-control-height);
   align-items: center;
   justify-content: center;
   text-align: center;

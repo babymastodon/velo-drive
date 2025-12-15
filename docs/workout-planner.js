@@ -216,21 +216,11 @@ export function createWorkoutPlanner({
       const entries = await loadScheduleEntries();
       scheduledMap.clear();
       entries.forEach((e) => {
-        if (!e || !e.date) return;
+        if (!e || !e.date || !e.workoutTitle) return;
         const key = e.date;
+        const entry = {date: e.date, workoutTitle: e.workoutTitle};
         const arr = scheduledMap.get(key) || [];
-        e.metrics = computeScheduledMetrics(e);
-        if (e.metrics) {
-          e.durationSec = e.metrics.durationSec;
-          e.kj = e.metrics.kj;
-          e.ifValue = e.metrics.ifValue;
-          e.tss = e.metrics.tss;
-          e.zone = e.metrics.zone;
-        }
-        if (e.metrics) {
-          e.zone = e.zone || e.metrics.zone;
-        }
-        arr.push(e);
+        arr.push(entry);
         scheduledMap.set(key, arr);
       });
     })();
@@ -240,7 +230,9 @@ export function createWorkoutPlanner({
   async function persistSchedule() {
     const entries = [];
     scheduledMap.forEach((arr) => {
-      arr.forEach((e) => entries.push(e));
+      arr.forEach((e) =>
+        entries.push({date: e.date, workoutTitle: e.workoutTitle}),
+      );
     });
     await saveScheduleEntries(entries);
   }
@@ -377,28 +369,36 @@ export function createWorkoutPlanner({
   async function ensureScheduledWorkout(entry) {
     if (!entry) return entry;
     if (entry.rawSegments && entry.rawSegments.length) return entry;
-    if (!entry.fileName) return entry;
-    const cached = scheduledCache.get(entry.fileName);
+    const cacheKey = entry.workoutTitle || entry.fileName;
+    if (!cacheKey) return entry;
+    const cached = scheduledCache.get(cacheKey);
     if (cached) {
       entry.rawSegments = cached.rawSegments || [];
       entry.workoutTitle = entry.workoutTitle || cached.workoutTitle;
+      entry.fileName = cached.fileName;
       return entry;
     }
     try {
       const dir = await loadZwoDirHandle();
       if (!dir) return entry;
-      const handle = await dir.getFileHandle(entry.fileName, { create: false });
+      const fileName =
+        (entry.fileName && entry.fileName.endsWith(".zwo")
+          ? entry.fileName
+          : `${encodeURIComponent(entry.workoutTitle || entry.fileName || "")}.zwo`) || "";
+      const handle = await dir.getFileHandle(fileName, { create: false });
       const file = await handle.getFile();
       const text = await file.text();
       const { parseZwoXmlToCanonicalWorkout } = await import("./zwo.js");
       const canonical = parseZwoXmlToCanonicalWorkout(text) || {};
       const rawSegments = canonical.rawSegments || [];
-      scheduledCache.set(entry.fileName, {
+      scheduledCache.set(cacheKey, {
         rawSegments,
         workoutTitle: canonical.workoutTitle || entry.workoutTitle,
+        fileName,
       });
       entry.rawSegments = rawSegments;
       entry.workoutTitle = entry.workoutTitle || canonical.workoutTitle;
+      entry.fileName = fileName;
     } catch (_err) {
       // ignore
     }
@@ -1758,8 +1758,6 @@ export function createWorkoutPlanner({
           ? existingEntry
           : { date: dateKey };
       target.date = dateKey;
-      target.fileName =
-        canonical.source || canonical.fileName || canonical.workoutTitle || "";
       target.workoutTitle = canonical.workoutTitle;
       target.rawSegments = canonical.rawSegments || [];
       target.metrics = computeScheduledMetrics(target);
