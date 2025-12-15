@@ -1191,7 +1191,7 @@ function createWorkoutPicker(config) {
         return;
       }
 
-      if (key === "backspace" && scheduleMode) {
+      if ((key === "backspace" || key === "escape") && scheduleMode) {
         e.preventDefault();
         close({returnToPlanner: true});
         return;

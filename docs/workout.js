@@ -1382,6 +1382,12 @@ async function initPage() {
 
     if (e.key === "Escape") {
       if (planner && typeof planner.isOpen === "function" && planner.isOpen()) {
+        if (typeof planner.isDetailOpen === "function" && planner.isDetailOpen()) {
+          if (typeof planner.exitDetail === "function") {
+            planner.exitDetail();
+          }
+          return;
+        }
         planner.close();
         return;
       }
