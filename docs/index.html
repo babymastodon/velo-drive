@@ -249,6 +249,13 @@
 
       <header class="workout-picker-header picker-only">
         <div class="workout-picker-header-main">
+          <button id="pickerBackToPlannerBtn" class="wb-code-insert-btn picker-back-btn" type="button" style="display:none;">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            <span>Back to calendar</span>
+          </button>
           <div class="workout-picker-title" id="workoutPickerTitle">
             Workout library
           </div>
@@ -360,9 +367,7 @@
       </div>
 
       <header class="workout-planner-header planner-only">
-        <div class="workout-planner-title">Workout planner</div>
-        <div id="plannerSelectedDateLabel" class="workout-planner-selected" aria-live="polite"></div>
-        <div class="workout-planner-actions">
+        <div class="workout-planner-left">
           <button id="plannerBackBtn" class="wb-code-insert-btn picker-back-btn planner-back-btn" type="button" style="display: none;">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
               <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round"
@@ -370,6 +375,10 @@
             </svg>
             <span>Back to calendar</span>
           </button>
+          <div class="workout-planner-title"></div>
+        </div>
+        <div id="plannerSelectedDateLabel" class="workout-planner-selected" aria-live="polite"></div>
+        <div class="workout-planner-actions workout-picker-controls">
           <button id="plannerScheduleBtn" class="picker-add-btn planner-schedule-btn" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
               <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"
