@@ -385,9 +385,18 @@ export function createWorkoutPlanner({
     if (!cacheKey) return entry;
     const cached = scheduledCache.get(cacheKey);
     if (cached) {
-      entry.rawSegments = cached.rawSegments || [];
-      entry.workoutTitle = entry.workoutTitle || cached.workoutTitle;
-      entry.fileName = cached.fileName;
+      const cachedCanonical = cached.canonical || {};
+      entry.canonical = cachedCanonical;
+      entry.rawSegments =
+        cachedCanonical.rawSegments || cached.rawSegments || [];
+      entry.workoutTitle =
+        entry.workoutTitle ||
+        cachedCanonical.workoutTitle ||
+        cached.workoutTitle;
+      entry.fileName = cached.fileName || cachedCanonical.fileName;
+      entry.source = cachedCanonical.source;
+      entry.sourceURL = cachedCanonical.sourceURL;
+      entry.description = cachedCanonical.description;
       entry.missing = false;
       return entry;
     }
@@ -407,15 +416,25 @@ export function createWorkoutPlanner({
       const text = await file.text();
       const { parseZwoXmlToCanonicalWorkout } = await import("./zwo.js");
       const canonical = parseZwoXmlToCanonicalWorkout(text) || {};
-      const rawSegments = canonical.rawSegments || [];
-      scheduledCache.set(cacheKey, {
-        rawSegments,
+      const enrichedCanonical = {
+        ...canonical,
         workoutTitle: canonical.workoutTitle || entry.workoutTitle,
+        fileName,
+      };
+      const rawSegments = enrichedCanonical.rawSegments || [];
+      scheduledCache.set(cacheKey, {
+        canonical: enrichedCanonical,
+        rawSegments,
+        workoutTitle: enrichedCanonical.workoutTitle,
         fileName,
       });
       entry.rawSegments = rawSegments;
-      entry.workoutTitle = entry.workoutTitle || canonical.workoutTitle;
+      entry.canonical = enrichedCanonical;
+      entry.workoutTitle = enrichedCanonical.workoutTitle;
       entry.fileName = fileName;
+      entry.source = enrichedCanonical.source;
+      entry.sourceURL = enrichedCanonical.sourceURL;
+      entry.description = enrichedCanonical.description;
       entry.missing = false;
     } catch (_err) {
       entry.missing = true;
@@ -1798,6 +1817,7 @@ export function createWorkoutPlanner({
       target.ifValue = target.metrics?.ifValue;
       target.tss = target.metrics?.tss;
       target.zone = target.metrics?.zone;
+      target.canonical = canonical;
       if (!arr.includes(target)) {
         arr.push(target);
       }

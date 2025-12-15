@@ -212,10 +212,34 @@
   filter: brightness(0.98);
 }
 
+.planner-day.is-selected .planner-workout-card:hover {
+  background: var(--planner-selected-hover-bg);
+  border-left: 1px solid var(--cta-border);
+  border-right: 1px solid var(--cta-border);
+}
+
+.planner-day.is-today:not(.is-selected) .planner-workout-card:hover {
+  background: var(--planner-today-hover-bg);
+  border-left: 1px solid var(--warning-border);
+  border-right: 1px solid var(--warning-border);
+}
+
 .planner-workout-card:active {
   opacity: 1;
   background: var(--hover-medium);
   filter: brightness(0.95);
+}
+
+.planner-day.is-selected .planner-workout-card:active {
+  background: var(--planner-selected-hover-bg);
+  border-left: 1px solid var(--cta-border);
+  border-right: 1px solid var(--cta-border);
+}
+
+.planner-day.is-today:not(.is-selected) .planner-workout-card:active {
+  background: var(--planner-today-hover-bg);
+  border-left: 1px solid var(--warning-border);
+  border-right: 1px solid var(--warning-border);
 }
 
 .planner-scheduled-top {
@@ -307,12 +331,12 @@
 }
 
 .planner-day.suppress-hover:hover.is-today:not(.is-selected) {
-  background: var(--warning-bg);
+  background: var(--planner-today-hover-bg);
   box-shadow: inset 0 0 0 1px var(--warning-border);
 }
 
 .planner-day.is-selected {
-  background: var(--cta-soft);
+  background: var(--planner-selected-bg);
   box-shadow: inset 0 0 0 1px var(--cta-border);
 }
 
@@ -321,8 +345,23 @@
   box-shadow: inset 0 0 0 1px var(--cta-border);
 }
 
+.planner-day.is-selected:hover:has(.planner-workout-card:hover) {
+  background: var(--planner-selected-bg);
+  box-shadow: inset 0 0 0 1px var(--cta-border);
+}
+
 .planner-day.is-today:not(.is-selected) {
-  background: var(--warning-bg);
+  background: var(--planner-today-bg);
+  box-shadow: inset 0 0 0 1px var(--warning-border);
+}
+
+.planner-day.is-today:not(.is-selected):hover {
+  background: var(--planner-today-hover-bg);
+  box-shadow: inset 0 0 0 1px var(--warning-border);
+}
+
+.planner-day.is-today:not(.is-selected):hover:has(.planner-workout-card:hover) {
+  background: var(--planner-today-bg);
   box-shadow: inset 0 0 0 1px var(--warning-border);
 }
 
