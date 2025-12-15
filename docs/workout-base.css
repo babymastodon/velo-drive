@@ -142,7 +142,7 @@
     --wb-block-active-filter: brightness(1.4) saturate(0.8);
 
     /* slightly darkened versions of the light colors */
-    --zone-recovery: #bbbbbb;
+    --zone-recovery: #cccccc;
     --zone-endurance: #6ac2ff;
     --zone-tempo: #70e870;
     --zone-threshold: #ffe763;
@@ -279,7 +279,7 @@
   --power-line: #ffb300;
   --hr-line: #e82210;
   --cad-line: #6ad60b;
-  --zone-recovery: #bbbbbb;
+  --zone-recovery: #cccccc;
   --zone-endurance: #6ac2ff;
   --zone-tempo: #70e870;
   --zone-threshold: #ffe763;

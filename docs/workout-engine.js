@@ -175,10 +175,10 @@ function createWorkoutEngine() {
   }
 
   async function saveWorkoutFile() {
-    if (!canonicalWorkout || !liveSamples.length) return;
+    if (!canonicalWorkout || !liveSamples.length) return null;
 
     const dir = await loadWorkoutDirHandle();
-    if (!dir) return;
+    if (!dir) return null;
 
     const now = new Date();
     const nameSafe =
@@ -213,6 +213,7 @@ function createWorkoutEngine() {
     await writable.close();
 
     log(`Workout saved to ${fileName}`);
+    return {fileName, startedAt: startDate, endedAt: endDate};
   }
 
   // --------- auto-start / beeps ---------
@@ -419,9 +420,10 @@ function createWorkoutEngine() {
   async function endWorkout() {
     log("Ending workout, saving file if samples exist.");
     stopTicker();
+    let savedInfo = null;
     if (liveSamples.length) {
       try {
-        await saveWorkoutFile();
+        savedInfo = await saveWorkoutFile();
       } catch (err) {
         log("Failed to save workout file: " + err);
       }
@@ -438,7 +440,7 @@ function createWorkoutEngine() {
     stopTicker();
     clearActiveState();
     emitStateChanged();
-    onWorkoutEnded();
+    onWorkoutEnded(savedInfo);
   }
 
   // --------- BLE sample handlers ---------

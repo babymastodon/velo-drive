@@ -267,6 +267,17 @@ export function createWorkoutPlanner({
     const tss = IF != null ? (durationSec * IF * IF) / 36 : null;
 
     const avgPower = perSec.length ? sumJ / perSec.length : 0;
+    const avgHr =
+      samples?.length && samples.some((s) => Number.isFinite(s.hr))
+        ? samples.reduce(
+            (acc, s) => ({
+              sum: acc.sum + (Number.isFinite(s.hr) ? s.hr : 0),
+              count: acc.count + (Number.isFinite(s.hr) ? 1 : 0),
+            }),
+            {sum: 0, count: 0},
+          )
+        : {sum: 0, count: 0};
+    const avgHrVal = avgHr.count ? avgHr.sum / avgHr.count : null;
 
     return {
       durationSec,
@@ -278,6 +289,7 @@ export function createWorkoutPlanner({
       avgPower,
       normalizedPower: np || null,
       perSecondPower: perSec,
+      avgHr: avgHrVal,
     };
   }
 
@@ -549,6 +561,7 @@ export function createWorkoutPlanner({
       pushStat("IF", detail.ifValue.toFixed(2));
     if (Number.isFinite(detail.tss)) pushStat("TSS", Math.round(detail.tss));
     if (Number.isFinite(detail.vi)) pushStat("VI", detail.vi.toFixed(2));
+    if (Number.isFinite(detail.ef)) pushStat("EF", detail.ef.toFixed(2));
     if (Number.isFinite(detail.avgHr))
       pushStat("Avg HR", `${Math.round(detail.avgHr)} bpm`);
     if (Number.isFinite(detail.maxHr))
@@ -660,6 +673,8 @@ export function createWorkoutPlanner({
         metrics.avgPower && metrics.avgPower > 0 && metrics.normalizedPower
           ? metrics.normalizedPower / metrics.avgPower
           : null;
+      const ef =
+        metrics.avgHr && metrics.avgHr > 0 ? (metrics.normalizedPower || 0) / metrics.avgHr : null;
 
       detailState = {
         dateKey,
@@ -675,6 +690,7 @@ export function createWorkoutPlanner({
         avgPower: metrics.avgPower,
         normalizedPower: metrics.normalizedPower,
         vi,
+        ef,
         ftp,
         rawSegments: cw.rawSegments || [],
         samples: parsed.samples || [],
@@ -1423,5 +1439,23 @@ export function createWorkoutPlanner({
     isOpen: () => isOpen,
     getSelectedDate: () => selectedDate,
     rerenderCharts,
+    openDetailByFile: async (fileName, startedAt) => {
+      if (!fileName) return;
+      const d =
+        startedAt instanceof Date
+          ? startedAt
+          : startedAt
+          ? new Date(startedAt)
+          : null;
+      const dateKey = d ? formatKey(d) : dateKeyFromHandleName(fileName);
+      if (!dateKey) return;
+      await ensureHistoryIndex();
+      const previews = await loadHistoryPreview(dateKey);
+      if (!Array.isArray(previews) || !previews.length) return;
+      const match =
+        previews.find((p) => p.fileName === fileName) ||
+        previews[0];
+      openDetailView(dateKey, match);
+    },
   };
 }
