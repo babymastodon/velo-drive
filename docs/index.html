@@ -247,7 +247,7 @@
   <div id="workoutPickerOverlay" class="workout-picker-overlay" aria-modal="true" role="dialog">
     <div id="workoutPickerModal" class="workout-picker-modal">
 
-      <header class="workout-picker-header">
+      <header class="workout-picker-header picker-only">
         <div class="workout-picker-header-main">
           <div class="workout-picker-title" id="workoutPickerTitle">
             Workout library
@@ -320,10 +320,10 @@
 
       </header>
 
-      <div id="workoutImportRoot" class="workout-import-root" style="display:none;"></div>
-      <div id="workoutBuilderRoot" class="workout-builder-root" style="display:none;"></div>
+      <div id="workoutImportRoot" class="workout-import-root picker-only" style="display:none;"></div>
+      <div id="workoutBuilderRoot" class="workout-builder-root picker-only" style="display:none;"></div>
 
-      <div class="workout-picker-table-wrapper">
+      <div class="workout-picker-table-wrapper picker-only">
         <div id="pickerEmptyState" class="picker-empty-state" style="display:none;">
           <div class="picker-empty-message">
             No workouts found. Add your first workout.
@@ -351,7 +351,7 @@
         </table>
       </div>
 
-      <div class="picker-footer">
+      <div class="picker-footer picker-only">
         <span>
           Hotkeys:
           <strong>j / k</strong> or <strong>↑ / ↓</strong> to move between rows.
@@ -359,14 +359,7 @@
         <span id="pickerSummary" class="workout-picker-summary"></span>
       </div>
 
-    </div>
-  </div>
-
-  <!-- Workout planner overlay -->
-  <div id="workoutPlannerOverlay" class="workout-picker-overlay workout-planner-overlay" aria-modal="true"
-    role="dialog">
-    <div id="workoutPlannerModal" class="workout-picker-modal workout-planner-modal">
-      <header class="workout-planner-header">
+      <header class="workout-planner-header planner-only">
         <div class="workout-planner-title">Workout planner</div>
         <div id="plannerSelectedDateLabel" class="workout-planner-selected" aria-live="polite"></div>
         <div class="workout-planner-actions">
@@ -392,7 +385,7 @@
         </div>
       </header>
 
-      <div class="workout-planner-body">
+      <div class="workout-planner-body planner-only">
         <div class="planner-calendar">
           <div class="planner-calendar-header" id="plannerCalendarHeader">
             <div class="planner-day-head">Sun</div>

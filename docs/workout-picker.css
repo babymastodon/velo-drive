@@ -10,6 +10,14 @@
   z-index: 45;
 }
 
+.workout-picker-overlay:not(.planner-mode) .planner-only {
+  display: none !important;
+}
+
+.workout-picker-overlay.planner-mode .picker-only {
+  display: none !important;
+}
+
 .workout-picker-modal {
   width: min(1600px, 85vw);
   height: min(1200px, 85vh);

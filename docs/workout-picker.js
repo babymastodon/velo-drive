@@ -1492,11 +1492,11 @@ function createWorkoutPicker(config) {
       // Always rescan and restore previous picker state first
       await rescanWorkouts(handle);
 
-      if (hasTargetTitle) {
-        // Check if the requested workout is visible with current filters.
-        const isTargetVisible = computeVisiblePickerWorkouts().some(
-          (item) => item.canonical.workoutTitle === workoutTitle
-        );
+    if (hasTargetTitle) {
+      // Check if the requested workout is visible with current filters.
+      const isTargetVisible = computeVisiblePickerWorkouts().some(
+        (item) => item.canonical.workoutTitle === workoutTitle
+      );
 
         // Only clear filters if the workout is hidden by them.
         if (!isTargetVisible) {
@@ -1509,7 +1509,12 @@ function createWorkoutPicker(config) {
     }
 
     isPickerOpen = true;
-    if (overlay) overlay.style.display = "flex";
+    if (overlay) {
+      overlay.classList.add("picker-mode");
+      overlay.classList.remove("planner-mode");
+      overlay.style.display = "flex";
+      overlay.removeAttribute("aria-hidden");
+    }
   }
 
   async function openScheduleMode({dateKey, entry, editMode = false} = {}) {
@@ -1540,7 +1545,13 @@ function createWorkoutPicker(config) {
       onScheduleCanceled();
     }
     isPickerOpen = false;
-    if (overlay) overlay.style.display = "none";
+    if (overlay) {
+      overlay.classList.remove("picker-mode");
+      if (!overlay.classList.contains("planner-mode")) {
+        overlay.style.display = "none";
+        overlay.setAttribute("aria-hidden", "true");
+      }
+    }
     scheduleMode = null;
     if (titleEl) titleEl.textContent = "Workout library";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "";
@@ -1627,7 +1638,7 @@ function createWorkoutPicker(config) {
 
   if (overlay) {
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
+      if (e.target === overlay && overlay.classList.contains("picker-mode")) close();
     });
   }
 
