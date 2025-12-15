@@ -246,22 +246,32 @@ export function buildFitFile({
   ftp,
   startedAt,
   endedAt,
+  pauseEvents = [],
+  totalElapsedSec,
 }) {
   const bytes = [];
 
   const cw = canonicalWorkout || {};
   const startDate =
-    startedAt ||
-    (samples.length
-      ? new Date(Date.now() - (samples[samples.length - 1].t || 0) * 1000)
-      : new Date());
+    startedAt instanceof Date
+      ? startedAt
+      : startedAt
+        ? new Date(startedAt)
+        : samples.length
+          ? new Date(Date.now() - (samples[samples.length - 1].t || 0) * 1000)
+          : new Date();
+  const computedElapsedMs =
+    totalElapsedSec != null
+      ? Math.max(0, totalElapsedSec) * 1000
+      : samples.length
+        ? Math.max(0, samples[samples.length - 1].t || 0) * 1000
+        : 0;
   const endDate =
-    endedAt ||
-    (samples.length
-      ? new Date(
-          startDate.getTime() + (samples[samples.length - 1].t || 0) * 1000
-        )
-      : startDate);
+    endedAt instanceof Date
+      ? endedAt
+      : endedAt
+        ? new Date(endedAt)
+        : new Date(startDate.getTime() + computedElapsedMs);
 
   const startTs = dateToFitTimestamp(startDate);
   const endTs = dateToFitTimestamp(endDate);
@@ -296,6 +306,11 @@ export function buildFitFile({
   const maxCadence = max(cadVals);
 
   const durationSec = samples.length ? samples[samples.length - 1].t || 0 : 0;
+  const totalElapsedTimeMs =
+    totalElapsedSec != null
+      ? Math.max(0, Math.round(totalElapsedSec * 1000))
+      : Math.max(0, endDate.getTime() - startDate.getTime());
+  const totalTimerTimeMs = Math.max(0, Math.round(durationSec * 1000));
 
   const devInfo = prepareDeveloperFieldDescriptions();
   const canonicalBytes = textEncoder.encode(JSON.stringify(cw));
@@ -445,6 +460,12 @@ export function buildFitFile({
     {num: 57, type: "uint16"}, // threshold_power
   ]);
 
+  const eventDef = createDefinition(9, 21, [
+    {num: 253, type: "uint32"}, // timestamp
+    {num: 0, type: "enum"}, // event
+    {num: 1, type: "enum"}, // event_type
+  ]);
+
   const defs = [
     developerDataIdDef,
     fieldDescriptionDef,
@@ -455,6 +476,7 @@ export function buildFitFile({
     recordDef,
     sessionDef,
     lapDef,
+    eventDef,
   ];
 
   defs.forEach((d) => bytes.push(...d.bytes));
@@ -587,6 +609,43 @@ export function buildFitFile({
     );
   });
 
+  // timer stop/start events for pauses
+  const timerEvents = [];
+  const normalizedPauses = Array.isArray(pauseEvents) ? pauseEvents : [];
+  normalizedPauses
+    .map((ev) => {
+      const at = ev?.at ? new Date(ev.at) : null;
+      if (!at || Number.isNaN(at.getTime())) return null;
+      const type =
+        ev.type === "start"
+          ? "start"
+          : ev.type === "stop_all"
+            ? "stop_all"
+            : "stop";
+      return {type, ts: dateToFitTimestamp(at)};
+    })
+    .filter(Boolean)
+    .forEach((ev) => timerEvents.push(ev));
+  if (!timerEvents.some((ev) => ev.type === "start")) {
+    timerEvents.push({type: "start", ts: startTs});
+  }
+  if (!timerEvents.some((ev) => ev.type === "stop_all")) {
+    timerEvents.push({type: "stop_all", ts: endTs});
+  }
+  timerEvents
+    .sort((a, b) => a.ts - b.ts)
+    .forEach((ev) => {
+      const eventType =
+        ev.type === "start" ? 0 : ev.type === "stop_all" ? 2 : 1;
+      bytes.push(
+        ...createDataMessage(eventDef, {
+          253: ev.ts,
+          0: 0, // timer
+          1: eventType,
+        })
+      );
+    });
+
   // session
   bytes.push(
     ...createDataMessage(sessionDef, {
@@ -594,8 +653,8 @@ export function buildFitFile({
       2: startTs,
       5: SPORT_CYCLING,
       6: 0,
-      7: durationSec * 1000,
-      8: durationSec * 1000,
+      7: totalElapsedTimeMs,
+      8: totalTimerTimeMs,
       9: 0xffffffff,
       11: avgCadence,
       12: maxCadence,
@@ -616,8 +675,8 @@ export function buildFitFile({
       2: startTs,
       5: SPORT_CYCLING,
       6: 0,
-      7: durationSec * 1000,
-      8: durationSec * 1000,
+      7: totalElapsedTimeMs,
+      8: totalTimerTimeMs,
       11: avgCadence,
       12: maxCadence,
       13: 0xffff,

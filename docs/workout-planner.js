@@ -182,9 +182,20 @@ export function createWorkoutPlanner({
     const parts = name.split(" ");
     if (!parts.length) return null;
     const isoPart = parts[0];
+    const timeMatch = isoPart.match(
+      /^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})Z$/,
+    );
+    if (timeMatch) {
+      const iso = `${timeMatch[1]}T${timeMatch[2]}:${timeMatch[3]}:${timeMatch[4]}Z`;
+      const d = new Date(iso);
+      if (!Number.isNaN(d.getTime())) {
+        return formatKey(d); // localized calendar day
+      }
+    }
     const datePart = isoPart.split("T")[0];
     if (!datePart || datePart.length < 10) return null;
-    return datePart;
+    const asDate = utcDateKeyToLocalDate(datePart);
+    return asDate ? formatKey(asDate) : null;
   }
 
   function resetHistoryIndex() {
@@ -219,8 +230,7 @@ export function createWorkoutPlanner({
       try {
         for await (const [name, handle] of dir.entries()) {
           if (!name || !name.toLowerCase().endsWith(".fit")) continue;
-          const rawDateKey = dateKeyFromHandleName(name);
-          const localizedKey = localDateKey(rawDateKey);
+          const localizedKey = dateKeyFromHandleName(name);
           if (!localizedKey) continue;
           const arr = historyIndex.get(localizedKey) || [];
           arr.push({ name, handle });
@@ -1806,7 +1816,7 @@ export function createWorkoutPlanner({
             : null;
       const dateKey = d
         ? formatKey(d)
-        : localDateKey(dateKeyFromHandleName(fileName));
+        : dateKeyFromHandleName(fileName);
       if (!dateKey) return;
       await ensureHistoryIndex();
       const previews = await loadHistoryPreview(dateKey);
