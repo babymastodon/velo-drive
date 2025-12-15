@@ -1088,6 +1088,7 @@ async function initPage() {
     detailChartTooltip: document.getElementById("plannerDetailChartTooltip"),
     backBtn: document.getElementById("plannerBackBtn"),
     titleEl: document.querySelector(".workout-planner-title"),
+    deleteBtn: document.getElementById("plannerDeleteBtn"),
     getCurrentFtp: () => engine.getViewModel().currentFtp,
     onScheduleRequested: (dateKey) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;

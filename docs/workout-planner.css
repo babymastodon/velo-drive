@@ -236,6 +236,10 @@
   line-height: 24px;
 }
 
+.planner-scheduled-tag-past {
+  text-decoration: line-through;
+}
+
 .planner-scheduled-edit-btn {
   width: 32px;
   height: 32px;
