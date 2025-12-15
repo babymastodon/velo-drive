@@ -126,7 +126,6 @@ export function createWorkoutPlanner({
   const historyCache = new Map(); // dateKey -> Promise<{...}>
   const historyData = new Map(); // dateKey -> Array<preview>
   let scheduledMap = new Map(); // dateKey -> Array<entry>
-  const scheduledCache = new Map(); // fileName -> {rawSegments, workoutTitle}
   let historyIndexPromise = null;
   let schedulePromise = null;
   let statsCache = null;
@@ -164,7 +163,6 @@ export function createWorkoutPlanner({
     historyIndexPromise = null;
     scheduledMap = new Map();
     schedulePromise = null;
-    scheduledCache.clear();
   }
 
   async function ensureStatsCache() {
@@ -219,7 +217,7 @@ export function createWorkoutPlanner({
       if (!e || !e.date || !e.workoutTitle) continue;
       const key = e.date;
       const entry = { date: e.date, workoutTitle: e.workoutTitle };
-      await ensureScheduledWorkout(entry);
+      await loadWorkoutFile(entry);
       entry.metrics = entry.metrics || computeScheduledMetrics(entry);
       if (entry.metrics) {
         entry.durationSec = entry.metrics.durationSec;
@@ -387,28 +385,8 @@ export function createWorkoutPlanner({
     };
   }
 
-  async function ensureScheduledWorkout(entry) {
-    if (!entry) return entry;
-    if (entry.rawSegments && entry.rawSegments.length) return entry;
-    const cacheKey = entry.workoutTitle || entry.fileName;
-    if (!cacheKey) return entry;
-    const cached = scheduledCache.get(cacheKey);
-    if (cached) {
-      const cachedCanonical = cached.canonical || {};
-      entry.canonical = cachedCanonical;
-      entry.rawSegments =
-        cachedCanonical.rawSegments || cached.rawSegments || [];
-      entry.workoutTitle =
-        entry.workoutTitle ||
-        cachedCanonical.workoutTitle ||
-        cached.workoutTitle;
-      entry.fileName = cached.fileName || cachedCanonical.fileName;
-      entry.source = cachedCanonical.source;
-      entry.sourceURL = cachedCanonical.sourceURL;
-      entry.description = cachedCanonical.description;
-      entry.missing = false;
-      return entry;
-    }
+  async function loadWorkoutFile(entry) {
+    if (!entry || !entry.workoutTitle) return entry;
     try {
       const dir = await loadZwoDirHandle();
       if (!dir) {
@@ -431,12 +409,6 @@ export function createWorkoutPlanner({
         fileName,
       };
       const rawSegments = enrichedCanonical.rawSegments || [];
-      scheduledCache.set(cacheKey, {
-        canonical: enrichedCanonical,
-        rawSegments,
-        workoutTitle: enrichedCanonical.workoutTitle,
-        fileName,
-      });
       entry.rawSegments = rawSegments;
       entry.canonical = enrichedCanonical;
       entry.workoutTitle = enrichedCanonical.workoutTitle;
@@ -1197,7 +1169,6 @@ export function createWorkoutPlanner({
   }
 
   function requestSchedule(dateKey) {
-    scheduledCache.clear();
     if (typeof onScheduleRequested === "function") {
       onScheduleRequested(dateKey, null);
     }
@@ -1364,14 +1335,6 @@ export function createWorkoutPlanner({
     if (!entries || !entries.length) return;
     cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
     for (const entry of entries) {
-      await ensureScheduledWorkout(entry);
-      entry.metrics = entry.metrics || computeScheduledMetrics(entry);
-      if (entry.metrics) {
-        entry.durationSec = entry.metrics.durationSec;
-        entry.kj = entry.metrics.kj;
-        entry.ifValue = entry.metrics.ifValue;
-        entry.tss = entry.metrics.tss;
-      }
       renderScheduledCard(cell, entry);
     }
     recomputeAgg(selectedDate);
@@ -1816,7 +1779,6 @@ export function createWorkoutPlanner({
     },
     applyScheduledEntry: async ({ dateKey, canonical, existingEntry }) => {
       if (!dateKey || !canonical) return;
-      scheduledCache.clear();
       const current = await loadScheduleEntries();
       const nextEntry = {
         date: dateKey,
