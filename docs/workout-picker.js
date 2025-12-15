@@ -1538,7 +1538,7 @@ function createWorkoutPicker(config) {
     syncScheduleUi();
   }
 
-  async function close() {
+  async function close({returnToPlanner = false, cancelSchedule = true} = {}) {
     if (isBuilderMode) {
       const ok = await maybeHandleUnsavedBeforeLeave({
         reopenAfterSave: false,
@@ -1551,8 +1551,8 @@ function createWorkoutPicker(config) {
     exitImportMode();
 
     const wasSchedule = !!scheduleMode;
-    if (wasSchedule && typeof onScheduleCanceled === "function") {
-      onScheduleCanceled();
+    if (wasSchedule && cancelSchedule && typeof onScheduleCanceled === "function") {
+      onScheduleCanceled({returnToPlanner});
     }
     isPickerOpen = false;
     if (overlay) {
@@ -1600,7 +1600,7 @@ function createWorkoutPicker(config) {
   }
   if (pickerBackToPlannerBtn) {
     pickerBackToPlannerBtn.addEventListener("click", async () => {
-      await close();
+      await close({returnToPlanner: true});
     });
   }
 

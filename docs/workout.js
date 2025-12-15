@@ -982,9 +982,14 @@ async function initPage() {
   primeAudioContext();
   engine = getWorkoutEngine();
 
-  const handleScheduleCanceled = () => {
-    if (planner && typeof planner.showModal === "function") {
-      planner.showModal();
+  const handleScheduleCanceled = (options = {}) => {
+    const {returnToPlanner = false} = options || {};
+    if (planner) {
+      if (returnToPlanner && typeof planner.showModal === "function") {
+        planner.showModal();
+      } else if (typeof planner.close === "function") {
+        planner.close();
+      }
     }
   };
 
@@ -997,7 +1002,7 @@ async function initPage() {
     if (planner && typeof planner.showModal === "function") {
       planner.showModal();
     }
-    if (picker) picker.close();
+    if (picker) picker.close({cancelSchedule: false});
   };
 
   const handleScheduleUnschedule = (entry) => {
@@ -1007,7 +1012,7 @@ async function initPage() {
     if (planner && typeof planner.showModal === "function") {
       planner.showModal();
     }
-    if (picker) picker.close();
+    if (picker) picker.close({cancelSchedule: false});
   };
 
   await engine.init({

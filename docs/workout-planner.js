@@ -376,11 +376,15 @@ export function createWorkoutPlanner({
       entry.rawSegments = cached.rawSegments || [];
       entry.workoutTitle = entry.workoutTitle || cached.workoutTitle;
       entry.fileName = cached.fileName;
+      entry.missing = false;
       return entry;
     }
     try {
       const dir = await loadZwoDirHandle();
-      if (!dir) return entry;
+      if (!dir) {
+        entry.missing = true;
+        return entry;
+      }
       const fileName =
         (entry.fileName && entry.fileName.endsWith(".zwo")
           ? entry.fileName
@@ -399,8 +403,9 @@ export function createWorkoutPlanner({
       entry.rawSegments = rawSegments;
       entry.workoutTitle = entry.workoutTitle || canonical.workoutTitle;
       entry.fileName = fileName;
+      entry.missing = false;
     } catch (_err) {
-      // ignore
+      entry.missing = true;
     }
     return entry;
   }
@@ -627,6 +632,10 @@ export function createWorkoutPlanner({
     card.className = "planner-workout-card planner-scheduled-card";
     card.title = "Start scheduled workout";
     if (entry.fileName) card.dataset.fileName = entry.fileName;
+    if (entry.missing) {
+      card.classList.add("planner-scheduled-missing");
+      card.title = "Workout file not found";
+    }
 
     const topRow = document.createElement("div");
     topRow.className = "planner-scheduled-top";
@@ -677,6 +686,7 @@ export function createWorkoutPlanner({
     if (Number.isFinite(entry.tss)) parts.push(`TSS ${Math.round(entry.tss)}`);
     if (Number.isFinite(entry.ifValue))
       parts.push(`IF ${entry.ifValue.toFixed(2)}`);
+    if (entry.missing) parts.push("File missing");
     parts.forEach((p, idx) => {
       const chip = document.createElement("span");
       chip.className = "planner-workout-stat-chip";
@@ -707,12 +717,14 @@ export function createWorkoutPlanner({
       content.appendChild(card);
     }
 
-    card.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (typeof onScheduledLoadRequested === "function") {
-        onScheduledLoadRequested(entry);
-      }
-    });
+    if (!entry.missing) {
+      card.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (typeof onScheduledLoadRequested === "function") {
+          onScheduledLoadRequested(entry);
+        }
+      });
+    }
     const attachHover = () => {
       const day = card.closest(".planner-day");
       if (!day) return;
@@ -1760,6 +1772,7 @@ export function createWorkoutPlanner({
       target.date = dateKey;
       target.workoutTitle = canonical.workoutTitle;
       target.rawSegments = canonical.rawSegments || [];
+      target.missing = false;
       target.metrics = computeScheduledMetrics(target);
       target.durationSec = target.metrics?.durationSec;
       target.kj = target.metrics?.kj;
