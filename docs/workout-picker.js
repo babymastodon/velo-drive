@@ -899,7 +899,7 @@ function createWorkoutPicker(config) {
 
     if (importRoot) importRoot.style.display = "grid";
     if (builderRoot) builderRoot.style.display = "none";
-    if (titleEl) titleEl.textContent = "Add workout";
+    if (titleEl) titleEl.textContent = "Add Workout";
 
     if (searchInput) searchInput.style.display = "none";
     if (zoneFilter) zoneFilter.style.display = "none";

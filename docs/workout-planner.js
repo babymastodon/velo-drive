@@ -18,6 +18,8 @@ import {
   renderPowerCurveDetail,
   renderDetailChart,
   moveHistoryFileToTrash,
+  computeHrCadStats,
+  buildPowerCurve,
 } from "./workout-analysis.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -243,6 +245,26 @@ export function createWorkoutPlanner({
     await saveScheduleEntries(entries);
   }
 
+  async function removeScheduledEntryInternal(entry) {
+    if (!entry || !entry.date) return;
+    await ensureScheduleLoaded();
+    const arr = scheduledMap.get(entry.date) || [];
+    const next = arr.filter((e) => e !== entry);
+    if (next.length) scheduledMap.set(entry.date, next);
+    else scheduledMap.delete(entry.date);
+    await persistSchedule();
+    const cell = calendarBody.querySelector(
+      `.planner-day[data-date="${entry.date}"]`,
+    );
+    if (cell) {
+      cell
+        .querySelectorAll(".planner-scheduled-card")
+        .forEach((n) => n.remove());
+      maybeAttachScheduled(cell);
+    }
+    recomputeAgg(selectedDate);
+  }
+
   function buildPerSecondPower(samples, durationSec) {
     const totalSec = Math.max(1, Math.ceil(durationSec || 0));
     const arr = new Float32Array(totalSec);
@@ -350,71 +372,6 @@ export function createWorkoutPlanner({
       perSecondPower: perSec,
       avgHr: avgHrVal,
     };
-  }
-
-  function computeHrCadStats(samples) {
-    if (!Array.isArray(samples) || !samples.length) return {};
-    let hrSum = 0;
-    let hrCount = 0;
-    let hrMax = 0;
-    let cadSum = 0;
-    let cadCount = 0;
-    let cadMax = 0;
-    samples.forEach((s) => {
-      if (Number.isFinite(s.hr)) {
-        hrSum += s.hr;
-        hrCount += 1;
-        hrMax = Math.max(hrMax, s.hr);
-      }
-      if (Number.isFinite(s.cadence)) {
-        cadSum += s.cadence;
-        cadCount += 1;
-        cadMax = Math.max(cadMax, s.cadence);
-      }
-    });
-    return {
-      avgHr: hrCount ? hrSum / hrCount : null,
-      maxHr: hrCount ? hrMax : null,
-      avgCadence: cadCount ? cadSum / cadCount : null,
-      maxCadence: cadCount ? cadMax : null,
-    };
-  }
-
-  function buildPowerCurve(perSec, durations) {
-    if (!perSec || !perSec.length) return [];
-    const prefix = new Float64Array(perSec.length + 1);
-    for (let i = 0; i < perSec.length; i += 1) {
-      prefix[i + 1] = prefix[i] + perSec[i];
-    }
-    const maxDur = perSec.length;
-    const dynDurations = [];
-    for (let d = 1; d <= Math.min(maxDur, 60); d += 1) dynDurations.push(d);
-    for (let d = 62; d <= Math.min(maxDur, 180); d += 2) dynDurations.push(d);
-    for (let d = 182; d <= Math.min(maxDur, 360); d += 5) dynDurations.push(d);
-    for (let d = 365; d <= Math.min(maxDur, 1800); d += 10)
-      dynDurations.push(d);
-    for (let d = 1810; d <= Math.min(maxDur, 7200); d += 30)
-      dynDurations.push(d);
-    for (let d = 7230; d <= Math.min(maxDur, 28800); d += 60)
-      dynDurations.push(d);
-    const allDurations = Array.from(new Set([...durations, ...dynDurations]))
-      .filter((d) => d >= 1 && d <= maxDur)
-      .sort((a, b) => a - b);
-
-    const result = [];
-    allDurations.forEach((durRaw) => {
-      const dur = Math.max(1, Math.round(durRaw));
-      let best = 0;
-      let windowSum = prefix[dur] - prefix[0];
-      best = windowSum / dur;
-      for (let i = dur; i < perSec.length; i += 1) {
-        windowSum += perSec[i] - perSec[i - dur];
-        const avg = windowSum / dur;
-        if (avg > best) best = avg;
-      }
-      result.push({ durSec: dur, power: best });
-    });
-    return result;
   }
 
   async function ensureScheduledWorkout(entry) {
@@ -688,9 +645,7 @@ export function createWorkoutPlanner({
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" stroke-width="2" /><path d="M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>';
       editBtn.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        if (typeof removeScheduledEntry === "function") {
-          removeScheduledEntry(entry);
-        }
+        removeScheduledEntryInternal(entry);
       });
     } else {
       editBtn.title = "Edit scheduled workout";
@@ -1840,24 +1795,9 @@ export function createWorkoutPlanner({
       }
       recomputeAgg(selectedDate);
     },
-    removeScheduledEntry: async (entry) => {
-      if (!entry || !entry.date) return;
-      await ensureScheduleLoaded();
-      const arr = scheduledMap.get(entry.date) || [];
-      const next = arr.filter((e) => e !== entry);
-      if (next.length) scheduledMap.set(entry.date, next);
-      else scheduledMap.delete(entry.date);
-      await persistSchedule();
-      const cell = calendarBody.querySelector(
-        `.planner-day[data-date="${entry.date}"]`,
-      );
-      if (cell) {
-        cell
-          .querySelectorAll(".planner-scheduled-card")
-          .forEach((n) => n.remove());
-        maybeAttachScheduled(cell);
-      }
-      recomputeAgg(selectedDate);
+    removeScheduledEntry: removeScheduledEntryInternal,
+    removeScheduledEntryByRef: async (entry) => {
+      return moduleExports.removeScheduledEntry(entry);
     },
     removeScheduledByTitle: async (dateKey, title) => {
       if (!dateKey || !title) return;
@@ -1881,6 +1821,9 @@ export function createWorkoutPlanner({
         arr.forEach((e) => renderScheduledCard(cell, e));
       }
       recomputeAgg(selectedDate);
+    },
+    removeScheduledEntryByRef: async (entry) => {
+      return removeScheduledEntryInternal(entry);
     },
   };
 }
