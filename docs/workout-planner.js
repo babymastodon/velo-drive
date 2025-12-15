@@ -903,6 +903,16 @@ export function createWorkoutPlanner({
         ftp,
         durationSecHint,
       );
+      const totalTimerSec = meta.totalTimerSec || metrics.durationSec || durationSecHint || 0;
+      const totalElapsedSec =
+        meta.totalElapsedSec ||
+        (metaStartedAt && metaEndedAt
+          ? Math.max(
+              0,
+              Math.round((metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000),
+            )
+          : totalTimerSec);
+      const pausedSec = Math.max(0, totalElapsedSec - totalTimerSec);
       const hrStats = computeHrCadStats(parsed.samples || []);
       const perSec = metrics.perSecondPower || [];
       const curvePoints = buildPowerCurve(perSec, POWER_CURVE_DURS);
@@ -936,6 +946,7 @@ export function createWorkoutPlanner({
           metaStartedAt ||
           toDateSafe(preview.startedAt) ||
           utcDateKeyToLocalDate(dateKey),
+        pausedSec,
         avgHr: hrStats.avgHr,
         maxHr: hrStats.maxHr,
         avgCadence: hrStats.avgCadence,

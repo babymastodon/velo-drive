@@ -820,6 +820,7 @@ export function parseFitFile(arrayBuffer) {
   const workoutMeta = {};
   const workoutDevFieldValues = {};
   const sessionValues = {};
+  const timerEvents = [];
 
   const limit = headerSize + dataSize;
   let offset = headerSize;
@@ -939,6 +940,15 @@ export function parseFitFile(arrayBuffer) {
         Object.assign(sessionValues, values);
         break;
       }
+      case 21: {
+        // timer event
+        const ts = values[253];
+        const type = values[1];
+        if (ts != null && type != null) {
+          timerEvents.push({ts, type});
+        }
+        break;
+      }
       default:
         break;
     }
@@ -1030,6 +1040,13 @@ export function parseFitFile(arrayBuffer) {
         ? fitTimestampToDate(recordSamples[recordSamples.length - 1].t)
         : null,
     totalWorkJ: sessionValues[41] || null,
+    totalElapsedSec:
+      sessionValues[7] != null ? sessionValues[7] / 1000 : null,
+    totalTimerSec: sessionValues[8] != null ? sessionValues[8] / 1000 : null,
+    pauseEvents: timerEvents.map((ev) => ({
+      type: ev.type === 0 ? "start" : ev.type === 2 ? "stop_all" : "stop",
+      at: fitTimestampToDate(ev.ts),
+    })),
   };
 
   return {canonicalWorkout, samples, meta};
