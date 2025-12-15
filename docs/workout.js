@@ -973,6 +973,34 @@ async function initPage() {
   primeAudioContext();
   engine = getWorkoutEngine();
 
+  const handleScheduleCanceled = () => {
+    if (planner && typeof planner.showOverlay === "function") {
+      planner.showOverlay();
+    }
+  };
+
+  const handleScheduleSelected = (payload) => {
+    if (!payload) return;
+    const {canonical, dateKey} = payload;
+    if (planner && typeof planner.applyScheduledEntry === "function") {
+      planner.applyScheduledEntry({dateKey, canonical});
+    }
+    if (planner && typeof planner.showOverlay === "function") {
+      planner.showOverlay();
+    }
+    if (picker) picker.close();
+  };
+
+  const handleScheduleUnschedule = (entry) => {
+    if (planner && typeof planner.removeScheduledEntry === "function") {
+      planner.removeScheduledEntry(entry);
+    }
+    if (planner && typeof planner.showOverlay === "function") {
+      planner.showOverlay();
+    }
+    if (picker) picker.close();
+  };
+
   await engine.init({
     onStateChanged: (vm) => renderFromEngine(vm),
     onLog: logDebug,
@@ -1021,6 +1049,9 @@ async function initPage() {
     onWorkoutSelected: (payload) => {
       engine.setWorkoutFromPicker(payload);
     },
+    onScheduleSelected: handleScheduleSelected,
+    onScheduleCanceled: handleScheduleCanceled,
+    onScheduleUnschedule: handleScheduleUnschedule,
   });
 
   planner = createWorkoutPlanner({
@@ -1039,6 +1070,21 @@ async function initPage() {
     detailChartTooltip: document.getElementById("plannerDetailChartTooltip"),
     backBtn: document.getElementById("plannerBackBtn"),
     titleEl: document.querySelector(".workout-planner-title"),
+    getCurrentFtp: () => engine.getViewModel().currentFtp,
+    onScheduleRequested: (dateKey, existing) => {
+      if (!picker || typeof picker.openScheduleMode !== "function") return;
+      if (planner && typeof planner.hideOverlay === "function") {
+        planner.hideOverlay();
+      }
+      picker.openScheduleMode({dateKey, entry: existing || null, editMode: !!existing});
+    },
+    onScheduledEditRequested: (dateKey, existing) => {
+      if (!picker || typeof picker.openScheduleMode !== "function") return;
+      if (planner && typeof planner.hideOverlay === "function") {
+        planner.hideOverlay();
+      }
+      picker.openScheduleMode({dateKey, entry: existing || null, editMode: true});
+    },
   });
 
   if (workoutNameLabel) {
