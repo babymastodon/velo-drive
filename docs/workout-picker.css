@@ -40,16 +40,16 @@
 
 .workout-picker-header {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  column-gap: 12px;
   margin-bottom: 4px;
   font-size: var(--font-size-base);
-  flex-wrap: nowrap;
   padding-right: 46px;
   /* leave room for the absolute close button */
   padding-bottom: 12px;
+  min-height: var(--nav-control-height);
 }
 
 .workout-picker-title {
@@ -58,12 +58,39 @@
   text-transform: uppercase;
   font-size: var(--font-size-base);
   color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
 }
 
 .workout-picker-header-main {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  justify-self: start;
+  align-items: flex-start;
+}
+
+.workout-picker-modal--import .workout-picker-title {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  min-height: var(--nav-control-height);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.workout-picker-modal--builder .workout-picker-title {
+  display: none;
+}
+
+.workout-picker-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .workout-picker-controls {
@@ -74,6 +101,7 @@
   justify-content: flex-end;
   min-width: 0;
   width: auto;
+  justify-self: end;
 }
 
 .builder-status {
@@ -458,9 +486,13 @@
 
 @media (max-width: 1100px) {
   .workout-picker-header {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
     row-gap: 12px;
     padding-right: 48px;
+  }
+
+  .workout-picker-controls {
+    justify-self: stretch;
   }
 }
 

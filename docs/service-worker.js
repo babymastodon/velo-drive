@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v29";
+const CACHE_VERSION = "v30";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -16,6 +16,7 @@ const PRECACHE_URLS = [
   "./workout-builder.js",
   "./workout-engine.js",
   "./workout-metrics.js",
+  "./workout-analysis.js",
   "./ble-manager.js",
   "./beeper.js",
   "./storage.js",

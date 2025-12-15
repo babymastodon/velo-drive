@@ -1,0 +1,214 @@
+import {drawPowerCurveChart, drawWorkoutChart} from "./workout-chart.js";
+import {loadWorkoutDirHandle, loadTrashDirHandle, ensureDirPermission} from "./storage.js";
+
+export function computeHrCadStats(samples) {
+  if (!Array.isArray(samples) || !samples.length) return {};
+  let hrSum = 0;
+  let hrCount = 0;
+  let hrMax = 0;
+  let cadSum = 0;
+  let cadCount = 0;
+  let cadMax = 0;
+  samples.forEach((s) => {
+    if (Number.isFinite(s.hr)) {
+      hrSum += s.hr;
+      hrCount += 1;
+      hrMax = Math.max(hrMax, s.hr);
+    }
+    if (Number.isFinite(s.cadence)) {
+      cadSum += s.cadence;
+      cadCount += 1;
+      cadMax = Math.max(cadMax, s.cadence);
+    }
+  });
+  return {
+    avgHr: hrCount ? hrSum / hrCount : null,
+    maxHr: hrCount ? hrMax : null,
+    avgCadence: cadCount ? cadSum / cadCount : null,
+    maxCadence: cadCount ? cadMax : null,
+  };
+}
+
+export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, formatDuration) {
+  if (!detailStatsEl) return;
+  detailStatsEl.innerHTML = "";
+  if (detail.startedAt) {
+    const header = document.createElement("div");
+    header.className = "planner-detail-date";
+    try {
+      const datePart = formatSelectedLabel(detail.startedAt);
+      const timePart = detail.startedAt.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+      header.textContent = `${datePart} • ${timePart}`;
+    } catch (_err) {
+      header.textContent = detail.startedAt.toString();
+    }
+    detailStatsEl.appendChild(header);
+  }
+  const row = document.createElement("div");
+  row.className = "wb-stats-row";
+  const pushStat = (label, value) => {
+    if (value == null || value === "") return;
+    const chip = document.createElement("div");
+    chip.className = "wb-stat-chip";
+    const lbl = document.createElement("div");
+    lbl.className = "wb-stat-label";
+    lbl.textContent = label;
+    const val = document.createElement("div");
+    val.className = "wb-stat-value";
+    val.textContent = value;
+    chip.appendChild(lbl);
+    chip.appendChild(val);
+    row.appendChild(chip);
+  };
+
+  pushStat("Duration", formatDuration(detail.durationSec));
+  if (detail.zone) pushStat("Zone", detail.zone);
+  if (Number.isFinite(detail.avgPower))
+    pushStat("Avg Power", `${Math.round(detail.avgPower)} W`);
+  if (Number.isFinite(detail.normalizedPower))
+    pushStat("NP", `${Math.round(detail.normalizedPower)} W`);
+  if (Number.isFinite(detail.kj)) pushStat("Work", `${Math.round(detail.kj)} kJ`);
+  if (Number.isFinite(detail.ifValue)) pushStat("IF", detail.ifValue.toFixed(2));
+  if (Number.isFinite(detail.tss)) pushStat("TSS", Math.round(detail.tss));
+  if (Number.isFinite(detail.vi)) pushStat("VI", detail.vi.toFixed(2));
+  if (Number.isFinite(detail.ef)) pushStat("EF", detail.ef.toFixed(2));
+  if (Number.isFinite(detail.avgHr))
+    pushStat("Avg HR", `${Math.round(detail.avgHr)} bpm`);
+  if (Number.isFinite(detail.maxHr))
+    pushStat("Max HR", `${Math.round(detail.maxHr)} bpm`);
+  if (Number.isFinite(detail.avgCadence))
+    pushStat("Avg Cadence", `${Math.round(detail.avgCadence)} rpm`);
+  if (Number.isFinite(detail.maxCadence))
+    pushStat("Max Cadence", `${Math.round(detail.maxCadence)} rpm`);
+
+  if (row.children.length) {
+    detailStatsEl.appendChild(row);
+  }
+}
+
+export function renderPowerCurveDetail(powerCurveSvg, detail) {
+  if (!powerCurveSvg) return;
+  const rect = powerCurveSvg.getBoundingClientRect();
+  drawPowerCurveChart({
+    svg: powerCurveSvg,
+    width: rect.width || 600,
+    height: rect.height || 300,
+    ftp: detail.ftp || 0,
+    points: detail.powerCurve || [],
+    maxDurationSec: detail.durationSec || 0,
+  });
+}
+
+export function renderDetailChart(detailChartSvg, detailChartPanel, detailChartTooltip, detail) {
+  if (!detailChartSvg || !detailChartPanel) return;
+  const rect = detailChartPanel.getBoundingClientRect();
+  drawWorkoutChart({
+    svg: detailChartSvg,
+    panel: detailChartPanel,
+    tooltipEl: detailChartTooltip,
+    width: rect.width || 1000,
+    height: rect.height || 320,
+    mode: "workout",
+    ftp: detail.ftp || 0,
+    rawSegments: detail.rawSegments || [],
+    elapsedSec: detail.durationSec || 0,
+    liveSamples: detail.samples || [],
+    manualErgTarget: 0,
+  });
+}
+
+export function buildPowerCurve(perSec, durations) {
+  if (!perSec || !perSec.length) return [];
+  const prefix = new Float64Array(perSec.length + 1);
+  for (let i = 0; i < perSec.length; i += 1) {
+    prefix[i + 1] = prefix[i] + perSec[i];
+  }
+  const maxDur = perSec.length;
+  const dynDurations = [];
+  for (let d = 1; d <= Math.min(maxDur, 60); d += 1) dynDurations.push(d);
+  for (let d = 62; d <= Math.min(maxDur, 180); d += 2) dynDurations.push(d);
+  for (let d = 182; d <= Math.min(maxDur, 360); d += 5) dynDurations.push(d);
+  for (let d = 365; d <= Math.min(maxDur, 1800); d += 10) dynDurations.push(d);
+  for (let d = 1810; d <= Math.min(maxDur, 7200); d += 30) dynDurations.push(d);
+  for (let d = 7230; d <= Math.min(maxDur, 28800); d += 60) dynDurations.push(d);
+  const allDurations = Array.from(new Set([...durations, ...dynDurations]))
+    .filter((d) => d >= 1 && d <= maxDur)
+    .sort((a, b) => a - b);
+
+  const result = [];
+  allDurations.forEach((durRaw) => {
+    const dur = Math.max(1, Math.round(durRaw));
+    let best = 0;
+    let windowSum = prefix[dur] - prefix[0];
+    best = windowSum / dur;
+    for (let i = dur; i < perSec.length; i += 1) {
+      windowSum += perSec[i] - perSec[i - dur];
+      const avg = windowSum / dur;
+      if (avg > best) best = avg;
+    }
+    result.push({ durSec: dur, power: best });
+  });
+  return result;
+}
+
+export async function moveHistoryFileToTrash(fileName) {
+  const srcDirHandle = await loadWorkoutDirHandle();
+  const trashDirHandle = await loadTrashDirHandle();
+
+  if (!srcDirHandle) {
+    alert(
+      "No history folder configured.\n\nOpen Settings and choose a VeloDrive folder first.",
+    );
+    return false;
+  }
+  if (!trashDirHandle) {
+    alert(
+      "No trash folder is configured.\n\nOpen Settings and pick a VeloDrive folder so the trash folder can be created.",
+    );
+    return false;
+  }
+
+  const [hasSrcPerm, hasTrashPerm] = await Promise.all([
+    ensureDirPermission(srcDirHandle),
+    ensureDirPermission(trashDirHandle),
+  ]);
+  if (!hasSrcPerm) {
+    alert(
+      "VeloDrive does not have permission to modify your history folder.\n\nPlease re-authorize the folder in Settings.",
+    );
+    return false;
+  }
+  if (!hasTrashPerm) {
+    alert(
+      "VeloDrive does not have permission to write to your trash folder.\n\nPlease re-authorize the VeloDrive folder in Settings.",
+    );
+    return false;
+  }
+
+  try {
+    const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {
+      create: false,
+    });
+    const srcFile = await srcFileHandle.getFile();
+    const dotIdx = fileName.lastIndexOf(".");
+    const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+    const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    let destFileName = `${base} (${stamp})${ext}`;
+    if (destFileName.length > 160) {
+      destFileName = `${base.slice(0, 120)} (${stamp})${ext}`;
+    }
+    const destFileHandle = await trashDirHandle.getFileHandle(destFileName, {
+      create: true,
+    });
+    const writable = await destFileHandle.createWritable();
+    await writable.write(srcFile);
+    await writable.close();
+    await srcDirHandle.removeEntry(fileName);
+    return true;
+  } catch (err) {
+    console.error("[Planner] Failed to move history file to trash:", err);
+    alert("Moving this workout to the trash folder failed. See logs for details.");
+    return false;
+  }
+}
