@@ -145,14 +145,16 @@ export function drawMiniHistoryChart({
   rawSegments = [],
   actualPower = [],
   actualPowerSegments = [],
+  actualLineSegments = [],
   durationSec: durationSecProp = null,
+  actualPath = null,
+  actualPowerMax = 0,
 }) {
   if (!svg) return;
   clearSvg(svg);
 
   const w = Math.max(120, width);
   const h = Math.max(80, height);
-  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   svg.setAttribute("preserveAspectRatio", "none");
 
   const totalSegSec = rawSegments.reduce(
@@ -163,8 +165,14 @@ export function drawMiniHistoryChart({
     (sum, [, dur]) => sum + Math.max(1, Math.round(dur || 0)),
     0
   );
+  const totalActualSecFromLines = actualLineSegments.reduce(
+    (sum, [, , dur]) => sum + Math.max(0, dur || 0),
+    0
+  );
   const totalActualSec =
-    actualPowerSegments.length > 0
+    actualLineSegments.length > 0
+      ? totalActualSecFromLines
+      : actualPowerSegments.length > 0
       ? totalActualSecFromSegments
       : actualPower.length * 60;
   const totalSec =
@@ -179,8 +187,17 @@ export function drawMiniHistoryChart({
       const b = (p1 != null ? p1 : p0 || 0) * ftp * 0.01;
       return Math.max(max, a, b);
     }, 0) || ftp * 1.2;
-  const maxActual = actualPower.reduce((m, p) => Math.max(m, p || 0), 0);
+  const maxActual = Math.max(
+    actualPowerMax || 0,
+    actualPower.reduce((m, p) => Math.max(m, p || 0), 0),
+    actualLineSegments.reduce(
+      (m, [p0, p1]) => Math.max(m, p0 || 0, p1 || 0),
+      0
+    )
+  );
   const maxY = Math.max(100, maxTarget, maxActual, ftp * 1.1);
+
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
 
   // Target bands
   if (rawSegments.length) {
@@ -207,24 +224,63 @@ export function drawMiniHistoryChart({
 
   // Actual power line (step plot from cached segments or minute samples)
   const step = [];
-  if (actualPowerSegments.length) {
+  if (actualPath) {
+    // When using cached path, it is encoded on a 0..1000 x-axis and power (W) y-axis.
+    svg.setAttribute("viewBox", `0 0 1000 ${Math.max(maxY, maxActual || 100)}`);
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", actualPath);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", getCssVar("--power-line") || "#a607a6");
+    path.setAttribute("stroke-width", "1.6");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+    return;
+  }
+  if (actualLineSegments.length) {
+    const safeTotalSec = Math.max(totalSec, totalActualSec);
+    let cursor = 0;
+    actualLineSegments.forEach(([pStart, pEnd, dur], idx) => {
+      const durSec = Math.max(0, dur || 0);
+      const x0 = Math.max(0, Math.min(1, cursor / safeTotalSec)) * w;
+      const x1 = Math.max(0, Math.min(1, (cursor + durSec) / safeTotalSec)) * w;
+      const y0 = h - (Math.min(maxY, Math.max(0, pStart || 0)) / maxY) * h;
+      const y1 = h - (Math.min(maxY, Math.max(0, pEnd || 0)) / maxY) * h;
+      if (idx === 0) {
+        step.push(`M${x0.toFixed(2)},${y0.toFixed(2)}`);
+      }
+      step.push(`L${x1.toFixed(2)},${y1.toFixed(2)}`);
+      cursor += durSec;
+    });
+  } else if (actualPowerSegments.length) {
     const safeTotalSec = Math.max(totalSec, totalActualSecFromSegments);
     let elapsed = 0;
-    actualPowerSegments.forEach(([pRaw, durRaw], idx) => {
+    actualPowerSegments.forEach(([pStartRaw, durRaw, pEndRaw], idx) => {
       const dur = Math.max(1, Math.round(durRaw || 0));
-      const p = Math.min(maxY, Math.max(0, pRaw || 0));
-      const y = h - (p / maxY) * h;
+      const pStart = Math.min(maxY, Math.max(0, pStartRaw || 0));
+      const pEnd =
+        pEndRaw != null
+          ? Math.min(maxY, Math.max(0, pEndRaw || 0))
+          : pStart;
+      const yStart = h - (pStart / maxY) * h;
+      const yEnd = h - (pEnd / maxY) * h;
       const xStart = (elapsed / safeTotalSec) * w;
       const xEnd = ((elapsed + dur) / safeTotalSec) * w;
       if (idx === 0) {
-        step.push(`M${xStart.toFixed(2)},${y.toFixed(2)}`);
+        step.push(`M${xStart.toFixed(2)},${yStart.toFixed(2)}`);
       }
-      step.push(`L${xEnd.toFixed(2)},${y.toFixed(2)}`);
+      // draw ramp or flat
+      step.push(`L${xEnd.toFixed(2)},${yEnd.toFixed(2)}`);
       const next = actualPowerSegments[idx + 1];
       if (next) {
         const nextP = Math.min(maxY, Math.max(0, next[0] || 0));
         const yNext = h - (nextP / maxY) * h;
-        step.push(`L${xEnd.toFixed(2)},${yNext.toFixed(2)}`);
+        const pctDiff =
+          pEnd === 0 ? (nextP === 0 ? 0 : 1) : Math.abs(pEnd - nextP) / Math.max(1, pEnd);
+        if (pctDiff > 0.01) {
+          // vertical jump
+          step.push(`L${xEnd.toFixed(2)},${yNext.toFixed(2)}`);
+        }
       }
       elapsed += dur;
     });

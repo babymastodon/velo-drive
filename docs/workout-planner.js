@@ -96,7 +96,7 @@ export function createWorkoutPlanner({
   const historyData = new Map(); // dateKey -> Array<preview>
   let historyIndexPromise = null;
   let statsCache = null;
-  const STATS_CACHE_VERSION = 5; // bump whenever cache format/logic changes
+  const STATS_CACHE_VERSION = 29; // bump whenever cache format/logic changes
   const aggTotals = {
     "7": {sec: 0, kj: 0, tss: 0},
     "30": {sec: 0, kj: 0, tss: 0},
@@ -261,19 +261,23 @@ export function createWorkoutPlanner({
   }
 
   function buildPowerSegments(samples, durationSecHint) {
-    if (!Array.isArray(samples) || !samples.length) return [];
+    if (!Array.isArray(samples) || !samples.length) {
+      return {intervals: [], maxPower: 0, totalSec: 0};
+    }
     const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
     const lastSample = sorted[sorted.length - 1];
-    const totalSec = durationSecHint || Math.max(1, Math.round(lastSample?.t || 0));
-    const bucketSize = 10;
+    const totalSec = Math.max(
+      1,
+      durationSecHint || Math.round(lastSample?.t || 0) || 0,
+    );
+    const bucketSize = 5;
     const bucketCount = Math.ceil(totalSec / bucketSize);
     const buckets = new Array(bucketCount).fill(null).map(() => []);
 
     sorted.forEach((s) => {
       const t = Math.max(0, Math.round(s.t || 0));
       const idx = Math.min(bucketCount - 1, Math.floor(t / bucketSize));
-      const p = Number(s.power) || 0;
-      buckets[idx].push(p);
+      buckets[idx].push(Number(s.power) || 0);
     });
 
     const median = (arr) => {
@@ -285,28 +289,72 @@ export function createWorkoutPlanner({
         : sortedVals[mid];
     };
 
-    const segments = [];
+    let intervals = [];
     buckets.forEach((vals, i) => {
-      if (!vals.length) return;
-      const med = median(vals);
+      const power = median(vals);
+      const durStart = i * bucketSize;
       const dur =
-        i === bucketCount - 1 ? totalSec - i * bucketSize || bucketSize : bucketSize;
-      const power = med;
-      if (!segments.length) {
-        segments.push([power, dur]);
-      } else {
-        const [prevPower, prevDur] = segments[segments.length - 1];
-        const pctDiff =
-          prevPower === 0 ? (power === 0 ? 0 : 1) : Math.abs(power - prevPower) / prevPower;
-        if (pctDiff <= 0.05) {
-          segments[segments.length - 1] = [prevPower, prevDur + dur];
-        } else {
-          segments.push([power, dur]);
-        }
-      }
+        i === bucketCount - 1
+          ? Math.max(1, totalSec - durStart)
+          : bucketSize;
+      intervals.push([power, power, dur]);
     });
 
-    return segments;
+    if (!intervals.length) return {intervals: [], maxPower: 0, totalSec};
+
+    const slopeAngle = (p0, p1, dur) => Math.atan(dur ? (p1 - p0) / dur : 0);
+
+    let merged = true;
+    while (merged && intervals.length > 1) {
+      merged = false;
+      const next = [];
+      for (let i = 0; i < intervals.length; i += 1) {
+        const cur = intervals[i];
+        const nxt = intervals[i + 1];
+        if (!nxt) {
+          next.push(cur);
+          continue;
+        }
+        const durSum = cur[2] + nxt[2];
+        const tolerance =
+          durSum < 30
+            ? (10 * Math.PI) / 180
+            : durSum < 60
+            ? (5 * Math.PI) / 180
+            : durSum < 180
+            ? (3 * Math.PI) / 180
+            : durSum < 300
+            ? (2 * Math.PI) / 180
+            : (1 * Math.PI) / 180;
+        const angCur = slopeAngle(cur[0], cur[1], cur[2]);
+        const angNext = slopeAngle(nxt[0], nxt[1], nxt[2]);
+        const diff = Math.abs(angCur - angNext);
+        if (diff <= tolerance) {
+          // merge
+          next.push([cur[0], nxt[1], cur[2] + nxt[2]]);
+          merged = true;
+          i += 1; // skip next interval this pass
+        } else {
+          next.push(cur);
+        }
+      }
+      intervals = next;
+    }
+
+    const maxPower = intervals.reduce(
+      (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
+      0,
+    );
+
+    return {intervals, maxPower, totalSec};
+  }
+
+  function powerMaxFromIntervals(intervals) {
+    if (!Array.isArray(intervals) || !intervals.length) return 0;
+    return intervals.reduce(
+      (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
+      0,
+    );
   }
 
   function formatDuration(sec) {
@@ -368,7 +416,8 @@ export function createWorkoutPlanner({
         width: rect.width || 240,
         height: rect.height || 120,
         rawSegments: data.rawSegments || [],
-        actualPowerSegments: data.powerSegments || [],
+        actualLineSegments: data.powerSegments || [],
+        actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
         durationSec: data.durationSec || 0,
       });
     });
@@ -387,71 +436,96 @@ export function createWorkoutPlanner({
       const results = [];
       for (const entry of entries) {
         try {
+          let entryDirty = false;
           const cached = statsCache.entries[entry.name];
-          const cachedHasPower = cached && Array.isArray(cached.powerSegments);
-          const cachedHasSegments = cached && Array.isArray(cached.rawSegments);
-          if (cached && cachedHasPower && cachedHasSegments) {
-            results.push({
-              workoutTitle: cached.workoutTitle,
-              durationSec: cached.durationSec || 0,
-              kj: cached.kj,
-              ifValue: cached.ifValue,
-              tss: cached.tss,
-              startedAt: cached.startedAt ? new Date(cached.startedAt) : null,
-              rawSegments: cached.rawSegments || [],
-              powerSegments: cached.powerSegments || [],
-            });
-          } else {
-            const file = await entry.handle.getFile();
-            const buf = await file.arrayBuffer();
-            const parsed = parseFitFile(buf);
-            const cw = parsed.canonicalWorkout || {};
-            const meta = parsed.meta || {};
-            const ftp = meta.ftp || DEFAULT_FTP;
-            const lastSample = parsed.samples?.length
-              ? parsed.samples[parsed.samples.length - 1]
-              : null;
-            const durationSecHint =
-              meta.startedAt && meta.endedAt
-                ? Math.max(
-                    1,
-                    Math.round(
-                      (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
-                    ),
-                  )
-                : Math.max(1, Math.round(lastSample?.t || 0));
+          const file = await entry.handle.getFile();
+          const buf = await file.arrayBuffer();
+          const parsed = parseFitFile(buf);
+          const cw = parsed.canonicalWorkout || {};
+          const meta = parsed.meta || {};
+          const ftp = meta.ftp || DEFAULT_FTP;
+          const lastSample = parsed.samples?.length
+            ? parsed.samples[parsed.samples.length - 1]
+            : null;
+          const durationSecHint =
+            meta.startedAt && meta.endedAt
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
+                  ),
+                )
+              : Math.max(1, Math.round(lastSample?.t || 0));
 
-            const metrics = computeMetricsFromSamples(
+          let metrics = null;
+          if (
+            cached &&
+            cached.durationSec &&
+            cached.kj != null &&
+            cached.tss != null &&
+            cached.ifValue != null
+          ) {
+            metrics = {
+              durationSec: cached.durationSec,
+              kj: cached.kj,
+              tss: cached.tss,
+              ifValue: cached.ifValue,
+            };
+          } else {
+            metrics = computeMetricsFromSamples(
               parsed.samples || [],
               ftp,
               durationSecHint,
             );
+            entryDirty = true;
+          }
 
-            const payload = {
-              workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
+          const title = cw.workoutTitle || entry.name.replace(/\.fit$/i, "");
+          const startedAt = meta.startedAt
+            ? meta.startedAt
+            : cached?.startedAt
+            ? new Date(cached.startedAt)
+            : null;
+
+          let powerSegments = cached?.powerSegments;
+          if (!Array.isArray(powerSegments)) {
+            const built = buildPowerSegments(parsed.samples || [], durationSecHint);
+            powerSegments = built.intervals;
+            entryDirty = true;
+          }
+          if (!Array.isArray(powerSegments)) powerSegments = [];
+
+          if (!cached || entryDirty) {
+            statsCache.entries[entry.name] = {
+              workoutTitle: title,
               durationSec: metrics.durationSec || durationSecHint || 0,
-              kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
+              kj:
+                meta.totalWorkJ != null
+                  ? meta.totalWorkJ / 1000
+                  : metrics.kj,
               ifValue: metrics.ifValue,
               tss: metrics.tss,
-              startedAt: meta.startedAt,
-              rawSegments: cw.rawSegments || [],
-              powerSegments: buildPowerSegments(parsed.samples || [], durationSecHint),
-            };
-            results.push(payload);
-            statsCache.entries[entry.name] = {
-              workoutTitle: payload.workoutTitle,
-              durationSec: payload.durationSec,
-              kj: payload.kj,
-              ifValue: payload.ifValue,
-              tss: payload.tss,
-              startedAt: payload.startedAt
-                ? payload.startedAt.toISOString()
-                : null,
-              rawSegments: payload.rawSegments,
-              powerSegments: payload.powerSegments,
+              startedAt: startedAt ? startedAt.toISOString() : null,
+              powerSegments,
             };
             cacheDirty = true;
           }
+
+          const powerMax = powerMaxFromIntervals(powerSegments);
+          results.push({
+            workoutTitle: title,
+            durationSec: metrics.durationSec || durationSecHint || 0,
+            kj:
+              meta.totalWorkJ != null
+                ? meta.totalWorkJ / 1000
+                : metrics.kj,
+            ifValue: metrics.ifValue,
+            tss: metrics.tss,
+            startedAt,
+            rawSegments: cw.rawSegments || [],
+            powerSegments,
+            powerMax,
+          });
         } catch (err) {
           console.warn(
             "[Planner] Failed to load history for",
