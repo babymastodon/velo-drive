@@ -334,12 +334,10 @@ function createWorkoutPicker(config) {
         const { canonical } = item;
         const title = canonical.workoutTitle;
         const source = canonical.source || "";
-        const description = canonical.description || "";
         const haystack = [
           title,
           item.zone,
           source,
-          description.slice(0, 300),
         ]
           .join(" ")
           .toLowerCase();
