@@ -103,6 +103,50 @@
   justify-self: end;
 }
 
+.picker-search-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--nav-control-height);
+  color: var(--text-main);
+}
+
+.picker-search-icon {
+  width: 34px;
+  border: 1px solid var(--border);
+  border-right: 1px solid var(--border-subtle);
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  stroke: currentColor;
+  fill: none;
+  padding: 0 8px;
+}
+
+.picker-search-wrap input[type="search"] {
+  border: 1px solid var(--border);
+  border-left: 0;
+  outline: none;
+  background: var(--surface);
+  height: var(--nav-control-height);
+  min-width: 220px;
+  font-size: var(--font-size-base);
+  color: inherit;
+  padding: 0 10px;
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.picker-search-wrap:focus-within .picker-search-icon,
+.picker-search-wrap:focus-within input[type="search"] {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+  z-index: 1;
+}
+
 .builder-status {
   display: none;
   align-items: center;
@@ -132,7 +176,7 @@
   color: var(--text-muted);
 }
 
-.workout-picker-controls input[type="search"] {
+.workout-picker-controls > input[type="search"] {
   padding: 8px 12px;
   font-size: var(--font-size-base);
   border-radius: var(--radius);
@@ -145,6 +189,13 @@
   width: 260px;
   height: var(--nav-control-height);
   box-sizing: border-box;
+}
+
+.picker-search-wrap input[type="search"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
 }
 
 .workout-picker-controls select {
