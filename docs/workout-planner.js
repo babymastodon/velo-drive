@@ -162,8 +162,7 @@ export function createWorkoutPlanner({
     historyCache.clear();
     historyData.clear();
     historyIndexPromise = null;
-    scheduledMap.clear();
-    schedulePromise = null;
+    forceReloadSchedule();
     scheduledCache.clear();
   }
 
@@ -211,20 +210,44 @@ export function createWorkoutPlanner({
     return historyIndexPromise;
   }
 
+  async function loadScheduleIntoMap() {
+    const entries = await loadScheduleEntries();
+    scheduledMap.clear();
+    let added = 0;
+    entries.forEach((e) => {
+      if (!e || !e.date || !e.workoutTitle) return;
+      const key = e.date;
+      const entry = { date: e.date, workoutTitle: e.workoutTitle };
+      const arr = scheduledMap.get(key) || [];
+      arr.push(entry);
+      scheduledMap.set(key, arr);
+      added += 1;
+    });
+    console.log(
+      "[Planner] Schedule loaded",
+      `entries=${added}`,
+      "dates=" + Array.from(scheduledMap.keys()).join(","),
+    );
+    return added;
+  }
+
   async function ensureScheduleLoaded() {
-    if (schedulePromise) return schedulePromise;
-    schedulePromise = (async () => {
-      const entries = await loadScheduleEntries();
-      scheduledMap.clear();
-      entries.forEach((e) => {
-        if (!e || !e.date || !e.workoutTitle) return;
-        const key = e.date;
-        const entry = { date: e.date, workoutTitle: e.workoutTitle };
-        const arr = scheduledMap.get(key) || [];
-        arr.push(entry);
-        scheduledMap.set(key, arr);
-      });
-    })();
+    if (!schedulePromise) {
+      schedulePromise = loadScheduleIntoMap();
+    }
+    let added = await schedulePromise;
+    if (!added && scheduledMap.size === 0) {
+      console.log(
+        "[Planner] Schedule map empty after load; retrying fresh load.",
+      );
+      schedulePromise = loadScheduleIntoMap();
+      added = await schedulePromise;
+    }
+    return added;
+  }
+
+  function forceReloadSchedule() {
+    schedulePromise = loadScheduleIntoMap();
     return schedulePromise;
   }
 
@@ -235,6 +258,11 @@ export function createWorkoutPlanner({
         entries.push({ date: e.date, workoutTitle: e.workoutTitle }),
       );
     });
+    console.log(
+      "[Planner] persistSchedule",
+      `entries=${entries.length}`,
+      entries.map((e) => `${e.date}:${e.workoutTitle}`).join(", "),
+    );
     await saveScheduleEntries(entries);
   }
 
@@ -242,10 +270,39 @@ export function createWorkoutPlanner({
     if (!entry || !entry.date) return;
     await ensureScheduleLoaded();
     const arr = scheduledMap.get(entry.date) || [];
-    const next = arr.filter((e) => e !== entry);
-    if (next.length) scheduledMap.set(entry.date, next);
+    let idx = arr.indexOf(entry);
+    if (idx === -1) {
+      idx = arr.findIndex(
+        (e) =>
+          e.workoutTitle === entry.workoutTitle &&
+          e.date === entry.date,
+      );
+    }
+    console.log(
+      "[Planner] removeScheduledEntryInternal",
+      `date=${entry.date}`,
+      `title="${entry.workoutTitle || ""}"`,
+      `arrLen=${arr.length}`,
+      `matchIdx=${idx}`,
+    );
+    if (idx === -1) {
+      console.log("[Planner] Entry not found in array; no removal performed.");
+      return;
+    }
+    arr.splice(idx, 1);
+    if (arr.length) scheduledMap.set(entry.date, arr);
     else scheduledMap.delete(entry.date);
+    const totalRemaining = Array.from(scheduledMap.values()).reduce(
+      (sum, list) => sum + (list?.length || 0),
+      0,
+    );
+    console.log(
+      "[Planner] Removed scheduled entry; new counts:",
+      `dateEntries=${arr.length}`,
+      `totalEntries=${totalRemaining}`,
+    );
     await persistSchedule();
+    console.log("[Planner] persistSchedule complete after removal.");
     const cell = calendarBody.querySelector(
       `.planner-day[data-date="${entry.date}"]`,
     );
@@ -254,6 +311,10 @@ export function createWorkoutPlanner({
         .querySelectorAll(".planner-scheduled-card")
         .forEach((n) => n.remove());
       maybeAttachScheduled(cell);
+    } else {
+      console.log(
+        "[Planner] No calendar cell found for removed entry; UI not refreshed.",
+      );
     }
     recomputeAgg(selectedDate);
   }
@@ -262,10 +323,24 @@ export function createWorkoutPlanner({
     const dateKey = entry?.date;
     const title = entry?.workoutTitle;
     if (!dateKey || !title) return;
+    await forceReloadSchedule();
     await ensureScheduleLoaded();
     const arr = scheduledMap.get(dateKey) || [];
+    console.log(
+      "[Planner] removeScheduledEntryByRef",
+      `date=${dateKey}`,
+      `title="${title}"`,
+      `candidates=${arr.length}`,
+      "titles=" + arr.map((e) => e.workoutTitle).join(","),
+    );
     const match = arr.find((e) => e.workoutTitle === title);
-    if (!match) return;
+    if (!match) {
+      console.log(
+        "[Planner] No scheduled entry found matching title on date; no-op.",
+      );
+      return;
+    }
+    console.log("[Planner] Removing scheduled entry:", match);
     await removeScheduledEntryInternal(match);
   }
 
@@ -1680,6 +1755,7 @@ export function createWorkoutPlanner({
     if (!overlay) return;
     exitDetailMode();
     resetHistoryIndex();
+    forceReloadSchedule();
     selectedDate = new Date();
     anchorStart = startOfWeek(selectedDate);
 
@@ -1848,6 +1924,7 @@ export function createWorkoutPlanner({
     removeScheduledEntry: removeScheduledEntryInternal,
     removeScheduledEntryByRef,
     removeScheduledByTitle: async (dateKey, title) => {
+      await forceReloadSchedule();
       await removeScheduledEntryByRef({
         date: dateKey,
         workoutTitle: title,

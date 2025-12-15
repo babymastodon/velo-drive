@@ -1027,8 +1027,19 @@ async function initPage() {
         const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
           d.getDate(),
         ).padStart(2, "0")}`;
+        logDebug(
+          `[Workout] Ended; attempting auto-unschedule "${finishedTitle}" for ${dateKey}`,
+        );
+        console.log(
+          "[Workout] onWorkoutEnded auto-unschedule",
+          `title="${finishedTitle}"`,
+          `date=${dateKey}`,
+        );
         if (planner && typeof planner.removeScheduledByTitle === "function") {
           planner.removeScheduledByTitle(dateKey, finishedTitle);
+        } else {
+          logDebug("[Workout] Planner unavailable; cannot auto-unschedule.");
+          console.log("[Workout] Planner unavailable; cannot auto-unschedule.");
         }
       }
       if (!planner) return;
