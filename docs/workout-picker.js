@@ -187,6 +187,9 @@ function createWorkoutPicker(config) {
     tbody,
     getCurrentFtp,
     onWorkoutSelected,
+    onScheduleSelected,
+    onScheduleCanceled,
+    onScheduleUnschedule,
   } = config;
 
   const addWorkoutBtn = modal.querySelector("#pickerAddWorkoutBtn");
@@ -198,6 +201,19 @@ function createWorkoutPicker(config) {
   const emptyStateEl = modal.querySelector("#pickerEmptyState");
   const emptyAddBtn = modal.querySelector("#pickerEmptyAddBtn");
   const titleEl = modal.querySelector("#workoutPickerTitle");
+  const controlsEl = modal.querySelector(".workout-picker-controls");
+  const scheduleUnscheduleBtn = document.createElement("button");
+  scheduleUnscheduleBtn.className = "picker-add-btn delete-workout-btn";
+  scheduleUnscheduleBtn.type = "button";
+  scheduleUnscheduleBtn.style.display = "none";
+  scheduleUnscheduleBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon"><path d="M5 12h14M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Unschedule</span>`;
+  if (controlsEl) controlsEl.appendChild(scheduleUnscheduleBtn);
+  scheduleUnscheduleBtn.addEventListener("click", () => {
+    if (typeof onScheduleUnschedule === "function" && scheduleMode?.entry) {
+      onScheduleUnschedule(scheduleMode.entry);
+    }
+  });
+  let scheduleMode = null; // {dateKey, existingEntry, editMode}
 
   /** @type {CanonicalWorkout[]} */
   let pickerWorkouts = [];
@@ -525,16 +541,35 @@ function createWorkoutPicker(config) {
         const selectBtn = document.createElement("button");
         selectBtn.type = "button";
         selectBtn.className = "select-workout-btn";
-        selectBtn.textContent = "Select workout";
-        selectBtn.title =
-          "Use this workout on the workout page.";
-        selectBtn.addEventListener("click", (evt) => {
-          evt.stopPropagation();
-          doSelectWorkout(canonical);
-        });
+        if (scheduleMode) {
+          selectBtn.textContent = scheduleMode.editMode
+            ? "Reschedule Workout"
+            : "Schedule Workout";
+          selectBtn.title = "Schedule this workout on the selected day.";
+          selectBtn.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            if (typeof onScheduleSelected === "function") {
+              onScheduleSelected({
+                canonical,
+                dateKey: scheduleMode.dateKey,
+                existingEntry: scheduleMode.entry || null,
+              });
+            }
+          });
+        } else {
+          selectBtn.textContent = "Select workout";
+          selectBtn.title =
+            "Use this workout on the workout page.";
+          selectBtn.addEventListener("click", (evt) => {
+            evt.stopPropagation();
+            doSelectWorkout(canonical);
+          });
+        }
 
-        actionsRow.appendChild(deleteBtn);
-        actionsRow.appendChild(editBtn);
+        if (!scheduleMode) {
+          actionsRow.appendChild(deleteBtn);
+          actionsRow.appendChild(editBtn);
+        }
         actionsRow.appendChild(selectBtn);
 
         // Put into header (grid auto-places them into the two columns)
@@ -1477,6 +1512,17 @@ function createWorkoutPicker(config) {
     if (overlay) overlay.style.display = "flex";
   }
 
+  async function openScheduleMode({dateKey, entry, editMode = false} = {}) {
+    scheduleMode = {dateKey, entry, editMode};
+    if (titleEl) titleEl.textContent = editMode ? "Edit Scheduled Workout" : "Schedule Workout";
+    if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
+    if (builderBackBtn) builderBackBtn.style.display = "none";
+    if (builderSaveBtn) builderSaveBtn.style.display = "none";
+    if (controlsEl) controlsEl.classList.add("picker-schedule-mode");
+    scheduleUnscheduleBtn.style.display = editMode ? "" : "none";
+    await open(entry?.workoutTitle);
+  }
+
   async function close() {
     if (isBuilderMode) {
       const ok = await maybeHandleUnsavedBeforeLeave({
@@ -1489,8 +1535,19 @@ function createWorkoutPicker(config) {
     exitBuilderMode();
     exitImportMode();
 
+    const wasSchedule = !!scheduleMode;
+    if (wasSchedule && typeof onScheduleCanceled === "function") {
+      onScheduleCanceled();
+    }
     isPickerOpen = false;
     if (overlay) overlay.style.display = "none";
+    scheduleMode = null;
+    if (titleEl) titleEl.textContent = "Workout library";
+    if (addWorkoutBtn) addWorkoutBtn.style.display = "";
+    if (builderBackBtn) builderBackBtn.style.display = "";
+    if (builderSaveBtn) builderSaveBtn.style.display = "";
+    if (controlsEl) controlsEl.classList.remove("picker-schedule-mode");
+    scheduleUnscheduleBtn.style.display = "none";
   }
 
   function syncFtpChanged() {
@@ -1611,6 +1668,7 @@ function createWorkoutPicker(config) {
 
   return {
     open,
+    openScheduleMode,
     close,
     syncFtpChanged,
     saveCanonicalWorkoutToZwoDir,

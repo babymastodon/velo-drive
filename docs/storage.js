@@ -29,6 +29,7 @@ export const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
 export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 export const STORAGE_THEME_MODE = "themeMode";
 export const STORAGE_WORKOUT_STATS_CACHE = "workoutStatsCache";
+export const STORAGE_SCHEDULE_FILE = "schedule.json";
 
 const FTP_KEY = "ftp";
 const DEFAULT_WORKOUT_FILES = [
@@ -205,6 +206,45 @@ export async function loadRootDirHandle() {
   const handle = await loadHandle(ROOT_DIR_KEY);
   rootDirHandle = handle || null;
   return rootDirHandle;
+}
+
+// Schedule file helpers
+async function readTextFile(handle) {
+  const file = await handle.getFile();
+  return file.text();
+}
+
+export async function loadScheduleEntries() {
+  try {
+    const root = await loadRootDirHandle();
+    if (!root) return [];
+    const fileHandle = await root.getFileHandle(STORAGE_SCHEDULE_FILE, {
+      create: false,
+    });
+    const text = await readTextFile(fileHandle);
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    return [];
+  } catch (_err) {
+    return [];
+  }
+}
+
+export async function saveScheduleEntries(entries) {
+  try {
+    const root = await loadRootDirHandle();
+    if (!root) return false;
+    const fileHandle = await root.getFileHandle(STORAGE_SCHEDULE_FILE, {
+      create: true,
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(entries || [], null, 2));
+    await writable.close();
+    return true;
+  } catch (err) {
+    console.warn("[Storage] Failed to save schedule:", err);
+    return false;
+  }
 }
 
 // Trash

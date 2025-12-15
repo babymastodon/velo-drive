@@ -1,10 +1,13 @@
 import { parseFitFile } from "./fit-file.js";
 import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from "./workout-chart.js";
-import { DEFAULT_FTP } from "./workout-metrics.js";
+import { DEFAULT_FTP, computeMetricsFromSegments } from "./workout-metrics.js";
 import {
   loadWorkoutDirHandle,
   loadWorkoutStatsCache,
   saveWorkoutStatsCache,
+  loadScheduleEntries,
+  saveScheduleEntries,
+  loadZwoDirHandle,
 } from "./storage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -85,6 +88,9 @@ export function createWorkoutPlanner({
   detailChartTooltip,
   backBtn,
   titleEl,
+  onScheduleRequested,
+  onScheduledEditRequested,
+  getCurrentFtp,
 } = {}) {
   if (!overlay || !calendarBody) {
     return {
@@ -106,7 +112,10 @@ export function createWorkoutPlanner({
   const historyIndex = new Map(); // dateKey -> {handle, name}
   const historyCache = new Map(); // dateKey -> Promise<{...}>
   const historyData = new Map(); // dateKey -> Array<preview>
+  const scheduledMap = new Map(); // dateKey -> Array<entry>
+  const scheduledCache = new Map(); // fileName -> {rawSegments, workoutTitle}
   let historyIndexPromise = null;
+  let schedulePromise = null;
   let statsCache = null;
   const STATS_CACHE_VERSION = 30; // bump whenever cache format/logic changes
   const aggTotals = {
@@ -117,6 +126,7 @@ export function createWorkoutPlanner({
   let detailChartData = null;
   let detailMode = false;
   let detailState = null;
+  let plannerOverlayHidden = false;
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -140,6 +150,9 @@ export function createWorkoutPlanner({
     historyCache.clear();
     historyData.clear();
     historyIndexPromise = null;
+    scheduledMap.clear();
+    schedulePromise = null;
+    scheduledCache.clear();
   }
 
   async function ensureStatsCache() {
@@ -182,6 +195,31 @@ export function createWorkoutPlanner({
       }
     })();
     return historyIndexPromise;
+  }
+
+  async function ensureScheduleLoaded() {
+    if (schedulePromise) return schedulePromise;
+    schedulePromise = (async () => {
+      const entries = await loadScheduleEntries();
+      scheduledMap.clear();
+      entries.forEach((e) => {
+        if (!e || !e.date) return;
+        const key = e.date;
+        const arr = scheduledMap.get(key) || [];
+        e.metrics = computeScheduledMetrics(e);
+        arr.push(e);
+        scheduledMap.set(key, arr);
+      });
+    })();
+    return schedulePromise;
+  }
+
+  async function persistSchedule() {
+    const entries = [];
+    scheduledMap.forEach((arr) => {
+      arr.forEach((e) => entries.push(e));
+    });
+    await saveScheduleEntries(entries);
   }
 
   function buildPerSecondPower(samples, durationSec) {
@@ -353,6 +391,52 @@ export function createWorkoutPlanner({
       result.push({ durSec: dur, power: best });
     });
     return result;
+  }
+
+  async function ensureScheduledWorkout(entry) {
+    if (!entry) return entry;
+    if (entry.rawSegments && entry.rawSegments.length) return entry;
+    if (!entry.fileName) return entry;
+    const cached = scheduledCache.get(entry.fileName);
+    if (cached) {
+      entry.rawSegments = cached.rawSegments || [];
+      entry.workoutTitle = entry.workoutTitle || cached.workoutTitle;
+      return entry;
+    }
+    try {
+      const dir = await loadZwoDirHandle();
+      if (!dir) return entry;
+      const handle = await dir.getFileHandle(entry.fileName, {create: false});
+      const file = await handle.getFile();
+      const text = await file.text();
+      const {parseZwoXmlToCanonicalWorkout} = await import("./zwo.js");
+      const canonical = parseZwoXmlToCanonicalWorkout(text) || {};
+      const rawSegments = canonical.rawSegments || [];
+      scheduledCache.set(entry.fileName, {
+        rawSegments,
+        workoutTitle: canonical.workoutTitle || entry.workoutTitle,
+      });
+      entry.rawSegments = rawSegments;
+      entry.workoutTitle = entry.workoutTitle || canonical.workoutTitle;
+    } catch (_err) {
+      // ignore
+    }
+    return entry;
+  }
+
+  function computeScheduledMetrics(entry) {
+    if (!entry || !entry.rawSegments?.length) return null;
+    const ftp =
+      typeof getCurrentFtp === "function"
+        ? Number(getCurrentFtp()) || DEFAULT_FTP
+        : DEFAULT_FTP;
+    const metrics = computeMetricsFromSegments(entry.rawSegments, ftp);
+    return {
+      durationSec: metrics.totalSec || 0,
+      kj: metrics.kj,
+      ifValue: metrics.ifValue,
+      tss: metrics.tss,
+    };
   }
 
   function buildPowerSegments(samples, durationSecHint) {
@@ -527,6 +611,77 @@ export function createWorkoutPlanner({
         actualLineSegments: data.powerSegments || [],
         actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
         durationSec: data.durationSec || 0,
+      };
+    });
+  }
+
+  function renderScheduledCard(cell, entry) {
+    if (!cell || !entry) return;
+    const content = cell.querySelector(".planner-day-content");
+    if (!content) return;
+    content.classList.add("has-history");
+    const card = document.createElement("div");
+    card.className = "planner-workout-card planner-scheduled-card";
+
+    const header = document.createElement("div");
+    header.className = "planner-workout-header";
+    const name = document.createElement("div");
+    name.className = "planner-workout-name";
+    name.innerHTML = `<span class="planner-scheduled-icon">⏰</span> ${entry.workoutTitle || "Workout"}`;
+    header.appendChild(name);
+
+    const stats = document.createElement("div");
+    stats.className = "planner-workout-stats";
+    const parts = [];
+    if (entry.durationSec) parts.push(formatDuration(entry.durationSec));
+    if (Number.isFinite(entry.kj)) parts.push(`${Math.round(entry.kj)} kJ`);
+    if (Number.isFinite(entry.tss)) parts.push(`TSS ${Math.round(entry.tss)}`);
+    if (Number.isFinite(entry.ifValue))
+      parts.push(`IF ${entry.ifValue.toFixed(2)}`);
+    parts.forEach((p, idx) => {
+      const chip = document.createElement("span");
+      chip.className = "planner-workout-stat-chip";
+      chip.textContent = p;
+      stats.appendChild(chip);
+      if (idx !== parts.length - 1) {
+        const sep = document.createElement("span");
+        sep.className = "planner-workout-stat-chip planner-workout-stat-sep";
+        sep.textContent = "·";
+        stats.appendChild(sep);
+      }
+    });
+    header.appendChild(stats);
+
+    const chartWrap = document.createElement("div");
+    chartWrap.className = "planner-workout-chart";
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    chartWrap.appendChild(svg);
+
+    card.appendChild(header);
+    card.appendChild(chartWrap);
+    content.appendChild(card);
+
+    const dateKey = cell.dataset.date;
+    card.addEventListener("click", () => {
+      if (typeof onScheduledEditRequested === "function") {
+        onScheduledEditRequested(dateKey, entry);
+      }
+    });
+
+    requestAnimationFrame(() => {
+      const rect = chartWrap.getBoundingClientRect();
+      drawMiniHistoryChart({
+        svg,
+        width: rect.width || 240,
+        height: rect.height || 120,
+        rawSegments: entry.rawSegments || [],
+        durationSec: entry.durationSec || 0,
+      });
+      chartWrap._plannerChartData = {
+        width: rect.width || 240,
+        height: rect.height || 120,
+        rawSegments: entry.rawSegments || [],
+        durationSec: entry.durationSec || 0,
       };
     });
   }
@@ -958,6 +1113,18 @@ export function createWorkoutPlanner({
     setSelectedDate(next);
   }
 
+  function scheduledForDate(dateKey) {
+    const arr = scheduledMap.get(dateKey);
+    return arr && arr.length ? arr[0] : null;
+  }
+
+  function requestSchedule(dateKey, existing) {
+    scheduledCache.clear();
+    if (typeof onScheduleRequested === "function") {
+      onScheduleRequested(dateKey, existing || null);
+    }
+  }
+
   async function openSelectedDayDetail() {
     if (!selectedDate) return;
     const dateKey = formatKey(selectedDate);
@@ -1033,6 +1200,30 @@ export function createWorkoutPlanner({
         }
       });
     });
+    scheduledMap.forEach((entries, key) => {
+      const date = keyToDate(key);
+      date.setHours(0, 0, 0, 0);
+      const start = date.getTime();
+      entries.forEach((entry) => {
+        const metrics = entry.metrics;
+        if (!metrics) return;
+        if (start <= baseMs && start >= cutoff3) {
+          aggTotals["3"].sec += metrics.durationSec || 0;
+          aggTotals["3"].kj += metrics.kj || 0;
+          aggTotals["3"].tss += metrics.tss || 0;
+        }
+        if (start <= baseMs && start >= cutoff7) {
+          aggTotals["7"].sec += metrics.durationSec || 0;
+          aggTotals["7"].kj += metrics.kj || 0;
+          aggTotals["7"].tss += metrics.tss || 0;
+        }
+        if (start <= baseMs && start >= cutoff30) {
+          aggTotals["30"].sec += metrics.durationSec || 0;
+          aggTotals["30"].kj += metrics.kj || 0;
+          aggTotals["30"].tss += metrics.tss || 0;
+        }
+      });
+    });
     updateAggUi();
   }
 
@@ -1045,17 +1236,17 @@ export function createWorkoutPlanner({
     if (footerEl) {
       const parts = [];
       parts.push(
-        `<strong>3 day sum:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
+        `<strong>3 day sum ⏰:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
           aggTotals["3"].kj,
         )} kJ, TSS ${Math.round(aggTotals["3"].tss)}`,
       );
       parts.push(
-        `<strong>7 day sum:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
+        `<strong>7 day sum ⏰:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
           aggTotals["7"].kj,
         )} kJ, TSS ${Math.round(aggTotals["7"].tss)}`,
       );
       parts.push(
-        `<strong>30 day sum:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
+        `<strong>30 day sum ⏰:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
           aggTotals["30"].kj,
         )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
       );
@@ -1075,6 +1266,27 @@ export function createWorkoutPlanner({
       historyData.set(dateKey, previews);
       recomputeAgg(selectedDate);
     }
+  }
+
+  async function maybeAttachScheduled(cell) {
+    if (!cell) return;
+    const dateKey = cell.dataset.date;
+    await ensureScheduleLoaded();
+    const entries = scheduledMap.get(dateKey);
+    if (!entries || !entries.length) return;
+    cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+    for (const entry of entries) {
+      await ensureScheduledWorkout(entry);
+      entry.metrics = entry.metrics || computeScheduledMetrics(entry);
+      if (entry.metrics) {
+        entry.durationSec = entry.metrics.durationSec;
+        entry.kj = entry.metrics.kj;
+        entry.ifValue = entry.metrics.ifValue;
+        entry.tss = entry.metrics.tss;
+      }
+      renderScheduledCard(cell, entry);
+    }
+    recomputeAgg(selectedDate);
   }
 
   function buildWeekRow(weekOffset) {
@@ -1214,6 +1426,7 @@ export function createWorkoutPlanner({
       frag.appendChild(row);
       row.querySelectorAll(".planner-day").forEach((cell) => {
         maybeAttachHistory(cell);
+        maybeAttachScheduled(cell);
       });
     }
     calendarBody.appendChild(frag);
@@ -1261,6 +1474,7 @@ export function createWorkoutPlanner({
       weekRows.push(newRow);
       newRow.querySelectorAll(".planner-day").forEach((cell) => {
         maybeAttachHistory(cell);
+        maybeAttachScheduled(cell);
       });
 
       const removed = weekRows.shift();
@@ -1279,6 +1493,7 @@ export function createWorkoutPlanner({
       weekRows.unshift(newRow);
       newRow.querySelectorAll(".planner-day").forEach((cell) => {
         maybeAttachHistory(cell);
+        maybeAttachScheduled(cell);
       });
 
       const removed = weekRows.pop();
@@ -1343,9 +1558,18 @@ export function createWorkoutPlanner({
 
     if (key === "enter") {
       ev.preventDefault();
-      if (!detailMode) {
-        openSelectedDayDetail();
+      const dateKey = selectedDate ? formatKey(selectedDate) : null;
+      if (!dateKey) return;
+      if (!isPastDate(dateKey)) {
+        const existing = scheduledForDate(dateKey);
+        if (existing && typeof onScheduledEditRequested === "function") {
+          onScheduledEditRequested(dateKey, existing);
+        } else {
+          requestSchedule(dateKey, existing);
+        }
+        return;
       }
+      openSelectedDayDetail();
       return;
     }
 
@@ -1385,6 +1609,7 @@ export function createWorkoutPlanner({
     ensureHistoryIndex().catch((err) => {
       console.warn("[Planner] history index load failed:", err);
     });
+    ensureScheduleLoaded().catch(() => {});
 
     updateRowHeightVar();
     renderInitialRows();
@@ -1429,7 +1654,10 @@ export function createWorkoutPlanner({
 
   if (scheduleBtn) {
     scheduleBtn.addEventListener("click", () => {
-      // Placeholder; scheduling will be wired up later.
+      if (!selectedDate) return;
+      const dateKey = formatKey(selectedDate);
+      if (!dateKey || isPastDate(dateKey)) return;
+      requestSchedule(dateKey, scheduledForDate(dateKey));
     });
   }
 
@@ -1456,6 +1684,53 @@ export function createWorkoutPlanner({
         previews.find((p) => p.fileName === fileName) ||
         previews[0];
       openDetailView(dateKey, match);
+    },
+    hideOverlay: () => {
+      if (!overlay) return;
+      plannerOverlayHidden = true;
+      overlay.style.display = "none";
+    },
+    showOverlay: () => {
+      if (!overlay) return;
+      overlay.style.display = "flex";
+      overlay.removeAttribute("aria-hidden");
+      plannerOverlayHidden = false;
+    },
+    applyScheduledEntry: async ({dateKey, canonical}) => {
+      if (!dateKey || !canonical) return;
+      await ensureScheduleLoaded();
+      scheduledCache.clear();
+      const entry = {
+        date: dateKey,
+        fileName: canonical.source || canonical.fileName || canonical.workoutTitle || "",
+        workoutTitle: canonical.workoutTitle,
+        rawSegments: canonical.rawSegments || [],
+      };
+      entry.metrics = computeScheduledMetrics(entry);
+      const arr = [entry];
+      scheduledMap.set(dateKey, arr);
+      await persistSchedule();
+      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      if (cell) {
+        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        renderScheduledCard(cell, entry);
+      }
+      recomputeAgg(selectedDate);
+    },
+    removeScheduledEntry: async (entry) => {
+      if (!entry || !entry.date) return;
+      await ensureScheduleLoaded();
+      const arr = scheduledMap.get(entry.date) || [];
+      const next = arr.filter((e) => e !== entry);
+      if (next.length) scheduledMap.set(entry.date, next);
+      else scheduledMap.delete(entry.date);
+      await persistSchedule();
+      const cell = calendarBody.querySelector(`.planner-day[data-date="${entry.date}"]`);
+      if (cell) {
+        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        maybeAttachScheduled(cell);
+      }
+      recomputeAgg(selectedDate);
     },
   };
 }
