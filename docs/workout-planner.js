@@ -1,6 +1,6 @@
 import { parseFitFile } from "./fit-file.js";
 import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from "./workout-chart.js";
-import { DEFAULT_FTP, computeMetricsFromSegments } from "./workout-metrics.js";
+import { DEFAULT_FTP, computeMetricsFromSegments, inferZoneFromSegments } from "./workout-metrics.js";
 import {
   loadWorkoutDirHandle,
   loadWorkoutStatsCache,
@@ -90,6 +90,7 @@ export function createWorkoutPlanner({
   titleEl,
   onScheduleRequested,
   onScheduledEditRequested,
+  onScheduledLoadRequested,
   getCurrentFtp,
 } = {}) {
   if (!overlay || !calendarBody) {
@@ -206,6 +207,16 @@ export function createWorkoutPlanner({
         const key = e.date;
         const arr = scheduledMap.get(key) || [];
         e.metrics = computeScheduledMetrics(e);
+        if (e.metrics) {
+          e.durationSec = e.metrics.durationSec;
+          e.kj = e.metrics.kj;
+          e.ifValue = e.metrics.ifValue;
+          e.tss = e.metrics.tss;
+          e.zone = e.metrics.zone;
+        }
+        if (e.metrics) {
+          e.zone = e.zone || e.metrics.zone;
+        }
         arr.push(e);
         scheduledMap.set(key, arr);
       });
@@ -430,11 +441,13 @@ export function createWorkoutPlanner({
         ? Number(getCurrentFtp()) || DEFAULT_FTP
         : DEFAULT_FTP;
     const metrics = computeMetricsFromSegments(entry.rawSegments, ftp);
+    const zone = inferZoneFromSegments(entry.rawSegments);
     return {
       durationSec: metrics.totalSec || 0,
       kj: metrics.kj,
       ifValue: metrics.ifValue,
       tss: metrics.tss,
+      zone,
     };
   }
 
@@ -548,6 +561,7 @@ export function createWorkoutPlanner({
     content.classList.add("has-history");
     const card = document.createElement("div");
     card.className = "planner-workout-card";
+    card.title = "View workout analysis";
 
     const header = document.createElement("div");
     header.className = "planner-workout-header";
@@ -560,6 +574,7 @@ export function createWorkoutPlanner({
     stats.className = "planner-workout-stats";
     const parts = [];
     if (data.durationSec) parts.push(formatDuration(data.durationSec));
+    if (data.zone) parts.push(data.zone);
     if (Number.isFinite(data.kj)) parts.push(`${Math.round(data.kj)} kJ`);
     if (Number.isFinite(data.tss)) parts.push(`TSS ${Math.round(data.tss)}`);
     if (Number.isFinite(data.ifValue))
@@ -585,10 +600,16 @@ export function createWorkoutPlanner({
 
     card.appendChild(header);
     card.appendChild(chartWrap);
-    content.appendChild(card);
+    const firstScheduled = content.querySelector(".planner-scheduled-card");
+    if (firstScheduled) {
+      content.insertBefore(card, firstScheduled);
+    } else {
+      content.appendChild(card);
+    }
 
     const dateKey = cell.dataset.date;
-    card.addEventListener("click", () => {
+    card.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       openDetailView(dateKey, data);
     });
 
@@ -621,18 +642,41 @@ export function createWorkoutPlanner({
     content.classList.add("has-history");
     const card = document.createElement("div");
     card.className = "planner-workout-card planner-scheduled-card";
+    card.title = "Start scheduled workout";
+
+    const topRow = document.createElement("div");
+    topRow.className = "planner-scheduled-top";
+    const tag = document.createElement("div");
+    tag.className = "planner-scheduled-tag";
+    tag.textContent = "Scheduled";
+    topRow.appendChild(tag);
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "nav-icon-button planner-scheduled-edit-btn";
+    editBtn.title = "Edit scheduled workout";
+    editBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    editBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (typeof onScheduledEditRequested === "function") {
+        onScheduledEditRequested(cell.dataset.date, entry);
+      }
+    });
+    topRow.appendChild(editBtn);
+    card.appendChild(topRow);
 
     const header = document.createElement("div");
     header.className = "planner-workout-header";
     const name = document.createElement("div");
     name.className = "planner-workout-name";
-    name.innerHTML = `<span class="planner-scheduled-icon">⏰</span> ${entry.workoutTitle || "Workout"}`;
+    name.textContent = entry.workoutTitle || "Workout";
     header.appendChild(name);
 
     const stats = document.createElement("div");
     stats.className = "planner-workout-stats";
     const parts = [];
     if (entry.durationSec) parts.push(formatDuration(entry.durationSec));
+    if (entry.zone) parts.push(entry.zone);
     if (Number.isFinite(entry.kj)) parts.push(`${Math.round(entry.kj)} kJ`);
     if (Number.isFinite(entry.tss)) parts.push(`TSS ${Math.round(entry.tss)}`);
     if (Number.isFinite(entry.ifValue))
@@ -658,12 +702,18 @@ export function createWorkoutPlanner({
 
     card.appendChild(header);
     card.appendChild(chartWrap);
-    content.appendChild(card);
+    const historyCards = content.querySelectorAll(".planner-workout-card:not(.planner-scheduled-card)");
+    if (historyCards.length) {
+      historyCards[historyCards.length - 1].after(card);
+    } else {
+      content.appendChild(card);
+    }
 
     const dateKey = cell.dataset.date;
-    card.addEventListener("click", () => {
-      if (typeof onScheduledEditRequested === "function") {
-        onScheduledEditRequested(dateKey, entry);
+    card.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (typeof onScheduledLoadRequested === "function") {
+        onScheduledLoadRequested(entry);
       }
     });
 
@@ -706,6 +756,7 @@ export function createWorkoutPlanner({
     };
 
     pushStat("Duration", formatDuration(detail.durationSec));
+    if (detail.zone) pushStat("Zone", detail.zone);
     if (Number.isFinite(detail.avgPower))
       pushStat("Avg Power", `${Math.round(detail.avgPower)} W`);
     if (Number.isFinite(detail.normalizedPower))
@@ -830,6 +881,7 @@ export function createWorkoutPlanner({
       const ef =
         metrics.avgHr && metrics.avgHr > 0 ? (metrics.normalizedPower || 0) / metrics.avgHr : null;
 
+      const inferredZone = inferZoneFromSegments(cw.rawSegments || []);
       detailState = {
         dateKey,
         fileName: entry.name,
@@ -854,6 +906,7 @@ export function createWorkoutPlanner({
         maxHr: hrStats.maxHr,
         avgCadence: hrStats.avgCadence,
         maxCadence: hrStats.maxCadence,
+        zone: preview.zone || inferredZone,
       };
 
       detailMode = true;
@@ -978,6 +1031,12 @@ export function createWorkoutPlanner({
             ? new Date(cached.startedAt)
             : null;
 
+          let zone = cached?.zone;
+          if (!zone) {
+            zone = inferZoneFromSegments(cw.rawSegments || []);
+            if (zone) entryDirty = true;
+          }
+
           let powerSegments = cached?.powerSegments;
           if (!Array.isArray(powerSegments)) {
             const built = buildPowerSegments(parsed.samples || [], durationSecHint);
@@ -998,6 +1057,7 @@ export function createWorkoutPlanner({
               tss: metrics.tss,
               startedAt: startedAt ? startedAt.toISOString() : null,
               powerSegments,
+              zone,
             };
             cacheDirty = true;
           }
@@ -1017,6 +1077,7 @@ export function createWorkoutPlanner({
             powerSegments,
             powerMax,
             fileName: entry.name,
+            zone,
           });
         } catch (err) {
           console.warn(
@@ -1112,15 +1173,10 @@ export function createWorkoutPlanner({
     setSelectedDate(next);
   }
 
-  function scheduledForDate(dateKey) {
-    const arr = scheduledMap.get(dateKey);
-    return arr && arr.length ? arr[0] : null;
-  }
-
-  function requestSchedule(dateKey, existing) {
+  function requestSchedule(dateKey) {
     scheduledCache.clear();
     if (typeof onScheduleRequested === "function") {
-      onScheduleRequested(dateKey, existing || null);
+      onScheduleRequested(dateKey, null);
     }
   }
 
@@ -1235,17 +1291,17 @@ export function createWorkoutPlanner({
     if (footerEl) {
       const parts = [];
       parts.push(
-        `<strong>3 day sum ⏰:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
+        `<strong>3 day sum:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
           aggTotals["3"].kj,
         )} kJ, TSS ${Math.round(aggTotals["3"].tss)}`,
       );
       parts.push(
-        `<strong>7 day sum ⏰:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
+        `<strong>7 day sum:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
           aggTotals["7"].kj,
         )} kJ, TSS ${Math.round(aggTotals["7"].tss)}`,
       );
       parts.push(
-        `<strong>30 day sum ⏰:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
+        `<strong>30 day sum:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
           aggTotals["30"].kj,
         )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
       );
@@ -1560,11 +1616,11 @@ export function createWorkoutPlanner({
       const dateKey = selectedDate ? formatKey(selectedDate) : null;
       if (!dateKey) return;
       if (!isPastDate(dateKey)) {
-        const existing = scheduledForDate(dateKey);
-        if (existing && typeof onScheduledEditRequested === "function") {
-          onScheduledEditRequested(dateKey, existing);
+        const scheduled = scheduledMap.get(dateKey);
+        if (scheduled && scheduled.length && typeof onScheduledEditRequested === "function") {
+          onScheduledEditRequested(dateKey, scheduled[0]);
         } else {
-          requestSchedule(dateKey, existing);
+          requestSchedule(dateKey);
         }
         return;
       }
@@ -1667,7 +1723,7 @@ export function createWorkoutPlanner({
       if (!selectedDate) return;
       const dateKey = formatKey(selectedDate);
       if (!dateKey || isPastDate(dateKey)) return;
-      requestSchedule(dateKey, scheduledForDate(dateKey));
+      requestSchedule(dateKey);
     });
   }
 
@@ -1709,24 +1765,44 @@ export function createWorkoutPlanner({
       if (modal) modal.style.display = "flex";
       isOpen = true;
     },
-    applyScheduledEntry: async ({dateKey, canonical}) => {
+    applyScheduledEntry: async ({dateKey, canonical, existingEntry}) => {
       if (!dateKey || !canonical) return;
       await ensureScheduleLoaded();
       scheduledCache.clear();
-      const entry = {
-        date: dateKey,
-        fileName: canonical.source || canonical.fileName || canonical.workoutTitle || "",
-        workoutTitle: canonical.workoutTitle,
-        rawSegments: canonical.rawSegments || [],
-      };
-      entry.metrics = computeScheduledMetrics(entry);
-      const arr = [entry];
+      const arr = scheduledMap.get(dateKey) || [];
+      const target =
+        existingEntry && arr.includes(existingEntry) ? existingEntry : {date: dateKey};
+      target.date = dateKey;
+      target.fileName =
+        canonical.source || canonical.fileName || canonical.workoutTitle || "";
+      target.workoutTitle = canonical.workoutTitle;
+      target.rawSegments = canonical.rawSegments || [];
+      target.metrics = computeScheduledMetrics(target);
+      target.durationSec = target.metrics?.durationSec;
+      target.kj = target.metrics?.kj;
+      target.ifValue = target.metrics?.ifValue;
+      target.tss = target.metrics?.tss;
+      target.zone = target.metrics?.zone;
+      if (!arr.includes(target)) {
+        arr.push(target);
+      }
       scheduledMap.set(dateKey, arr);
       await persistSchedule();
       const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
       if (cell) {
         cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
-        renderScheduledCard(cell, entry);
+        arr.forEach((e) => {
+          if (!e.metrics) {
+            e.metrics = computeScheduledMetrics(e);
+          }
+          if (e.metrics) {
+            e.durationSec = e.metrics.durationSec;
+            e.kj = e.metrics.kj;
+            e.ifValue = e.metrics.ifValue;
+            e.tss = e.metrics.tss;
+          }
+          renderScheduledCard(cell, e);
+        });
       }
       recomputeAgg(selectedDate);
     },
@@ -1742,6 +1818,25 @@ export function createWorkoutPlanner({
       if (cell) {
         cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
         maybeAttachScheduled(cell);
+      }
+      recomputeAgg(selectedDate);
+    },
+    removeScheduledByTitle: async (dateKey, title) => {
+      if (!dateKey || !title) return;
+      await ensureScheduleLoaded();
+      const arr = scheduledMap.get(dateKey) || [];
+      const idx = arr.findIndex(
+        (e) => (e.workoutTitle || "").toLowerCase() === title.toLowerCase(),
+      );
+      if (idx === -1) return;
+      arr.splice(idx, 1);
+      if (arr.length) scheduledMap.set(dateKey, arr);
+      else scheduledMap.delete(dateKey);
+      await persistSchedule();
+      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      if (cell) {
+        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        arr.forEach((e) => renderScheduledCard(cell, e));
       }
       recomputeAgg(selectedDate);
     },

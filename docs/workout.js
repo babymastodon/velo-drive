@@ -988,9 +988,9 @@ async function initPage() {
 
   const handleScheduleSelected = (payload) => {
     if (!payload) return;
-    const {canonical, dateKey} = payload;
+    const {canonical, dateKey, existingEntry} = payload;
     if (planner && typeof planner.applyScheduledEntry === "function") {
-      planner.applyScheduledEntry({dateKey, canonical});
+      planner.applyScheduledEntry({dateKey, canonical, existingEntry});
     }
     if (planner && typeof planner.showModal === "function") {
       planner.showModal();
@@ -1012,6 +1012,17 @@ async function initPage() {
     onStateChanged: (vm) => renderFromEngine(vm),
     onLog: logDebug,
     onWorkoutEnded: (info) => {
+      const vm = engine.getViewModel();
+      const finishedTitle = vm?.canonicalWorkout?.workoutTitle;
+      if (finishedTitle) {
+        const d = info?.startedAt || new Date();
+        const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+          d.getDate(),
+        ).padStart(2, "0")}`;
+        if (planner && typeof planner.removeScheduledByTitle === "function") {
+          planner.removeScheduledByTitle(dateKey, finishedTitle);
+        }
+      }
       if (!planner) return;
       planner.open();
       if (info && info.fileName && typeof planner.openDetailByFile === "function") {
@@ -1078,12 +1089,12 @@ async function initPage() {
     backBtn: document.getElementById("plannerBackBtn"),
     titleEl: document.querySelector(".workout-planner-title"),
     getCurrentFtp: () => engine.getViewModel().currentFtp,
-    onScheduleRequested: (dateKey, existing) => {
+    onScheduleRequested: (dateKey) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;
       if (planner && typeof planner.hideModal === "function") {
         planner.hideModal();
       }
-      picker.openScheduleMode({dateKey, entry: existing || null, editMode: !!existing});
+      picker.openScheduleMode({dateKey, entry: null, editMode: false});
     },
     onScheduledEditRequested: (dateKey, existing) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;
@@ -1091,6 +1102,23 @@ async function initPage() {
         planner.hideModal();
       }
       picker.openScheduleMode({dateKey, entry: existing || null, editMode: true});
+    },
+    onScheduledLoadRequested: (entry) => {
+      if (!entry) return;
+      const canonical = {
+        workoutTitle: entry.workoutTitle || "Workout",
+        rawSegments: entry.rawSegments || [],
+        source: entry.fileName || entry.workoutTitle || "scheduled",
+      };
+      engine.setWorkoutFromPicker(canonical);
+      if (planner && typeof planner.close === "function") {
+        planner.close();
+      }
+    },
+    removeScheduledForTitle: async (dateKey, title) => {
+      if (planner && typeof planner.removeScheduledByTitle === "function") {
+        await planner.removeScheduledByTitle(dateKey, title);
+      }
     },
   });
 
