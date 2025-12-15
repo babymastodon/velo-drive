@@ -223,11 +223,6 @@ export function createWorkoutPlanner({
       scheduledMap.set(key, arr);
       added += 1;
     });
-    console.log(
-      "[Planner] Schedule loaded",
-      `entries=${added}`,
-      "dates=" + Array.from(scheduledMap.keys()).join(","),
-    );
     return added;
   }
 
@@ -237,9 +232,6 @@ export function createWorkoutPlanner({
     }
     let added = await schedulePromise;
     if (!added && scheduledMap.size === 0) {
-      console.log(
-        "[Planner] Schedule map empty after load; retrying fresh load.",
-      );
       schedulePromise = loadScheduleIntoMap();
       added = await schedulePromise;
     }
@@ -258,11 +250,6 @@ export function createWorkoutPlanner({
         entries.push({ date: e.date, workoutTitle: e.workoutTitle }),
       );
     });
-    console.log(
-      "[Planner] persistSchedule",
-      `entries=${entries.length}`,
-      entries.map((e) => `${e.date}:${e.workoutTitle}`).join(", "),
-    );
     await saveScheduleEntries(entries);
   }
 
@@ -278,17 +265,7 @@ export function createWorkoutPlanner({
           e.date === entry.date,
       );
     }
-    console.log(
-      "[Planner] removeScheduledEntryInternal",
-      `date=${entry.date}`,
-      `title="${entry.workoutTitle || ""}"`,
-      `arrLen=${arr.length}`,
-      `matchIdx=${idx}`,
-    );
-    if (idx === -1) {
-      console.log("[Planner] Entry not found in array; no removal performed.");
-      return;
-    }
+    if (idx === -1) return;
     arr.splice(idx, 1);
     if (arr.length) scheduledMap.set(entry.date, arr);
     else scheduledMap.delete(entry.date);
@@ -296,13 +273,7 @@ export function createWorkoutPlanner({
       (sum, list) => sum + (list?.length || 0),
       0,
     );
-    console.log(
-      "[Planner] Removed scheduled entry; new counts:",
-      `dateEntries=${arr.length}`,
-      `totalEntries=${totalRemaining}`,
-    );
     await persistSchedule();
-    console.log("[Planner] persistSchedule complete after removal.");
     const cell = calendarBody.querySelector(
       `.planner-day[data-date="${entry.date}"]`,
     );
@@ -311,10 +282,6 @@ export function createWorkoutPlanner({
         .querySelectorAll(".planner-scheduled-card")
         .forEach((n) => n.remove());
       maybeAttachScheduled(cell);
-    } else {
-      console.log(
-        "[Planner] No calendar cell found for removed entry; UI not refreshed.",
-      );
     }
     recomputeAgg(selectedDate);
   }
@@ -326,21 +293,8 @@ export function createWorkoutPlanner({
     await forceReloadSchedule();
     await ensureScheduleLoaded();
     const arr = scheduledMap.get(dateKey) || [];
-    console.log(
-      "[Planner] removeScheduledEntryByRef",
-      `date=${dateKey}`,
-      `title="${title}"`,
-      `candidates=${arr.length}`,
-      "titles=" + arr.map((e) => e.workoutTitle).join(","),
-    );
     const match = arr.find((e) => e.workoutTitle === title);
-    if (!match) {
-      console.log(
-        "[Planner] No scheduled entry found matching title on date; no-op.",
-      );
-      return;
-    }
-    console.log("[Planner] Removing scheduled entry:", match);
+    if (!match) return;
     await removeScheduledEntryInternal(match);
   }
 
