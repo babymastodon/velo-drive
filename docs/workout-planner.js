@@ -1,7 +1,11 @@
 import { parseFitFile } from "./fit-file.js";
 import { drawMiniHistoryChart } from "./workout-chart.js";
 import { DEFAULT_FTP } from "./workout-metrics.js";
-import { loadWorkoutDirHandle } from "./storage.js";
+import {
+  loadWorkoutDirHandle,
+  loadWorkoutStatsCache,
+  saveWorkoutStatsCache,
+} from "./storage.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
@@ -91,6 +95,8 @@ export function createWorkoutPlanner({
   const historyCache = new Map(); // dateKey -> Promise<{...}>
   const historyData = new Map(); // dateKey -> Array<preview>
   let historyIndexPromise = null;
+  let statsCache = null;
+  const STATS_CACHE_VERSION = 5; // bump whenever cache format/logic changes
   const aggTotals = {
     "7": {sec: 0, kj: 0, tss: 0},
     "30": {sec: 0, kj: 0, tss: 0},
@@ -118,6 +124,21 @@ export function createWorkoutPlanner({
     historyCache.clear();
     historyData.clear();
     historyIndexPromise = null;
+  }
+
+  async function ensureStatsCache() {
+    if (statsCache) return statsCache;
+    try {
+      const raw = await loadWorkoutStatsCache();
+      if (raw && raw.version === STATS_CACHE_VERSION && raw.entries) {
+        statsCache = raw;
+      } else {
+        statsCache = {version: STATS_CACHE_VERSION, entries: {}};
+      }
+    } catch (_err) {
+      statsCache = {version: STATS_CACHE_VERSION, entries: {}};
+    }
+    return statsCache;
   }
 
   async function ensureHistoryIndex() {
@@ -239,6 +260,55 @@ export function createWorkoutPlanner({
     };
   }
 
+  function buildPowerSegments(samples, durationSecHint) {
+    if (!Array.isArray(samples) || !samples.length) return [];
+    const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
+    const lastSample = sorted[sorted.length - 1];
+    const totalSec = durationSecHint || Math.max(1, Math.round(lastSample?.t || 0));
+    const bucketSize = 10;
+    const bucketCount = Math.ceil(totalSec / bucketSize);
+    const buckets = new Array(bucketCount).fill(null).map(() => []);
+
+    sorted.forEach((s) => {
+      const t = Math.max(0, Math.round(s.t || 0));
+      const idx = Math.min(bucketCount - 1, Math.floor(t / bucketSize));
+      const p = Number(s.power) || 0;
+      buckets[idx].push(p);
+    });
+
+    const median = (arr) => {
+      if (!arr.length) return 0;
+      const sortedVals = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sortedVals.length / 2);
+      return sortedVals.length % 2 === 0
+        ? (sortedVals[mid - 1] + sortedVals[mid]) / 2
+        : sortedVals[mid];
+    };
+
+    const segments = [];
+    buckets.forEach((vals, i) => {
+      if (!vals.length) return;
+      const med = median(vals);
+      const dur =
+        i === bucketCount - 1 ? totalSec - i * bucketSize || bucketSize : bucketSize;
+      const power = med;
+      if (!segments.length) {
+        segments.push([power, dur]);
+      } else {
+        const [prevPower, prevDur] = segments[segments.length - 1];
+        const pctDiff =
+          prevPower === 0 ? (power === 0 ? 0 : 1) : Math.abs(power - prevPower) / prevPower;
+        if (pctDiff <= 0.05) {
+          segments[segments.length - 1] = [prevPower, prevDur + dur];
+        } else {
+          segments.push([power, dur]);
+        }
+      }
+    });
+
+    return segments;
+  }
+
   function formatDuration(sec) {
     const s = Math.max(0, Math.round(sec || 0));
     const m = Math.round(s / 60);
@@ -298,7 +368,8 @@ export function createWorkoutPlanner({
         width: rect.width || 240,
         height: rect.height || 120,
         rawSegments: data.rawSegments || [],
-        actualPower: data.minutePower || [],
+        actualPowerSegments: data.powerSegments || [],
+        durationSec: data.durationSec || 0,
       });
     });
   }
@@ -308,47 +379,79 @@ export function createWorkoutPlanner({
     if (existing) return existing;
 
     const promise = (async () => {
+      await ensureStatsCache();
       await ensureHistoryIndex();
       const entries = historyIndex.get(dateKey) || [];
       if (!entries.length) return [];
+      let cacheDirty = false;
       const results = [];
       for (const entry of entries) {
         try {
-          const file = await entry.handle.getFile();
-          const buf = await file.arrayBuffer();
-          const parsed = parseFitFile(buf);
-          const cw = parsed.canonicalWorkout || {};
-          const meta = parsed.meta || {};
-          const ftp = meta.ftp || DEFAULT_FTP;
-          const lastSample = parsed.samples?.length
-            ? parsed.samples[parsed.samples.length - 1]
-            : null;
-          const durationSecHint =
-            meta.startedAt && meta.endedAt
-              ? Math.max(
-                  1,
-                  Math.round(
-                    (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
-                  ),
-                )
-              : Math.max(1, Math.round(lastSample?.t || 0));
+          const cached = statsCache.entries[entry.name];
+          const cachedHasPower = cached && Array.isArray(cached.powerSegments);
+          const cachedHasSegments = cached && Array.isArray(cached.rawSegments);
+          if (cached && cachedHasPower && cachedHasSegments) {
+            results.push({
+              workoutTitle: cached.workoutTitle,
+              durationSec: cached.durationSec || 0,
+              kj: cached.kj,
+              ifValue: cached.ifValue,
+              tss: cached.tss,
+              startedAt: cached.startedAt ? new Date(cached.startedAt) : null,
+              rawSegments: cached.rawSegments || [],
+              powerSegments: cached.powerSegments || [],
+            });
+          } else {
+            const file = await entry.handle.getFile();
+            const buf = await file.arrayBuffer();
+            const parsed = parseFitFile(buf);
+            const cw = parsed.canonicalWorkout || {};
+            const meta = parsed.meta || {};
+            const ftp = meta.ftp || DEFAULT_FTP;
+            const lastSample = parsed.samples?.length
+              ? parsed.samples[parsed.samples.length - 1]
+              : null;
+            const durationSecHint =
+              meta.startedAt && meta.endedAt
+                ? Math.max(
+                    1,
+                    Math.round(
+                      (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
+                    ),
+                  )
+                : Math.max(1, Math.round(lastSample?.t || 0));
 
-          const metrics = computeMetricsFromSamples(
-            parsed.samples || [],
-            ftp,
-            durationSecHint,
-          );
+            const metrics = computeMetricsFromSamples(
+              parsed.samples || [],
+              ftp,
+              durationSecHint,
+            );
 
-          results.push({
-            workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
-            rawSegments: cw.rawSegments || [],
-            minutePower: metrics.minutePower || [],
-            durationSec: metrics.durationSec || durationSecHint || 0,
-            kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
-            ifValue: metrics.ifValue,
-            tss: metrics.tss,
-            startedAt: meta.startedAt,
-          });
+            const payload = {
+              workoutTitle: cw.workoutTitle || entry.name.replace(/\.fit$/i, ""),
+              durationSec: metrics.durationSec || durationSecHint || 0,
+              kj: meta.totalWorkJ ? meta.totalWorkJ / 1000 : metrics.kj,
+              ifValue: metrics.ifValue,
+              tss: metrics.tss,
+              startedAt: meta.startedAt,
+              rawSegments: cw.rawSegments || [],
+              powerSegments: buildPowerSegments(parsed.samples || [], durationSecHint),
+            };
+            results.push(payload);
+            statsCache.entries[entry.name] = {
+              workoutTitle: payload.workoutTitle,
+              durationSec: payload.durationSec,
+              kj: payload.kj,
+              ifValue: payload.ifValue,
+              tss: payload.tss,
+              startedAt: payload.startedAt
+                ? payload.startedAt.toISOString()
+                : null,
+              rawSegments: payload.rawSegments,
+              powerSegments: payload.powerSegments,
+            };
+            cacheDirty = true;
+          }
         } catch (err) {
           console.warn(
             "[Planner] Failed to load history for",
@@ -357,6 +460,9 @@ export function createWorkoutPlanner({
             err,
           );
         }
+      }
+      if (cacheDirty) {
+        saveWorkoutStatsCache(statsCache).catch(() => {});
       }
       return results;
     })();

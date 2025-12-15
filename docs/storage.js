@@ -28,6 +28,7 @@ export const STORAGE_LAST_SCRAPED_FLAG = "lastScrapedWorkoutJustScraped";
 export const STORAGE_LAST_BIKE_DEVICE_ID = "lastBikeDeviceId";
 export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 export const STORAGE_THEME_MODE = "themeMode";
+export const STORAGE_WORKOUT_STATS_CACHE = "workoutStatsCache";
 
 const FTP_KEY = "ftp";
 const DEFAULT_WORKOUT_FILES = [
@@ -372,6 +373,17 @@ export function saveBikeBleDeviceId(id) {
 
 export function saveHrBleDeviceId(id) {
   return setSetting(STORAGE_LAST_HR_DEVICE_ID, id || null);
+}
+
+// --------------------------- Workout stats cache (per FIT file) ---------------------------
+
+export async function loadWorkoutStatsCache() {
+  const raw = (await getSetting(STORAGE_WORKOUT_STATS_CACHE, null)) || null;
+  return raw && typeof raw === "object" ? raw : null;
+}
+
+export function saveWorkoutStatsCache(cache) {
+  return setSetting(STORAGE_WORKOUT_STATS_CACHE, cache || null);
 }
 
 // --------------------------- Root Directory Picker ---------------------------

@@ -144,6 +144,8 @@ export function drawMiniHistoryChart({
   ftp = DEFAULT_FTP,
   rawSegments = [],
   actualPower = [],
+  actualPowerSegments = [],
+  durationSec: durationSecProp = null,
 }) {
   if (!svg) return;
   clearSvg(svg);
@@ -157,8 +159,18 @@ export function drawMiniHistoryChart({
     (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
     0
   );
-  const totalActualSec = actualPower.length * 60;
-  const totalSec = Math.max(1, totalSegSec, totalActualSec);
+  const totalActualSecFromSegments = actualPowerSegments.reduce(
+    (sum, [, dur]) => sum + Math.max(1, Math.round(dur || 0)),
+    0
+  );
+  const totalActualSec =
+    actualPowerSegments.length > 0
+      ? totalActualSecFromSegments
+      : actualPower.length * 60;
+  const totalSec =
+    durationSecProp && durationSecProp > 0
+      ? durationSecProp
+      : Math.max(1, totalSegSec, totalActualSec);
 
   const maxTarget =
     rawSegments.reduce((max, [minutes, p0, p1]) => {
@@ -193,17 +205,60 @@ export function drawMiniHistoryChart({
     });
   }
 
-  // Actual power line (minute-avg)
-  if (actualPower.length) {
-    const pts = actualPower.map((p, i) => {
-      const t = i * 60 + 30; // mid-minute
-      const x = (t / totalSec) * w;
-      const y = h - (Math.min(maxY, Math.max(0, p || 0)) / maxY) * h;
-      return {x, y};
+  // Actual power line (step plot from cached segments or minute samples)
+  const step = [];
+  if (actualPowerSegments.length) {
+    const safeTotalSec = Math.max(totalSec, totalActualSecFromSegments);
+    let elapsed = 0;
+    actualPowerSegments.forEach(([pRaw, durRaw], idx) => {
+      const dur = Math.max(1, Math.round(durRaw || 0));
+      const p = Math.min(maxY, Math.max(0, pRaw || 0));
+      const y = h - (p / maxY) * h;
+      const xStart = (elapsed / safeTotalSec) * w;
+      const xEnd = ((elapsed + dur) / safeTotalSec) * w;
+      if (idx === 0) {
+        step.push(`M${xStart.toFixed(2)},${y.toFixed(2)}`);
+      }
+      step.push(`L${xEnd.toFixed(2)},${y.toFixed(2)}`);
+      const next = actualPowerSegments[idx + 1];
+      if (next) {
+        const nextP = Math.min(maxY, Math.max(0, next[0] || 0));
+        const yNext = h - (nextP / maxY) * h;
+        step.push(`L${xEnd.toFixed(2)},${yNext.toFixed(2)}`);
+      }
+      elapsed += dur;
     });
-    const d = pts
-      .map((pt, idx) => `${idx === 0 ? "M" : "L"}${pt.x.toFixed(2)},${pt.y.toFixed(2)}`)
-      .join(" ");
+  } else if (actualPower.length) {
+    const safeTotalSec = Math.max(totalSec, actualPower.length * 60);
+    const clamped = actualPower.map((p) => Math.min(maxY, Math.max(0, p || 0)));
+    if (clamped.length) {
+      let lastVal = clamped[0];
+      let startMinute = 0;
+      const emitSegment = (minuteIndex, value) => {
+        const tEnd = minuteIndex * 60;
+        const y = h - (value / maxY) * h;
+        if (step.length === 0) {
+          step.push(`M0,${y.toFixed(2)}`);
+        }
+        step.push(`L${((tEnd / safeTotalSec) * w).toFixed(2)},${y.toFixed(2)}`);
+      };
+
+      for (let i = 1; i < clamped.length; i += 1) {
+        if (clamped[i] !== lastVal) {
+          emitSegment(i, lastVal);
+          const yNext = h - (clamped[i] / maxY) * h;
+          const tNext = i * 60;
+          step.push(`L${((tNext / safeTotalSec) * w).toFixed(2)},${yNext.toFixed(2)}`);
+          startMinute = i;
+          lastVal = clamped[i];
+        }
+      }
+      emitSegment(clamped.length, lastVal);
+    }
+  }
+
+  if (step.length) {
+    const d = step.join("");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
