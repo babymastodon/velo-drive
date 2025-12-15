@@ -291,6 +291,17 @@ function createWorkoutPicker(config) {
     }
 
     if (searchTerm) {
+      const rawTokens = searchTerm
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const tokens = rawTokens.flatMap((tok) => {
+        const minMatch = tok.match(/^(\d+)\s*min$/i);
+        const compactMatch = tok.match(/^(\d+)\s*(m|min)$/i);
+        if (minMatch) return [`${minMatch[1]} min`];
+        if (compactMatch) return [`${compactMatch[1]} min`];
+        return [tok];
+      });
       items = items.filter((item) => {
         const { canonical } = item;
         const title = canonical.workoutTitle;
@@ -308,7 +319,7 @@ function createWorkoutPicker(config) {
         ]
           .join(" ")
           .toLowerCase();
-        return haystack.includes(searchTerm);
+        return tokens.every((t) => haystack.includes(t));
       });
     }
 
