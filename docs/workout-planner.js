@@ -96,7 +96,7 @@ export function createWorkoutPlanner({
   const historyData = new Map(); // dateKey -> Array<preview>
   let historyIndexPromise = null;
   let statsCache = null;
-  const STATS_CACHE_VERSION = 29; // bump whenever cache format/logic changes
+  const STATS_CACHE_VERSION = 30; // bump whenever cache format/logic changes
   const aggTotals = {
     "7": {sec: 0, kj: 0, tss: 0},
     "30": {sec: 0, kj: 0, tss: 0},
@@ -419,6 +419,35 @@ export function createWorkoutPlanner({
         actualLineSegments: data.powerSegments || [],
         actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
         durationSec: data.durationSec || 0,
+      });
+      chartWrap._plannerChartData = {
+        width: rect.width || 240,
+        height: rect.height || 120,
+        rawSegments: data.rawSegments || [],
+        actualLineSegments: data.powerSegments || [],
+        actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
+        durationSec: data.durationSec || 0,
+      };
+    });
+  }
+  function rerenderCharts() {
+    if (!overlay) return;
+    const wraps = overlay.querySelectorAll(".planner-workout-chart");
+    wraps.forEach((wrap) => {
+      const svg = wrap.querySelector("svg");
+      const payload = wrap._plannerChartData;
+      if (!svg || !payload) return;
+      const rect = wrap.getBoundingClientRect();
+      drawMiniHistoryChart({
+        svg,
+        width: rect.width || payload.width || 240,
+        height: rect.height || payload.height || 120,
+        rawSegments: payload.rawSegments || [],
+        actualLineSegments: payload.actualLineSegments || [],
+        actualPowerMax:
+          payload.actualPowerMax ||
+          powerMaxFromIntervals(payload.actualLineSegments),
+        durationSec: payload.durationSec || 0,
       });
     });
   }
@@ -1043,5 +1072,6 @@ export function createWorkoutPlanner({
     close,
     isOpen: () => isOpen,
     getSelectedDate: () => selectedDate,
+    rerenderCharts,
   };
 }
