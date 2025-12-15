@@ -47,7 +47,10 @@
   --cta-text: #ffffff;
   --cta-soft: rgba(216, 125, 115, 0.24);
   --cta-border: #d87d73;
-  --planner-selected-hover-bg: rgba(216, 125, 115, 0.48);
+  --planner-selected-bg: #edd7d5;
+  --planner-selected-hover-bg: #e9c4c0;
+  --planner-today-bg: #f2e0c6;
+  --planner-today-hover-bg: #ebd0aa;
   --nav-bg: #f4f4f4;
   --grid-line: #bdbdbd;
   --grid-line-subtle: #d6d6d6;
@@ -132,7 +135,10 @@
     --cta-text: #ffffff;
     --cta-soft: rgba(189, 77, 69, 0.28);
     --cta-border: #bd4d45;
-    --planner-selected-hover-bg: rgba(189, 77, 69, 0.52);
+    --planner-selected-bg: #4d2e2c;
+    --planner-selected-hover-bg: #663531;
+    --planner-today-bg: #3d342b;
+    --planner-today-hover-bg: #69523a;
     --nav-bg: #222222;
     --grid-line: #444444;
     --grid-line-subtle: #333333;
@@ -208,7 +214,10 @@
   --cta-text: #ffffff;
   --cta-soft: rgba(216, 125, 115, 0.24);
   --cta-border: #d87d73;
-  --planner-selected-hover-bg: rgba(216, 125, 115, 0.48);
+  --planner-selected-bg: #edd7d5;
+  --planner-selected-hover-bg: #e9c4c0;
+  --planner-today-bg: #f2e0c6;
+  --planner-today-hover-bg: #ebd0aa;
   --nav-bg: #f4f4f4;
   --grid-line: #bdbdbd;
   --grid-line-subtle: #d6d6d6;
@@ -275,7 +284,10 @@
   --cta-text: #ffffff;
   --cta-soft: rgba(189, 77, 69, 0.28);
   --cta-border: #bd4d45;
-  --planner-selected-hover-bg: rgba(189, 77, 69, 0.52);
+  --planner-selected-bg: #4d2e2c;
+  --planner-selected-hover-bg: #663531;
+  --planner-today-bg: #3d342b;
+  --planner-today-hover-bg: #69523a;
   --nav-bg: #222222;
   --grid-line: #444444;
   --grid-line-subtle: #333333;

@@ -33,6 +33,7 @@ import {
   wasWorkoutJustScraped,
   clearJustScrapedFlag,
   loadRootDirHandle,
+  saveSelectedWorkout,
 } from "./storage.js";
 import { isSettingsModalOpen } from "./settings.js";
 
@@ -1122,11 +1123,29 @@ async function initPage() {
     },
     onScheduledLoadRequested: (entry) => {
       if (!entry) return;
+      const canonicalFromEntry = entry.canonical;
       const canonical = {
-        workoutTitle: entry.workoutTitle || "Workout",
-        rawSegments: entry.rawSegments || [],
-        source: entry.fileName || entry.workoutTitle || "scheduled",
+        workoutTitle:
+          canonicalFromEntry?.workoutTitle ||
+          entry.workoutTitle ||
+          "Workout",
+        rawSegments:
+          (Array.isArray(canonicalFromEntry?.rawSegments) &&
+            canonicalFromEntry.rawSegments) ||
+          (Array.isArray(entry.rawSegments) ? entry.rawSegments : []),
+        source:
+          canonicalFromEntry?.source ||
+          entry.source ||
+          entry.fileName ||
+          entry.workoutTitle ||
+          "scheduled",
+        sourceURL: canonicalFromEntry?.sourceURL || entry.sourceURL || "",
+        description:
+          canonicalFromEntry?.description || entry.description || "",
+        fileName:
+          canonicalFromEntry?.fileName || entry.fileName || entry.workoutTitle,
       };
+      saveSelectedWorkout(canonical);
       engine.setWorkoutFromPicker(canonical);
       if (planner && typeof planner.close === "function") {
         planner.close();
