@@ -287,6 +287,21 @@
   background: var(--hover-light);
 }
 
+.planner-day.suppress-hover:hover:not(.is-selected):not(.is-today) {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.planner-day.suppress-hover:hover.is-selected {
+  background: var(--cta-soft);
+  box-shadow: inset 0 0 0 1px var(--cta-border);
+}
+
+.planner-day.suppress-hover:hover.is-today:not(.is-selected) {
+  background: var(--warning-bg);
+  box-shadow: inset 0 0 0 1px var(--warning-border);
+}
+
 .planner-day.is-selected {
   background: var(--cta-soft);
   box-shadow: inset 0 0 0 1px var(--cta-border);
