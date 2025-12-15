@@ -1086,23 +1086,118 @@ function createWorkoutPicker(config) {
   }
 
   function setupHotkeys() {
+    const handleSelectNav = (selectEl, key) => {
+      if (!selectEl) return false;
+      const k = (key || "").toLowerCase();
+      const isDeltaKey =
+        k === "arrowdown" || k === "arrowup" || k === "j" || k === "k";
+      if (!isDeltaKey) return false;
+      const delta = k === "arrowup" || k === "k" ? -1 : 1;
+      const opts = Array.from(selectEl.options || []);
+      const idx =
+        typeof selectEl.selectedIndex === "number" && selectEl.selectedIndex >= 0
+          ? selectEl.selectedIndex
+          : opts.findIndex((o) => o.selected);
+      const nextIdx = Math.min(
+        Math.max(0, idx + delta),
+        Math.max(0, opts.length - 1),
+      );
+      if (opts[nextIdx]) {
+        selectEl.selectedIndex = nextIdx;
+        opts[nextIdx].selected = true;
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      return true;
+    };
+
+    if (zoneFilter) {
+      zoneFilter.addEventListener("keydown", (e) => {
+        const handled = handleSelectNav(e.target, e.key);
+        if (handled) {
+          e.preventDefault();
+          e.stopPropagation();
+        } else if ((e.key || "").toLowerCase() === "enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          zoneFilter.blur();
+        }
+      });
+    }
+
+    if (durationFilter) {
+      durationFilter.addEventListener("keydown", (e) => {
+        const handled = handleSelectNav(e.target, e.key);
+        if (handled) {
+          e.preventDefault();
+          e.stopPropagation();
+        } else if ((e.key || "").toLowerCase() === "enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          durationFilter.blur();
+        }
+      });
+    }
+
     document.addEventListener("keydown", (e) => {
       if (!isPickerOpen) return;
       if (isBuilderMode || isImportMode) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const tag = e.target?.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      const key = (e.key || "").toLowerCase();
 
-      const key = e.key;
+      if (key === "/" && searchInput) {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+        return;
+      }
 
-      if (key === "Backspace" && scheduleMode) {
+      if (document.activeElement === searchInput) {
+        if (key === "enter") {
+          e.preventDefault();
+          searchInput.blur();
+        }
+        return;
+      }
+
+      if (key === "z" && zoneFilter) {
+        e.preventDefault();
+        zoneFilter.focus();
+        if (zoneFilter.showPicker) zoneFilter.showPicker();
+        return;
+      }
+
+      if (key === "d" && durationFilter) {
+        e.preventDefault();
+        durationFilter.focus();
+        if (durationFilter.showPicker) durationFilter.showPicker();
+        return;
+      }
+
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "SELECT") {
+        const handled = handleSelectNav(e.target, key);
+        if (handled) {
+          e.preventDefault();
+          return;
+        }
+        if (key === "enter") {
+          e.preventDefault();
+          e.target.blur();
+          return;
+        }
+        // Let native select handle other keys.
+        return;
+      }
+
+      if (key === "backspace" && scheduleMode) {
         e.preventDefault();
         close({returnToPlanner: true});
         return;
       }
 
-      if (key === "Enter") {
+      if (key === "enter") {
         // Allow Enter to select the expanded workout unless the search box is focused.
         if (searchInput && document.activeElement === searchInput) return;
 
@@ -1116,13 +1211,13 @@ function createWorkoutPicker(config) {
         return;
       }
 
-      if (key === "ArrowDown" || key === "j" || key === "J") {
+      if (key === "arrowdown" || key === "j") {
         e.preventDefault();
         movePickerExpansion(+1);
         return;
       }
 
-      if (key === "ArrowUp" || key === "k" || key === "K") {
+      if (key === "arrowup" || key === "k") {
         e.preventDefault();
         movePickerExpansion(-1);
         return;
