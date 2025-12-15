@@ -327,6 +327,251 @@ export function drawMiniHistoryChart({
   }
 }
 
+function formatDurationLabel(sec) {
+  if (!sec) return "0s";
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  if (sec < 3600) {
+    return `${m}m`;
+  }
+  const h = Math.floor(sec / 3600);
+  const remM = Math.floor((sec % 3600) / 60);
+  if (remM > 0) return `${h}h${remM}m`;
+  return `${h}h`;
+}
+
+// --------------------------- Power curve (history detail) ---------------------------
+
+export function drawPowerCurveChart({
+  svg,
+  width = 600,
+  height = 300,
+  ftp = DEFAULT_FTP,
+  points = [], // [{durSec, power}]
+  maxDurationSec = 0,
+}) {
+  if (!svg) return;
+  if (typeof svg._powerCurveCleanup === "function") {
+    svg._powerCurveCleanup();
+  }
+  clearSvg(svg);
+
+  const w = Math.max(200, width);
+  const h = Math.max(180, height);
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+
+  const sorted = [...points].sort((a, b) => (a.durSec || 0) - (b.durSec || 0));
+  const maxDurRaw =
+    maxDurationSec || (sorted.length ? sorted[sorted.length - 1].durSec || 1 : 1);
+  const maxDur = Math.max(1, maxDurRaw * 1.1);
+  const maxPower = sorted.reduce(
+    (m, p) => Math.max(m, Math.abs(p.power || 0)),
+    Math.max(ftp * 2, 100),
+  );
+
+  const log = (v) => Math.log(Math.max(1, v));
+  const logMin = log(1);
+  const logMax = log(maxDur);
+  const xFor = (dur) =>
+    ((log(Math.max(1, dur)) - logMin) / Math.max(1e-6, logMax - logMin)) * w;
+  const yFor = (p) => h - (Math.max(0, p) / maxPower) * h;
+
+  // grid / ticks
+  const tickDurations = [
+    1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600, 5400, 7200, 14400, 28800,
+  ].filter((d) => d <= maxDur);
+
+  tickDurations.forEach((dur, idx) => {
+    const x = xFor(dur);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", String(x));
+    line.setAttribute("x2", String(x));
+    line.setAttribute("y1", "0");
+    line.setAttribute("y2", String(h));
+    line.setAttribute("stroke", getCssVar("--border-subtle"));
+    line.setAttribute("stroke-width", "0.7");
+    line.setAttribute("pointer-events", "none");
+    svg.appendChild(line);
+
+    if (idx === tickDurations.length - 1) return;
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", String(x + 4));
+    label.setAttribute("y", String(h - 6));
+    label.setAttribute("fill", getCssVar("--text-muted"));
+    label.setAttribute("font-size", "14");
+    label.setAttribute("pointer-events", "none");
+    label.textContent = formatDurationLabel(dur);
+    svg.appendChild(label);
+  });
+
+  // FTP line and Y ticks
+  const yTicks = [];
+  for (let p = 0; p <= maxPower; p += 100) yTicks.push(p);
+  yTicks.forEach((p) => {
+    if (p === 0) return;
+    const y = yFor(p);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", "0");
+    line.setAttribute("x2", String(w));
+    line.setAttribute("y1", String(y));
+    line.setAttribute("y2", String(y));
+    line.setAttribute("stroke", getCssVar("--border-subtle"));
+    line.setAttribute("stroke-width", "0.6");
+    line.setAttribute("pointer-events", "none");
+    svg.appendChild(line);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", "4");
+    label.setAttribute("y", String(y - 4));
+    label.setAttribute("fill", getCssVar("--text-muted"));
+    label.setAttribute("font-size", "12");
+    label.setAttribute("pointer-events", "none");
+    label.textContent = `${p} W`;
+    svg.appendChild(label);
+  });
+
+  // FTP line
+  const ftpY = yFor(ftp);
+  const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  ftpLine.setAttribute("x1", "0");
+  ftpLine.setAttribute("x2", String(w));
+  ftpLine.setAttribute("y1", String(ftpY));
+  ftpLine.setAttribute("y2", String(ftpY));
+  ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
+  ftpLine.setAttribute("stroke-dasharray", "6 6");
+  ftpLine.setAttribute("stroke-width", "1.4");
+  ftpLine.setAttribute("pointer-events", "none");
+  svg.appendChild(ftpLine);
+
+  const ftpLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  ftpLabel.setAttribute("x", "6");
+  ftpLabel.setAttribute("y", String(ftpY - 6));
+  ftpLabel.setAttribute("fill", getCssVar("--ftp-line"));
+  ftpLabel.setAttribute("font-size", "14");
+  ftpLabel.setAttribute("pointer-events", "none");
+  ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
+  svg.appendChild(ftpLabel);
+
+  // 1h vertical marker
+  const hourDur = 3600;
+  if (hourDur <= maxDur) {
+    const x = xFor(hourDur);
+    const vline = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    vline.setAttribute("x1", String(x));
+    vline.setAttribute("x2", String(x));
+    vline.setAttribute("y1", "0");
+    vline.setAttribute("y2", String(h));
+    vline.setAttribute("stroke", getCssVar("--border-strong"));
+    vline.setAttribute("stroke-dasharray", "4 4");
+    vline.setAttribute("stroke-width", "1.4");
+    vline.setAttribute("pointer-events", "none");
+    svg.appendChild(vline);
+
+    const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    lbl.setAttribute("x", String(x + 6));
+    lbl.setAttribute("y", "16");
+    lbl.setAttribute("fill", getCssVar("--border-strong"));
+    lbl.setAttribute("font-size", "14");
+    lbl.setAttribute("pointer-events", "none");
+    lbl.textContent = "1h";
+    svg.appendChild(lbl);
+  }
+
+  if (!sorted.length) return;
+
+  const pathParts = [];
+  sorted.forEach((pt, idx) => {
+    const x = xFor(pt.durSec || 1);
+    const y = yFor(pt.power || 0);
+    pathParts.push(`${idx === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`);
+  });
+
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", pathParts.join(""));
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", getCssVar("--power-line"));
+  path.setAttribute("stroke-width", "2");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(path);
+
+  const hoverDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  hoverDot.setAttribute("r", "4");
+  hoverDot.setAttribute("fill", getCssVar("--power-line"));
+  hoverDot.style.display = "none";
+  svg.appendChild(hoverDot);
+
+  const hoverLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  hoverLabel.setAttribute("fill", getCssVar("--power-line"));
+  hoverLabel.setAttribute("font-size", "14");
+  hoverLabel.setAttribute("pointer-events", "none");
+  hoverLabel.style.display = "none";
+  svg.appendChild(hoverLabel);
+
+  const findInterpolatedPoint = (targetDur) => {
+    if (!sorted.length) return null;
+    let lo = 0;
+    let hi = sorted.length - 1;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if ((sorted[mid].durSec || 0) < targetDur) lo = mid + 1;
+      else hi = mid;
+    }
+    const idx2 = lo;
+    const idx1 = Math.max(0, idx2 - 1);
+    const p1 = sorted[idx1];
+    const p2 = sorted[idx2] || p1;
+    if (!p1) return null;
+    if (p1 === p2) return {durSec: targetDur, power: p1.power};
+    const span = (p2.durSec || 1) - (p1.durSec || 1);
+    const t =
+      span > 0 ? (targetDur - (p1.durSec || 1)) / span : 0;
+    const power = (p1.power || 0) + t * ((p2.power || 0) - (p1.power || 0));
+    return {durSec: targetDur, power};
+  };
+
+  const onMove = (evt) => {
+    const rect = svg.getBoundingClientRect();
+    const relX = evt.clientX - rect.left;
+    const clampedX = Math.max(0, Math.min(w, relX));
+    const ratio = clampedX / w;
+    const dur = Math.exp(ratio * (logMax - logMin) + logMin);
+    const pt = findInterpolatedPoint(dur);
+    if (!pt) return;
+    const x = xFor(pt.durSec || 1);
+    const y = yFor(pt.power || 0);
+    hoverDot.setAttribute("cx", String(x));
+    hoverDot.setAttribute("cy", String(y));
+    hoverDot.style.display = "block";
+
+    const label = `${Math.round(pt.power || 0)} W · ${formatDurationLabel(
+      Math.round(pt.durSec || 0)
+    )}`;
+    hoverLabel.textContent = label;
+    const textWidth = label.length * 6.5;
+    let lx = x + 8;
+    if (lx + textWidth > w) lx = x - textWidth - 8;
+    let ly = y - 8;
+    if (ly < 12) ly = y + 14;
+    hoverLabel.setAttribute("x", String(lx));
+    hoverLabel.setAttribute("y", String(ly));
+    hoverLabel.style.display = "block";
+  };
+
+  const onLeave = () => {
+    hoverDot.style.display = "none";
+    hoverLabel.style.display = "none";
+  };
+
+  svg.addEventListener("mousemove", onMove);
+  svg.addEventListener("mouseleave", onLeave);
+  svg._powerCurveCleanup = () => {
+    svg.removeEventListener("mousemove", onMove);
+    svg.removeEventListener("mouseleave", onLeave);
+  };
+}
+
 // Track last hovered segment across charts (main + mini)
 let lastHoveredSegment = null;
 const hoverCleanupMap = new WeakMap();
@@ -855,18 +1100,7 @@ export function drawWorkoutChart({
   }
 
   // past shade
-  if (elapsedSec > 0 && safeTotalSec > 0) {
-    const xPast = Math.min(w, (elapsedSec / safeTotalSec) * w);
-    const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    shade.setAttribute("x", "0");
-    shade.setAttribute("y", "0");
-    shade.setAttribute("width", String(xPast));
-    shade.setAttribute("height", String(h));
-    shade.setAttribute("fill", getCssVar("--shade-bg"));
-    shade.setAttribute("fill-opacity", "0.05");
-    shade.setAttribute("pointer-events", "none");
-    svg.appendChild(shade);
-  }
+  // (no past shade/progress in detail view)
 
   // FTP line
   const ftpY = h - (ftp / maxY) * h;
@@ -910,17 +1144,7 @@ export function drawWorkoutChart({
     svg.appendChild(durationLabel);
   }
 
-  // position line
-  const xNow = Math.min(w, (elapsedSec / safeTotalSec) * w);
-  const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  posLine.setAttribute("x1", String(xNow));
-  posLine.setAttribute("x2", String(xNow));
-  posLine.setAttribute("y1", "0");
-  posLine.setAttribute("y2", String(h));
-  posLine.setAttribute("stroke", "#fdd835");
-  posLine.setAttribute("stroke-width", "1.5");
-  posLine.setAttribute("pointer-events", "none");
-  svg.appendChild(posLine);
+  // (no position line for detail view)
 
   // live sample lines
   const powerColor = getCssVar("--power-line");
