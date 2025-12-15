@@ -1,5 +1,5 @@
 import { parseFitFile } from "./fit-file.js";
-import { drawMiniHistoryChart } from "./workout-chart.js";
+import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from "./workout-chart.js";
 import { DEFAULT_FTP } from "./workout-metrics.js";
 import {
   loadWorkoutDirHandle,
@@ -12,6 +12,10 @@ const VISIBLE_WEEKS = 16;
 const SCROLL_BUFFER_ROWS = 2;
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
+const POWER_CURVE_DURS = [
+  1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200, 1800,
+  2400, 3600, 5400, 7200, 14400, 28800,
+];
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -73,6 +77,14 @@ export function createWorkoutPlanner({
   agg7dEl,
   agg30dEl,
   footerEl,
+  detailView,
+  detailStatsEl,
+  powerCurveSvg,
+  detailChartSvg,
+  detailChartPanel,
+  detailChartTooltip,
+  backBtn,
+  titleEl,
 } = {}) {
   if (!overlay || !calendarBody) {
     return {
@@ -101,6 +113,9 @@ export function createWorkoutPlanner({
     "7": {sec: 0, kj: 0, tss: 0},
     "30": {sec: 0, kj: 0, tss: 0},
   };
+  let detailChartData = null;
+  let detailMode = false;
+  let detailState = null;
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -250,6 +265,8 @@ export function createWorkoutPlanner({
     const IF = np && ftpVal ? np / ftpVal : null;
     const tss = IF != null ? (durationSec * IF * IF) / 36 : null;
 
+    const avgPower = perSec.length ? sumJ / perSec.length : 0;
+
     return {
       durationSec,
       kj: sumJ / 1000,
@@ -257,7 +274,72 @@ export function createWorkoutPlanner({
       tss,
       ftp: ftpVal,
       minutePower: perMin,
+      avgPower,
+      normalizedPower: np || null,
+      perSecondPower: perSec,
     };
+  }
+
+  function computeHrCadStats(samples) {
+    if (!Array.isArray(samples) || !samples.length) return {};
+    let hrSum = 0;
+    let hrCount = 0;
+    let hrMax = 0;
+    let cadSum = 0;
+    let cadCount = 0;
+    let cadMax = 0;
+    samples.forEach((s) => {
+      if (Number.isFinite(s.hr)) {
+        hrSum += s.hr;
+        hrCount += 1;
+        hrMax = Math.max(hrMax, s.hr);
+      }
+      if (Number.isFinite(s.cadence)) {
+        cadSum += s.cadence;
+        cadCount += 1;
+        cadMax = Math.max(cadMax, s.cadence);
+      }
+    });
+    return {
+      avgHr: hrCount ? hrSum / hrCount : null,
+      maxHr: hrCount ? hrMax : null,
+      avgCadence: cadCount ? cadSum / cadCount : null,
+      maxCadence: cadCount ? cadMax : null,
+    };
+  }
+
+  function buildPowerCurve(perSec, durations) {
+    if (!perSec || !perSec.length) return [];
+    const prefix = new Float64Array(perSec.length + 1);
+    for (let i = 0; i < perSec.length; i += 1) {
+      prefix[i + 1] = prefix[i] + perSec[i];
+    }
+    const maxDur = perSec.length;
+    const dynDurations = [];
+    for (let d = 1; d <= Math.min(maxDur, 60); d += 1) dynDurations.push(d);
+    for (let d = 62; d <= Math.min(maxDur, 180); d += 2) dynDurations.push(d);
+    for (let d = 182; d <= Math.min(maxDur, 360); d += 5) dynDurations.push(d);
+    for (let d = 365; d <= Math.min(maxDur, 1800); d += 10) dynDurations.push(d);
+    for (let d = 1810; d <= Math.min(maxDur, 7200); d += 30) dynDurations.push(d);
+    for (let d = 7230; d <= Math.min(maxDur, 28800); d += 60) dynDurations.push(d);
+    const allDurations = Array.from(new Set([...durations, ...dynDurations]))
+      .filter((d) => d >= 1 && d <= maxDur)
+      .sort((a, b) => a - b);
+
+    const result = [];
+    allDurations.forEach((durRaw) => {
+      const dur = Math.max(1, Math.round(durRaw));
+      let best = 0;
+      let windowSum = prefix[dur] - prefix[0];
+      best = windowSum / dur;
+      for (let i = dur; i < perSec.length; i += 1) {
+        windowSum += perSec[i] - perSec[i - dur];
+        const avg = windowSum / dur;
+        if (avg > best) best = avg;
+      }
+      result.push({ durSec: dur, power: best });
+    });
+    return result;
   }
 
   function buildPowerSegments(samples, durationSecHint) {
@@ -409,6 +491,11 @@ export function createWorkoutPlanner({
     card.appendChild(chartWrap);
     content.appendChild(card);
 
+    const dateKey = cell.dataset.date;
+    card.addEventListener("click", () => {
+      openDetailView(dateKey, data);
+    });
+
     requestAnimationFrame(() => {
       const rect = chartWrap.getBoundingClientRect();
       drawMiniHistoryChart({
@@ -430,6 +517,185 @@ export function createWorkoutPlanner({
       };
     });
   }
+
+  function renderDetailStats(detail) {
+    if (!detailStatsEl) return;
+    detailStatsEl.innerHTML = "";
+    const row = document.createElement("div");
+    row.className = "wb-stats-row";
+    const pushStat = (label, value) => {
+      if (value == null || value === "") return;
+      const chip = document.createElement("div");
+      chip.className = "wb-stat-chip";
+      const lbl = document.createElement("div");
+      lbl.className = "wb-stat-label";
+      lbl.textContent = label;
+      const val = document.createElement("div");
+      val.className = "wb-stat-value";
+      val.textContent = value;
+      chip.appendChild(lbl);
+      chip.appendChild(val);
+      row.appendChild(chip);
+    };
+
+    pushStat("Duration", formatDuration(detail.durationSec));
+    if (Number.isFinite(detail.avgPower))
+      pushStat("Avg Power", `${Math.round(detail.avgPower)} W`);
+    if (Number.isFinite(detail.normalizedPower))
+      pushStat("NP", `${Math.round(detail.normalizedPower)} W`);
+    if (Number.isFinite(detail.kj)) pushStat("Work", `${Math.round(detail.kj)} kJ`);
+    if (Number.isFinite(detail.ifValue))
+      pushStat("IF", detail.ifValue.toFixed(2));
+    if (Number.isFinite(detail.tss)) pushStat("TSS", Math.round(detail.tss));
+    if (Number.isFinite(detail.vi)) pushStat("VI", detail.vi.toFixed(2));
+    if (Number.isFinite(detail.avgHr))
+      pushStat("Avg HR", `${Math.round(detail.avgHr)} bpm`);
+    if (Number.isFinite(detail.maxHr))
+      pushStat("Max HR", `${Math.round(detail.maxHr)} bpm`);
+    if (Number.isFinite(detail.avgCadence))
+      pushStat("Avg Cadence", `${Math.round(detail.avgCadence)} rpm`);
+    if (Number.isFinite(detail.maxCadence))
+      pushStat("Max Cadence", `${Math.round(detail.maxCadence)} rpm`);
+    if (detail.startedAt)
+      pushStat("Started", detail.startedAt.toLocaleString());
+
+    if (row.children.length) {
+      detailStatsEl.appendChild(row);
+    }
+  }
+
+  function renderPowerCurve(detail) {
+    if (!powerCurveSvg) return;
+    const rect = powerCurveSvg.getBoundingClientRect();
+    drawPowerCurveChart({
+      svg: powerCurveSvg,
+      width: rect.width || 600,
+      height: rect.height || 300,
+      ftp: detail.ftp || DEFAULT_FTP,
+      points: detail.powerCurve || [],
+      maxDurationSec: detail.durationSec || 0,
+    });
+  }
+
+  function renderDetailChart(detail) {
+    if (!detailChartSvg || !detailChartPanel || !detailChartTooltip) return;
+    const rect = detailChartPanel.getBoundingClientRect();
+    drawWorkoutChart({
+      svg: detailChartSvg,
+      panel: detailChartPanel,
+      tooltipEl: detailChartTooltip,
+      width: rect.width || 1000,
+      height: rect.height || 320,
+      mode: "workout",
+      ftp: detail.ftp || DEFAULT_FTP,
+      rawSegments: detail.rawSegments || [],
+      elapsedSec: detail.durationSec || 0,
+      liveSamples: detail.samples || [],
+      manualErgTarget: 0,
+    });
+    detailChartData = {
+      width: rect.width || 1000,
+      height: rect.height || 320,
+      detail,
+    };
+  }
+
+  function exitDetailMode() {
+    detailMode = false;
+    detailState = null;
+    detailChartData = null;
+    if (modal) modal.classList.remove("planner-detail-mode");
+    if (detailView) detailView.style.display = "none";
+    if (titleEl) titleEl.textContent = "Workout planner";
+    updateSelectedLabel();
+    updateScheduleButton();
+    if (backBtn) backBtn.style.display = "none";
+  }
+
+  async function openDetailView(dateKey, preview) {
+    if (!dateKey || !preview || !isPastDate(dateKey)) return;
+    await ensureHistoryIndex();
+    const entries = historyIndex.get(dateKey) || [];
+    const entry =
+      entries.find((e) => e.name === preview.fileName) || entries[0] || null;
+    if (!entry) return;
+    try {
+      const file = await entry.handle.getFile();
+      const buf = await file.arrayBuffer();
+      const parsed = parseFitFile(buf);
+      const cw = parsed.canonicalWorkout || {};
+      const meta = parsed.meta || {};
+      const ftp = meta.ftp || DEFAULT_FTP;
+      const lastSample = parsed.samples?.length
+        ? parsed.samples[parsed.samples.length - 1]
+        : null;
+      const durationSecHint =
+        meta.startedAt && meta.endedAt
+          ? Math.max(
+              1,
+              Math.round(
+                (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
+              ),
+            )
+          : Math.max(1, Math.round(lastSample?.t || 0));
+
+      const metrics = computeMetricsFromSamples(
+        parsed.samples || [],
+        ftp,
+        durationSecHint,
+      );
+      const hrStats = computeHrCadStats(parsed.samples || []);
+      const perSec = metrics.perSecondPower || [];
+      const curvePoints = buildPowerCurve(perSec, POWER_CURVE_DURS);
+      const vi =
+        metrics.avgPower && metrics.avgPower > 0 && metrics.normalizedPower
+          ? metrics.normalizedPower / metrics.avgPower
+          : null;
+
+      detailState = {
+        dateKey,
+        fileName: entry.name,
+        workoutTitle: cw.workoutTitle || preview.workoutTitle,
+        durationSec: metrics.durationSec || durationSecHint || 0,
+        kj:
+          meta.totalWorkJ != null
+            ? meta.totalWorkJ / 1000
+            : metrics.kj,
+        ifValue: metrics.ifValue,
+        tss: metrics.tss,
+        avgPower: metrics.avgPower,
+        normalizedPower: metrics.normalizedPower,
+        vi,
+        ftp,
+        rawSegments: cw.rawSegments || [],
+        samples: parsed.samples || [],
+        powerCurve: curvePoints,
+        startedAt: meta.startedAt || preview.startedAt || keyToDate(dateKey),
+        avgHr: hrStats.avgHr,
+        maxHr: hrStats.maxHr,
+        avgCadence: hrStats.avgCadence,
+        maxCadence: hrStats.maxCadence,
+      };
+
+      detailMode = true;
+      if (modal) modal.classList.add("planner-detail-mode");
+      if (detailView) detailView.style.display = "flex";
+      if (titleEl) {
+        const d = detailState.startedAt || keyToDate(dateKey);
+        titleEl.textContent = formatSelectedLabel(d);
+      }
+      if (selectedLabel) {
+        selectedLabel.textContent = detailState.workoutTitle || "";
+      }
+      if (backBtn) backBtn.style.display = "inline-flex";
+
+      renderDetailStats(detailState);
+      renderPowerCurve(detailState);
+      renderDetailChart(detailState);
+    } catch (err) {
+      console.warn("[Planner] Failed to open detail view:", err);
+    }
+  }
   function rerenderCharts() {
     if (!overlay) return;
     const wraps = overlay.querySelectorAll(".planner-workout-chart");
@@ -450,6 +716,23 @@ export function createWorkoutPlanner({
         durationSec: payload.durationSec || 0,
       });
     });
+    if (detailMode && detailChartData && detailChartData.detail) {
+      const rect = detailChartPanel?.getBoundingClientRect() || {};
+      drawWorkoutChart({
+        svg: detailChartSvg,
+        panel: detailChartPanel,
+        tooltipEl: detailChartTooltip,
+        width: rect.width || detailChartData.width || 1000,
+        height: rect.height || detailChartData.height || 320,
+        mode: "workout",
+        ftp: detailChartData.detail.ftp || DEFAULT_FTP,
+        rawSegments: detailChartData.detail.rawSegments || [],
+        elapsedSec: detailChartData.detail.durationSec || 0,
+        liveSamples: detailChartData.detail.samples || [],
+        manualErgTarget: 0,
+      });
+      renderPowerCurve(detailChartData.detail);
+    }
   }
 
   async function loadHistoryPreview(dateKey) {
@@ -554,6 +837,7 @@ export function createWorkoutPlanner({
             rawSegments: cw.rawSegments || [],
             powerSegments,
             powerMax,
+            fileName: entry.name,
           });
         } catch (err) {
           console.warn(
@@ -649,8 +933,28 @@ export function createWorkoutPlanner({
     setSelectedDate(next);
   }
 
+  async function openSelectedDayDetail() {
+    if (!selectedDate) return;
+    const dateKey = formatKey(selectedDate);
+    if (!isPastDate(dateKey)) return;
+    let previews = historyData.get(dateKey);
+    if (!previews) {
+      previews = await loadHistoryPreview(dateKey);
+      if (Array.isArray(previews)) {
+        historyData.set(dateKey, previews);
+      }
+    }
+    if (Array.isArray(previews) && previews.length) {
+      openDetailView(dateKey, previews[0]);
+    }
+  }
+
   function updateScheduleButton() {
     if (!scheduleBtn) return;
+    if (detailMode) {
+      scheduleBtn.style.display = "none";
+      return;
+    }
     if (!selectedDate) {
       scheduleBtn.style.display = "none";
       return;
@@ -991,6 +1295,14 @@ export function createWorkoutPlanner({
     const tag = ev.target && ev.target.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
+    if (key === "enter") {
+      ev.preventDefault();
+      if (!detailMode) {
+        openSelectedDayDetail();
+      }
+      return;
+    }
+
     if (key === "arrowdown" || key === "j") {
       ev.preventDefault();
       moveSelection(7);
@@ -1015,6 +1327,7 @@ export function createWorkoutPlanner({
 
   function open() {
     if (!overlay) return;
+    exitDetailMode();
     resetHistoryIndex();
     selectedDate = selectedDate || new Date();
     anchorStart = startOfWeek(selectedDate);
@@ -1041,6 +1354,7 @@ export function createWorkoutPlanner({
 
   function close() {
     if (!overlay) return;
+    exitDetailMode();
     overlay.style.display = "none";
     overlay.setAttribute("aria-hidden", "true");
     isOpen = false;
@@ -1053,6 +1367,12 @@ export function createWorkoutPlanner({
 
   if (closeBtn) {
     closeBtn.addEventListener("click", close);
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener("click", () => {
+      exitDetailMode();
+    });
   }
 
   overlay.addEventListener("click", (ev) => {

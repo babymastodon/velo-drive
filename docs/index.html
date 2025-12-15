@@ -370,6 +370,13 @@
         <div class="workout-planner-title">Workout planner</div>
         <div id="plannerSelectedDateLabel" class="workout-planner-selected" aria-live="polite"></div>
         <div class="workout-planner-actions">
+          <button id="plannerBackBtn" class="wb-code-insert-btn picker-back-btn planner-back-btn" type="button" style="display: none;">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            <span>Back to calendar</span>
+          </button>
           <button id="plannerScheduleBtn" class="picker-add-btn planner-schedule-btn" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
               <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"
@@ -398,6 +405,20 @@
           </div>
           <div class="planner-calendar-body" id="plannerCalendarBody">
             <!-- rows injected by JS -->
+          </div>
+        </div>
+
+        <div class="planner-detail-view" id="plannerDetailView" style="display: none;">
+          <div class="planner-detail-top">
+            <div class="planner-detail-stats" id="plannerDetailStats"></div>
+            <div class="planner-detail-curve">
+              <svg id="plannerPowerCurveSvg" class="planner-power-curve" viewBox="0 0 600 300"></svg>
+            </div>
+          </div>
+          <div class="planner-detail-chart-panel" id="plannerDetailChartPanel">
+            <svg id="plannerDetailChartSvg" class="planner-detail-chart" viewBox="0 0 1000 320"
+              preserveAspectRatio="none"></svg>
+            <div id="plannerDetailChartTooltip" class="chart-tooltip"></div>
           </div>
         </div>
 

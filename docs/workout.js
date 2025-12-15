@@ -1025,6 +1025,14 @@ async function initPage() {
     selectedLabel: document.getElementById("plannerSelectedDateLabel"),
     scheduleBtn: document.getElementById("plannerScheduleBtn"),
     footerEl: document.getElementById("plannerFooter"),
+    detailView: document.getElementById("plannerDetailView"),
+    detailStatsEl: document.getElementById("plannerDetailStats"),
+    powerCurveSvg: document.getElementById("plannerPowerCurveSvg"),
+    detailChartSvg: document.getElementById("plannerDetailChartSvg"),
+    detailChartPanel: document.getElementById("plannerDetailChartPanel"),
+    detailChartTooltip: document.getElementById("plannerDetailChartTooltip"),
+    backBtn: document.getElementById("plannerBackBtn"),
+    titleEl: document.querySelector(".workout-planner-title"),
   });
 
   if (workoutNameLabel) {
@@ -1238,6 +1246,9 @@ async function initPage() {
   window.addEventListener("resize", () => {
     adjustStatFontSizes();
     drawChart(engine.getViewModel());
+    if (planner && typeof planner.rerenderCharts === "function") {
+      planner.rerenderCharts();
+    }
   });
 
   window.addEventListener("focus", () => {
