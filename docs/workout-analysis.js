@@ -62,6 +62,9 @@ export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, fo
   };
 
   pushStat("Duration", formatDuration(detail.durationSec));
+  if (Number.isFinite(detail.pausedSec) && detail.pausedSec > 0) {
+    pushStat("Paused", formatDuration(detail.pausedSec));
+  }
   if (detail.zone) pushStat("Zone", detail.zone);
   if (Number.isFinite(detail.avgPower))
     pushStat("Avg Power", `${Math.round(detail.avgPower)} W`);
