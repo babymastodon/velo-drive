@@ -296,7 +296,16 @@ function createWorkoutPicker(config) {
         const title = canonical.workoutTitle;
         const source = canonical.source || "";
         const description = canonical.description || "";
-        const haystack = [title, item.zone, source, description.slice(0, 300)]
+        const durationStr = Number.isFinite(item.metrics.durationMin)
+          ? `${Math.round(item.metrics.durationMin)} min`
+          : "";
+        const haystack = [
+          title,
+          item.zone,
+          source,
+          description.slice(0, 300),
+          durationStr,
+        ]
           .join(" ")
           .toLowerCase();
         return haystack.includes(searchTerm);
