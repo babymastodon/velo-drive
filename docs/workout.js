@@ -1381,6 +1381,16 @@ async function initPage() {
     }
 
     if (e.key === "Escape") {
+      if (picker && typeof picker.isOpen === "function" && picker.isOpen()) {
+        const searchInput = document.getElementById("pickerSearchInput");
+        if (
+          searchInput &&
+          (document.activeElement === searchInput || e.target === searchInput)
+        ) {
+          // Let picker handle clearing search; do not close.
+          return;
+        }
+      }
       if (planner && typeof planner.isOpen === "function" && planner.isOpen()) {
         if (typeof planner.isDetailOpen === "function" && planner.isDetailOpen()) {
           if (typeof planner.exitDetail === "function") {
