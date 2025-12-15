@@ -19,7 +19,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 4px;
-  padding: 0 46px 0 0;
+  padding: 0 46px 12px 0;
 }
 
 .workout-planner-title {
@@ -36,8 +36,8 @@
 .workout-planner-selected {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  top: 0;
+  transform: translateX(-50%);
   text-align: center;
   font-weight: 700;
   font-size: 20px;
@@ -204,22 +204,32 @@
   filter: brightness(0.98);
 }
 
-.planner-scheduled-card {
-  background: color-mix(in srgb, var(--zone-tempo) 18%, transparent);
-}
-
-.planner-scheduled-card:hover {
-  background: color-mix(in srgb, var(--zone-tempo) 28%, transparent);
-}
-
-.planner-scheduled-icon {
-  margin-right: 4px;
-}
-
 .planner-workout-card:active {
   opacity: 1;
   background: var(--hover-medium);
   filter: brightness(0.95);
+}
+
+.planner-scheduled-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.planner-scheduled-tag {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  line-height: 24px;
+}
+
+.planner-scheduled-edit-btn {
+  width: 24px;
+  height: 24px;
 }
 
 .planner-workout-header {

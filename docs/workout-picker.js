@@ -206,7 +206,7 @@ function createWorkoutPicker(config) {
   scheduleUnscheduleBtn.className = "picker-add-btn delete-workout-btn";
   scheduleUnscheduleBtn.type = "button";
   scheduleUnscheduleBtn.style.display = "none";
-  scheduleUnscheduleBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon"><path d="M5 12h14M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Unschedule</span>`;
+  scheduleUnscheduleBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" /><path d="M8 16l8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span>Unschedule</span>`;
   if (controlsEl) controlsEl.appendChild(scheduleUnscheduleBtn);
   scheduleUnscheduleBtn.addEventListener("click", () => {
     if (typeof onScheduleUnschedule === "function" && scheduleMode?.entry) {
@@ -1515,11 +1515,12 @@ function createWorkoutPicker(config) {
       overlay.style.display = "flex";
       overlay.removeAttribute("aria-hidden");
     }
+    if (scheduleMode && addWorkoutBtn) addWorkoutBtn.style.display = "none";
   }
 
   async function openScheduleMode({dateKey, entry, editMode = false} = {}) {
     scheduleMode = {dateKey, entry, editMode};
-    if (titleEl) titleEl.textContent = editMode ? "Edit Scheduled Workout" : "Schedule Workout";
+    if (titleEl) titleEl.textContent = editMode ? "Edit Schedule" : "Schedule Workout";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
     if (builderBackBtn) builderBackBtn.style.display = "none";
     if (builderSaveBtn) builderSaveBtn.style.display = "none";
