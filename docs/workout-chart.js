@@ -118,6 +118,7 @@ function renderSegmentPolygon({
   poly.setAttribute("fill", muted);
   poly.setAttribute("fill-opacity", "1");
   poly.setAttribute("stroke", "none");
+  poly.setAttribute("shape-rendering", "crispEdges");
   poly.classList.add("chart-segment");
 
   const durMin = (tEnd - tStart) / 60;

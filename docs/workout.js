@@ -783,6 +783,9 @@ function rerenderThemeSensitive() {
   if (!engine) return;
   const vm = engine.getViewModel();
   renderFromEngine(vm);
+  if (planner && typeof planner.rerenderCharts === "function") {
+    planner.rerenderCharts();
+  }
 }
 
 // --------------------------- Load scraped workout ---------------------------
@@ -988,6 +991,15 @@ async function initPage() {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => rerenderThemeSensitive();
     if (mql.addEventListener) mql.addEventListener("change", handler);
+  }
+  if (document.documentElement) {
+    const themeObserver = new MutationObserver(() => {
+      rerenderThemeSensitive();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
   }
 
   picker = getWorkoutPicker({
