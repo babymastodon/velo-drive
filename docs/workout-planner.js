@@ -1662,7 +1662,12 @@ export function createWorkoutPlanner({
         deleteCurrentDetail();
         return;
       }
-      if (key === "backspace") {
+      if (key === "d") {
+        ev.preventDefault();
+        deleteCurrentDetail();
+        return;
+      }
+      if (key === "backspace" || key === "escape") {
         ev.preventDefault();
         exitDetailMode();
       }
@@ -1670,7 +1675,7 @@ export function createWorkoutPlanner({
     }
     const key = (ev.key || "").toLowerCase();
     if (key === "escape") {
-      close();
+      // Exit detail mode handled above; otherwise ignore to avoid closing planner
       return;
     }
 
@@ -1815,6 +1820,8 @@ export function createWorkoutPlanner({
     open,
     close,
     isOpen: () => isOpen,
+    isDetailOpen: () => detailMode,
+    exitDetail: () => exitDetailMode(),
     getSelectedDate: () => selectedDate,
     rerenderCharts,
     openDetailByFile: async (fileName, startedAt) => {
