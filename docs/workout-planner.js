@@ -1,6 +1,10 @@
 import { parseFitFile } from "./fit-file.js";
-import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from "./workout-chart.js";
-import { DEFAULT_FTP, computeMetricsFromSegments, inferZoneFromSegments } from "./workout-metrics.js";
+import { drawMiniHistoryChart } from "./workout-chart.js";
+import {
+  DEFAULT_FTP,
+  computeMetricsFromSegments,
+  inferZoneFromSegments,
+} from "./workout-metrics.js";
 import {
   loadWorkoutDirHandle,
   loadWorkoutStatsCache,
@@ -8,9 +12,13 @@ import {
   loadScheduleEntries,
   saveScheduleEntries,
   loadZwoDirHandle,
-  loadTrashDirHandle,
-  ensureDirPermission,
 } from "./storage.js";
+import {
+  renderDetailStats,
+  renderPowerCurveDetail,
+  renderDetailChart,
+  moveHistoryFileToTrash,
+} from "./workout-analysis.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
@@ -18,8 +26,8 @@ const SCROLL_BUFFER_ROWS = 2;
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
 const POWER_CURVE_DURS = [
-  1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200, 1800,
-  2400, 3600, 5400, 7200, 14400, 28800,
+  1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200,
+  1800, 2400, 3600, 5400, 7200, 14400, 28800,
 ];
 
 function startOfWeek(date) {
@@ -79,8 +87,6 @@ export function createWorkoutPlanner({
   calendarBody,
   selectedLabel,
   scheduleBtn,
-  agg7dEl,
-  agg30dEl,
   footerEl,
   detailView,
   detailStatsEl,
@@ -123,9 +129,9 @@ export function createWorkoutPlanner({
   let statsCache = null;
   const STATS_CACHE_VERSION = 30; // bump whenever cache format/logic changes
   const aggTotals = {
-    "3": {sec: 0, kj: 0, tss: 0},
-    "7": {sec: 0, kj: 0, tss: 0},
-    "30": {sec: 0, kj: 0, tss: 0},
+    3: { sec: 0, kj: 0, tss: 0 },
+    7: { sec: 0, kj: 0, tss: 0 },
+    30: { sec: 0, kj: 0, tss: 0 },
   };
   let detailChartData = null;
   let detailMode = false;
@@ -165,10 +171,10 @@ export function createWorkoutPlanner({
       if (raw && raw.version === STATS_CACHE_VERSION && raw.entries) {
         statsCache = raw;
       } else {
-        statsCache = {version: STATS_CACHE_VERSION, entries: {}};
+        statsCache = { version: STATS_CACHE_VERSION, entries: {} };
       }
     } catch (_err) {
-      statsCache = {version: STATS_CACHE_VERSION, entries: {}};
+      statsCache = { version: STATS_CACHE_VERSION, entries: {} };
     }
     return statsCache;
   }
@@ -190,7 +196,9 @@ export function createWorkoutPlanner({
         historyIndex.forEach((arr, key) => {
           historyIndex.set(
             key,
-            arr.sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0)),
+            arr.sort((a, b) =>
+              a.name < b.name ? 1 : a.name > b.name ? -1 : 0,
+            ),
           );
         });
       } catch (err) {
@@ -198,68 +206,6 @@ export function createWorkoutPlanner({
       }
     })();
     return historyIndexPromise;
-  }
-
-  async function moveHistoryFileToTrash(fileName) {
-    const srcDirHandle = await loadWorkoutDirHandle();
-    const trashDirHandle = await loadTrashDirHandle();
-
-    if (!srcDirHandle) {
-      alert(
-        "No history folder configured.\n\nOpen Settings and choose a VeloDrive folder first.",
-      );
-      return false;
-    }
-    if (!trashDirHandle) {
-      alert(
-        "No trash folder is configured.\n\nOpen Settings and pick a VeloDrive folder so the trash folder can be created.",
-      );
-      return false;
-    }
-
-    const [hasSrcPerm, hasTrashPerm] = await Promise.all([
-      ensureDirPermission(srcDirHandle),
-      ensureDirPermission(trashDirHandle),
-    ]);
-    if (!hasSrcPerm) {
-      alert(
-        "VeloDrive does not have permission to modify your history folder.\n\nPlease re-authorize the folder in Settings.",
-      );
-      return false;
-    }
-    if (!hasTrashPerm) {
-      alert(
-        "VeloDrive does not have permission to write to your trash folder.\n\nPlease re-authorize the VeloDrive folder in Settings.",
-      );
-      return false;
-    }
-
-    try {
-      const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {
-        create: false,
-      });
-      const srcFile = await srcFileHandle.getFile();
-      const dotIdx = fileName.lastIndexOf(".");
-      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
-      const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      let destFileName = `${base} (${stamp})${ext}`;
-      if (destFileName.length > 160) {
-        destFileName = `${base.slice(0, 120)} (${stamp})${ext}`;
-      }
-      const destFileHandle = await trashDirHandle.getFileHandle(destFileName, {
-        create: true,
-      });
-      const writable = await destFileHandle.createWritable();
-      await writable.write(srcFile);
-      await writable.close();
-      await srcDirHandle.removeEntry(fileName);
-      return true;
-    } catch (err) {
-      console.error("[Planner] Failed to move history file to trash:", err);
-      alert("Moving this workout to the trash folder failed. See logs for details.");
-      return false;
-    }
   }
 
   async function ensureScheduleLoaded() {
@@ -387,9 +333,9 @@ export function createWorkoutPlanner({
               sum: acc.sum + (Number.isFinite(s.hr) ? s.hr : 0),
               count: acc.count + (Number.isFinite(s.hr) ? 1 : 0),
             }),
-            {sum: 0, count: 0},
+            { sum: 0, count: 0 },
           )
-        : {sum: 0, count: 0};
+        : { sum: 0, count: 0 };
     const avgHrVal = avgHr.count ? avgHr.sum / avgHr.count : null;
 
     return {
@@ -445,9 +391,12 @@ export function createWorkoutPlanner({
     for (let d = 1; d <= Math.min(maxDur, 60); d += 1) dynDurations.push(d);
     for (let d = 62; d <= Math.min(maxDur, 180); d += 2) dynDurations.push(d);
     for (let d = 182; d <= Math.min(maxDur, 360); d += 5) dynDurations.push(d);
-    for (let d = 365; d <= Math.min(maxDur, 1800); d += 10) dynDurations.push(d);
-    for (let d = 1810; d <= Math.min(maxDur, 7200); d += 30) dynDurations.push(d);
-    for (let d = 7230; d <= Math.min(maxDur, 28800); d += 60) dynDurations.push(d);
+    for (let d = 365; d <= Math.min(maxDur, 1800); d += 10)
+      dynDurations.push(d);
+    for (let d = 1810; d <= Math.min(maxDur, 7200); d += 30)
+      dynDurations.push(d);
+    for (let d = 7230; d <= Math.min(maxDur, 28800); d += 60)
+      dynDurations.push(d);
     const allDurations = Array.from(new Set([...durations, ...dynDurations]))
       .filter((d) => d >= 1 && d <= maxDur)
       .sort((a, b) => a - b);
@@ -481,10 +430,10 @@ export function createWorkoutPlanner({
     try {
       const dir = await loadZwoDirHandle();
       if (!dir) return entry;
-      const handle = await dir.getFileHandle(entry.fileName, {create: false});
+      const handle = await dir.getFileHandle(entry.fileName, { create: false });
       const file = await handle.getFile();
       const text = await file.text();
-      const {parseZwoXmlToCanonicalWorkout} = await import("./zwo.js");
+      const { parseZwoXmlToCanonicalWorkout } = await import("./zwo.js");
       const canonical = parseZwoXmlToCanonicalWorkout(text) || {};
       const rawSegments = canonical.rawSegments || [];
       scheduledCache.set(entry.fileName, {
@@ -518,7 +467,7 @@ export function createWorkoutPlanner({
 
   function buildPowerSegments(samples, durationSecHint) {
     if (!Array.isArray(samples) || !samples.length) {
-      return {intervals: [], maxPower: 0, totalSec: 0};
+      return { intervals: [], maxPower: 0, totalSec: 0 };
     }
     const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
     const lastSample = sorted[sorted.length - 1];
@@ -550,13 +499,11 @@ export function createWorkoutPlanner({
       const power = median(vals);
       const durStart = i * bucketSize;
       const dur =
-        i === bucketCount - 1
-          ? Math.max(1, totalSec - durStart)
-          : bucketSize;
+        i === bucketCount - 1 ? Math.max(1, totalSec - durStart) : bucketSize;
       intervals.push([power, power, dur]);
     });
 
-    if (!intervals.length) return {intervals: [], maxPower: 0, totalSec};
+    if (!intervals.length) return { intervals: [], maxPower: 0, totalSec };
 
     const slopeAngle = (p0, p1, dur) => Math.atan(dur ? (p1 - p0) / dur : 0);
 
@@ -576,12 +523,12 @@ export function createWorkoutPlanner({
           durSum < 30
             ? (10 * Math.PI) / 180
             : durSum < 60
-            ? (5 * Math.PI) / 180
-            : durSum < 180
-            ? (3 * Math.PI) / 180
-            : durSum < 300
-            ? (2 * Math.PI) / 180
-            : (1 * Math.PI) / 180;
+              ? (5 * Math.PI) / 180
+              : durSum < 180
+                ? (3 * Math.PI) / 180
+                : durSum < 300
+                  ? (2 * Math.PI) / 180
+                  : (1 * Math.PI) / 180;
         const angCur = slopeAngle(cur[0], cur[1], cur[2]);
         const angNext = slopeAngle(nxt[0], nxt[1], nxt[2]);
         const diff = Math.abs(angCur - angNext);
@@ -602,7 +549,7 @@ export function createWorkoutPlanner({
       0,
     );
 
-    return {intervals, maxPower, totalSec};
+    return { intervals, maxPower, totalSec };
   }
 
   function powerMaxFromIntervals(intervals) {
@@ -681,8 +628,12 @@ export function createWorkoutPlanner({
     const attachHover = () => {
       const day = card.closest(".planner-day");
       if (!day) return;
-      card.addEventListener("mouseenter", () => day.classList.add("suppress-hover"));
-      card.addEventListener("mouseleave", () => day.classList.remove("suppress-hover"));
+      card.addEventListener("mouseenter", () =>
+        day.classList.add("suppress-hover"),
+      );
+      card.addEventListener("mouseleave", () =>
+        day.classList.remove("suppress-hover"),
+      );
     };
     attachHover();
 
@@ -694,7 +645,8 @@ export function createWorkoutPlanner({
         height: rect.height || 120,
         rawSegments: data.rawSegments || [],
         actualLineSegments: data.powerSegments || [],
-        actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
+        actualPowerMax:
+          data.powerMax || powerMaxFromIntervals(data.powerSegments),
         durationSec: data.durationSec || 0,
       });
       chartWrap._plannerChartData = {
@@ -702,7 +654,8 @@ export function createWorkoutPlanner({
         height: rect.height || 120,
         rawSegments: data.rawSegments || [],
         actualLineSegments: data.powerSegments || [],
-        actualPowerMax: data.powerMax || powerMaxFromIntervals(data.powerSegments),
+        actualPowerMax:
+          data.powerMax || powerMaxFromIntervals(data.powerSegments),
         durationSec: data.durationSec || 0,
       };
     });
@@ -790,14 +743,15 @@ export function createWorkoutPlanner({
 
     card.appendChild(header);
     card.appendChild(chartWrap);
-    const historyCards = content.querySelectorAll(".planner-workout-card:not(.planner-scheduled-card)");
+    const historyCards = content.querySelectorAll(
+      ".planner-workout-card:not(.planner-scheduled-card)",
+    );
     if (historyCards.length) {
       historyCards[historyCards.length - 1].after(card);
     } else {
       content.appendChild(card);
     }
 
-    const dateKey = cell.dataset.date;
     card.addEventListener("click", (ev) => {
       ev.stopPropagation();
       if (typeof onScheduledLoadRequested === "function") {
@@ -807,8 +761,12 @@ export function createWorkoutPlanner({
     const attachHover = () => {
       const day = card.closest(".planner-day");
       if (!day) return;
-      card.addEventListener("mouseenter", () => day.classList.add("suppress-hover"));
-      card.addEventListener("mouseleave", () => day.classList.remove("suppress-hover"));
+      card.addEventListener("mouseenter", () =>
+        day.classList.add("suppress-hover"),
+      );
+      card.addEventListener("mouseleave", () =>
+        day.classList.remove("suppress-hover"),
+      );
     };
     attachHover();
 
@@ -830,71 +788,12 @@ export function createWorkoutPlanner({
     });
   }
 
-  function renderDetailStats(detail) {
-    if (!detailStatsEl) return;
-    detailStatsEl.innerHTML = "";
-    if (detail.startedAt) {
-      const header = document.createElement("div");
-      header.className = "planner-detail-date";
-      try {
-        const datePart = formatSelectedLabel(detail.startedAt);
-        const timePart = detail.startedAt.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
-        header.textContent = `${datePart} • ${timePart}`;
-      } catch (_err) {
-        header.textContent = detail.startedAt.toString();
-      }
-      detailStatsEl.appendChild(header);
-    }
-    const row = document.createElement("div");
-    row.className = "wb-stats-row";
-    const pushStat = (label, value) => {
-      if (value == null || value === "") return;
-      const chip = document.createElement("div");
-      chip.className = "wb-stat-chip";
-      const lbl = document.createElement("div");
-      lbl.className = "wb-stat-label";
-      lbl.textContent = label;
-      const val = document.createElement("div");
-      val.className = "wb-stat-value";
-      val.textContent = value;
-      chip.appendChild(lbl);
-      chip.appendChild(val);
-      row.appendChild(chip);
-    };
-
-    pushStat("Duration", formatDuration(detail.durationSec));
-    if (detail.zone) pushStat("Zone", detail.zone);
-    if (Number.isFinite(detail.avgPower))
-      pushStat("Avg Power", `${Math.round(detail.avgPower)} W`);
-    if (Number.isFinite(detail.normalizedPower))
-      pushStat("NP", `${Math.round(detail.normalizedPower)} W`);
-    if (Number.isFinite(detail.kj)) pushStat("Work", `${Math.round(detail.kj)} kJ`);
-    if (Number.isFinite(detail.ifValue))
-      pushStat("IF", detail.ifValue.toFixed(2));
-    if (Number.isFinite(detail.tss)) pushStat("TSS", Math.round(detail.tss));
-    if (Number.isFinite(detail.vi)) pushStat("VI", detail.vi.toFixed(2));
-    if (Number.isFinite(detail.ef)) pushStat("EF", detail.ef.toFixed(2));
-    if (Number.isFinite(detail.avgHr))
-      pushStat("Avg HR", `${Math.round(detail.avgHr)} bpm`);
-    if (Number.isFinite(detail.maxHr))
-      pushStat("Max HR", `${Math.round(detail.maxHr)} bpm`);
-    if (Number.isFinite(detail.avgCadence))
-      pushStat("Avg Cadence", `${Math.round(detail.avgCadence)} rpm`);
-    if (Number.isFinite(detail.maxCadence))
-      pushStat("Max Cadence", `${Math.round(detail.maxCadence)} rpm`);
-    // Started stat removed; time is included in header
-
-    if (row.children.length) {
-      detailStatsEl.appendChild(row);
-    }
-  }
-
   async function deleteCurrentDetail() {
     if (!detailState || !detailState.fileName) return;
-    const {fileName, workoutTitle, dateKey} = detailState;
+    const { fileName, workoutTitle, dateKey } = detailState;
     const confirmed = window.confirm(
       `Move workout "${workoutTitle || fileName}" to the trash folder?\n\n` +
-      "You can restore it later from the trash folder, or delete it permanently from your file system.",
+        "You can restore it later from the trash folder, or delete it permanently from your file system.",
     );
     if (!confirmed) return;
     const moved = await moveHistoryFileToTrash(fileName);
@@ -917,49 +816,19 @@ export function createWorkoutPlanner({
       if (historyData.get(dateKey)?.length === 0) {
         historyData.delete(dateKey);
       }
-      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      const cell = calendarBody.querySelector(
+        `.planner-day[data-date="${dateKey}"]`,
+      );
       if (cell) {
-        cell.querySelectorAll(`.planner-workout-card[data-file-name="${fileName}"]`).forEach((n) => n.remove());
+        cell
+          .querySelectorAll(
+            `.planner-workout-card[data-file-name="${fileName}"]`,
+          )
+          .forEach((n) => n.remove());
       }
     }
     exitDetailMode();
     recomputeAgg(selectedDate);
-  }
-
-  function renderPowerCurve(detail) {
-    if (!powerCurveSvg) return;
-    const rect = powerCurveSvg.getBoundingClientRect();
-    drawPowerCurveChart({
-      svg: powerCurveSvg,
-      width: rect.width || 600,
-      height: rect.height || 300,
-      ftp: detail.ftp || DEFAULT_FTP,
-      points: detail.powerCurve || [],
-      maxDurationSec: detail.durationSec || 0,
-    });
-  }
-
-  function renderDetailChart(detail) {
-    if (!detailChartSvg || !detailChartPanel || !detailChartTooltip) return;
-    const rect = detailChartPanel.getBoundingClientRect();
-    drawWorkoutChart({
-      svg: detailChartSvg,
-      panel: detailChartPanel,
-      tooltipEl: detailChartTooltip,
-      width: rect.width || 1000,
-      height: rect.height || 320,
-      mode: "workout",
-      ftp: detail.ftp || DEFAULT_FTP,
-      rawSegments: detail.rawSegments || [],
-      elapsedSec: detail.durationSec || 0,
-      liveSamples: detail.samples || [],
-      manualErgTarget: 0,
-    });
-    detailChartData = {
-      width: rect.width || 1000,
-      height: rect.height || 320,
-      detail,
-    };
   }
 
   function exitDetailMode() {
@@ -1020,7 +889,9 @@ export function createWorkoutPlanner({
           ? metrics.normalizedPower / metrics.avgPower
           : null;
       const ef =
-        metrics.avgHr && metrics.avgHr > 0 ? (metrics.normalizedPower || 0) / metrics.avgHr : null;
+        metrics.avgHr && metrics.avgHr > 0
+          ? (metrics.normalizedPower || 0) / metrics.avgHr
+          : null;
 
       const inferredZone = inferZoneFromSegments(cw.rawSegments || []);
       detailState = {
@@ -1028,10 +899,7 @@ export function createWorkoutPlanner({
         fileName: entry.name,
         workoutTitle: cw.workoutTitle || preview.workoutTitle,
         durationSec: metrics.durationSec || durationSecHint || 0,
-        kj:
-          meta.totalWorkJ != null
-            ? meta.totalWorkJ / 1000
-            : metrics.kj,
+        kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
         ifValue: metrics.ifValue,
         tss: metrics.tss,
         avgPower: metrics.avgPower,
@@ -1068,9 +936,20 @@ export function createWorkoutPlanner({
       const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
       if (pickerBackBtn) pickerBackBtn.style.display = "inline-flex";
 
-      renderDetailStats(detailState);
-      renderPowerCurve(detailState);
-      renderDetailChart(detailState);
+      renderDetailStats(
+        detailStatsEl,
+        detailState,
+        formatSelectedLabel,
+        formatDuration,
+      );
+      renderPowerCurveDetail(powerCurveSvg, detailState);
+      renderDetailChart(
+        detailChartSvg,
+        detailChartPanel,
+        detailChartTooltip,
+        detailState,
+      );
+      detailChartData = { detail: detailState };
     } catch (err) {
       console.warn("[Planner] Failed to open detail view:", err);
     }
@@ -1096,21 +975,13 @@ export function createWorkoutPlanner({
       });
     });
     if (detailMode && detailChartData && detailChartData.detail) {
-      const rect = detailChartPanel?.getBoundingClientRect() || {};
-      drawWorkoutChart({
-        svg: detailChartSvg,
-        panel: detailChartPanel,
-        tooltipEl: detailChartTooltip,
-        width: rect.width || detailChartData.width || 1000,
-        height: rect.height || detailChartData.height || 320,
-        mode: "workout",
-        ftp: detailChartData.detail.ftp || DEFAULT_FTP,
-        rawSegments: detailChartData.detail.rawSegments || [],
-        elapsedSec: detailChartData.detail.durationSec || 0,
-        liveSamples: detailChartData.detail.samples || [],
-        manualErgTarget: 0,
-      });
-      renderPowerCurve(detailChartData.detail);
+      renderDetailChart(
+        detailChartSvg,
+        detailChartPanel,
+        detailChartTooltip,
+        detailChartData.detail,
+      );
+      renderPowerCurveDetail(powerCurveSvg, detailChartData.detail);
     }
   }
 
@@ -1175,8 +1046,8 @@ export function createWorkoutPlanner({
           const startedAt = meta.startedAt
             ? meta.startedAt
             : cached?.startedAt
-            ? new Date(cached.startedAt)
-            : null;
+              ? new Date(cached.startedAt)
+              : null;
 
           let zone = cached?.zone;
           if (!zone) {
@@ -1186,7 +1057,10 @@ export function createWorkoutPlanner({
 
           let powerSegments = cached?.powerSegments;
           if (!Array.isArray(powerSegments)) {
-            const built = buildPowerSegments(parsed.samples || [], durationSecHint);
+            const built = buildPowerSegments(
+              parsed.samples || [],
+              durationSecHint,
+            );
             powerSegments = built.intervals;
             entryDirty = true;
           }
@@ -1196,10 +1070,7 @@ export function createWorkoutPlanner({
             statsCache.entries[entry.name] = {
               workoutTitle: title,
               durationSec: metrics.durationSec || durationSecHint || 0,
-              kj:
-                meta.totalWorkJ != null
-                  ? meta.totalWorkJ / 1000
-                  : metrics.kj,
+              kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
               ifValue: metrics.ifValue,
               tss: metrics.tss,
               startedAt: startedAt ? startedAt.toISOString() : null,
@@ -1213,10 +1084,7 @@ export function createWorkoutPlanner({
           results.push({
             workoutTitle: title,
             durationSec: metrics.durationSec || durationSecHint || 0,
-            kj:
-              meta.totalWorkJ != null
-                ? meta.totalWorkJ / 1000
-                : metrics.kj,
+            kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
             ifValue: metrics.ifValue,
             tss: metrics.tss,
             startedAt,
@@ -1366,9 +1234,9 @@ export function createWorkoutPlanner({
   }
 
   function resetAgg() {
-    aggTotals["3"] = {sec: 0, kj: 0, tss: 0};
-    aggTotals["7"] = {sec: 0, kj: 0, tss: 0};
-    aggTotals["30"] = {sec: 0, kj: 0, tss: 0};
+    aggTotals["3"] = { sec: 0, kj: 0, tss: 0 };
+    aggTotals["7"] = { sec: 0, kj: 0, tss: 0 };
+    aggTotals["30"] = { sec: 0, kj: 0, tss: 0 };
     updateAggUi();
   }
   function recomputeAgg(baseDate) {
@@ -1452,7 +1320,9 @@ export function createWorkoutPlanner({
           aggTotals["30"].kj,
         )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
       );
-      footerEl.innerHTML = parts.join(' <span style="padding:0 8px;">·</span> ');
+      footerEl.innerHTML = parts.join(
+        ' <span style="padding:0 8px;">·</span> ',
+      );
     }
   }
 
@@ -1764,7 +1634,11 @@ export function createWorkoutPlanner({
       if (!dateKey) return;
       if (!isPastDate(dateKey)) {
         const scheduled = scheduledMap.get(dateKey);
-        if (scheduled && scheduled.length && typeof onScheduledEditRequested === "function") {
+        if (
+          scheduled &&
+          scheduled.length &&
+          typeof onScheduledEditRequested === "function"
+        ) {
           onScheduledEditRequested(dateKey, scheduled[0]);
         } else {
           requestSchedule(dateKey);
@@ -1894,16 +1768,15 @@ export function createWorkoutPlanner({
         startedAt instanceof Date
           ? startedAt
           : startedAt
-          ? new Date(startedAt)
-          : null;
+            ? new Date(startedAt)
+            : null;
       const dateKey = d ? formatKey(d) : dateKeyFromHandleName(fileName);
       if (!dateKey) return;
       await ensureHistoryIndex();
       const previews = await loadHistoryPreview(dateKey);
       if (!Array.isArray(previews) || !previews.length) return;
       const match =
-        previews.find((p) => p.fileName === fileName) ||
-        previews[0];
+        previews.find((p) => p.fileName === fileName) || previews[0];
       openDetailView(dateKey, match);
     },
     hideModal: () => {
@@ -1920,13 +1793,15 @@ export function createWorkoutPlanner({
       if (modal) modal.style.display = "flex";
       isOpen = true;
     },
-    applyScheduledEntry: async ({dateKey, canonical, existingEntry}) => {
+    applyScheduledEntry: async ({ dateKey, canonical, existingEntry }) => {
       if (!dateKey || !canonical) return;
       await ensureScheduleLoaded();
       scheduledCache.clear();
       const arr = scheduledMap.get(dateKey) || [];
       const target =
-        existingEntry && arr.includes(existingEntry) ? existingEntry : {date: dateKey};
+        existingEntry && arr.includes(existingEntry)
+          ? existingEntry
+          : { date: dateKey };
       target.date = dateKey;
       target.fileName =
         canonical.source || canonical.fileName || canonical.workoutTitle || "";
@@ -1943,9 +1818,13 @@ export function createWorkoutPlanner({
       }
       scheduledMap.set(dateKey, arr);
       await persistSchedule();
-      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      const cell = calendarBody.querySelector(
+        `.planner-day[data-date="${dateKey}"]`,
+      );
       if (cell) {
-        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        cell
+          .querySelectorAll(".planner-scheduled-card")
+          .forEach((n) => n.remove());
         arr.forEach((e) => {
           if (!e.metrics) {
             e.metrics = computeScheduledMetrics(e);
@@ -1969,9 +1848,13 @@ export function createWorkoutPlanner({
       if (next.length) scheduledMap.set(entry.date, next);
       else scheduledMap.delete(entry.date);
       await persistSchedule();
-      const cell = calendarBody.querySelector(`.planner-day[data-date="${entry.date}"]`);
+      const cell = calendarBody.querySelector(
+        `.planner-day[data-date="${entry.date}"]`,
+      );
       if (cell) {
-        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        cell
+          .querySelectorAll(".planner-scheduled-card")
+          .forEach((n) => n.remove());
         maybeAttachScheduled(cell);
       }
       recomputeAgg(selectedDate);
@@ -1988,9 +1871,13 @@ export function createWorkoutPlanner({
       if (arr.length) scheduledMap.set(dateKey, arr);
       else scheduledMap.delete(dateKey);
       await persistSchedule();
-      const cell = calendarBody.querySelector(`.planner-day[data-date="${dateKey}"]`);
+      const cell = calendarBody.querySelector(
+        `.planner-day[data-date="${dateKey}"]`,
+      );
       if (cell) {
-        cell.querySelectorAll(".planner-scheduled-card").forEach((n) => n.remove());
+        cell
+          .querySelectorAll(".planner-scheduled-card")
+          .forEach((n) => n.remove());
         arr.forEach((e) => renderScheduledCard(cell, e));
       }
       recomputeAgg(selectedDate);

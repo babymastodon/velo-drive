@@ -442,10 +442,6 @@
   <div id="settingsOverlay" class="settings-overlay" aria-modal="true" role="dialog">
     <div id="settingsModal" class="settings-modal" tabindex="-1">
       <header class="settings-header">
-        <div class="settings-header-main">
-          <div id="settingsTitle" class="settings-title">Settings</div>
-        </div>
-
         <div class="settings-header-actions">
           <button id="settingsBackFromLogsBtn" class="settings-button" type="button" style="display: none;">
             <svg viewBox="0 0 24 24" aria-hidden="true"
@@ -455,7 +451,13 @@
             </svg>
             <span>Back to settings</span>
           </button>
+        </div>
 
+        <div class="settings-header-main">
+          <div id="settingsTitle" class="settings-title">Settings</div>
+        </div>
+
+        <div class="settings-header-actions">
           <button id="settingsCloseBtn" class="settings-close-btn" title="Close settings">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />

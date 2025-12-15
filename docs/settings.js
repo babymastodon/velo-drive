@@ -209,6 +209,10 @@ function showMainView() {
   settingsMainView.style.display = "";
   settingsLogsView.style.display = "none";
 
+  if (settingsModal) {
+    settingsModal.classList.remove("logs-active");
+  }
+
   if (settingsTitleEl) {
     settingsTitleEl.textContent = SETTINGS_TITLE_TEXT;
   }
@@ -223,6 +227,10 @@ function showLogsView() {
 
   settingsMainView.style.display = "none";
   settingsLogsView.style.display = "flex";
+
+  if (settingsModal) {
+    settingsModal.classList.add("logs-active");
+  }
 
   if (settingsTitleEl) {
     settingsTitleEl.textContent = LOGS_TITLE_TEXT;
