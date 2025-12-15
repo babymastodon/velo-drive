@@ -29,7 +29,6 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 8px;
   margin-bottom: 8px;
   min-height: var(--nav-control-height);
 }
