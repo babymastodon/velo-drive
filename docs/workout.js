@@ -1363,6 +1363,21 @@ async function initPage() {
         engine.setMode("resistance");
         return;
       }
+
+      if (key === "s") {
+        e.preventDefault();
+        openSettingsModal();
+        return;
+      }
+
+      if (key === "c") {
+        if (hasActiveWorkout) return;
+        e.preventDefault();
+        if (planner && typeof planner.open === "function") {
+          planner.open();
+        }
+        return;
+      }
     }
 
     if (e.key === "Escape") {
