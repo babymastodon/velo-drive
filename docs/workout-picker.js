@@ -1096,6 +1096,12 @@ function createWorkoutPicker(config) {
 
       const key = e.key;
 
+      if (key === "Backspace" && scheduleMode) {
+        e.preventDefault();
+        close({returnToPlanner: true});
+        return;
+      }
+
       if (key === "Enter") {
         // Allow Enter to select the expanded workout unless the search box is focused.
         if (searchInput && document.activeElement === searchInput) return;
