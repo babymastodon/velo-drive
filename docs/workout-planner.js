@@ -110,6 +110,7 @@ export function createWorkoutPlanner({
   let statsCache = null;
   const STATS_CACHE_VERSION = 30; // bump whenever cache format/logic changes
   const aggTotals = {
+    "3": {sec: 0, kj: 0, tss: 0},
     "7": {sec: 0, kj: 0, tss: 0},
     "30": {sec: 0, kj: 0, tss: 0},
   };
@@ -556,8 +557,16 @@ export function createWorkoutPlanner({
       pushStat("Avg Cadence", `${Math.round(detail.avgCadence)} rpm`);
     if (Number.isFinite(detail.maxCadence))
       pushStat("Max Cadence", `${Math.round(detail.maxCadence)} rpm`);
-    if (detail.startedAt)
-      pushStat("Started", detail.startedAt.toLocaleString());
+    if (detail.startedAt) {
+      try {
+        pushStat(
+          "Started",
+          detail.startedAt.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}),
+        );
+      } catch (_err) {
+        pushStat("Started", detail.startedAt.toTimeString().slice(0, 5));
+      }
+    }
 
     if (row.children.length) {
       detailStatsEl.appendChild(row);
@@ -972,6 +981,7 @@ export function createWorkoutPlanner({
   }
 
   function resetAgg() {
+    aggTotals["3"] = {sec: 0, kj: 0, tss: 0};
     aggTotals["7"] = {sec: 0, kj: 0, tss: 0};
     aggTotals["30"] = {sec: 0, kj: 0, tss: 0};
     updateAggUi();
@@ -983,12 +993,18 @@ export function createWorkoutPlanner({
     const baseMs = base.getTime();
     const dayMs = 24 * 60 * 60 * 1000;
     const cutoff7 = baseMs - 7 * dayMs;
+    const cutoff3 = baseMs - 3 * dayMs;
     const cutoff30 = baseMs - 30 * dayMs;
 
     historyData.forEach((items) => {
       items.forEach((item) => {
         const start = item.startedAt ? item.startedAt.getTime() : null;
         if (start == null) return;
+        if (start <= baseMs && start >= cutoff3) {
+          aggTotals["3"].sec += item.durationSec || 0;
+          aggTotals["3"].kj += item.kj || 0;
+          aggTotals["3"].tss += item.tss || 0;
+        }
         if (start <= baseMs && start >= cutoff7) {
           aggTotals["7"].sec += item.durationSec || 0;
           aggTotals["7"].kj += item.kj || 0;
@@ -1013,16 +1029,21 @@ export function createWorkoutPlanner({
     if (footerEl) {
       const parts = [];
       parts.push(
-        `Past 7d: ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
+        `<strong>3 day sum:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
+          aggTotals["3"].kj,
+        )} kJ, TSS ${Math.round(aggTotals["3"].tss)}`,
+      );
+      parts.push(
+        `<strong>7 day sum:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
           aggTotals["7"].kj,
         )} kJ, TSS ${Math.round(aggTotals["7"].tss)}`,
       );
       parts.push(
-        `Past 30d: ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
+        `<strong>30 day sum:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
           aggTotals["30"].kj,
         )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
       );
-      footerEl.textContent = parts.join(" · ");
+      footerEl.innerHTML = parts.join(' <span style="padding:0 8px;">·</span> ');
     }
   }
 
@@ -1338,7 +1359,7 @@ export function createWorkoutPlanner({
     if (!overlay) return;
     exitDetailMode();
     resetHistoryIndex();
-    selectedDate = selectedDate || new Date();
+    selectedDate = new Date();
     anchorStart = startOfWeek(selectedDate);
 
     overlay.style.display = "flex";
