@@ -268,15 +268,15 @@
 }
 
 .planner-day.month-top-boundary {
-  border-top: 2px solid var(--border);
+  border-top: 3px solid var(--border);
 }
 
 .planner-day.month-left-boundary {
-  border-left: 2px solid var(--border);
+  border-left: 3px solid var(--border);
 }
 
 .planner-day.month-bottom-boundary {
-  border-bottom: 2px solid var(--border);
+  border-bottom: 3px solid var(--border);
 }
 
 @media (prefers-color-scheme: dark) {
