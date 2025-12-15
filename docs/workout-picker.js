@@ -18,8 +18,8 @@ import {
   inferZoneFromSegments,
 } from "./workout-metrics.js";
 
-import {createWorkoutBuilder} from "./workout-builder.js";
-import {renderMiniWorkoutGraph} from "./workout-chart.js";
+import { createWorkoutBuilder } from "./workout-builder.js";
+import { renderMiniWorkoutGraph } from "./workout-chart.js";
 
 import {
   ensureDirPermission,
@@ -34,7 +34,7 @@ import {
   parseZwoXmlToCanonicalWorkout,
   canonicalWorkoutToZwoXml,
 } from "./zwo.js";
-import {importWorkoutFromUrl} from "./scrapers.js";
+import { importWorkoutFromUrl } from "./scrapers.js";
 
 let instance = null;
 
@@ -123,13 +123,9 @@ function createIconSvg(kind) {
     const p1 = document.createElementNS(svgNS, "path");
     p1.setAttribute("d", "M12 20h9");
     const p2 = document.createElementNS(svgNS, "path");
-    p2.setAttribute(
-      "d",
-      "M16.5 3.5l4 4-11 11H5.5v-4.5l11-11z"
-    );
+    p2.setAttribute("d", "M16.5 3.5l4 4-11 11H5.5v-4.5l11-11z");
     svg.appendChild(p1);
     svg.appendChild(p2);
-
   } else if (kind === "delete") {
     // Classic, normal trash can icon (Feather-style)
     const p1 = document.createElementNS(svgNS, "path");
@@ -152,7 +148,6 @@ function createIconSvg(kind) {
     svg.appendChild(p3);
     svg.appendChild(p4);
     svg.appendChild(p5);
-
   } else if (kind === "link") {
     // External-link style icon
     const p1 = document.createElementNS(svgNS, "path");
@@ -162,7 +157,7 @@ function createIconSvg(kind) {
     const p3 = document.createElementNS(svgNS, "path");
     p3.setAttribute(
       "d",
-      "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+      "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7",
     );
     svg.appendChild(p1);
     svg.appendChild(p2);
@@ -171,7 +166,6 @@ function createIconSvg(kind) {
 
   return svg;
 }
-
 
 // --------------------------- Singleton factory ---------------------------
 
@@ -218,8 +212,8 @@ function createWorkoutPicker(config) {
 
   /** @type {CanonicalWorkout[]} */
   let pickerWorkouts = [];
-  let pickerExpandedTitle = null;  // track by workoutTitle
-  let pickerSortKey = "kjAdj";     // header label preserved, but this is kJ @ current FTP
+  let pickerExpandedTitle = null; // track by workoutTitle
+  let pickerSortKey = "kjAdj"; // header label preserved, but this is kJ @ current FTP
   let pickerSortDir = "asc";
   let isPickerOpen = false;
   let isBuilderMode = false;
@@ -234,7 +228,9 @@ function createWorkoutPicker(config) {
       titleEl.style.display = scheduleMode ? "none" : "";
     }
     if (pickerBackToPlannerBtn) {
-      pickerBackToPlannerBtn.style.display = scheduleMode ? "inline-flex" : "none";
+      pickerBackToPlannerBtn.style.display = scheduleMode
+        ? "inline-flex"
+        : "none";
     }
   }
   let importSubmitBtn = null;
@@ -278,10 +274,10 @@ function createWorkoutPicker(config) {
     let items = pickerWorkouts.map((canonical) => {
       const metrics = computeMetricsFromSegments(
         canonical.rawSegments,
-        currentFtp
+        currentFtp,
       );
       const zone = getCanonicalZone(canonical);
-      return {canonical, zone, metrics};
+      return { canonical, zone, metrics };
     });
 
     if (zoneValue) {
@@ -289,23 +285,18 @@ function createWorkoutPicker(config) {
     }
 
     if (durValue) {
-      items = items.filter((item) =>
-        getDurationBucket(item.metrics.durationMin) === durValue
+      items = items.filter(
+        (item) => getDurationBucket(item.metrics.durationMin) === durValue,
       );
     }
 
     if (searchTerm) {
       items = items.filter((item) => {
-        const {canonical} = item;
+        const { canonical } = item;
         const title = canonical.workoutTitle;
         const source = canonical.source || "";
         const description = canonical.description || "";
-        const haystack = [
-          title,
-          item.zone,
-          source,
-          description.slice(0, 300),
-        ]
+        const haystack = [title, item.zone, source, description.slice(0, 300)]
           .join(" ")
           .toLowerCase();
         return haystack.includes(searchTerm);
@@ -327,14 +318,12 @@ function createWorkoutPicker(config) {
         return (num(a.metrics.tss) - num(b.metrics.tss)) * dir;
       }
       if (sortKey === "duration") {
-        return (
-          num(a.metrics.durationMin) - num(b.metrics.durationMin)
-        ) * dir;
+        return (num(a.metrics.durationMin) - num(b.metrics.durationMin)) * dir;
       }
       if (sortKey === "name") {
-        return a.canonical.workoutTitle.localeCompare(
-          b.canonical.workoutTitle
-        ) * dir;
+        return (
+          a.canonical.workoutTitle.localeCompare(b.canonical.workoutTitle) * dir
+        );
       }
       return 0;
     });
@@ -350,7 +339,7 @@ function createWorkoutPicker(config) {
       th.classList.remove("sorted-asc", "sorted-desc");
       if (key === pickerSortKey) {
         th.classList.add(
-          pickerSortDir === "asc" ? "sorted-asc" : "sorted-desc"
+          pickerSortDir === "asc" ? "sorted-asc" : "sorted-desc",
         );
       }
     });
@@ -368,7 +357,7 @@ function createWorkoutPicker(config) {
     valueEl.textContent = "--";
     el.appendChild(labelEl);
     el.appendChild(valueEl);
-    return {el, value: valueEl};
+    return { el, value: valueEl };
   }
 
   function renderWorkoutPickerTable() {
@@ -403,7 +392,7 @@ function createWorkoutPicker(config) {
     const currentFtp = getCurrentFtp();
 
     for (const item of shownItems) {
-      const {canonical, zone, metrics} = item;
+      const { canonical, zone, metrics } = item;
       const title = canonical.workoutTitle;
       const source = canonical.source || "";
       const description = canonical.description || "";
@@ -454,8 +443,7 @@ function createWorkoutPicker(config) {
         tbody.appendChild(tr);
 
         tr.addEventListener("click", () => {
-          pickerExpandedTitle =
-            pickerExpandedTitle === title ? null : title;
+          pickerExpandedTitle = pickerExpandedTitle === title ? null : title;
           renderWorkoutPickerTable();
         });
       } else {
@@ -493,7 +481,7 @@ function createWorkoutPicker(config) {
           visitBtn.className = "wb-code-insert-btn visit-website-btn";
           visitBtn.title = "Open the workout's website in a new tab.";
 
-          const linkIcon = createIconSvg("link");  // uses your existing icon function
+          const linkIcon = createIconSvg("link"); // uses your existing icon function
           const linkText = document.createElement("span");
           linkText.textContent = "Visit website";
 
@@ -512,10 +500,8 @@ function createWorkoutPicker(config) {
         // DELETE button
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
-        deleteBtn.className =
-          "wb-code-insert-btn delete-workout-btn";
-        deleteBtn.title =
-          "Delete this workout file from your library.";
+        deleteBtn.className = "wb-code-insert-btn delete-workout-btn";
+        deleteBtn.title = "Delete this workout file from your library.";
 
         const deleteIcon = createIconSvg("delete");
         const deleteText = document.createElement("span");
@@ -531,8 +517,7 @@ function createWorkoutPicker(config) {
         // EDIT button
         const editBtn = document.createElement("button");
         editBtn.type = "button";
-        editBtn.className =
-          "wb-code-insert-btn edit-workout-btn";
+        editBtn.className = "wb-code-insert-btn edit-workout-btn";
         editBtn.title = "Open this workout in the builder.";
 
         const editIcon = createIconSvg("edit");
@@ -565,8 +550,7 @@ function createWorkoutPicker(config) {
           });
         } else {
           selectBtn.textContent = "Select workout";
-          selectBtn.title =
-            "Use this workout on the workout page.";
+          selectBtn.title = "Use this workout on the workout page.";
           selectBtn.addEventListener("click", (evt) => {
             evt.stopPropagation();
             doSelectWorkout(canonical);
@@ -622,9 +606,7 @@ function createWorkoutPicker(config) {
 
         if (metrics.durationMin != null) {
           const durChip = createStatChip("Duration");
-          durChip.value.textContent = `${Math.round(
-            metrics.durationMin
-          )} min`;
+          durChip.value.textContent = `${Math.round(metrics.durationMin)} min`;
           tagsRow.appendChild(durChip.el);
         }
 
@@ -699,8 +681,8 @@ function createWorkoutPicker(config) {
       description: cw.description || "",
       rawSegments: Array.isArray(cw.rawSegments)
         ? cw.rawSegments.map((seg) =>
-          Array.isArray(seg) ? [seg[0], seg[1], seg[2]] : seg
-        )
+            Array.isArray(seg) ? [seg[0], seg[1], seg[2]] : seg,
+          )
         : [],
     };
   }
@@ -746,14 +728,16 @@ function createWorkoutPicker(config) {
   }
 
   async function clearPersistedBuilderState() {
-    if (workoutBuilder &&
-      typeof workoutBuilder.clearPersistedState === "function") {
+    if (
+      workoutBuilder &&
+      typeof workoutBuilder.clearPersistedState === "function"
+    ) {
       await workoutBuilder.clearPersistedState();
     }
   }
 
   function resetHeaderStatus() {
-    updateBuilderStatus({text: "", tone: "neutral"});
+    updateBuilderStatus({ text: "", tone: "neutral" });
     if (builderStatusEl) {
       builderStatusEl.style.display = "none";
     }
@@ -772,7 +756,7 @@ function createWorkoutPicker(config) {
     builderStatusEl.classList.remove(
       "builder-status--ok",
       "builder-status--error",
-      "builder-status--neutral"
+      "builder-status--neutral",
     );
     builderStatusEl.classList.add(`builder-status--${tone}`);
     builderStatusEl.style.display =
@@ -799,7 +783,8 @@ function createWorkoutPicker(config) {
 
     importUrlInput = document.createElement("input");
     importUrlInput.type = "url";
-    importUrlInput.placeholder = "Paste a WhatsOnZwift or TrainerDay workout URL";
+    importUrlInput.placeholder =
+      "Paste a WhatsOnZwift or TrainerDay workout URL";
     importUrlInput.className = "workout-import-input";
 
     importSubmitBtn = document.createElement("button");
@@ -816,7 +801,8 @@ function createWorkoutPicker(config) {
 
     importScratchBtn = document.createElement("button");
     importScratchBtn.type = "button";
-    importScratchBtn.className = "wb-code-insert-btn workout-import-scratch-btn";
+    importScratchBtn.className =
+      "wb-code-insert-btn workout-import-scratch-btn";
     importScratchBtn.textContent = "Build your own workout";
 
     card.appendChild(hint);
@@ -832,7 +818,7 @@ function createWorkoutPicker(config) {
       importStatusEl.textContent = text;
       importStatusEl.dataset.tone = tone;
     }
-    updateBuilderStatus({text, tone});
+    updateBuilderStatus({ text, tone });
   }
 
   function resetImportView() {
@@ -862,8 +848,7 @@ function createWorkoutPicker(config) {
 
       canonical.sourceURL = canonical.sourceURL || url;
       canonical.source = canonical.source || "Imported workout";
-      canonical.workoutTitle =
-        canonical.workoutTitle || "Imported workout";
+      canonical.workoutTitle = canonical.workoutTitle || "Imported workout";
       canonical.description = canonical.description || "";
 
       if (
@@ -872,14 +857,17 @@ function createWorkoutPicker(config) {
       ) {
         setImportStatus(
           "Imported workout looked empty. Try another link.",
-          "error"
+          "error",
         );
         return;
       }
 
       const saveResult = await saveCanonicalWorkoutToZwoDir(canonical);
       if (!saveResult.ok) {
-        setImportStatus("Unable to save this workout to your library.", "error");
+        setImportStatus(
+          "Unable to save this workout to your library.",
+          "error",
+        );
         return;
       }
 
@@ -933,7 +921,6 @@ function createWorkoutPicker(config) {
     }
   }
 
-
   async function openWorkoutInBuilder(canonicalWorkout) {
     if (!workoutBuilder) {
       console.warn("[WorkoutPicker] Workout builder is not available.");
@@ -942,7 +929,7 @@ function createWorkoutPicker(config) {
 
     const title =
       (canonicalWorkout && canonicalWorkout.workoutTitle) || "Edit workout";
-    enterBuilderMode({title});
+    enterBuilderMode({ title });
 
     suppressBuilderDirty = true;
     try {
@@ -952,7 +939,7 @@ function createWorkoutPicker(config) {
     } catch (err) {
       console.error(
         "[WorkoutPicker] Failed to load workout into builder:",
-        err
+        err,
       );
     } finally {
       suppressBuilderDirty = false;
@@ -960,7 +947,7 @@ function createWorkoutPicker(config) {
   }
 
   function enterBuilderMode(options = {}) {
-    const {title} = options;
+    const { title } = options;
     isBuilderMode = true;
     isImportMode = false;
     if (importRoot) importRoot.style.display = "none";
@@ -1012,7 +999,7 @@ function createWorkoutPicker(config) {
 
   async function startBuilderFromScratch() {
     if (!workoutBuilder) return;
-    enterBuilderMode({title: "New Workout"});
+    enterBuilderMode({ title: "New Workout" });
     suppressBuilderDirty = true;
 
     let restored = false;
@@ -1038,7 +1025,7 @@ function createWorkoutPicker(config) {
     if (!shownItems.length) return;
 
     let idx = shownItems.findIndex(
-      (item) => item.canonical.workoutTitle === pickerExpandedTitle
+      (item) => item.canonical.workoutTitle === pickerExpandedTitle,
     );
 
     if (idx === -1) {
@@ -1095,7 +1082,8 @@ function createWorkoutPicker(config) {
       const delta = k === "arrowup" || k === "k" ? -1 : 1;
       const opts = Array.from(selectEl.options || []);
       const idx =
-        typeof selectEl.selectedIndex === "number" && selectEl.selectedIndex >= 0
+        typeof selectEl.selectedIndex === "number" &&
+        selectEl.selectedIndex >= 0
           ? selectEl.selectedIndex
           : opts.findIndex((o) => o.selected);
       const nextIdx = Math.min(
@@ -1157,6 +1145,16 @@ function createWorkoutPicker(config) {
         if (key === "enter") {
           e.preventDefault();
           searchInput.blur();
+          const results = computeVisiblePickerWorkouts();
+          if (results.length) {
+            pickerExpandedTitle = results[0].canonical.workoutTitle;
+            renderWorkoutPickerTable();
+            const firstRow = modal.querySelector(".picker-row");
+            if (firstRow) {
+              const btn = firstRow.querySelector(".select-workout-btn");
+              if (btn) btn.focus();
+            }
+          }
         }
         return;
       }
@@ -1193,7 +1191,7 @@ function createWorkoutPicker(config) {
 
       if ((key === "backspace" || key === "escape") && scheduleMode) {
         e.preventDefault();
-        close({returnToPlanner: true});
+        close({ returnToPlanner: true });
         return;
       }
 
@@ -1202,7 +1200,7 @@ function createWorkoutPicker(config) {
         if (searchInput && document.activeElement === searchInput) return;
 
         const expanded = computeVisiblePickerWorkouts().find(
-          (item) => item.canonical.workoutTitle === pickerExpandedTitle
+          (item) => item.canonical.workoutTitle === pickerExpandedTitle,
         );
         if (expanded) {
           e.preventDefault();
@@ -1243,7 +1241,9 @@ function createWorkoutPicker(config) {
     if (searchInput) searchInput.value = saved.searchTerm || "";
     if (zoneFilter) zoneFilter.value = saved.zone || "";
     if (durationFilter) {
-      const allowedValues = Array.from(durationFilter.options).map((opt) => opt.value);
+      const allowedValues = Array.from(durationFilter.options).map(
+        (opt) => opt.value,
+      );
       const nextVal = saved.duration || "";
       durationFilter.value = allowedValues.includes(nextVal) ? nextVal : "";
     }
@@ -1267,7 +1267,7 @@ function createWorkoutPicker(config) {
   // --------------------------- rescan & selection ---------------------------
 
   async function rescanWorkouts(handle, options = {}) {
-    const {skipRestoreState = false} = options;
+    const { skipRestoreState = false } = options;
 
     if (!handle) {
       pickerWorkouts = [];
@@ -1314,7 +1314,7 @@ function createWorkoutPicker(config) {
     if (!srcDirHandle) {
       alert(
         "No workout library folder configured.\n\n" +
-        "Open Settings and choose a VeloDrive folder first."
+          "Open Settings and choose a VeloDrive folder first.",
       );
       return false;
     }
@@ -1322,7 +1322,7 @@ function createWorkoutPicker(config) {
     if (!trashDirHandle) {
       alert(
         "No trash folder is configured.\n\n" +
-        "Open Settings and pick a VeloDrive folder so the trash folder can be created."
+          "Open Settings and pick a VeloDrive folder so the trash folder can be created.",
       );
       return false;
     }
@@ -1335,7 +1335,7 @@ function createWorkoutPicker(config) {
     if (!hasSrcPerm) {
       alert(
         "VeloDrive does not have permission to modify your workout library folder.\n\n" +
-        "Please re-authorize the folder in Settings."
+          "Please re-authorize the folder in Settings.",
       );
       return false;
     }
@@ -1343,16 +1343,15 @@ function createWorkoutPicker(config) {
     if (!hasTrashPerm) {
       alert(
         "VeloDrive does not have permission to write to your trash folder.\n\n" +
-        "Please re-authorize the VeloDrive folder in Settings."
+          "Please re-authorize the VeloDrive folder in Settings.",
       );
       return false;
     }
 
     try {
-      const srcFileHandle =
-        await srcDirHandle.getFileHandle(fileName, {
-          create: false,
-        });
+      const srcFileHandle = await srcDirHandle.getFileHandle(fileName, {
+        create: false,
+      });
       const srcFile = await srcFileHandle.getFile();
 
       const dotIdx = fileName.lastIndexOf(".");
@@ -1366,10 +1365,9 @@ function createWorkoutPicker(config) {
         destFileName = `${shortenedBase} (${stamp})${ext}`;
       }
 
-      const destFileHandle =
-        await trashDirHandle.getFileHandle(destFileName, {
-          create: true,
-        });
+      const destFileHandle = await trashDirHandle.getFileHandle(destFileName, {
+        create: true,
+      });
       const writable = await destFileHandle.createWritable();
       await writable.write(srcFile);
       await writable.close();
@@ -1378,12 +1376,9 @@ function createWorkoutPicker(config) {
 
       return true;
     } catch (err) {
-      console.error(
-        "[WorkoutPicker] Failed to move workout to trash:",
-        err
-      );
+      console.error("[WorkoutPicker] Failed to move workout to trash:", err);
       alert(
-        "Moving this workout to the trash folder failed. See logs for details."
+        "Moving this workout to the trash folder failed. See logs for details.",
       );
       return false;
     }
@@ -1397,14 +1392,13 @@ function createWorkoutPicker(config) {
     if (!dirHandle) {
       alert(
         "No workout library folder configured.\n\n" +
-        "Open Settings and choose a VeloDrive folder first."
+          "Open Settings and choose a VeloDrive folder first.",
       );
       return;
     }
 
     const confirmed = window.confirm(
-      `Move workout file "${fileName}" to the trash folder?\n\n` +
-      "You can restore it later from the trash folder, or delete it permanently from your file system."
+      `Move workout file "${fileName}" to the trash folder?`,
     );
     if (!confirmed) return;
 
@@ -1415,20 +1409,18 @@ function createWorkoutPicker(config) {
   }
 
   async function saveCurrentBuilderWorkoutToZwoDir(options = {}) {
-    const {reopenAfterSave = true} = options;
+    const { reopenAfterSave = true } = options;
 
     if (!workoutBuilder) {
-      alert(
-        "Workout builder is not available. See logs for details."
-      );
-      return {ok: false};
+      alert("Workout builder is not available. See logs for details.");
+      return { ok: false };
     }
 
     try {
       const validation = workoutBuilder.validateForSave();
       if (!validation.ok) {
         // validateForSave is assumed to show its own messages
-        return {ok: false};
+        return { ok: false };
       }
 
       /** @type {CanonicalWorkout} */
@@ -1440,13 +1432,13 @@ function createWorkoutPicker(config) {
         !canonical.rawSegments.length
       ) {
         alert("This workout has no intervals to save.");
-        return {ok: false};
+        return { ok: false };
       }
 
       const result = await saveCanonicalWorkoutToZwoDir(canonical);
       if (!result.ok) {
         // Helper already alerted the user.
-        return {ok: false};
+        return { ok: false };
       }
 
       hasUnsavedBuilderChanges = false;
@@ -1455,21 +1447,18 @@ function createWorkoutPicker(config) {
       await clearPersistedBuilderState();
 
       if (reopenAfterSave) {
-        workoutBuilder.clearState({persist: false});
+        workoutBuilder.clearState({ persist: false });
         open(canonical.workoutTitle);
       }
 
-      return {ok: true, canonical};
+      return { ok: true, canonical };
     } catch (err) {
-      console.error(
-        "[WorkoutPicker] Save to ZWO dir failed:",
-        err
-      );
+      console.error("[WorkoutPicker] Save to ZWO dir failed:", err);
       alert(
         "Unexpected failure while saving workout.\n\n" +
-        "See logs for details."
+          "See logs for details.",
       );
-      return {ok: false};
+      return { ok: false };
     }
   }
 
@@ -1500,18 +1489,18 @@ function createWorkoutPicker(config) {
     if (!dirHandle) {
       alert(
         "No workout library folder configured.\n\n" +
-        "Open Settings and choose a VeloDrive folder first."
+          "Open Settings and choose a VeloDrive folder first.",
       );
-      return {ok: false};
+      return { ok: false };
     }
 
     const hasPerm = await ensureDirPermission(dirHandle);
     if (!hasPerm) {
       alert(
         "VeloDrive does not have permission to write to your workout library folder.\n\n" +
-        "Please re-authorize the folder in Settings."
+          "Please re-authorize the folder in Settings.",
       );
-      return {ok: false};
+      return { ok: false };
     }
 
     const baseName = sanitizeZwoFileName(canonical.workoutTitle);
@@ -1520,7 +1509,7 @@ function createWorkoutPicker(config) {
     // Detect overwrite case
     let overwriting = false;
     try {
-      await dirHandle.getFileHandle(fileName, {create: false});
+      await dirHandle.getFileHandle(fileName, { create: false });
       overwriting = true;
     } catch {
       // File does not exist → first save → no overwrite
@@ -1531,9 +1520,9 @@ function createWorkoutPicker(config) {
       if (!moved) {
         alert(
           `Failed to move existing workout "${fileName}" to trash.\n\n` +
-          "The workout was NOT saved."
+            "The workout was NOT saved.",
         );
-        return {ok: false};
+        return { ok: false };
       }
     }
 
@@ -1551,21 +1540,21 @@ function createWorkoutPicker(config) {
       console.error("[WorkoutPicker] Writing new file failed:", err);
       alert(
         `Saving workout "${fileName}" failed while writing the file.\n\n` +
-        "See logs for details."
+          "See logs for details.",
       );
-      return {ok: false};
+      return { ok: false };
     }
 
-    return {ok: true, fileName, dirHandle};
+    return { ok: true, fileName, dirHandle };
   }
 
   async function maybeHandleUnsavedBeforeLeave(opts = {}) {
-    const {reopenAfterSave = true} = opts; // kept for signature compatibility
+    const { reopenAfterSave = true } = opts; // kept for signature compatibility
     if (!isBuilderMode || !hasUnsavedBuilderChanges) return true;
 
     const confirmExit = window.confirm(
       "You have unsaved changes. Exit and discard them?\n\n" +
-      "OK = Discard changes and leave\nCancel = Stay and keep editing"
+        "OK = Discard changes and leave\nCancel = Stay and keep editing",
     );
 
     if (!confirmExit) {
@@ -1575,7 +1564,7 @@ function createWorkoutPicker(config) {
     if (workoutBuilder) {
       suppressBuilderDirty = true;
       await clearPersistedBuilderState();
-      workoutBuilder.clearState({persist: false});
+      workoutBuilder.clearState({ persist: false });
       suppressBuilderDirty = false;
       setBuilderBaselineFromCurrent();
       hasUnsavedBuilderChanges = false;
@@ -1609,11 +1598,11 @@ function createWorkoutPicker(config) {
       // Always rescan and restore previous picker state first
       await rescanWorkouts(handle);
 
-    if (hasTargetTitle) {
-      // Check if the requested workout is visible with current filters.
-      const isTargetVisible = computeVisiblePickerWorkouts().some(
-        (item) => item.canonical.workoutTitle === workoutTitle
-      );
+      if (hasTargetTitle) {
+        // Check if the requested workout is visible with current filters.
+        const isTargetVisible = computeVisiblePickerWorkouts().some(
+          (item) => item.canonical.workoutTitle === workoutTitle,
+        );
 
         // Only clear filters if the workout is hidden by them.
         if (!isTargetVisible) {
@@ -1636,9 +1625,10 @@ function createWorkoutPicker(config) {
     syncScheduleUi();
   }
 
-  async function openScheduleMode({dateKey, entry, editMode = false} = {}) {
-    scheduleMode = {dateKey, entry, editMode};
-    if (titleEl) titleEl.textContent = editMode ? "Edit Schedule" : "Schedule Workout";
+  async function openScheduleMode({ dateKey, entry, editMode = false } = {}) {
+    scheduleMode = { dateKey, entry, editMode };
+    if (titleEl)
+      titleEl.textContent = editMode ? "Edit Schedule" : "Schedule Workout";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
     if (builderBackBtn) builderBackBtn.style.display = "none";
     if (builderSaveBtn) builderSaveBtn.style.display = "none";
@@ -1648,7 +1638,10 @@ function createWorkoutPicker(config) {
     syncScheduleUi();
   }
 
-  async function close({returnToPlanner = false, cancelSchedule = true} = {}) {
+  async function close({
+    returnToPlanner = false,
+    cancelSchedule = true,
+  } = {}) {
     if (isBuilderMode) {
       const ok = await maybeHandleUnsavedBeforeLeave({
         reopenAfterSave: false,
@@ -1661,8 +1654,12 @@ function createWorkoutPicker(config) {
     exitImportMode();
 
     const wasSchedule = !!scheduleMode;
-    if (wasSchedule && cancelSchedule && typeof onScheduleCanceled === "function") {
-      onScheduleCanceled({returnToPlanner});
+    if (
+      wasSchedule &&
+      cancelSchedule &&
+      typeof onScheduleCanceled === "function"
+    ) {
+      onScheduleCanceled({ returnToPlanner });
     }
     isPickerOpen = false;
     if (overlay) {
@@ -1697,7 +1694,7 @@ function createWorkoutPicker(config) {
       renderWorkoutPickerTable();
     }
     if (isBuilderMode && workoutBuilder) {
-      workoutBuilder.refreshLayout({skipParse: true, skipPersist: true});
+      workoutBuilder.refreshLayout({ skipParse: true, skipPersist: true });
     }
   }
 
@@ -1710,7 +1707,7 @@ function createWorkoutPicker(config) {
   }
   if (pickerBackToPlannerBtn) {
     pickerBackToPlannerBtn.addEventListener("click", async () => {
-      await close({returnToPlanner: true});
+      await close({ returnToPlanner: true });
     });
   }
 
@@ -1767,7 +1764,8 @@ function createWorkoutPicker(config) {
 
   if (overlay) {
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay && overlay.classList.contains("picker-mode")) close();
+      if (e.target === overlay && overlay.classList.contains("picker-mode"))
+        close();
     });
   }
 
