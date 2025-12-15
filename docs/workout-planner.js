@@ -258,6 +258,17 @@ export function createWorkoutPlanner({
     recomputeAgg(selectedDate);
   }
 
+  async function removeScheduledEntryByRef(entry) {
+    const dateKey = entry?.date;
+    const title = entry?.workoutTitle;
+    if (!dateKey || !title) return;
+    await ensureScheduleLoaded();
+    const arr = scheduledMap.get(dateKey) || [];
+    const match = arr.find((e) => e.workoutTitle === title);
+    if (!match) return;
+    await removeScheduledEntryInternal(match);
+  }
+
   function buildPerSecondPower(samples, durationSec) {
     const totalSec = Math.max(1, Math.ceil(durationSec || 0));
     const arr = new Float32Array(totalSec);
@@ -1815,34 +1826,12 @@ export function createWorkoutPlanner({
       recomputeAgg(selectedDate);
     },
     removeScheduledEntry: removeScheduledEntryInternal,
-    removeScheduledEntryByRef: async (entry) => {
-      return moduleExports.removeScheduledEntry(entry);
-    },
+    removeScheduledEntryByRef,
     removeScheduledByTitle: async (dateKey, title) => {
-      if (!dateKey || !title) return;
-      await ensureScheduleLoaded();
-      const arr = scheduledMap.get(dateKey) || [];
-      const idx = arr.findIndex(
-        (e) => (e.workoutTitle || "").toLowerCase() === title.toLowerCase(),
-      );
-      if (idx === -1) return;
-      arr.splice(idx, 1);
-      if (arr.length) scheduledMap.set(dateKey, arr);
-      else scheduledMap.delete(dateKey);
-      await persistSchedule();
-      const cell = calendarBody.querySelector(
-        `.planner-day[data-date="${dateKey}"]`,
-      );
-      if (cell) {
-        cell
-          .querySelectorAll(".planner-scheduled-card")
-          .forEach((n) => n.remove());
-        arr.forEach((e) => renderScheduledCard(cell, e));
-      }
-      recomputeAgg(selectedDate);
-    },
-    removeScheduledEntryByRef: async (entry) => {
-      return removeScheduledEntryInternal(entry);
+      await removeScheduledEntryByRef({
+        date: dateKey,
+        workoutTitle: title,
+      });
     },
   };
 }
