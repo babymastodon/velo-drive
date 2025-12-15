@@ -1592,6 +1592,20 @@ export function createWorkoutPlanner({
 
     if (detailMode) {
       const key = (ev.key || "").toLowerCase();
+      const tag = ev.target && ev.target.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        ev.target?.isContentEditable
+      ) {
+        return;
+      }
+      if (key === "delete") {
+        ev.preventDefault();
+        deleteCurrentDetail();
+        return;
+      }
       if (key === "backspace") {
         ev.preventDefault();
         exitDetailMode();
