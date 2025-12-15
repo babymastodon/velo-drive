@@ -125,7 +125,7 @@ export function createWorkoutPlanner({
   const historyIndex = new Map(); // dateKey -> {handle, name}
   const historyCache = new Map(); // dateKey -> Promise<{...}>
   const historyData = new Map(); // dateKey -> Array<preview>
-  const scheduledMap = new Map(); // dateKey -> Array<entry>
+  let scheduledMap = new Map(); // dateKey -> Array<entry>
   const scheduledCache = new Map(); // fileName -> {rawSegments, workoutTitle}
   let historyIndexPromise = null;
   let schedulePromise = null;
@@ -162,7 +162,8 @@ export function createWorkoutPlanner({
     historyCache.clear();
     historyData.clear();
     historyIndexPromise = null;
-    forceReloadSchedule();
+    scheduledMap = new Map();
+    schedulePromise = null;
     scheduledCache.clear();
   }
 
@@ -212,17 +213,28 @@ export function createWorkoutPlanner({
 
   async function loadScheduleIntoMap() {
     const entries = await loadScheduleEntries();
-    scheduledMap.clear();
+    const nextMap = new Map();
     let added = 0;
-    entries.forEach((e) => {
-      if (!e || !e.date || !e.workoutTitle) return;
+    for (const e of entries) {
+      if (!e || !e.date || !e.workoutTitle) continue;
       const key = e.date;
       const entry = { date: e.date, workoutTitle: e.workoutTitle };
-      const arr = scheduledMap.get(key) || [];
+      await ensureScheduledWorkout(entry);
+      entry.metrics = entry.metrics || computeScheduledMetrics(entry);
+      if (entry.metrics) {
+        entry.durationSec = entry.metrics.durationSec;
+        entry.kj = entry.metrics.kj;
+        entry.ifValue = entry.metrics.ifValue;
+        entry.tss = entry.metrics.tss;
+        entry.zone = entry.metrics.zone;
+      }
+      const arr = nextMap.get(key) || [];
       arr.push(entry);
-      scheduledMap.set(key, arr);
+      nextMap.set(key, arr);
       added += 1;
-    });
+    }
+    scheduledMap = nextMap;
+    recomputeAgg(selectedDate);
     return added;
   }
 
@@ -230,50 +242,23 @@ export function createWorkoutPlanner({
     if (!schedulePromise) {
       schedulePromise = loadScheduleIntoMap();
     }
-    let added = await schedulePromise;
-    if (!added && scheduledMap.size === 0) {
-      schedulePromise = loadScheduleIntoMap();
-      added = await schedulePromise;
-    }
-    return added;
-  }
-
-  function forceReloadSchedule() {
-    schedulePromise = loadScheduleIntoMap();
     return schedulePromise;
   }
 
-  async function persistSchedule() {
-    const entries = [];
-    scheduledMap.forEach((arr) => {
-      arr.forEach((e) =>
-        entries.push({ date: e.date, workoutTitle: e.workoutTitle }),
-      );
-    });
+  async function persistSchedule(entries) {
     await saveScheduleEntries(entries);
   }
 
   async function removeScheduledEntryInternal(entry) {
-    if (!entry || !entry.date) return;
-    await ensureScheduleLoaded();
-    const arr = scheduledMap.get(entry.date) || [];
-    let idx = arr.indexOf(entry);
-    if (idx === -1) {
-      idx = arr.findIndex(
-        (e) =>
-          e.workoutTitle === entry.workoutTitle &&
-          e.date === entry.date,
-      );
-    }
-    if (idx === -1) return;
-    arr.splice(idx, 1);
-    if (arr.length) scheduledMap.set(entry.date, arr);
-    else scheduledMap.delete(entry.date);
-    const totalRemaining = Array.from(scheduledMap.values()).reduce(
-      (sum, list) => sum + (list?.length || 0),
-      0,
+    if (!entry || !entry.date || !entry.workoutTitle) return;
+    const current = await loadScheduleEntries();
+    const idx = current.findIndex(
+      (e) => e.date === entry.date && e.workoutTitle === entry.workoutTitle,
     );
-    await persistSchedule();
+    if (idx === -1) return;
+    const next = current.slice(0, idx).concat(current.slice(idx + 1));
+    await persistSchedule(next);
+    await loadScheduleIntoMap();
     const cell = calendarBody.querySelector(
       `.planner-day[data-date="${entry.date}"]`,
     );
@@ -290,12 +275,7 @@ export function createWorkoutPlanner({
     const dateKey = entry?.date;
     const title = entry?.workoutTitle;
     if (!dateKey || !title) return;
-    await forceReloadSchedule();
-    await ensureScheduleLoaded();
-    const arr = scheduledMap.get(dateKey) || [];
-    const match = arr.find((e) => e.workoutTitle === title);
-    if (!match) return;
-    await removeScheduledEntryInternal(match);
+    await removeScheduledEntryInternal({ date: dateKey, workoutTitle: title });
   }
 
   function buildPerSecondPower(samples, durationSec) {
@@ -1713,7 +1693,6 @@ export function createWorkoutPlanner({
     if (!overlay) return;
     exitDetailMode();
     resetHistoryIndex();
-    forceReloadSchedule();
     selectedDate = new Date();
     anchorStart = startOfWeek(selectedDate);
 
@@ -1727,7 +1706,8 @@ export function createWorkoutPlanner({
     ensureHistoryIndex().catch((err) => {
       console.warn("[Planner] history index load failed:", err);
     });
-    ensureScheduleLoaded().catch(() => {});
+    schedulePromise = loadScheduleIntoMap();
+    schedulePromise.catch(() => {});
 
     updateRowHeightVar();
     renderInitialRows();
@@ -1737,7 +1717,9 @@ export function createWorkoutPlanner({
 
     window.requestAnimationFrame(() => {
       centerOnDate(selectedDate);
-      recomputeAgg(selectedDate);
+      ensureScheduleLoaded()
+        .then(() => recomputeAgg(selectedDate))
+        .catch(() => {});
     });
     const pickerBackBtn = document.getElementById("pickerBackToPlannerBtn");
     if (pickerBackBtn) pickerBackBtn.style.display = "none";
@@ -1834,29 +1816,23 @@ export function createWorkoutPlanner({
     },
     applyScheduledEntry: async ({ dateKey, canonical, existingEntry }) => {
       if (!dateKey || !canonical) return;
-      await ensureScheduleLoaded();
       scheduledCache.clear();
-      const arr = scheduledMap.get(dateKey) || [];
-      const target =
-        existingEntry && arr.includes(existingEntry)
-          ? existingEntry
-          : { date: dateKey };
-      target.date = dateKey;
-      target.workoutTitle = canonical.workoutTitle;
-      target.rawSegments = canonical.rawSegments || [];
-      target.missing = false;
-      target.metrics = computeScheduledMetrics(target);
-      target.durationSec = target.metrics?.durationSec;
-      target.kj = target.metrics?.kj;
-      target.ifValue = target.metrics?.ifValue;
-      target.tss = target.metrics?.tss;
-      target.zone = target.metrics?.zone;
-      target.canonical = canonical;
-      if (!arr.includes(target)) {
-        arr.push(target);
-      }
-      scheduledMap.set(dateKey, arr);
-      await persistSchedule();
+      const current = await loadScheduleEntries();
+      const nextEntry = {
+        date: dateKey,
+        workoutTitle: canonical.workoutTitle,
+      };
+      const nextEntries = existingEntry
+        ? current.map((e) =>
+            e === existingEntry ||
+            (e.date === existingEntry?.date &&
+              e.workoutTitle === existingEntry?.workoutTitle)
+              ? nextEntry
+              : e,
+          )
+        : current.concat(nextEntry);
+      await persistSchedule(nextEntries);
+      await loadScheduleIntoMap();
       const cell = calendarBody.querySelector(
         `.planner-day[data-date="${dateKey}"]`,
       );
@@ -1864,7 +1840,8 @@ export function createWorkoutPlanner({
         cell
           .querySelectorAll(".planner-scheduled-card")
           .forEach((n) => n.remove());
-        arr.forEach((e) => {
+        const nextArr = scheduledMap.get(dateKey) || [];
+        nextArr.forEach((e) => {
           if (!e.metrics) {
             e.metrics = computeScheduledMetrics(e);
           }
@@ -1882,7 +1859,6 @@ export function createWorkoutPlanner({
     removeScheduledEntry: removeScheduledEntryInternal,
     removeScheduledEntryByRef,
     removeScheduledByTitle: async (dateKey, title) => {
-      await forceReloadSchedule();
       await removeScheduledEntryByRef({
         date: dateKey,
         workoutTitle: title,
