@@ -59,6 +59,37 @@ function keyToDate(key) {
   return new Date(y, (m || 1) - 1, d || 1);
 }
 
+// Filenames are ISO strings in UTC. Convert to a Date that represents that UTC
+// midnight in the local timezone so day math aligns with the user's locale.
+function utcDateKeyToLocalDate(key) {
+  if (!key) return null;
+  const [y, m, d] = key.split("-").map((n) => Number(n));
+  if (!y || !m || !d) return null;
+  const ms = Date.UTC(y, m - 1, d);
+  return new Date(ms);
+}
+
+function toDateSafe(value) {
+  if (value instanceof Date) return value;
+  if (!value) return null;
+  if (typeof value === "string") {
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) {
+      const [, y, m, d] = dateOnly;
+      const ms = Date.UTC(Number(y), Number(m) - 1, Number(d));
+      const utcDate = new Date(ms);
+      return Number.isNaN(utcDate.getTime()) ? null : utcDate;
+    }
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function localDateKey(key) {
+  const d = utcDateKeyToLocalDate(key);
+  return d ? formatKey(d) : null;
+}
+
 function isSameDay(a, b) {
   if (!a || !b) return false;
   return (
@@ -188,11 +219,12 @@ export function createWorkoutPlanner({
       try {
         for await (const [name, handle] of dir.entries()) {
           if (!name || !name.toLowerCase().endsWith(".fit")) continue;
-          const dateKey = dateKeyFromHandleName(name);
-          if (!dateKey) continue;
-          const arr = historyIndex.get(dateKey) || [];
+          const rawDateKey = dateKeyFromHandleName(name);
+          const localizedKey = localDateKey(rawDateKey);
+          if (!localizedKey) continue;
+          const arr = historyIndex.get(localizedKey) || [];
           arr.push({ name, handle });
-          historyIndex.set(dateKey, arr);
+          historyIndex.set(localizedKey, arr);
         }
         historyIndex.forEach((arr, key) => {
           historyIndex.set(
@@ -842,17 +874,17 @@ export function createWorkoutPlanner({
       const parsed = parseFitFile(buf);
       const cw = parsed.canonicalWorkout || {};
       const meta = parsed.meta || {};
+      const metaStartedAt = toDateSafe(meta.startedAt);
+      const metaEndedAt = toDateSafe(meta.endedAt);
       const ftp = meta.ftp || DEFAULT_FTP;
       const lastSample = parsed.samples?.length
         ? parsed.samples[parsed.samples.length - 1]
         : null;
       const durationSecHint =
-        meta.startedAt && meta.endedAt
+        metaStartedAt && metaEndedAt
           ? Math.max(
               1,
-              Math.round(
-                (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
-              ),
+              Math.round((metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000),
             )
           : Math.max(1, Math.round(lastSample?.t || 0));
 
@@ -890,7 +922,10 @@ export function createWorkoutPlanner({
         rawSegments: cw.rawSegments || [],
         samples: parsed.samples || [],
         powerCurve: curvePoints,
-        startedAt: meta.startedAt || preview.startedAt || keyToDate(dateKey),
+        startedAt:
+          metaStartedAt ||
+          toDateSafe(preview.startedAt) ||
+          utcDateKeyToLocalDate(dateKey),
         avgHr: hrStats.avgHr,
         maxHr: hrStats.maxHr,
         avgCadence: hrStats.avgCadence,
@@ -987,17 +1022,17 @@ export function createWorkoutPlanner({
           const parsed = parseFitFile(buf);
           const cw = parsed.canonicalWorkout || {};
           const meta = parsed.meta || {};
+          const metaStarted = toDateSafe(meta.startedAt) || null;
+          const metaEnded = toDateSafe(meta.endedAt) || null;
           const ftp = meta.ftp || DEFAULT_FTP;
           const lastSample = parsed.samples?.length
             ? parsed.samples[parsed.samples.length - 1]
             : null;
           const durationSecHint =
-            meta.startedAt && meta.endedAt
+            metaStarted && metaEnded
               ? Math.max(
                   1,
-                  Math.round(
-                    (meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000,
-                  ),
+                  Math.round((metaEnded.getTime() - metaStarted.getTime()) / 1000),
                 )
               : Math.max(1, Math.round(lastSample?.t || 0));
 
@@ -1025,11 +1060,10 @@ export function createWorkoutPlanner({
           }
 
           const title = cw.workoutTitle || entry.name.replace(/\.fit$/i, "");
-          const startedAt = meta.startedAt
-            ? meta.startedAt
-            : cached?.startedAt
-              ? new Date(cached.startedAt)
-              : null;
+          const startedAt =
+            metaStarted ||
+            toDateSafe(cached?.startedAt) ||
+            utcDateKeyToLocalDate(dateKey);
 
           let zone = cached?.zone;
           if (!zone) {
@@ -1233,25 +1267,26 @@ export function createWorkoutPlanner({
     base.setHours(0, 0, 0, 0);
     const baseMs = base.getTime();
     const dayMs = 24 * 60 * 60 * 1000;
-    const cutoff7 = baseMs - 7 * dayMs;
-    const cutoff3 = baseMs - 3 * dayMs;
-    const cutoff30 = baseMs - 30 * dayMs;
+    const baseEndMs = baseMs + dayMs;
+    const cutoff7 = baseEndMs - 7 * dayMs; // selected day + previous 6
+    const cutoff3 = baseEndMs - 3 * dayMs; // selected day + previous 2
+    const cutoff30 = baseEndMs - 30 * dayMs; // selected day + previous 29
 
     historyData.forEach((items) => {
       items.forEach((item) => {
         const start = item.startedAt ? item.startedAt.getTime() : null;
         if (start == null) return;
-        if (start <= baseMs && start >= cutoff3) {
+        if (start < baseEndMs && start >= cutoff3) {
           aggTotals["3"].sec += item.durationSec || 0;
           aggTotals["3"].kj += item.kj || 0;
           aggTotals["3"].tss += item.tss || 0;
         }
-        if (start <= baseMs && start >= cutoff7) {
+        if (start < baseEndMs && start >= cutoff7) {
           aggTotals["7"].sec += item.durationSec || 0;
           aggTotals["7"].kj += item.kj || 0;
           aggTotals["7"].tss += item.tss || 0;
         }
-        if (start <= baseMs && start >= cutoff30) {
+        if (start < baseEndMs && start >= cutoff30) {
           aggTotals["30"].sec += item.durationSec || 0;
           aggTotals["30"].kj += item.kj || 0;
           aggTotals["30"].tss += item.tss || 0;
@@ -1265,17 +1300,17 @@ export function createWorkoutPlanner({
       entries.forEach((entry) => {
         const metrics = entry.metrics;
         if (!metrics) return;
-        if (start <= baseMs && start >= cutoff3) {
+        if (start < baseEndMs && start >= cutoff3) {
           aggTotals["3"].sec += metrics.durationSec || 0;
           aggTotals["3"].kj += metrics.kj || 0;
           aggTotals["3"].tss += metrics.tss || 0;
         }
-        if (start <= baseMs && start >= cutoff7) {
+        if (start < baseEndMs && start >= cutoff7) {
           aggTotals["7"].sec += metrics.durationSec || 0;
           aggTotals["7"].kj += metrics.kj || 0;
           aggTotals["7"].tss += metrics.tss || 0;
         }
-        if (start <= baseMs && start >= cutoff30) {
+        if (start < baseEndMs && start >= cutoff30) {
           aggTotals["30"].sec += metrics.durationSec || 0;
           aggTotals["30"].kj += metrics.kj || 0;
           aggTotals["30"].tss += metrics.tss || 0;
@@ -1769,7 +1804,9 @@ export function createWorkoutPlanner({
           : startedAt
             ? new Date(startedAt)
             : null;
-      const dateKey = d ? formatKey(d) : dateKeyFromHandleName(fileName);
+      const dateKey = d
+        ? formatKey(d)
+        : localDateKey(dateKeyFromHandleName(fileName));
       if (!dateKey) return;
       await ensureHistoryIndex();
       const previews = await loadHistoryPreview(dateKey);

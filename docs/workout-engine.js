@@ -181,16 +181,6 @@ function createWorkoutEngine() {
     if (!dir) return null;
 
     const now = new Date();
-    const nameSafe =
-      canonicalWorkout.workoutTitle
-        ?.replace(/[<>:"/\\|?*]+/g, "_")
-        .slice(0, 60) || "workout";
-    const timestamp = now
-      .toISOString()
-      .replace(/[:]/g, "-")
-      .replace(/\.\d+Z$/, "Z");
-    const fileName = `${timestamp} - ${nameSafe}.fit`;
-
     const lastSampleT = liveSamples.length
       ? liveSamples[liveSamples.length - 1].t || 0
       : elapsedSec;
@@ -198,6 +188,16 @@ function createWorkoutEngine() {
       workoutStartedAt ||
       new Date(now.getTime() - Math.max(0, lastSampleT) * 1000);
     const endDate = new Date(startDate.getTime() + Math.max(0, lastSampleT) * 1000);
+
+    const nameSafe =
+      canonicalWorkout.workoutTitle
+        ?.replace(/[<>:"/\\|?*]+/g, "_")
+        .slice(0, 60) || "workout";
+    const timestamp = startDate
+      .toISOString()
+      .replace(/[:]/g, "-")
+      .replace(/\.\d+Z$/, "Z");
+    const fileName = `${timestamp} - ${nameSafe}.fit`;
 
     const fitBytes = buildFitFile({
       canonicalWorkout,
