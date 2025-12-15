@@ -7,14 +7,13 @@
 //   - manages picker UI
 //   - forwards logs to settings.js for display
 
-import {Beeper} from "./beeper.js";
-import {BleManager} from "./ble-manager.js";
-import {getWorkoutEngine} from "./workout-engine.js";
-import {getWorkoutPicker} from "./workout-picker.js";
-import {initWelcomeTour} from "./welcome.js";
-import {initThemeFromStorage, applyThemeMode} from "./theme.js";
-import {createWorkoutPlanner} from "./workout-planner.js";
-
+import { Beeper } from "./beeper.js";
+import { BleManager } from "./ble-manager.js";
+import { getWorkoutEngine } from "./workout-engine.js";
+import { getWorkoutPicker } from "./workout-picker.js";
+import { initWelcomeTour } from "./welcome.js";
+import { initThemeFromStorage } from "./theme.js";
+import { createWorkoutPlanner } from "./workout-planner.js";
 
 import {
   getCssVar,
@@ -23,15 +22,19 @@ import {
   drawWorkoutChart,
 } from "./workout-chart.js";
 
-import {DEFAULT_FTP, getAdjustedKjForPicker} from "./workout-metrics.js";
-import {initSettings, addLogLineToSettings, openSettingsModal} from "./settings.js";
+import { DEFAULT_FTP, getAdjustedKjForPicker } from "./workout-metrics.js";
+import {
+  initSettings,
+  addLogLineToSettings,
+  openSettingsModal,
+} from "./settings.js";
 import {
   loadLastScrapedWorkout,
   wasWorkoutJustScraped,
   clearJustScrapedFlag,
   loadRootDirHandle,
 } from "./storage.js";
-import {isSettingsModalOpen} from "./settings.js";
+import { isSettingsModalOpen } from "./settings.js";
 
 // --------------------------- DOM refs ---------------------------
 
@@ -125,13 +128,16 @@ function hideWelcomeOverlayFallback() {
   overlayEl.style.display = "none";
   overlayEl.classList.remove(
     "welcome-overlay--visible",
-    "welcome-overlay--splash-only"
+    "welcome-overlay--splash-only",
   );
 }
 
 function isRunningAsPwa() {
   try {
-    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) {
+    if (
+      window.matchMedia &&
+      window.matchMedia("(display-mode: standalone)").matches
+    ) {
       return true;
     }
   } catch (err) {
@@ -162,7 +168,9 @@ async function shouldForceFullWelcome() {
   let missingRootDir = false;
   try {
     const handle =
-      typeof loadRootDirHandle === "function" ? await loadRootDirHandle() : null;
+      typeof loadRootDirHandle === "function"
+        ? await loadRootDirHandle()
+        : null;
     missingRootDir = !handle;
   } catch (err) {
     logDebug("Root dir lookup failed; assuming not configured: " + err);
@@ -178,13 +186,15 @@ async function shouldForceFullWelcome() {
   }
 
   const forceFullWelcome = !runningAsPwa || missingRootDir;
-  return {forceFullWelcome, runningAsPwa, missingRootDir};
+  return { forceFullWelcome, runningAsPwa, missingRootDir };
 }
 
 async function ensureRootDirConfiguredForWorkouts() {
   try {
     const handle =
-      typeof loadRootDirHandle === "function" ? await loadRootDirHandle() : null;
+      typeof loadRootDirHandle === "function"
+        ? await loadRootDirHandle()
+        : null;
     if (handle) return true;
   } catch (err) {
     logDebug("Error checking root dir: " + err);
@@ -213,7 +223,8 @@ async function openPickerWithGuard(focusName) {
 function primeAudioContext() {
   const warm = () => {
     try {
-      const maybe = Beeper && typeof Beeper.warmUp === "function" ? Beeper.warmUp() : null;
+      const maybe =
+        Beeper && typeof Beeper.warmUp === "function" ? Beeper.warmUp() : null;
       if (maybe && typeof maybe.catch === "function") {
         maybe.catch((err) => logDebug("Audio warm-up failed: " + err));
       }
@@ -225,19 +236,17 @@ function primeAudioContext() {
   warm();
 
   const once = () => warm();
-  window.addEventListener("pointerdown", once, {once: true});
-  window.addEventListener("keydown", once, {once: true});
+  window.addEventListener("pointerdown", once, { once: true });
+  window.addEventListener("keydown", once, { once: true });
 }
 
 function isAnyModalOpen() {
   const pickerOpen =
     picker && typeof picker.isOpen === "function" ? picker.isOpen() : false;
-  const settingsOpen = typeof isSettingsModalOpen === "function"
-    ? isSettingsModalOpen()
-    : false;
-  const plannerOpen = planner && typeof planner.isOpen === "function"
-    ? planner.isOpen()
-    : false;
+  const settingsOpen =
+    typeof isSettingsModalOpen === "function" ? isSettingsModalOpen() : false;
+  const plannerOpen =
+    planner && typeof planner.isOpen === "function" ? planner.isOpen() : false;
   return pickerOpen || settingsOpen || plannerOpen;
 }
 
@@ -277,7 +286,8 @@ function buildWorkoutTooltip(vm) {
   }
 
   if (cw.zone) parts.push(`Zone: ${cw.zone}`);
-  if (typeof cw.ifValue === "number") parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
+  if (typeof cw.ifValue === "number")
+    parts.push(`IF: ${cw.ifValue.toFixed(2)}`);
   if (typeof cw.tss === "number") parts.push(`TSS: ${Math.round(cw.tss)}`);
   parts.push(`FTP: ${Math.round(currentFtp)}`);
 
@@ -299,10 +309,7 @@ function updateWorkoutTitleUI(vm) {
 
   if (workoutNameLabel) {
     if (cw) {
-      const name =
-        cw.workoutTitle ||
-        cw.name ||
-        "Selected workout";
+      const name = cw.workoutTitle || cw.name || "Selected workout";
       workoutNameLabel.textContent = name;
       workoutNameLabel.title = name;
     } else {
@@ -316,10 +323,7 @@ function updateWorkoutTitleUI(vm) {
       modeToggle.style.display = "none";
       workoutTitleCenter.style.display = "block";
 
-      const name =
-        cw?.workoutTitle ||
-        cw?.name ||
-        "Workout running";
+      const name = cw?.workoutTitle || cw?.name || "Workout running";
       workoutTitleCenter.textContent = name;
       workoutTitleCenter.title = buildWorkoutTooltip(vm);
 
@@ -345,13 +349,13 @@ function adjustStatFontSizes() {
     const cardRect = card.getBoundingClientRect();
     if (!cardRect.width || !cardRect.height) return;
 
-    const labelRect = labelEl ? labelEl.getBoundingClientRect() : {height: 0};
+    const labelRect = labelEl ? labelEl.getBoundingClientRect() : { height: 0 };
     const availableHeight = cardRect.height - labelRect.height - 6;
     const availableWidth = cardRect.width;
     const isDouble = valueEl.classList.contains("stat-lg");
     const fs = Math.max(
       18,
-      Math.min(availableHeight, availableWidth / (isDouble ? 6 : 3)) * 0.9
+      Math.min(availableHeight, availableWidth / (isDouble ? 6 : 3)) * 0.9,
     );
     valueEl.style.fontSize = `${fs}px`;
   });
@@ -370,7 +374,7 @@ function updateChartDimensions() {
 
 // --------------------------- BLE integration (UI side) ---------------------------
 
-function setBikeStatus({state, message}) {
+function setBikeStatus({ state, message }) {
   if (!bikeStatusDot) return;
 
   if (bikeConnectBtn) {
@@ -401,7 +405,7 @@ function setBikeStatus({state, message}) {
   }
 }
 
-function setHrStatus({state, message}) {
+function setHrStatus({ state, message }) {
   if (!hrStatusDot) return;
 
   if (hrConnectBtn) {
@@ -449,7 +453,7 @@ function initBleIntegration() {
 function totalDurationSec(rawSegments) {
   return rawSegments.reduce(
     (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
-    0
+    0,
   );
 }
 
@@ -520,7 +524,10 @@ function updateStatsDisplay(vm) {
   let target = null;
   if (vm.mode === "erg") {
     target = vm.manualErgTarget;
-  } else if (vm.mode === "workout" && vm.canonicalWorkout?.rawSegments?.length) {
+  } else if (
+    vm.mode === "workout" &&
+    vm.canonicalWorkout?.rawSegments?.length
+  ) {
     const t = vm.workoutRunning || vm.elapsedSec > 0 ? vm.elapsedSec : 0;
     target = getWorkoutTargetAtTime(vm, t);
   }
@@ -570,7 +577,7 @@ function setChartEmptyState(kind) {
   chartEmptyArrow.style.display = "";
   chartEmptyArrow.classList.remove(
     "chart-empty-arrow--left",
-    "chart-empty-arrow--right"
+    "chart-empty-arrow--right",
   );
 
   if (kind === "noBike") {
@@ -610,10 +617,7 @@ function drawChart(vm) {
     vm.workoutRunning;
 
   const showNoWorkout =
-    vm &&
-    vm.mode === "workout" &&
-    !vm.canonicalWorkout &&
-    !vm.workoutRunning;
+    vm && vm.mode === "workout" && !vm.canonicalWorkout && !vm.workoutRunning;
 
   const showNoBike = !bikeConnected;
 
@@ -823,7 +827,7 @@ async function handleLastScrapedWorkout() {
     if (!success) {
       const msg = [
         `Failed to import workout "${title}".`,
-        error ? `\nDetails: ${error}` : ""
+        error ? `\nDetails: ${error}` : "",
       ].join("\n");
       alert(msg);
       return;
@@ -838,7 +842,7 @@ async function handleLastScrapedWorkout() {
       console.error("[Workout] Failed to save scraped workout:", err);
       alert(
         `Failed to save imported workout "${title}" to your workout folder.\n\n` +
-        "Check console for details."
+          "Check console for details.",
       );
       return; // error path should not continue
     }
@@ -852,7 +856,7 @@ async function handleLastScrapedWorkout() {
       console.error("[Workout] Failed to open picker:", err);
       alert(
         `Workout "${title}" was imported, but could not be displayed in the picker.\n\n` +
-        "Check console for details."
+          "Check console for details.",
       );
       // continue, it’s still imported
     }
@@ -876,7 +880,7 @@ async function handleLastScrapedWorkout() {
         console.error("[Workout] Failed to load workout into engine:", err);
         alert(
           `Workout "${title}" was imported, but could not be loaded as the current workout.\n\n` +
-          "Check console for details."
+            "Check console for details.",
         );
       }
     }
@@ -885,7 +889,7 @@ async function handleLastScrapedWorkout() {
     console.error("[Workout] Unexpected failure:", err);
     alert(
       "A newly imported workout was detected, but an unexpected error occurred.\n\n" +
-      "Check console for details."
+        "Check console for details.",
     );
   } finally {
     try {
@@ -894,7 +898,7 @@ async function handleLastScrapedWorkout() {
       console.error("[Workout] Failed to clear just-scraped flag:", err);
       alert(
         "Imported workout handled, but failed to reset scrape state.\n\n" +
-        "Check console for details."
+          "Check console for details.",
       );
     }
     isHandlingLastScrapedWorkout = false;
@@ -912,14 +916,13 @@ async function maybeShowWelcome(vm) {
       onFinished: () => {
         setWelcomeActive(false);
       },
-      onVisibilityChanged: ({isOpen}) => {
+      onVisibilityChanged: ({ isOpen }) => {
         setWelcomeActive(isOpen);
       },
     });
 
     const hasActiveWorkout =
-      vm &&
-      (vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
+      vm && (vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
     let forceFullWelcome = false;
     let runningAsPwa = false;
     try {
@@ -964,7 +967,6 @@ async function maybeShowWelcome(vm) {
   }
 }
 
-
 // --------------------------- Init ---------------------------
 
 async function initPage() {
@@ -988,9 +990,9 @@ async function initPage() {
 
   const handleScheduleSelected = (payload) => {
     if (!payload) return;
-    const {canonical, dateKey, existingEntry} = payload;
+    const { canonical, dateKey, existingEntry } = payload;
     if (planner && typeof planner.applyScheduledEntry === "function") {
-      planner.applyScheduledEntry({dateKey, canonical, existingEntry});
+      planner.applyScheduledEntry({ dateKey, canonical, existingEntry });
     }
     if (planner && typeof planner.showModal === "function") {
       planner.showModal();
@@ -1025,7 +1027,11 @@ async function initPage() {
       }
       if (!planner) return;
       planner.open();
-      if (info && info.fileName && typeof planner.openDetailByFile === "function") {
+      if (
+        info &&
+        info.fileName &&
+        typeof planner.openDetailByFile === "function"
+      ) {
         planner.openDetailByFile(info.fileName, info.startedAt);
       }
     },
@@ -1038,7 +1044,8 @@ async function initPage() {
   const welcomePromise = maybeShowWelcome(engine.getViewModel());
   await welcomePromise;
 
-  const themePref = document.documentElement?.dataset?.theme || currentThemeMode;
+  const themePref =
+    document.documentElement?.dataset?.theme || currentThemeMode;
   if (window.matchMedia && themePref === "auto") {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => rerenderThemeSensitive();
@@ -1095,14 +1102,18 @@ async function initPage() {
       if (planner && typeof planner.hideModal === "function") {
         planner.hideModal();
       }
-      picker.openScheduleMode({dateKey, entry: null, editMode: false});
+      picker.openScheduleMode({ dateKey, entry: null, editMode: false });
     },
     onScheduledEditRequested: (dateKey, existing) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;
       if (planner && typeof planner.hideModal === "function") {
         planner.hideModal();
       }
-      picker.openScheduleMode({dateKey, entry: existing || null, editMode: true});
+      picker.openScheduleMode({
+        dateKey,
+        entry: existing || null,
+        editMode: true,
+      });
     },
     onScheduledLoadRequested: (entry) => {
       if (!entry) return;
@@ -1146,7 +1157,9 @@ async function initPage() {
         navigator.bluetooth &&
         typeof navigator.bluetooth.getDevices === "function";
       if (!btSupported) {
-        alert("Your browser doesn’t support Bluetooth. Let’s open Settings for options.");
+        alert(
+          "Your browser doesn’t support Bluetooth. Let’s open Settings for options.",
+        );
         openSettingsModal();
         return;
       }
@@ -1165,7 +1178,9 @@ async function initPage() {
         navigator.bluetooth &&
         typeof navigator.bluetooth.getDevices === "function";
       if (!btSupported) {
-        alert("Your browser doesn’t support Bluetooth. Let’s open Settings for options.");
+        alert(
+          "Your browser doesn’t support Bluetooth. Let’s open Settings for options.",
+        );
         openSettingsModal();
         return;
       }
@@ -1269,18 +1284,24 @@ async function initPage() {
 
     if (e.code === "Space") {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      const canToggle =
-        vm.mode === "workout" &&
-        !!vm.canonicalWorkout;
+      const canToggle = vm.mode === "workout" && !!vm.canonicalWorkout;
       if (!canToggle) return;
       e.preventDefault();
       engine.startWorkout();
       return;
     }
 
-    if (!modalOpen && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
+    if (
+      !modalOpen &&
+      tag !== "INPUT" &&
+      tag !== "TEXTAREA" &&
+      tag !== "SELECT"
+    ) {
       const manualMode = vm.mode === "erg" || vm.mode === "resistance";
-      if (manualMode && (key === "arrowup" || key === "k" || key === "arrowdown" || key === "j")) {
+      if (
+        manualMode &&
+        (key === "arrowup" || key === "k" || key === "arrowdown" || key === "j")
+      ) {
         const delta = key === "arrowup" || key === "k" ? 10 : -10;
         e.preventDefault();
         if (vm.mode === "erg") {
@@ -1363,10 +1384,8 @@ document.addEventListener("DOMContentLoaded", () => {
 const isExtensionPage = window.location.protocol === "chrome-extension:";
 if (!isExtensionPage && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("./service-worker.js")
-      .catch(err => {
-        console.error("Service worker registration failed:", err);
-      });
+    navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+      console.error("Service worker registration failed:", err);
+    });
   });
 }
