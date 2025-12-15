@@ -1206,6 +1206,11 @@ function createWorkoutPicker(config) {
               if (btn) btn.focus();
             }
           }
+        } else if (key === "escape") {
+          e.preventDefault();
+          searchInput.value = "";
+          searchInput.blur();
+          renderWorkoutPickerTable();
         }
         return;
       }
@@ -1240,7 +1245,14 @@ function createWorkoutPicker(config) {
         return;
       }
 
-      if ((key === "backspace" || key === "escape") && scheduleMode) {
+      if (key === "escape") {
+        e.preventDefault();
+        if (scheduleMode) {
+          close({ returnToPlanner: true });
+        }
+        return;
+      }
+      if (key === "backspace" && scheduleMode) {
         e.preventDefault();
         close({ returnToPlanner: true });
         return;
