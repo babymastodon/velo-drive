@@ -1285,6 +1285,15 @@ export function createWorkoutPlanner({
 
   function onKeyDown(ev) {
     if (!isOpen) return;
+
+    if (detailMode) {
+      const key = (ev.key || "").toLowerCase();
+      if (key === "backspace") {
+        ev.preventDefault();
+        exitDetailMode();
+      }
+      return;
+    }
     const key = (ev.key || "").toLowerCase();
     if (key === "escape") {
       close();

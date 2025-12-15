@@ -511,6 +511,9 @@ export function drawPowerCurveChart({
 
   const findInterpolatedPoint = (targetDur) => {
     if (!sorted.length) return null;
+    if (targetDur >= (sorted[sorted.length - 1].durSec || 0)) {
+      return sorted[sorted.length - 1];
+    }
     let lo = 0;
     let hi = sorted.length - 1;
     while (lo < hi) {
