@@ -756,9 +756,11 @@ export function createWorkoutPlanner({
       const header = document.createElement("div");
       header.className = "planner-detail-date";
       try {
-        header.textContent = formatSelectedLabel(detail.startedAt);
+        const datePart = formatSelectedLabel(detail.startedAt);
+        const timePart = detail.startedAt.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+        header.textContent = `${datePart} • ${timePart}`;
       } catch (_err) {
-        header.textContent = detail.startedAt.toDateString();
+        header.textContent = detail.startedAt.toString();
       }
       detailStatsEl.appendChild(header);
     }
@@ -799,16 +801,7 @@ export function createWorkoutPlanner({
       pushStat("Avg Cadence", `${Math.round(detail.avgCadence)} rpm`);
     if (Number.isFinite(detail.maxCadence))
       pushStat("Max Cadence", `${Math.round(detail.maxCadence)} rpm`);
-    if (detail.startedAt) {
-      try {
-        pushStat(
-          "Started",
-          detail.startedAt.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}),
-        );
-      } catch (_err) {
-        pushStat("Started", detail.startedAt.toTimeString().slice(0, 5));
-      }
-    }
+    // Started stat removed; time is included in header
 
     if (row.children.length) {
       detailStatsEl.appendChild(row);

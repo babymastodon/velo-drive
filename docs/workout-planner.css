@@ -224,6 +224,7 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 0;
+  height: 32px;
 }
 
 .planner-scheduled-tag {
@@ -236,8 +237,8 @@
 }
 
 .planner-scheduled-edit-btn {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
 }
 
 .planner-workout-header {
