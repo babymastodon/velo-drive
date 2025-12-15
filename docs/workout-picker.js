@@ -269,7 +269,6 @@ function createWorkoutPicker(config) {
     const zoneValue = zoneFilter?.value || "";
     const durValue = durationFilter?.value || "";
     const currentFtp = getCurrentFtp();
-
     /** @type {{ canonical: CanonicalWorkout, zone: string, metrics: any }[]} */
     let items = pickerWorkouts.map((canonical) => {
       const metrics = computeMetricsFromSegments(
@@ -293,33 +292,65 @@ function createWorkoutPicker(config) {
     if (searchTerm) {
       const rawTokens = searchTerm
         .split(/\s+/)
-        .map((t) => t.trim())
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
-      const tokens = rawTokens.flatMap((tok) => {
-        const minMatch = tok.match(/^(\d+)\s*min$/i);
-        const compactMatch = tok.match(/^(\d+)\s*(m|min)$/i);
-        if (minMatch) return [`${minMatch[1]} min`];
-        if (compactMatch) return [`${compactMatch[1]} min`];
-        return [tok];
+      let rangeMin = null;
+      let rangeMax = null;
+      const tokens = [];
+      rawTokens.forEach((tok) => {
+        const compactRange = tok.match(/^(\d+)\s*[-–]\s*(\d+)\s*(m|min)?$/i);
+        if (compactRange) {
+          rangeMin = Number(compactRange[1]);
+          rangeMax = Number(compactRange[2]);
+          return;
+        }
+        const lt = tok.match(/^<\s*(\d+)/);
+        const gt = tok.match(/^>\s*(\d+)/);
+        if (lt) {
+          rangeMax = Number(lt[1]);
+          return;
+        }
+        if (gt) {
+          rangeMin = Number(gt[1]);
+          return;
+        }
+        const approx = tok.match(/^(\d+)\s*(m|min)?$/i);
+        if (approx) {
+          const val = Number(approx[1]);
+          if (Number.isFinite(val)) {
+            rangeMin = rangeMin == null ? val - 5 : rangeMin;
+            rangeMax = rangeMax == null ? val + 5 : rangeMax;
+            return;
+          }
+        }
+        tokens.push(tok);
       });
+      if (rangeMin != null && rangeMax != null && rangeMin > rangeMax) {
+        const tmp = rangeMin;
+        rangeMin = rangeMax;
+        rangeMax = tmp;
+      }
       items = items.filter((item) => {
         const { canonical } = item;
         const title = canonical.workoutTitle;
         const source = canonical.source || "";
         const description = canonical.description || "";
-        const durationStr = Number.isFinite(item.metrics.durationMin)
-          ? `${Math.round(item.metrics.durationMin)} min`
-          : "";
         const haystack = [
           title,
           item.zone,
           source,
           description.slice(0, 300),
-          durationStr,
         ]
           .join(" ")
           .toLowerCase();
-        return tokens.every((t) => haystack.includes(t));
+        const tokensMatch = tokens.every((t) => haystack.includes(t));
+        if (!tokensMatch) return false;
+        if (rangeMin != null || rangeMax != null) {
+          const dur = item.metrics.durationMin;
+          if (rangeMin != null && !(dur >= rangeMin)) return false;
+          if (rangeMax != null && !(dur <= rangeMax)) return false;
+        }
+        return true;
       });
     }
 
