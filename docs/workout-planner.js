@@ -27,6 +27,7 @@ const VISIBLE_WEEKS = 16;
 const SCROLL_BUFFER_ROWS = 2;
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
+const normalizeTitle = (t) => (t || "").toString().trim().toLowerCase();
 const POWER_CURVE_DURS = [
   1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200,
   1800, 2400, 3600, 5400, 7200, 14400, 28800,
@@ -218,7 +219,7 @@ export function createWorkoutPlanner({
       entries.forEach((e) => {
         if (!e || !e.date || !e.workoutTitle) return;
         const key = e.date;
-        const entry = {date: e.date, workoutTitle: e.workoutTitle};
+        const entry = { date: e.date, workoutTitle: e.workoutTitle };
         const arr = scheduledMap.get(key) || [];
         arr.push(entry);
         scheduledMap.set(key, arr);
@@ -231,7 +232,7 @@ export function createWorkoutPlanner({
     const entries = [];
     scheduledMap.forEach((arr) => {
       arr.forEach((e) =>
-        entries.push({date: e.date, workoutTitle: e.workoutTitle}),
+        entries.push({ date: e.date, workoutTitle: e.workoutTitle }),
       );
     });
     await saveScheduleEntries(entries);
@@ -388,7 +389,8 @@ export function createWorkoutPlanner({
       const fileName =
         (entry.fileName && entry.fileName.endsWith(".zwo")
           ? entry.fileName
-          : `${encodeURIComponent(entry.workoutTitle || entry.fileName || "")}.zwo`) || "";
+          : `${encodeURIComponent(entry.workoutTitle || entry.fileName || "")}.zwo`) ||
+        "";
       const handle = await dir.getFileHandle(fileName, { create: false });
       const file = await handle.getFile();
       const text = await file.text();
