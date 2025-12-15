@@ -126,7 +126,6 @@ export function createWorkoutPlanner({
   let detailChartData = null;
   let detailMode = false;
   let detailState = null;
-  let plannerOverlayHidden = false;
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -1604,6 +1603,9 @@ export function createWorkoutPlanner({
 
     overlay.style.display = "flex";
     overlay.removeAttribute("aria-hidden");
+    overlay.classList.add("planner-mode");
+    overlay.classList.remove("picker-mode");
+    if (modal) modal.style.display = "flex";
     isOpen = true;
 
     ensureHistoryIndex().catch((err) => {
@@ -1626,8 +1628,11 @@ export function createWorkoutPlanner({
   function close() {
     if (!overlay) return;
     exitDetailMode();
-    overlay.style.display = "none";
-    overlay.setAttribute("aria-hidden", "true");
+    overlay.classList.remove("planner-mode");
+    if (!overlay.classList.contains("picker-mode")) {
+      overlay.style.display = "none";
+      overlay.setAttribute("aria-hidden", "true");
+    }
     isOpen = false;
   }
 
@@ -1647,7 +1652,12 @@ export function createWorkoutPlanner({
   }
 
   overlay.addEventListener("click", (ev) => {
-    if (ev.target === overlay) {
+    if (
+      ev.target === overlay &&
+      overlay.classList.contains("planner-mode") &&
+      modal &&
+      modal.style.display !== "none"
+    ) {
       close();
     }
   });
@@ -1685,16 +1695,19 @@ export function createWorkoutPlanner({
         previews[0];
       openDetailView(dateKey, match);
     },
-    hideOverlay: () => {
-      if (!overlay) return;
-      plannerOverlayHidden = true;
-      overlay.style.display = "none";
+    hideModal: () => {
+      if (overlay) overlay.classList.remove("planner-mode");
+      isOpen = false;
     },
-    showOverlay: () => {
-      if (!overlay) return;
-      overlay.style.display = "flex";
-      overlay.removeAttribute("aria-hidden");
-      plannerOverlayHidden = false;
+    showModal: () => {
+      if (overlay) {
+        overlay.classList.add("planner-mode");
+        overlay.classList.remove("picker-mode");
+        overlay.style.display = "flex";
+        overlay.removeAttribute("aria-hidden");
+      }
+      if (modal) modal.style.display = "flex";
+      isOpen = true;
     },
     applyScheduledEntry: async ({dateKey, canonical}) => {
       if (!dateKey || !canonical) return;

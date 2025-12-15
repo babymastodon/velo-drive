@@ -196,6 +196,13 @@ async function ensureRootDirConfiguredForWorkouts() {
 
 async function openPickerWithGuard(focusName) {
   if (!picker || typeof picker.open !== "function") return;
+  if (planner && typeof planner.isOpen === "function" && planner.isOpen()) {
+    if (typeof planner.hideModal === "function") {
+      planner.hideModal();
+    } else {
+      planner.close();
+    }
+  }
   const ok = await ensureRootDirConfiguredForWorkouts();
   if (!ok) return;
   picker
@@ -974,8 +981,8 @@ async function initPage() {
   engine = getWorkoutEngine();
 
   const handleScheduleCanceled = () => {
-    if (planner && typeof planner.showOverlay === "function") {
-      planner.showOverlay();
+    if (planner && typeof planner.showModal === "function") {
+      planner.showModal();
     }
   };
 
@@ -985,8 +992,8 @@ async function initPage() {
     if (planner && typeof planner.applyScheduledEntry === "function") {
       planner.applyScheduledEntry({dateKey, canonical});
     }
-    if (planner && typeof planner.showOverlay === "function") {
-      planner.showOverlay();
+    if (planner && typeof planner.showModal === "function") {
+      planner.showModal();
     }
     if (picker) picker.close();
   };
@@ -995,8 +1002,8 @@ async function initPage() {
     if (planner && typeof planner.removeScheduledEntry === "function") {
       planner.removeScheduledEntry(entry);
     }
-    if (planner && typeof planner.showOverlay === "function") {
-      planner.showOverlay();
+    if (planner && typeof planner.showModal === "function") {
+      planner.showModal();
     }
     if (picker) picker.close();
   };
@@ -1055,8 +1062,8 @@ async function initPage() {
   });
 
   planner = createWorkoutPlanner({
-    overlay: document.getElementById("workoutPlannerOverlay"),
-    modal: document.getElementById("workoutPlannerModal"),
+    overlay: document.getElementById("workoutPickerOverlay"),
+    modal: document.getElementById("workoutPickerModal"),
     closeBtn: document.getElementById("workoutPlannerCloseBtn"),
     calendarBody: document.getElementById("plannerCalendarBody"),
     selectedLabel: document.getElementById("plannerSelectedDateLabel"),
@@ -1073,15 +1080,15 @@ async function initPage() {
     getCurrentFtp: () => engine.getViewModel().currentFtp,
     onScheduleRequested: (dateKey, existing) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;
-      if (planner && typeof planner.hideOverlay === "function") {
-        planner.hideOverlay();
+      if (planner && typeof planner.hideModal === "function") {
+        planner.hideModal();
       }
       picker.openScheduleMode({dateKey, entry: existing || null, editMode: !!existing});
     },
     onScheduledEditRequested: (dateKey, existing) => {
       if (!picker || typeof picker.openScheduleMode !== "function") return;
-      if (planner && typeof planner.hideOverlay === "function") {
-        planner.hideOverlay();
+      if (planner && typeof planner.hideModal === "function") {
+        planner.hideModal();
       }
       picker.openScheduleMode({dateKey, entry: existing || null, editMode: true});
     },
