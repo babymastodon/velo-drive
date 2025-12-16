@@ -59,6 +59,133 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
   };
 }
 
+// --------------------------- Metrics from recorded samples -------------------
+
+export function buildPerSecondPower(samples, durationSec) {
+  const totalSec = Math.max(1, Math.ceil(durationSec || 0));
+  const arr = new Float32Array(totalSec);
+  if (!Array.isArray(samples) || !samples.length) return arr;
+
+  const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
+  let idx = 0;
+  let current = sorted[0];
+  let power = Number(current?.power) || 0;
+
+  for (let s = 0; s < totalSec; s += 1) {
+    while (idx + 1 < sorted.length && (sorted[idx + 1].t || 0) <= s) {
+      idx += 1;
+      current = sorted[idx];
+      power = Number(current?.power) || 0;
+    }
+    arr[s] = power;
+  }
+  return arr;
+}
+
+export function computeMetricsFromSamples(samples, ftp, durationSecHint) {
+  const ftpVal = Number(ftp) || DEFAULT_FTP;
+  const durationSec =
+    durationSecHint ||
+    (samples?.length
+      ? Math.max(1, Math.round(samples[samples.length - 1].t || 0))
+      : 0);
+  if (!durationSec || !samples?.length) {
+    return {
+      durationSec: 0,
+      kj: null,
+      ifValue: null,
+      tss: null,
+      ftp: ftpVal,
+      minutePower: [],
+    };
+  }
+
+  const perSec = buildPerSecondPower(samples, durationSec);
+
+  let sumJ = 0;
+  const perMin = [];
+  let minSum = 0;
+  let minCount = 0;
+  for (let i = 0; i < perSec.length; i += 1) {
+    const p = perSec[i] || 0;
+    sumJ += p;
+    minSum += p;
+    minCount += 1;
+    const atBoundary = (i + 1) % 60 === 0 || i === perSec.length - 1;
+    if (atBoundary) {
+      perMin.push(minCount ? minSum / minCount : 0);
+      minSum = 0;
+      minCount = 0;
+    }
+  }
+
+  // Normalized power via 30s rolling avg
+  const window = 30;
+  let sumPow4 = 0;
+  if (perSec.length <= window) {
+    const avg = perSec.reduce((s, v) => s + v, 0) / perSec.length;
+    sumPow4 = avg ** 4 * perSec.length;
+  } else {
+    let windowSum = 0;
+    for (let i = 0; i < perSec.length; i += 1) {
+      windowSum += perSec[i];
+      if (i >= window) {
+        windowSum -= perSec[i - window];
+      }
+      if (i >= window - 1) {
+        const avg = windowSum / window;
+        sumPow4 += avg ** 4;
+      }
+    }
+  }
+  const samplesForNp = Math.max(1, perSec.length - (window - 1));
+  const np = Math.pow(sumPow4 / samplesForNp, 0.25);
+  const IF = np && ftpVal ? np / ftpVal : null;
+  const tss = IF != null ? (durationSec * IF * IF) / 36 : null;
+
+  const avgPower = perSec.length ? sumJ / perSec.length : 0;
+  const avgHr =
+    samples?.length && samples.some((s) => Number.isFinite(s.hr))
+      ? samples.reduce(
+          (acc, s) => ({
+            sum: acc.sum + (Number.isFinite(s.hr) ? s.hr : 0),
+            count: acc.count + (Number.isFinite(s.hr) ? 1 : 0),
+          }),
+          { sum: 0, count: 0 },
+        )
+      : { sum: 0, count: 0 };
+  const avgHrVal = avgHr.count ? avgHr.sum / avgHr.count : null;
+
+  return {
+    durationSec,
+    kj: sumJ / 1000,
+    ifValue: IF,
+    tss,
+    ftp: ftpVal,
+    minutePower: perMin,
+    avgPower,
+    normalizedPower: np || null,
+    perSecondPower: perSec,
+    avgHr: avgHrVal,
+  };
+}
+
+// --------------------------- Scheduled workout helpers -----------------------
+
+export function computeScheduledMetrics(entry, ftpInput) {
+  if (!entry || !entry.rawSegments?.length) return null;
+  const ftpVal = Number(ftpInput) || DEFAULT_FTP;
+  const metrics = computeMetricsFromSegments(entry.rawSegments, ftpVal);
+  const zone = inferZoneFromSegments(entry.rawSegments);
+  return {
+    durationSec: metrics.totalSec || 0,
+    kj: metrics.kj,
+    ifValue: metrics.ifValue,
+    tss: metrics.tss,
+    zone,
+  };
+}
+
 // --------------------------- Zone inference ---------------------------
 
 /**

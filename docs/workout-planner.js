@@ -2,7 +2,8 @@ import { parseFitFile } from "./fit-file.js";
 import { drawMiniHistoryChart } from "./workout-chart.js";
 import {
   DEFAULT_FTP,
-  computeMetricsFromSegments,
+  computeMetricsFromSamples,
+  computeScheduledMetrics,
   inferZoneFromSegments,
 } from "./workout-metrics.js";
 import {
@@ -11,8 +12,8 @@ import {
   saveWorkoutStatsCache,
   loadScheduleEntries,
   saveScheduleEntries,
-  loadZwoDirHandle,
 } from "./storage.js";
+import { loadWorkoutFile } from "./workout-library.js";
 import {
   renderDetailStats,
   renderPowerCurveDetail,
@@ -20,6 +21,9 @@ import {
   moveHistoryFileToTrash,
   computeHrCadStats,
   buildPowerCurve,
+  buildPowerSegments,
+  powerMaxFromIntervals,
+  formatDuration,
 } from "./planner-analysis.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -255,12 +259,16 @@ export function createWorkoutPlanner({
     const entries = await loadScheduleEntries();
     const nextMap = new Map();
     let added = 0;
+    const ftpForSchedule =
+      typeof getCurrentFtp === "function"
+        ? Number(getCurrentFtp()) || DEFAULT_FTP
+        : DEFAULT_FTP;
     for (const e of entries) {
       if (!e || !e.date || !e.workoutTitle) continue;
       const key = e.date;
       const entry = { date: e.date, workoutTitle: e.workoutTitle };
       await loadWorkoutFile(entry);
-      entry.metrics = entry.metrics || computeScheduledMetrics(entry);
+      entry.metrics = entry.metrics || computeScheduledMetrics(entry, ftpForSchedule);
       if (entry.metrics) {
         entry.durationSec = entry.metrics.durationSec;
         entry.kj = entry.metrics.kj;
@@ -316,271 +324,6 @@ export function createWorkoutPlanner({
     const title = entry?.workoutTitle;
     if (!dateKey || !title) return;
     await removeScheduledEntryInternal({ date: dateKey, workoutTitle: title });
-  }
-
-  function buildPerSecondPower(samples, durationSec) {
-    const totalSec = Math.max(1, Math.ceil(durationSec || 0));
-    const arr = new Float32Array(totalSec);
-    if (!Array.isArray(samples) || !samples.length) return arr;
-
-    const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
-    let idx = 0;
-    let current = sorted[0];
-    let power = Number(current?.power) || 0;
-
-    for (let s = 0; s < totalSec; s += 1) {
-      while (idx + 1 < sorted.length && (sorted[idx + 1].t || 0) <= s) {
-        idx += 1;
-        current = sorted[idx];
-        power = Number(current?.power) || 0;
-      }
-      arr[s] = power;
-    }
-    return arr;
-  }
-
-  function computeMetricsFromSamples(samples, ftp, durationSecHint) {
-    const ftpVal = Number(ftp) || DEFAULT_FTP;
-    const durationSec =
-      durationSecHint ||
-      (samples?.length
-        ? Math.max(1, Math.round(samples[samples.length - 1].t || 0))
-        : 0);
-    if (!durationSec || !samples?.length) {
-      return {
-        durationSec: 0,
-        kj: null,
-        ifValue: null,
-        tss: null,
-        ftp: ftpVal,
-        minutePower: [],
-      };
-    }
-
-    const perSec = buildPerSecondPower(samples, durationSec);
-
-    let sumJ = 0;
-    const perMin = [];
-    let minSum = 0;
-    let minCount = 0;
-    for (let i = 0; i < perSec.length; i += 1) {
-      const p = perSec[i] || 0;
-      sumJ += p;
-      minSum += p;
-      minCount += 1;
-      const atBoundary = (i + 1) % 60 === 0 || i === perSec.length - 1;
-      if (atBoundary) {
-        perMin.push(minCount ? minSum / minCount : 0);
-        minSum = 0;
-        minCount = 0;
-      }
-    }
-
-    // Normalized power via 30s rolling avg
-    const window = 30;
-    let sumPow4 = 0;
-    if (perSec.length <= window) {
-      const avg = perSec.reduce((s, v) => s + v, 0) / perSec.length;
-      sumPow4 = avg ** 4 * perSec.length;
-    } else {
-      let windowSum = 0;
-      for (let i = 0; i < perSec.length; i += 1) {
-        windowSum += perSec[i];
-        if (i >= window) {
-          windowSum -= perSec[i - window];
-        }
-        if (i >= window - 1) {
-          const avg = windowSum / window;
-          sumPow4 += avg ** 4;
-        }
-      }
-    }
-    const samplesForNp = Math.max(1, perSec.length - (window - 1));
-    const np = Math.pow(sumPow4 / samplesForNp, 0.25);
-    const IF = np && ftpVal ? np / ftpVal : null;
-    const tss = IF != null ? (durationSec * IF * IF) / 36 : null;
-
-    const avgPower = perSec.length ? sumJ / perSec.length : 0;
-    const avgHr =
-      samples?.length && samples.some((s) => Number.isFinite(s.hr))
-        ? samples.reduce(
-            (acc, s) => ({
-              sum: acc.sum + (Number.isFinite(s.hr) ? s.hr : 0),
-              count: acc.count + (Number.isFinite(s.hr) ? 1 : 0),
-            }),
-            { sum: 0, count: 0 },
-          )
-        : { sum: 0, count: 0 };
-    const avgHrVal = avgHr.count ? avgHr.sum / avgHr.count : null;
-
-    return {
-      durationSec,
-      kj: sumJ / 1000,
-      ifValue: IF,
-      tss,
-      ftp: ftpVal,
-      minutePower: perMin,
-      avgPower,
-      normalizedPower: np || null,
-      perSecondPower: perSec,
-      avgHr: avgHrVal,
-    };
-  }
-
-  async function loadWorkoutFile(entry) {
-    if (!entry || !entry.workoutTitle) return entry;
-    try {
-      const dir = await loadZwoDirHandle();
-      if (!dir) {
-        entry.missing = true;
-        return entry;
-      }
-      const fileName =
-        (entry.fileName && entry.fileName.endsWith(".zwo")
-          ? entry.fileName
-          : `${encodeURIComponent(entry.workoutTitle || entry.fileName || "")}.zwo`) ||
-        "";
-      const handle = await dir.getFileHandle(fileName, { create: false });
-      const file = await handle.getFile();
-      const text = await file.text();
-      const { parseZwoXmlToCanonicalWorkout } = await import("./zwo.js");
-      const canonical = parseZwoXmlToCanonicalWorkout(text) || {};
-      const enrichedCanonical = {
-        ...canonical,
-        workoutTitle: canonical.workoutTitle || entry.workoutTitle,
-        fileName,
-      };
-      const rawSegments = enrichedCanonical.rawSegments || [];
-      entry.rawSegments = rawSegments;
-      entry.canonical = enrichedCanonical;
-      entry.workoutTitle = enrichedCanonical.workoutTitle;
-      entry.fileName = fileName;
-      entry.source = enrichedCanonical.source;
-      entry.sourceURL = enrichedCanonical.sourceURL;
-      entry.description = enrichedCanonical.description;
-      entry.missing = false;
-    } catch (_err) {
-      entry.missing = true;
-    }
-    return entry;
-  }
-
-  function computeScheduledMetrics(entry) {
-    if (!entry || !entry.rawSegments?.length) return null;
-    const ftp =
-      typeof getCurrentFtp === "function"
-        ? Number(getCurrentFtp()) || DEFAULT_FTP
-        : DEFAULT_FTP;
-    const metrics = computeMetricsFromSegments(entry.rawSegments, ftp);
-    const zone = inferZoneFromSegments(entry.rawSegments);
-    return {
-      durationSec: metrics.totalSec || 0,
-      kj: metrics.kj,
-      ifValue: metrics.ifValue,
-      tss: metrics.tss,
-      zone,
-    };
-  }
-
-  function buildPowerSegments(samples, durationSecHint) {
-    if (!Array.isArray(samples) || !samples.length) {
-      return { intervals: [], maxPower: 0, totalSec: 0 };
-    }
-    const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
-    const lastSample = sorted[sorted.length - 1];
-    const totalSec = Math.max(
-      1,
-      durationSecHint || Math.round(lastSample?.t || 0) || 0,
-    );
-    const bucketSize = 5;
-    const bucketCount = Math.ceil(totalSec / bucketSize);
-    const buckets = new Array(bucketCount).fill(null).map(() => []);
-
-    sorted.forEach((s) => {
-      const t = Math.max(0, Math.round(s.t || 0));
-      const idx = Math.min(bucketCount - 1, Math.floor(t / bucketSize));
-      buckets[idx].push(Number(s.power) || 0);
-    });
-
-    const median = (arr) => {
-      if (!arr.length) return 0;
-      const sortedVals = [...arr].sort((a, b) => a - b);
-      const mid = Math.floor(sortedVals.length / 2);
-      return sortedVals.length % 2 === 0
-        ? (sortedVals[mid - 1] + sortedVals[mid]) / 2
-        : sortedVals[mid];
-    };
-
-    let intervals = [];
-    buckets.forEach((vals, i) => {
-      const power = median(vals);
-      const durStart = i * bucketSize;
-      const dur =
-        i === bucketCount - 1 ? Math.max(1, totalSec - durStart) : bucketSize;
-      intervals.push([power, power, dur]);
-    });
-
-    if (!intervals.length) return { intervals: [], maxPower: 0, totalSec };
-
-    const slopeAngle = (p0, p1, dur) => Math.atan(dur ? (p1 - p0) / dur : 0);
-
-    let merged = true;
-    while (merged && intervals.length > 1) {
-      merged = false;
-      const next = [];
-      for (let i = 0; i < intervals.length; i += 1) {
-        const cur = intervals[i];
-        const nxt = intervals[i + 1];
-        if (!nxt) {
-          next.push(cur);
-          continue;
-        }
-        const durSum = cur[2] + nxt[2];
-        const tolerance =
-          durSum < 30
-            ? (10 * Math.PI) / 180
-            : durSum < 60
-              ? (5 * Math.PI) / 180
-              : durSum < 180
-                ? (3 * Math.PI) / 180
-                : durSum < 300
-                  ? (2 * Math.PI) / 180
-                  : (1 * Math.PI) / 180;
-        const angCur = slopeAngle(cur[0], cur[1], cur[2]);
-        const angNext = slopeAngle(nxt[0], nxt[1], nxt[2]);
-        const diff = Math.abs(angCur - angNext);
-        if (diff <= tolerance) {
-          // merge
-          next.push([cur[0], nxt[1], cur[2] + nxt[2]]);
-          merged = true;
-          i += 1; // skip next interval this pass
-        } else {
-          next.push(cur);
-        }
-      }
-      intervals = next;
-    }
-
-    const maxPower = intervals.reduce(
-      (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
-      0,
-    );
-
-    return { intervals, maxPower, totalSec };
-  }
-
-  function powerMaxFromIntervals(intervals) {
-    if (!Array.isArray(intervals) || !intervals.length) return 0;
-    return intervals.reduce(
-      (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
-      0,
-    );
-  }
-
-  function formatDuration(sec) {
-    const s = Math.max(0, Math.round(sec || 0));
-    const m = Math.round(s / 60);
-    return `${m} min`;
   }
 
   function renderHistoryCard(cell, data) {
@@ -1786,7 +1529,7 @@ export function createWorkoutPlanner({
       return;
     }
 
-    if (key === "d") {
+    if (key === "d" || key === "delete") {
       ev.preventDefault();
       const dateKey = selectedDate ? formatKey(selectedDate) : null;
       if (!dateKey) return;
@@ -1946,6 +1689,10 @@ export function createWorkoutPlanner({
     applyScheduledEntry: async ({ dateKey, canonical, existingEntry }) => {
       if (!dateKey || !canonical) return;
       const current = await loadScheduleEntries();
+      const ftpForSchedule =
+        typeof getCurrentFtp === "function"
+          ? Number(getCurrentFtp()) || DEFAULT_FTP
+          : DEFAULT_FTP;
       const nextEntry = {
         date: dateKey,
         workoutTitle: canonical.workoutTitle,
@@ -1971,7 +1718,7 @@ export function createWorkoutPlanner({
         const nextArr = scheduledMap.get(dateKey) || [];
         nextArr.forEach((e) => {
           if (!e.metrics) {
-            e.metrics = computeScheduledMetrics(e);
+            e.metrics = computeScheduledMetrics(e, ftpForSchedule);
           }
           if (e.metrics) {
             e.durationSec = e.metrics.durationSec;

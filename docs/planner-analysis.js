@@ -29,6 +29,107 @@ export function computeHrCadStats(samples) {
   };
 }
 
+export function formatDuration(sec) {
+  const s = Math.max(0, Math.round(sec || 0));
+  const m = Math.round(s / 60);
+  return `${m} min`;
+}
+
+export function buildPowerSegments(samples, durationSecHint) {
+  if (!Array.isArray(samples) || !samples.length) {
+    return { intervals: [], maxPower: 0, totalSec: 0 };
+  }
+  const sorted = [...samples].sort((a, b) => (a.t || 0) - (b.t || 0));
+  const lastSample = sorted[sorted.length - 1];
+  const totalSec = Math.max(
+    1,
+    durationSecHint || Math.round(lastSample?.t || 0) || 0,
+  );
+  const bucketSize = 5;
+  const bucketCount = Math.ceil(totalSec / bucketSize);
+  const buckets = new Array(bucketCount).fill(null).map(() => []);
+
+  sorted.forEach((s) => {
+    const t = Math.max(0, Math.round(s.t || 0));
+    const idx = Math.min(bucketCount - 1, Math.floor(t / bucketSize));
+    buckets[idx].push(Number(s.power) || 0);
+  });
+
+  const median = (arr) => {
+    if (!arr.length) return 0;
+    const sortedVals = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sortedVals.length / 2);
+    return sortedVals.length % 2 === 0
+      ? (sortedVals[mid - 1] + sortedVals[mid]) / 2
+      : sortedVals[mid];
+  };
+
+  let intervals = [];
+  buckets.forEach((vals, i) => {
+    const power = median(vals);
+    const durStart = i * bucketSize;
+    const dur =
+      i === bucketCount - 1 ? Math.max(1, totalSec - durStart) : bucketSize;
+    intervals.push([power, power, dur]);
+  });
+
+  if (!intervals.length) return { intervals: [], maxPower: 0, totalSec };
+
+  const slopeAngle = (p0, p1, dur) => Math.atan(dur ? (p1 - p0) / dur : 0);
+
+  let merged = true;
+  while (merged && intervals.length > 1) {
+    merged = false;
+    const next = [];
+    for (let i = 0; i < intervals.length; i += 1) {
+      const cur = intervals[i];
+      const nxt = intervals[i + 1];
+      if (!nxt) {
+        next.push(cur);
+        continue;
+      }
+      const durSum = cur[2] + nxt[2];
+      const tolerance =
+        durSum < 30
+          ? (10 * Math.PI) / 180
+          : durSum < 60
+            ? (5 * Math.PI) / 180
+            : durSum < 180
+              ? (3 * Math.PI) / 180
+              : durSum < 300
+                ? (2 * Math.PI) / 180
+                : (1 * Math.PI) / 180;
+      const angCur = slopeAngle(cur[0], cur[1], cur[2]);
+      const angNext = slopeAngle(nxt[0], nxt[1], nxt[2]);
+      const diff = Math.abs(angCur - angNext);
+      if (diff <= tolerance) {
+        // merge
+        next.push([cur[0], nxt[1], cur[2] + nxt[2]]);
+        merged = true;
+        i += 1; // skip next interval this pass
+      } else {
+        next.push(cur);
+      }
+    }
+    intervals = next;
+  }
+
+  const maxPower = intervals.reduce(
+    (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
+    0,
+  );
+
+  return { intervals, maxPower, totalSec };
+}
+
+export function powerMaxFromIntervals(intervals) {
+  if (!Array.isArray(intervals) || !intervals.length) return 0;
+  return intervals.reduce(
+    (m, [p0, p1]) => Math.max(m, Math.abs(p0 || 0), Math.abs(p1 || 0)),
+    0,
+  );
+}
+
 export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, formatDuration) {
   if (!detailStatsEl) return;
   detailStatsEl.innerHTML = "";
