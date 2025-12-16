@@ -159,9 +159,16 @@ export function createWorkoutPlanner({
     aggTotals,
     recomputeAggTotals,
   } = backend;
+  const hotkeyPromptEl = document.getElementById("plannerHotkeyPrompt");
+  const hotkeyListEl = document.getElementById("plannerHotkeyList");
+  const agg3El = document.getElementById("plannerAgg3");
+  const agg7El = document.getElementById("plannerAgg7");
+  const agg30El = document.getElementById("plannerAgg30");
   let detailChartData = null;
   let detailMode = false;
   let detailState = null;
+  let showHotkeys = false;
+  let questionHeld = false;
 
   function updateRowHeightVar() {
     const next = Math.max(140, Math.round(window.innerHeight * 0.24));
@@ -904,26 +911,31 @@ export function createWorkoutPlanner({
   }
 
   function updateAggUi() {
-    if (footerEl) {
-      const parts = [];
-      parts.push(
-        `<strong>3 day sum:</strong> ${formatAggDuration(aggTotals["3"].sec)}, ${Math.round(
-          aggTotals["3"].kj,
-        )} kJ, TSS ${Math.round(aggTotals["3"].tss)}`,
-      );
-      parts.push(
-        `<strong>7 day sum:</strong> ${formatAggDuration(aggTotals["7"].sec)}, ${Math.round(
-          aggTotals["7"].kj,
-        )} kJ, TSS ${Math.round(aggTotals["7"].tss)}`,
-      );
-      parts.push(
-        `<strong>30 day sum:</strong> ${formatAggDuration(aggTotals["30"].sec)}, ${Math.round(
-          aggTotals["30"].kj,
-        )} kJ, TSS ${Math.round(aggTotals["30"].tss)}`,
-      );
-      footerEl.innerHTML = parts.join(
-        ' <span style="padding:0 8px;">·</span> ',
-      );
+    if (hotkeyPromptEl) {
+      hotkeyPromptEl.style.display = showHotkeys ? "none" : "";
+    }
+    if (hotkeyListEl) {
+      hotkeyListEl.style.display = showHotkeys ? "" : "none";
+    }
+    const footerRight = document.querySelector(".planner-footer-right");
+    if (footerRight) {
+      footerRight.style.display = showHotkeys ? "none" : "";
+    }
+    if (showHotkeys) return;
+    if (agg3El) {
+      agg3El.innerHTML = `<strong>3 day sum:</strong> ${formatAggDuration(
+        aggTotals["3"].sec,
+      )}, ${Math.round(aggTotals["3"].kj)} kJ, TSS ${Math.round(aggTotals["3"].tss)}`;
+    }
+    if (agg7El) {
+      agg7El.innerHTML = `<strong>7 day sum:</strong> ${formatAggDuration(
+        aggTotals["7"].sec,
+      )}, ${Math.round(aggTotals["7"].kj)} kJ, TSS ${Math.round(aggTotals["7"].tss)}`;
+    }
+    if (agg30El) {
+      agg30El.innerHTML = `<strong>30 day sum:</strong> ${formatAggDuration(
+        aggTotals["30"].sec,
+      )}, ${Math.round(aggTotals["30"].kj)} kJ, TSS ${Math.round(aggTotals["30"].tss)}`;
     }
   }
 
@@ -977,6 +989,7 @@ export function createWorkoutPlanner({
     cell?.classList.remove("planner-drop-hover");
     const dt = ev.dataTransfer;
     if (!dt || !dateKey || isPastDate(dateKey)) return;
+    ev.preventDefault();
     let payload = null;
     try {
       const raw = dt.getData("application/json");
@@ -1243,6 +1256,16 @@ export function createWorkoutPlanner({
     setSelectedDate(keyToDate(cell.dataset.date));
   }
 
+  const isQuestionShowHotkey = (ev) => {
+    const key = ev.key || "";
+    return key === "?" || (key === "/" && ev.shiftKey) || (ev.code === "Slash" && ev.shiftKey);
+  };
+
+  const isQuestionReleaseKey = (ev) => {
+    const key = ev.key || "";
+    return key === "?" || key === "/" || ev.code === "Slash";
+  };
+
   async function onKeyDown(ev) {
     if (!isOpen) return;
 
@@ -1399,7 +1422,28 @@ export function createWorkoutPlanner({
 
   calendarBody.addEventListener("scroll", onScroll);
   calendarBody.addEventListener("click", onCellClick);
-  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keydown", (ev) => {
+    if (isQuestionShowHotkey(ev)) {
+      if (!isOpen) return;
+      ev.preventDefault();
+      if (questionHeld) return;
+      questionHeld = true;
+      showHotkeys = true;
+      updateAggUi();
+      return;
+    }
+    onKeyDown(ev);
+  });
+  window.addEventListener("keyup", (ev) => {
+    if (isQuestionReleaseKey(ev)) {
+      if (!questionHeld) return;
+      questionHeld = false;
+      if (!showHotkeys) return;
+      showHotkeys = false;
+      updateAggUi();
+      return;
+    }
+  });
   window.addEventListener("resize", updateRowHeightVar);
 
   if (closeBtn) {

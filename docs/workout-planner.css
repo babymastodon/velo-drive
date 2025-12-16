@@ -314,7 +314,29 @@
   margin-top: 12px;
   font-size: 14px;
   color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.planner-footer-left {
+  text-align: left;
+}
+
+.planner-footer-right {
   text-align: right;
+}
+
+.planner-footer-right,
+.planner-footer-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.planner-footer-sep {
+  padding: 0 4px;
 }
 .planner-day:hover {
   background: var(--hover-light);
