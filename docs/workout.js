@@ -33,6 +33,7 @@ import {
   wasWorkoutJustScraped,
   clearJustScrapedFlag,
   loadRootDirHandle,
+  loadScheduleEntries,
   saveSelectedWorkout,
 } from "./storage.js";
 import { isSettingsModalOpen } from "./settings.js";
@@ -249,6 +250,14 @@ function isAnyModalOpen() {
   const plannerOpen =
     planner && typeof planner.isOpen === "function" ? planner.isOpen() : false;
   return pickerOpen || settingsOpen || plannerOpen;
+}
+
+function formatDateKey(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function formatTimeMMSS(sec) {
@@ -968,6 +977,38 @@ async function maybeShowWelcome(vm) {
   }
 }
 
+function doesCurrentWorkoutMatchEntry(vm, entry) {
+  if (!vm || !vm.canonicalWorkout || !entry) return false;
+  const cwTitle = (vm.canonicalWorkout.workoutTitle || "").trim().toLowerCase();
+  const entryTitle = (entry.workoutTitle || "").trim().toLowerCase();
+  return !!cwTitle && !!entryTitle && cwTitle === entryTitle;
+}
+
+async function maybeOpenPlannerForTodaySchedule() {
+  try {
+    if (!planner || typeof planner.open !== "function" || !engine) return;
+    const vm = engine.getViewModel();
+    const hasActiveWorkout =
+      vm && (vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
+    if (hasActiveWorkout) return;
+
+    const todayKey = formatDateKey(new Date());
+    const schedule = await loadScheduleEntries();
+    if (!Array.isArray(schedule) || !schedule.length) return;
+
+    const todayEntry = schedule.find(
+      (e) => e && e.date === todayKey && e.workoutTitle,
+    );
+    if (!todayEntry) return;
+
+    if (doesCurrentWorkoutMatchEntry(vm, todayEntry)) return;
+
+    planner.open();
+  } catch (err) {
+    console.warn("[Workout] Failed to auto-open planner for today:", err);
+  }
+}
+
 // --------------------------- Init ---------------------------
 
 async function initPage() {
@@ -1423,6 +1464,7 @@ async function initPage() {
   });
 
   await handleLastScrapedWorkout();
+  await maybeOpenPlannerForTodaySchedule();
   logDebug("Workout page ready.");
 }
 
