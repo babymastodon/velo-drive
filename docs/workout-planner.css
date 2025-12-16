@@ -173,7 +173,7 @@
   color: var(--text-main);
   font-size: 18px;
   line-height: 1;
-  padding: 12px 12px 0 12px;
+  padding: 12px 12px 4px 12px;
 }
 
 .planner-day.has-month-label {
@@ -198,7 +198,7 @@
   border-radius: 0;
   border: 1px solid transparent;
   background: transparent;
-  padding: 12px 11px;
+  padding: 8px 11px 12px 11px;
   display: flex;
   flex-direction: column;
   cursor: pointer;

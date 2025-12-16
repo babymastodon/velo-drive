@@ -25,6 +25,7 @@ export function createPlannerBackend({
   formatKey,
   utcDateKeyToLocalDate,
   toDateSafe,
+  keyToDate,
   getCurrentFtp,
 } = {}) {
   const historyIndex = new Map(); // dateKey -> {handle, name}
@@ -342,7 +343,8 @@ export function createPlannerBackend({
         });
       });
       scheduledMap.forEach((entries, key) => {
-        const date = typeof toDateSafe === "function" ? toDateSafe(key) : new Date(key);
+        const date =
+          typeof keyToDate === "function" ? keyToDate(key) : new Date(key);
         date.setHours(0, 0, 0, 0);
         const start = date.getTime();
         entries.forEach((entry) => {

@@ -148,6 +148,7 @@ export function createWorkoutPlanner({
     formatKey,
     utcDateKeyToLocalDate,
     toDateSafe,
+    keyToDate,
     getCurrentFtp,
   });
   const {
