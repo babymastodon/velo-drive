@@ -171,8 +171,8 @@
 .planner-day-number {
   font-weight: 700;
   color: var(--text-main);
-  font-size: 18px;
-  line-height: 1;
+  font-size: 20px;
+  line-height: 20px;
   padding: 12px 12px 4px 12px;
 }
 
@@ -184,12 +184,12 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  line-height: 16px;
+  line-height: 20px;
 }
 
 .planner-workout-card {
@@ -252,7 +252,7 @@
 }
 
 .planner-scheduled-tag {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -281,12 +281,12 @@
 
 .planner-workout-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--text-main);
 }
 
 .planner-workout-stats {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--text-muted);
   display: flex;
   flex-wrap: wrap;
@@ -312,7 +312,7 @@
 
 .planner-footer {
   margin-top: 12px;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--text-muted);
   display: flex;
   justify-content: space-between;
