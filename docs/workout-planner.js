@@ -1340,6 +1340,10 @@ export function createWorkoutPlanner({
         typeof onScheduledEditRequested === "function"
       ) {
         onScheduledEditRequested(dateKey, scheduled[0]);
+        return;
+      }
+      if (!isPastDate(dateKey)) {
+        requestSchedule(dateKey);
       }
       return;
     }
