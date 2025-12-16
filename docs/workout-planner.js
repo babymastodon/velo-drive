@@ -14,7 +14,6 @@ import {
   moveHistoryFileToTrash,
   computeHrCadStats,
   buildPowerCurve,
-  buildPowerSegments,
   powerMaxFromIntervals,
   formatDuration,
 } from "./planner-analysis.js";
@@ -25,7 +24,6 @@ const VISIBLE_WEEKS = 16;
 const SCROLL_BUFFER_ROWS = 2;
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
-const normalizeTitle = (t) => (t || "").toString().trim().toLowerCase();
 const POWER_CURVE_DURS = [
   1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200,
   1800, 2400, 3600, 5400, 7200, 14400, 28800,
@@ -81,11 +79,6 @@ function toDateSafe(value) {
   }
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function localDateKey(key) {
-  const d = utcDateKeyToLocalDate(key);
-  return d ? formatKey(d) : null;
 }
 
 function isSameDay(a, b) {
