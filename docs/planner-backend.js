@@ -35,6 +35,12 @@ export function createPlannerBackend({
   let schedulePromise = null;
   let statsCache = null;
 
+  const aggTotals = {
+    3: { sec: 0, kj: 0, tss: 0 },
+    7: { sec: 0, kj: 0, tss: 0 },
+    30: { sec: 0, kj: 0, tss: 0 },
+  };
+
   function dateKeyFromHandleName(name) {
     const parts = name.split(" ");
     if (!parts.length) return null;
@@ -299,5 +305,67 @@ export function createPlannerBackend({
     loadScheduleIntoMap,
     ensureScheduleLoaded,
     persistSchedule,
+    aggTotals,
+    recomputeAggTotals(baseDate) {
+      aggTotals["3"] = { sec: 0, kj: 0, tss: 0 };
+      aggTotals["7"] = { sec: 0, kj: 0, tss: 0 };
+      aggTotals["30"] = { sec: 0, kj: 0, tss: 0 };
+
+      const base = baseDate ? new Date(baseDate) : new Date();
+      base.setHours(0, 0, 0, 0);
+      const baseMs = base.getTime();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const baseEndMs = baseMs + dayMs;
+      const cutoff7 = baseEndMs - 7 * dayMs; // selected day + previous 6
+      const cutoff3 = baseEndMs - 3 * dayMs; // selected day + previous 2
+      const cutoff30 = baseEndMs - 30 * dayMs; // selected day + previous 29
+
+      historyData.forEach((items) => {
+        items.forEach((item) => {
+          const start = item.startedAt ? item.startedAt.getTime() : null;
+          if (start == null) return;
+          if (start < baseEndMs && start >= cutoff3) {
+            aggTotals["3"].sec += item.durationSec || 0;
+            aggTotals["3"].kj += item.kj || 0;
+            aggTotals["3"].tss += item.tss || 0;
+          }
+          if (start < baseEndMs && start >= cutoff7) {
+            aggTotals["7"].sec += item.durationSec || 0;
+            aggTotals["7"].kj += item.kj || 0;
+            aggTotals["7"].tss += item.tss || 0;
+          }
+          if (start < baseEndMs && start >= cutoff30) {
+            aggTotals["30"].sec += item.durationSec || 0;
+            aggTotals["30"].kj += item.kj || 0;
+            aggTotals["30"].tss += item.tss || 0;
+          }
+        });
+      });
+      scheduledMap.forEach((entries, key) => {
+        const date = typeof toDateSafe === "function" ? toDateSafe(key) : new Date(key);
+        date.setHours(0, 0, 0, 0);
+        const start = date.getTime();
+        entries.forEach((entry) => {
+          const metrics = entry.metrics;
+          if (!metrics) return;
+          if (start < baseEndMs && start >= cutoff3) {
+            aggTotals["3"].sec += metrics.durationSec || 0;
+            aggTotals["3"].kj += metrics.kj || 0;
+            aggTotals["3"].tss += metrics.tss || 0;
+          }
+          if (start < baseEndMs && start >= cutoff7) {
+            aggTotals["7"].sec += metrics.durationSec || 0;
+            aggTotals["7"].kj += metrics.kj || 0;
+            aggTotals["7"].tss += metrics.tss || 0;
+          }
+          if (start < baseEndMs && start >= cutoff30) {
+            aggTotals["30"].sec += metrics.durationSec || 0;
+            aggTotals["30"].kj += metrics.kj || 0;
+            aggTotals["30"].tss += metrics.tss || 0;
+          }
+        });
+      });
+      return aggTotals;
+    },
   };
 }
