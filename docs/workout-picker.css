@@ -19,7 +19,7 @@
 }
 
 .workout-picker-modal {
-  width: min(1600px, 85vw);
+  width: min(1600px, 90vw);
   height: min(1200px, 85vh);
   background: var(--surface-elevated);
   border-radius: var(--modal-radius);
@@ -314,7 +314,9 @@
 
 .picker-row {
   cursor: pointer;
-  transition: background-color 0.12s ease, transform 0.06s ease;
+  transition:
+    background-color 0.12s ease,
+    transform 0.06s ease;
 }
 
 .picker-row:hover {
@@ -497,7 +499,8 @@
   align-items: center;
   justify-content: center;
   box-shadow: none;
-  transition: background-color 0.14s ease,
+  transition:
+    background-color 0.14s ease,
     transform 0.06s ease;
 }
 
@@ -556,7 +559,11 @@
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.2), transparent 55%);
+  background: radial-gradient(
+    circle at top,
+    rgba(255, 255, 255, 0.2),
+    transparent 55%
+  );
   pointer-events: none;
   text-align: center;
   font-size: var(--font-size-base);
@@ -1070,8 +1077,9 @@
   padding: 8px;
   border-radius: var(--radius);
   white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: var(--font-size-base);
   color: transparent;
   /* hide text; we only want background */
@@ -1097,8 +1105,9 @@
   position: relative;
   width: 100%;
   min-height: 200px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: var(--font-size-base);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
@@ -1191,10 +1200,12 @@
 }
 
 /* When builder/import mode is active, hide table+footer (JS adds this class) */
-.workout-picker-modal.workout-picker-modal--builder .workout-picker-table-wrapper,
+.workout-picker-modal.workout-picker-modal--builder
+  .workout-picker-table-wrapper,
 .workout-picker-modal.workout-picker-modal--builder .picker-footer,
 .workout-picker-modal.workout-picker-modal--builder .workout-picker-summary,
-.workout-picker-modal.workout-picker-modal--import .workout-picker-table-wrapper,
+.workout-picker-modal.workout-picker-modal--import
+  .workout-picker-table-wrapper,
 .workout-picker-modal.workout-picker-modal--import .picker-footer,
 .workout-picker-modal.workout-picker-modal--import .workout-picker-summary {
   display: none;
