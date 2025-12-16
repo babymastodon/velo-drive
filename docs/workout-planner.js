@@ -208,6 +208,43 @@ export function createWorkoutPlanner({
     await removeScheduledEntryInternal({ date: dateKey, workoutTitle: title });
   }
 
+  async function moveScheduledEntry({ fromDate, toDate, workoutTitle }) {
+    if (!fromDate || !toDate || !workoutTitle) return false;
+    if (fromDate === toDate) return true;
+    if (isPastDate(toDate)) return false;
+    const entries = await loadScheduleEntries();
+    const idx = entries.findIndex(
+      (e) => e.date === fromDate && e.workoutTitle === workoutTitle,
+    );
+    if (idx === -1) return false;
+    const nextEntries = entries
+      .slice(0, idx)
+      .concat(entries.slice(idx + 1))
+      .concat([{ ...entries[idx], date: toDate }]);
+    await persistSchedule(nextEntries);
+    await loadScheduleIntoMap();
+    const fromCell = calendarBody.querySelector(
+      `.planner-day[data-date="${fromDate}"]`,
+    );
+    if (fromCell) {
+      fromCell
+        .querySelectorAll(".planner-scheduled-card")
+        .forEach((n) => n.remove());
+      maybeAttachScheduled(fromCell);
+    }
+    const toCell = calendarBody.querySelector(
+      `.planner-day[data-date="${toDate}"]`,
+    );
+    if (toCell) {
+      toCell
+        .querySelectorAll(".planner-scheduled-card")
+        .forEach((n) => n.remove());
+      maybeAttachScheduled(toCell);
+    }
+    recomputeAgg(selectedDate);
+    return true;
+  }
+
   function renderHistoryCard(cell, data) {
     if (!cell || !data) return;
     const content = cell.querySelector(".planner-day-content");
@@ -405,6 +442,24 @@ export function createWorkoutPlanner({
         }
       });
     }
+    card.draggable = true;
+    card.addEventListener("dragstart", (ev) => {
+      const dt = ev.dataTransfer;
+      if (!dt) return;
+      dt.effectAllowed = "move";
+      dt.setData(
+        "application/json",
+        JSON.stringify({
+          kind: "scheduled",
+          date: cell.dataset.date,
+          workoutTitle: entry.workoutTitle,
+        }),
+      );
+      card.classList.add("planner-dragging");
+    });
+    card.addEventListener("dragend", () => {
+      card.classList.remove("planner-dragging");
+    });
     const attachHover = () => {
       const day = card.closest(".planner-day");
       if (!day) return;
@@ -898,6 +953,45 @@ export function createWorkoutPlanner({
     recomputeAgg(selectedDate);
   }
 
+  function onDayDragOver(ev) {
+    const cell = ev.currentTarget;
+    const dateKey = cell?.dataset?.date;
+    if (!dateKey || isPastDate(dateKey)) return;
+    const dt = ev.dataTransfer;
+    if (!dt) return;
+    if (!dt.types || !Array.from(dt.types).includes("application/json")) return;
+    ev.preventDefault();
+    dt.dropEffect = "move";
+    cell.classList.add("planner-drop-hover");
+  }
+
+  function onDayDragLeave(ev) {
+    const cell = ev.currentTarget;
+    cell?.classList.remove("planner-drop-hover");
+  }
+
+  async function onDayDrop(ev) {
+    const cell = ev.currentTarget;
+    const dateKey = cell?.dataset?.date;
+    cell?.classList.remove("planner-drop-hover");
+    const dt = ev.dataTransfer;
+    if (!dt || !dateKey || isPastDate(dateKey)) return;
+    let payload = null;
+    try {
+      const raw = dt.getData("application/json");
+      payload = raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      payload = null;
+    }
+    if (!payload || payload.kind !== "scheduled") return;
+    if (!payload.workoutTitle || !payload.date) return;
+    await moveScheduledEntry({
+      fromDate: payload.date,
+      toDate: dateKey,
+      workoutTitle: payload.workoutTitle,
+    });
+  }
+
   function buildWeekRow(weekOffset) {
     const row = document.createElement("div");
     row.className = "planner-week-row";
@@ -949,6 +1043,10 @@ export function createWorkoutPlanner({
       if (selectedDate && isSameDay(dayDate, selectedDate)) {
         cell.classList.add("is-selected");
       }
+
+      cell.addEventListener("dragover", onDayDragOver);
+      cell.addEventListener("dragleave", onDayDragLeave);
+      cell.addEventListener("drop", onDayDrop);
 
       row.appendChild(cell);
     }
