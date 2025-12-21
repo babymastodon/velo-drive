@@ -825,12 +825,6 @@
   margin-top: 0;
 }
 
-.wb-stats-toolbar-row {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 
 .wb-stat-chip {
   min-width: 80px;
@@ -945,11 +939,6 @@
   white-space: nowrap;
 }
 
-.wb-block-stepper-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .wb-block-stepper {
   height: var(--nav-control-height);
