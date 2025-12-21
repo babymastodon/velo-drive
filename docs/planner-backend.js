@@ -342,11 +342,15 @@ export function createPlannerBackend({
           }
         });
       });
+      const todayMid = new Date();
+      todayMid.setHours(0, 0, 0, 0);
+      const todayMs = todayMid.getTime();
       scheduledMap.forEach((entries, key) => {
         const date =
           typeof keyToDate === "function" ? keyToDate(key) : new Date(key);
         date.setHours(0, 0, 0, 0);
         const start = date.getTime();
+        if (start < todayMs) return;
         entries.forEach((entry) => {
           const metrics = entry.metrics;
           if (!metrics) return;
