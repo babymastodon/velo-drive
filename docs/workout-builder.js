@@ -1199,13 +1199,24 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    const deleteIndex = selectedBlockIndex;
     const updatedBlocks = currentBlocks.filter(
-      (_block, idx) => idx !== selectedBlockIndex,
+      (_block, idx) => idx !== deleteIndex,
     );
 
     const newSnippet = blocksToSnippet(updatedBlocks);
     selectedBlockIndex = null;
     setCodeValueAndRefresh(newSnippet, null);
+
+    if (!updatedBlocks.length) {
+      return;
+    }
+
+    const nextIndex =
+      deleteIndex > 0
+        ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
+        : 0;
+    setSelectedBlock(nextIndex);
   }
 
   function moveSelectedBlock(direction) {
