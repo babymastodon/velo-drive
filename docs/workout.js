@@ -1350,6 +1350,7 @@ async function initPage() {
 
     if (e.code === "Space") {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (modalOpen) return;
       const canToggle = vm.mode === "workout" && !!vm.canonicalWorkout;
       if (!canToggle) return;
       e.preventDefault();
@@ -1422,6 +1423,9 @@ async function initPage() {
     }
 
     if (e.key === "Escape") {
+      if (picker && typeof picker.isBuilderMode === "function" && picker.isBuilderMode()) {
+        return;
+      }
       if (picker && typeof picker.isOpen === "function" && picker.isOpen()) {
         const searchInput = document.getElementById("pickerSearchInput");
         if (

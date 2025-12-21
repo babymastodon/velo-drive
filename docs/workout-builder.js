@@ -509,7 +509,7 @@ export function createWorkoutBuilder(options) {
     };
 
     if (key === " " || e.code === "Space") {
-      if (hasSelection && block && block.kind === "intervals") {
+      if (hasSelection && block) {
         e.preventDefault();
         e.stopPropagation();
         const atEnd = isInsertionAtEndOfSelection();
@@ -893,6 +893,14 @@ export function createWorkoutBuilder(options) {
         selectedBlockIndex = null;
       }
       updateCaretBlockIndex();
+      if (
+        insertAfterOverrideIndex == null &&
+        selectedBlockIndex == null &&
+        caretBlockIndex == null &&
+        currentBlocks.length
+      ) {
+        insertAfterOverrideIndex = currentBlocks.length - 1;
+      }
     }
 
     const ftp = getCurrentFtp() || 0;
