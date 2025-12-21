@@ -1399,7 +1399,7 @@ export function createWorkoutBuilder(options) {
 
     switch (kind) {
       case "steady":
-        path.setAttribute("d", "M4 14h16v6H4z");
+        path.setAttribute("d", "M6 6h12v12H6z");
         break;
       case "rampUp":
         path.setAttribute("d", "M4 20 L20 20 20 8 4 16 Z");
