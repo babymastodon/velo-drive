@@ -441,6 +441,19 @@
   white-space: nowrap;
 }
 
+.picker-footer-builder {
+  justify-content: flex-start;
+}
+
+.workout-picker-modal:not(.workout-picker-modal--builder)
+  .picker-footer-builder {
+  display: none;
+}
+
+.workout-picker-modal.workout-picker-modal--builder .picker-footer-builder {
+  display: flex;
+}
+
 .picker-close-btn {
   width: var(--nav-control-height);
   height: var(--nav-control-height);
@@ -982,7 +995,7 @@ body.wb-dragging .wb-drag-handle--move {
 /* When builder mode is active, hide table+footer (JS adds this class) */
 .workout-picker-modal.workout-picker-modal--builder
   .workout-picker-table-wrapper,
-.workout-picker-modal.workout-picker-modal--builder .picker-footer,
+.workout-picker-modal.workout-picker-modal--builder .picker-footer-library,
 .workout-picker-modal.workout-picker-modal--builder .workout-picker-summary,
 .workout-picker-modal.workout-picker-modal--builder .picker-empty-state {
   display: none;

@@ -19,6 +19,7 @@ import {
  * @property {HTMLElement} rootEl
  * @property {() => number} getCurrentFtp
  * @property {() => void} [onRequestBack]
+ * @property {(payload: {hasSelection: boolean}) => void} [onUiStateChange]
  */
 
 export function createWorkoutBuilder(options) {
@@ -28,6 +29,7 @@ export function createWorkoutBuilder(options) {
     onChange,
     onStatusChange,
     onRequestBack,
+    onUiStateChange,
     statusMessageEl,
   } = options;
   if (!rootEl) throw new Error("[WorkoutBuilder] rootEl is required");
@@ -511,6 +513,18 @@ export function createWorkoutBuilder(options) {
 
     if (!hasSelection) {
       if (!currentBlocks || !currentBlocks.length) return;
+      if (key === "Home") {
+        e.preventDefault();
+        insertAfterOverrideIndex = -1;
+        renderChart();
+        return;
+      }
+      if (key === "End") {
+        e.preventDefault();
+        insertAfterOverrideIndex = currentBlocks.length - 1;
+        renderChart();
+        return;
+      }
       if (lower === "g") {
         e.preventDefault();
         insertAfterOverrideIndex = -1;
@@ -909,6 +923,7 @@ export function createWorkoutBuilder(options) {
     renderChart();
     updateErrorStyling();
     updateBlockEditor();
+    emitUiState();
 
     const state = getState();
 
@@ -1024,6 +1039,7 @@ export function createWorkoutBuilder(options) {
     insertAfterOverrideIndex = null;
     updateBlockEditor();
     renderChart();
+    emitUiState();
   }
 
   function deselectBlock() {
@@ -1035,6 +1051,7 @@ export function createWorkoutBuilder(options) {
     }
     updateBlockEditor();
     renderChart();
+    emitUiState();
   }
 
   function toggleBlockSelection(idx) {
@@ -1059,6 +1076,7 @@ export function createWorkoutBuilder(options) {
     insertAfterOverrideIndex = next;
     updateBlockEditor();
     renderChart();
+    emitUiState();
   }
 
   function handleBlockSelectionFromChart(idx) {
@@ -1076,6 +1094,12 @@ export function createWorkoutBuilder(options) {
   function handleInsertAfterFromSegment(idx) {
     insertAfterOverrideIndex = idx;
     renderChart();
+    emitUiState();
+  }
+
+  function emitUiState() {
+    if (typeof onUiStateChange !== "function") return;
+    onUiStateChange({hasSelection: !!getSelectedBlock()});
   }
 
   function buildBlockTimings(blocks) {
