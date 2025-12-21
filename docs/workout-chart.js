@@ -997,9 +997,6 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       topHandle.dataset.dragHandle = "top";
       topHandle.dataset.x1 = String(x1);
       topHandle.dataset.x2 = String(x2);
-      topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
-      svg.appendChild(topHandle);
-
       const handleWidth = Math.min(
         HANDLE_RIGHT_WIDTH,
         Math.max(6, segWidth),
@@ -1019,6 +1016,9 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       rightHandle.dataset.dragHandle = "right";
       rightHandle.classList.add("wb-drag-handle", "wb-drag-handle--right");
       svg.appendChild(rightHandle);
+
+      topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
+      svg.appendChild(topHandle);
 
       cursor += durSec;
     }
