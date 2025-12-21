@@ -303,70 +303,20 @@ export function createWorkoutBuilder(options) {
   chartContainer.appendChild(chartMiniHost);
   chartCard.appendChild(chartContainer);
 
-  const codeCard = document.createElement("div");
-  codeCard.className = "wb-card wb-code-card";
-
-  const textareaWrapper = document.createElement("div");
-  textareaWrapper.className = "wb-code-textarea-wrapper";
-
-  const codeWrapper = document.createElement("div");
-  codeWrapper.className = "wb-code-wrapper";
-
-  const codeHighlights = document.createElement("div");
-  codeHighlights.className = "wb-code-highlights";
-
+  const codeHighlights = null;
   const codeTextarea = document.createElement("textarea");
-  codeTextarea.className = "wb-code-textarea";
   codeTextarea.spellcheck = false;
-  codeTextarea.rows = 18;
-  codeTextarea.placeholder =
-    "Click the above buttons to add workout blocks.";
-  codeTextarea.addEventListener("input", () =>
-    autoGrowTextarea(codeTextarea),
-  );
-  codeTextarea.addEventListener("scroll", () => {
-    codeHighlights.scrollTop = codeTextarea.scrollTop;
-    codeHighlights.scrollLeft = codeTextarea.scrollLeft;
-  });
-
-  codeWrapper.appendChild(codeHighlights);
-  codeWrapper.appendChild(codeTextarea);
-  textareaWrapper.appendChild(codeWrapper);
-
-  codeCard.appendChild(textareaWrapper);
 
   body.appendChild(topRow);
   body.appendChild(statsCard);
   body.appendChild(chartCard);
   body.appendChild(toolbarCard);
-  body.appendChild(codeCard);
   wrapper.appendChild(body);
   rootEl.appendChild(wrapper);
 
   setStatusMessage("Not checked yet.", "neutral");
 
   // ---------- Events ----------
-
-  codeTextarea.addEventListener("input", () => {
-    handleAnyChange();
-  });
-  codeTextarea.addEventListener("click", () => {
-    updateErrorMessageForCaret();
-    // Typing directly into the ZWO textarea should drop any active selection
-    deselectBlock();
-    updateCaretBlockIndex();
-  });
-  codeTextarea.addEventListener("keyup", () => {
-    updateErrorMessageForCaret();
-    updateCaretBlockIndex();
-  });
-  codeTextarea.addEventListener("focus", () => {
-    deselectBlock();
-    // caret update handled on mouseup/keyup
-  });
-  codeTextarea.addEventListener("mouseup", () => {
-    updateCaretBlockIndex();
-  });
 
   [nameField.input, sourceField.input, descField.textarea].forEach((el) => {
     el.addEventListener("input", () => {
