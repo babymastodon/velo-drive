@@ -1011,6 +1011,59 @@ export function createWorkoutBuilder(options) {
     if (chartContainer) {
       chartContainer.scrollLeft = prevScrollLeft;
     }
+    ensureChartFocusVisible();
+  }
+
+  function ensureChartFocusVisible() {
+    if (!chartContainer || !chartMiniHost) return;
+    const svg = chartMiniHost.querySelector("svg");
+    if (!svg) return;
+    if (!currentBlocks || !currentBlocks.length) return;
+
+    const {timings, totalSec} = buildBlockTimings(currentBlocks);
+    if (!timings.length) return;
+
+    const svgRect = svg.getBoundingClientRect();
+    const svgWidth = svgRect.width || svg.clientWidth || 1;
+    const timelineSec = Math.max(3600, totalSec || 0);
+
+    let focusTimeSec = null;
+    if (
+      selectedBlockIndex != null &&
+      currentBlocks[selectedBlockIndex] &&
+      timings[selectedBlockIndex]
+    ) {
+      const timing = timings[selectedBlockIndex];
+      focusTimeSec = (timing.tStart + timing.tEnd) / 2;
+    } else {
+      const insertAfter =
+        dragInsertAfterIndex != null
+          ? dragInsertAfterIndex
+          : insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+      if (insertAfter != null) {
+        const timing =
+          insertAfter < 0
+            ? {tEnd: 0}
+            : timings[Math.min(insertAfter, timings.length - 1)];
+        focusTimeSec = timing ? timing.tEnd : null;
+      }
+    }
+
+    if (focusTimeSec == null) return;
+    const focusX = (focusTimeSec / timelineSec) * svgWidth;
+    const viewLeft = chartContainer.scrollLeft;
+    const viewWidth = chartContainer.clientWidth || 1;
+    const padding = Math.min(80, viewWidth * 0.2);
+    const minX = viewLeft + padding;
+    const maxX = viewLeft + viewWidth - padding;
+
+    if (focusX < minX) {
+      chartContainer.scrollLeft = Math.max(0, focusX - padding);
+    } else if (focusX > maxX) {
+      chartContainer.scrollLeft = Math.max(0, focusX - viewWidth + padding);
+    }
   }
 
   function getSelectedBlock() {
