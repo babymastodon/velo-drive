@@ -377,7 +377,8 @@ export function createWorkoutBuilder(options) {
   const handleBuilderShortcuts = (e) => {
     if (e.defaultPrevented) return;
     if (!rootEl || rootEl.getClientRects().length === 0) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const isMetaShortcut =
+      (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
     const target = e.target;
     if (
       target &&
@@ -394,6 +395,26 @@ export function createWorkoutBuilder(options) {
       currentBlocks &&
       currentBlocks[selectedBlockIndex];
     const block = hasSelection ? currentBlocks[selectedBlockIndex] : null;
+
+    if (isMetaShortcut && !hasSelection) {
+      if (!currentBlocks || !currentBlocks.length) return;
+      if (lower === "a") {
+        e.preventDefault();
+        insertAfterOverrideIndex = -1;
+        caretBlockIndex = null;
+        renderChart();
+        return;
+      }
+      if (lower === "e") {
+        e.preventDefault();
+        insertAfterOverrideIndex = currentBlocks.length - 1;
+        caretBlockIndex = null;
+        renderChart();
+        return;
+      }
+    }
+
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
 
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
@@ -541,6 +562,20 @@ export function createWorkoutBuilder(options) {
 
     if (!hasSelection) {
       if (!currentBlocks || !currentBlocks.length) return;
+      if (lower === "g") {
+        e.preventDefault();
+        insertAfterOverrideIndex = -1;
+        caretBlockIndex = null;
+        renderChart();
+        return;
+      }
+      if (lower === "$") {
+        e.preventDefault();
+        insertAfterOverrideIndex = currentBlocks.length - 1;
+        caretBlockIndex = null;
+        renderChart();
+        return;
+      }
       if (lower === "h" || key === "ArrowLeft") {
         e.preventDefault();
         const current =
@@ -1894,6 +1929,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function getInsertAfterIndex() {
+    if (insertAfterOverrideIndex != null) return insertAfterOverrideIndex;
     if (selectedBlockIndex != null) return selectedBlockIndex;
     if (caretBlockIndex != null) return caretBlockIndex;
     return null;
