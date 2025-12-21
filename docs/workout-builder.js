@@ -262,7 +262,7 @@ export function createWorkoutBuilder(options) {
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
-      insertSnippetAtInsertionPoint(codeTextarea, spec.snippet);
+      insertSnippetAtInsertionPoint(codeTextarea, spec);
       handleAnyChange();
     });
 
@@ -1701,8 +1701,19 @@ export function createWorkoutBuilder(options) {
     setCodeValueAndRefresh(newValue, caretPos);
   }
 
-  function insertSnippetAtInsertionPoint(textarea, snippet) {
+  function insertSnippetAtInsertionPoint(textarea, snippetOrSpec) {
     if (!textarea) return;
+    const spec =
+      typeof snippetOrSpec === "string" ? null : snippetOrSpec || null;
+    let snippet =
+      typeof snippetOrSpec === "string"
+        ? snippetOrSpec
+        : snippetOrSpec?.snippet || "";
+
+    if (spec && (spec.key === "warmup" || spec.key === "cooldown")) {
+      snippet = buildContextualRampSnippet(spec.key, snippet);
+    }
+
     const insertAfterIndex = getInsertAfterIndex();
     if (
       insertAfterIndex == null ||
@@ -1738,6 +1749,103 @@ export function createWorkoutBuilder(options) {
     const newValue = beforeText + prefix + snippet + suffix + afterText;
     const caretPos = (beforeText + prefix + snippet).length;
     setCodeValueAndRefresh(newValue, caretPos);
+  }
+
+  function buildContextualRampSnippet(kind, fallbackSnippet) {
+    if (!fallbackSnippet) return fallbackSnippet;
+    const insertAfterIndex = getInsertAfterIndex();
+    if (insertAfterIndex == null) return fallbackSnippet;
+
+    const prevBlock = currentBlocks?.[insertAfterIndex] || null;
+    const nextBlock = currentBlocks?.[insertAfterIndex + 1] || null;
+    const prev = getBlockStartEnd(prevBlock);
+    const next = getBlockStartEnd(nextBlock);
+
+    if (!prev && !next) return fallbackSnippet;
+
+    const duration = parseDurationFromSnippet(fallbackSnippet) || 600;
+    const delta = 0.25;
+    let low = null;
+    let high = null;
+
+    if (prev && next) {
+      if (kind === "warmup" && next.start > prev.end) {
+        low = prev.end;
+        high = next.start;
+      } else if (kind === "cooldown" && next.start < prev.end) {
+        low = prev.end;
+        high = next.start;
+      } else {
+        low = prev.end;
+        high = kind === "warmup" ? low + delta : low - delta;
+      }
+    } else if (!prev && next) {
+      high = next.start;
+      low = high - delta;
+    } else if (prev && !next) {
+      low = prev.end;
+      high = kind === "warmup" ? low + delta : low - delta;
+    }
+
+    if (low == null || high == null) return fallbackSnippet;
+
+    low = clampRel(low);
+    high = clampRel(high);
+
+    const tag = kind === "cooldown" ? "Cooldown" : "Warmup";
+    return `<${tag} Duration="${duration}" PowerLow="${formatRel(
+      low,
+    )}" PowerHigh="${formatRel(high)}" />`;
+  }
+
+  function parseDurationFromSnippet(snippet) {
+    const match = /Duration="(\d+)"/.exec(snippet || "");
+    if (!match) return null;
+    const n = Number(match[1]);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function formatRel(val) {
+    const n = Number(val);
+    return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+  }
+
+  function getBlockStartEnd(block) {
+    if (!block) return null;
+    const segs = Array.isArray(block.segments) ? block.segments : [];
+    if (segs.length) {
+      const first = segs[0];
+      const last = segs[segs.length - 1];
+      const start = Number.isFinite(first?.pStartRel)
+        ? first.pStartRel
+        : null;
+      const end = Number.isFinite(last?.pEndRel)
+        ? last.pEndRel
+        : start;
+      if (start != null && end != null) {
+        return {start, end};
+      }
+    }
+
+    const attrs = block.attrs || {};
+    if (block.kind === "steady") {
+      const power = attrs.powerRel;
+      if (Number.isFinite(power)) return {start: power, end: power};
+    } else if (block.kind === "warmup" || block.kind === "cooldown") {
+      const low = attrs.powerLowRel;
+      const high = attrs.powerHighRel;
+      if (Number.isFinite(low) && Number.isFinite(high)) {
+        return {start: low, end: high};
+      }
+    } else if (block.kind === "intervals") {
+      const on = attrs.onPowerRel;
+      const off = attrs.offPowerRel;
+      if (Number.isFinite(on) && Number.isFinite(off)) {
+        return {start: on, end: off};
+      }
+    }
+
+    return null;
   }
 
   function handleChartPointerDown(e) {
