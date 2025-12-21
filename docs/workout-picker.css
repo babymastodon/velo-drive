@@ -858,16 +858,21 @@
 
 .wb-chart-container {
   width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .wb-chart-mini-host {
   width: 100%;
   position: relative;
+  min-width: 100%;
+  height: 240px;
 }
 
 .wb-chart-mini-host svg {
-  width: 100%;
-  height: 180px;
+  width: auto;
+  height: 240px;
+  display: block;
 }
 
 .wb-block-band {
