@@ -879,11 +879,14 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   }
 
   const rect = container.getBoundingClientRect();
-  let width = rect.width;
+  let baseWidth = rect.width;
   let height = rect.height;
 
-  if (!width) width = container.clientWidth || 400;
+  if (!baseWidth) baseWidth = container.clientWidth || 400;
   if (!height) height = container.clientHeight || 120;
+
+  const timelineSec = Math.max(3600, totalSec);
+  const width = Math.max(1, Math.round((timelineSec / 3600) * baseWidth));
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -892,6 +895,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   svg.setAttribute("preserveAspectRatio", "none");
   svg.classList.add("picker-graph-svg");
   svg.setAttribute("shape-rendering", "crispEdges");
+  svg.style.width = `${width}px`;
+  svg.style.height = `${height}px`;
 
   const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   bg.setAttribute("x", "0");
@@ -905,8 +910,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   // Block-wide highlight bands (pointer-events none so hover still works)
   timings.forEach(({index, tStart, tEnd}) => {
-    const x1 = (tStart / totalSec) * width;
-    const x2 = (tEnd / totalSec) * width;
+    const x1 = (tStart / timelineSec) * width;
+    const x2 = (tEnd / timelineSec) * width;
     const w = Math.max(1, x2 - x1);
 
     const band = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -935,7 +940,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
       const poly = renderSegmentPolygon({
         svg,
-        totalSec,
+        totalSec: timelineSec,
         width,
         height,
         ftp,
@@ -970,7 +975,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     insertAfterBlockIndex < timings.length
   ) {
     const tInsert = timings[insertAfterBlockIndex].tEnd;
-    const x = (tInsert / totalSec) * width;
+    const x = (tInsert / timelineSec) * width;
     const line = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "line"
