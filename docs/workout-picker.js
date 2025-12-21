@@ -197,6 +197,7 @@ function createWorkoutPicker(config) {
   const titleEl = modal.querySelector("#workoutPickerTitle");
   const pickerBackToPlannerBtn = modal.querySelector("#pickerBackToPlannerBtn");
   const controlsEl = modal.querySelector(".workout-picker-controls");
+  const searchWrap = searchInput?.closest(".picker-search-wrap") || null;
   const scheduleUnscheduleBtn = document.createElement("button");
   scheduleUnscheduleBtn.className = "picker-add-btn delete-workout-btn";
   scheduleUnscheduleBtn.type = "button";
@@ -938,6 +939,7 @@ function createWorkoutPicker(config) {
     if (builderRoot) builderRoot.style.display = "none";
     if (titleEl) titleEl.textContent = "Add Workout";
 
+    if (searchWrap) searchWrap.style.display = "none";
     if (searchInput) searchInput.style.display = "none";
     if (zoneFilter) zoneFilter.style.display = "none";
     if (durationFilter) durationFilter.style.display = "none";
@@ -960,6 +962,7 @@ function createWorkoutPicker(config) {
 
     if (!isBuilderMode) {
       if (titleEl) titleEl.textContent = "Workout library";
+      if (searchWrap) searchWrap.style.display = "";
       if (searchInput) searchInput.style.display = "";
       if (zoneFilter) zoneFilter.style.display = "";
       if (durationFilter) durationFilter.style.display = "";
@@ -1003,6 +1006,7 @@ function createWorkoutPicker(config) {
     if (builderRoot) builderRoot.style.display = "block";
     if (titleEl) titleEl.textContent = title || "New Workout";
 
+    if (searchWrap) searchWrap.style.display = "none";
     if (searchInput) searchInput.style.display = "none";
     if (zoneFilter) zoneFilter.style.display = "none";
     if (durationFilter) durationFilter.style.display = "none";
@@ -1036,6 +1040,7 @@ function createWorkoutPicker(config) {
 
     if (!isImportMode) {
       if (titleEl) titleEl.textContent = "Workout library";
+      if (searchWrap) searchWrap.style.display = "";
       if (searchInput) searchInput.style.display = "";
       if (zoneFilter) zoneFilter.style.display = "";
       if (durationFilter) durationFilter.style.display = "";
