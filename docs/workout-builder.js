@@ -258,7 +258,7 @@ export function createWorkoutBuilder(options) {
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
-      insertSnippetAtCursor(codeTextarea, spec.snippet);
+      insertSnippetAtInsertionPoint(codeTextarea, spec.snippet);
       handleAnyChange();
     });
 
@@ -1536,6 +1536,45 @@ export function createWorkoutBuilder(options) {
     const nextGt = scanSegment.indexOf(">");
     if (nextGt !== -1) {
       insertPos = endSel + nextGt + 1;
+    }
+
+    const beforeText = value.slice(0, insertPos);
+    const afterText = value.slice(insertPos);
+
+    const prefix = beforeText && !beforeText.endsWith("\n") ? "\n" : "";
+    const suffix = afterText && !afterText.startsWith("\n") ? "\n" : "";
+
+    const newValue = beforeText + prefix + snippet + suffix + afterText;
+    const caretPos = (beforeText + prefix + snippet).length;
+    setCodeValueAndRefresh(newValue, caretPos);
+  }
+
+  function insertSnippetAtInsertionPoint(textarea, snippet) {
+    if (!textarea) return;
+    const insertAfterIndex = getInsertAfterIndex();
+    if (
+      insertAfterIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[insertAfterIndex]
+    ) {
+      insertSnippetAtCursor(textarea, snippet);
+      return;
+    }
+
+    const block = currentBlocks[insertAfterIndex];
+    const endLine = Number.isFinite(block.lineEnd)
+      ? block.lineEnd
+      : Number.isFinite(block.lineStart)
+        ? block.lineStart
+        : 0;
+
+    const value = textarea.value || "";
+    const lines = value.split("\n");
+    const lineIdx = Math.max(0, Math.min(endLine, lines.length - 1));
+    const beforeLines = lines.slice(0, lineIdx + 1).join("\n");
+    let insertPos = beforeLines.length;
+    if (lineIdx < lines.length - 1) {
+      insertPos += 1;
     }
 
     const beforeText = value.slice(0, insertPos);
