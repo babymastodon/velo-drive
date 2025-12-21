@@ -177,10 +177,46 @@ export function createWorkoutBuilder(options) {
 
   const buttonSpecs = [
     {
-      key: "steady",
-      label: "SteadyState",
-      snippet: '<SteadyState Duration="300" Power="0.75" />',
+      key: "recovery",
+      label: "Recovery",
+      snippet: '<SteadyState Duration="300" Power="0.55" />',
       icon: "steady",
+      zoneClass: "wb-zone-recovery",
+    },
+    {
+      key: "endurance",
+      label: "Endurance",
+      snippet: '<SteadyState Duration="300" Power="0.70" />',
+      icon: "steady",
+      zoneClass: "wb-zone-endurance",
+    },
+    {
+      key: "tempo",
+      label: "Tempo",
+      snippet: '<SteadyState Duration="300" Power="0.85" />',
+      icon: "steady",
+      zoneClass: "wb-zone-tempo",
+    },
+    {
+      key: "threshold",
+      label: "Threshold",
+      snippet: '<SteadyState Duration="300" Power="0.95" />',
+      icon: "steady",
+      zoneClass: "wb-zone-threshold",
+    },
+    {
+      key: "vo2max",
+      label: "VO2Max",
+      snippet: '<SteadyState Duration="300" Power="1.10" />',
+      icon: "steady",
+      zoneClass: "wb-zone-vo2",
+    },
+    {
+      key: "anaerobic",
+      label: "Anaerobic",
+      snippet: '<SteadyState Duration="300" Power="1.25" />',
+      icon: "steady",
+      zoneClass: "wb-zone-anaerobic",
     },
     {
       key: "warmup",
@@ -210,6 +246,7 @@ export function createWorkoutBuilder(options) {
     btn.type = "button";
     btn.className = "wb-code-insert-btn";
     btn.dataset.key = spec.key;
+    if (spec.zoneClass) btn.classList.add(spec.zoneClass);
 
     if (spec.icon) {
       const iconEl = createWorkoutElementIcon(spec.icon);

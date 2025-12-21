@@ -1057,10 +1057,35 @@
   width: 18px;
   height: 18px;
   display: block;
+  color: currentColor;
 }
 
 .wb-code-insert-btn:hover {
   background: var(--hover-medium);
+}
+
+.wb-code-insert-btn.wb-zone-recovery .wb-code-icon {
+  color: var(--zone-recovery);
+}
+
+.wb-code-insert-btn.wb-zone-endurance .wb-code-icon {
+  color: var(--zone-endurance);
+}
+
+.wb-code-insert-btn.wb-zone-tempo .wb-code-icon {
+  color: var(--zone-tempo);
+}
+
+.wb-code-insert-btn.wb-zone-threshold .wb-code-icon {
+  color: var(--zone-threshold);
+}
+
+.wb-code-insert-btn.wb-zone-vo2 .wb-code-icon {
+  color: var(--zone-vo2);
+}
+
+.wb-code-insert-btn.wb-zone-anaerobic .wb-code-icon {
+  color: var(--zone-anaerobic);
 }
 
 /* Textarea + error */
