@@ -331,7 +331,7 @@ export function createWorkoutBuilder(options) {
 
   [nameField.input, sourceField.input, descField.textarea].forEach((el) => {
     el.addEventListener("input", () => {
-      handleAnyChange({skipParse: true});
+      handleAnyChange();
     });
   });
 
@@ -715,7 +715,7 @@ export function createWorkoutBuilder(options) {
   if (window.matchMedia && themePref === "auto") {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onThemeChange = () => {
-      refreshLayout({skipParse: true, skipPersist: true});
+      refreshLayout({skipPersist: true});
     };
     if (mql.addEventListener) {
       mql.addEventListener("change", onThemeChange);
@@ -1669,7 +1669,7 @@ export function createWorkoutBuilder(options) {
       selectedBlockIndex = options.selectIndex;
     }
 
-    handleAnyChange({skipParse: true, skipPersist: options.skipPersist});
+    handleAnyChange({skipPersist: options.skipPersist});
   }
 
   function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {

@@ -1104,46 +1104,6 @@ body.wb-dragging .wb-drag-handle--move {
   color: var(--zone-anaerobic);
 }
 
-/* URL section under code */
-
-.wb-url-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: var(--font-size-base);
-}
-
-.wb-url-row {
-  display: flex;
-  gap: 12px;
-}
-
-.wb-url-input {
-  flex: 1;
-  min-width: 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-  padding: 4px 8px;
-  font-size: var(--font-size-base);
-  background: var(--surface-elevated);
-  color: var(--text-main);
-}
-
-.wb-url-button {
-  flex-shrink: 0;
-  border-radius: var(--radius);
-  border: none;
-  height: var(--nav-control-height);
-  padding: 0 12px;
-  font-size: var(--font-size-base);
-  background: var(--cta-bg);
-  color: var(--cta-text);
-  cursor: pointer;
-}
-
-.wb-url-button:hover {
-  background: var(--cta-bg-hover);
-}
 
 /* When builder/import mode is active, hide table+footer (JS adds this class) */
 .workout-picker-modal.workout-picker-modal--builder
