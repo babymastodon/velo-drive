@@ -150,7 +150,7 @@ export function createWorkoutBuilder(options) {
   const moveLeftBtn = document.createElement("button");
   moveLeftBtn.type = "button";
   moveLeftBtn.className = "wb-block-move-btn";
-  moveLeftBtn.title = "Move block up";
+  moveLeftBtn.title = "Move block left";
   moveLeftBtn.appendChild(createCaretIcon("left"));
   moveLeftBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -159,7 +159,7 @@ export function createWorkoutBuilder(options) {
   const moveRightBtn = document.createElement("button");
   moveRightBtn.type = "button";
   moveRightBtn.className = "wb-block-move-btn";
-  moveRightBtn.title = "Move block down";
+  moveRightBtn.title = "Move block right";
   moveRightBtn.appendChild(createCaretIcon("right"));
   moveRightBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -168,7 +168,7 @@ export function createWorkoutBuilder(options) {
   const deleteBlockBtn = document.createElement("button");
   deleteBlockBtn.type = "button";
   deleteBlockBtn.className = "wb-block-delete-btn";
-  deleteBlockBtn.title = "Delete selected block";
+  deleteBlockBtn.title = "Delete selected block (D / Backspace)";
   deleteBlockBtn.appendChild(createTrashIcon());
   deleteBlockBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -186,6 +186,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="0.55" />',
       icon: "steady",
       zoneClass: "wb-zone-recovery",
+      shortcut: "R",
     },
     {
       key: "endurance",
@@ -193,6 +194,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="0.70" />',
       icon: "steady",
       zoneClass: "wb-zone-endurance",
+      shortcut: "E",
     },
     {
       key: "tempo",
@@ -200,6 +202,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="0.85" />',
       icon: "steady",
       zoneClass: "wb-zone-tempo",
+      shortcut: "T",
     },
     {
       key: "threshold",
@@ -207,6 +210,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="0.95" />',
       icon: "steady",
       zoneClass: "wb-zone-threshold",
+      shortcut: "S",
     },
     {
       key: "vo2max",
@@ -214,6 +218,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="1.10" />',
       icon: "steady",
       zoneClass: "wb-zone-vo2",
+      shortcut: "V",
     },
     {
       key: "anaerobic",
@@ -221,6 +226,7 @@ export function createWorkoutBuilder(options) {
       snippet: '<SteadyState Duration="300" Power="1.25" />',
       icon: "steady",
       zoneClass: "wb-zone-anaerobic",
+      shortcut: "A",
     },
     {
       key: "warmup",
@@ -228,6 +234,7 @@ export function createWorkoutBuilder(options) {
       snippet:
         '<Warmup Duration="600" PowerLow="0.50" PowerHigh="0.75" />',
       icon: "rampUp",
+      shortcut: "W",
     },
     {
       key: "cooldown",
@@ -235,6 +242,7 @@ export function createWorkoutBuilder(options) {
       snippet:
         '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />',
       icon: "rampDown",
+      shortcut: "C",
     },
     {
       key: "intervals",
@@ -242,6 +250,7 @@ export function createWorkoutBuilder(options) {
       snippet:
         '<IntervalsT Repeat="3" OnDuration="300" OffDuration="180" OnPower="0.90" OffPower="0.50" />',
       icon: "intervals",
+      shortcut: "I",
     },
   ];
   const buttonSpecByKey = new Map(
@@ -253,6 +262,11 @@ export function createWorkoutBuilder(options) {
     btn.type = "button";
     btn.className = "wb-code-insert-btn";
     btn.dataset.key = spec.key;
+    if (spec.shortcut) {
+      btn.title = `${spec.label} (${spec.shortcut})`;
+    } else {
+      btn.title = spec.label;
+    }
     if (spec.zoneClass) btn.classList.add(spec.zoneClass);
 
     if (spec.icon) {
@@ -1590,6 +1604,14 @@ export function createWorkoutBuilder(options) {
     plus.type = "button";
     plus.className = "control-btn";
     plus.textContent = "+";
+
+    if (config.kind === "duration") {
+      minus.title = "Decrease duration (H / \u2190 / Shift+H)";
+      plus.title = "Increase duration (L / \u2192 / Shift+L)";
+    } else if (config.kind === "power") {
+      minus.title = "Decrease power (J / \u2193 / Shift+J)";
+      plus.title = "Increase power (K / \u2191 / Shift+K)";
+    }
 
     const commitValue = (raw) => {
       const n = Number(raw);
