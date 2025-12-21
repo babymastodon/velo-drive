@@ -761,12 +761,12 @@
   width: 100%;
   position: relative;
   min-width: 100%;
-  height: 240px;
+  height: 320px;
 }
 
 .wb-chart-mini-host svg {
   width: auto;
-  height: 240px;
+  height: 320px;
   display: block;
 }
 
