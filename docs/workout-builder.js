@@ -609,6 +609,7 @@ export function createWorkoutBuilder(options) {
           selectedBlockIndex,
           insertAfterBlockIndex: getInsertAfterIndex(),
           onSelectBlock: handleBlockSelectionFromChart,
+          onSetInsertAfter: handleInsertAfterFromChart,
         });
       } else {
         // Fallback to raw segments if we couldn't parse blocks (should be rare)
@@ -666,12 +667,37 @@ export function createWorkoutBuilder(options) {
     }
   }
 
+  function setInsertAfterIndex(idx) {
+    const next =
+      idx == null ||
+      !Number.isFinite(idx) ||
+      idx < 0 ||
+      !currentBlocks ||
+      idx >= currentBlocks.length
+        ? null
+        : idx;
+
+    selectedBlockIndex = null;
+    if (caretBlockIndex === next) {
+      renderChart();
+      return;
+    }
+    caretBlockIndex = next;
+    updateBlockEditor();
+    updateErrorHighlights();
+    renderChart();
+  }
+
   function handleBlockSelectionFromChart(idx) {
     if (idx == null) {
       deselectBlock();
       return;
     }
     toggleBlockSelection(idx);
+  }
+
+  function handleInsertAfterFromChart(idx) {
+    setInsertAfterIndex(idx);
   }
 
   function updateErrorStyling() {

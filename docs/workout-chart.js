@@ -857,6 +857,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     selectedBlockIndex = null,
     insertAfterBlockIndex = null,
     onSelectBlock,
+    onSetInsertAfter,
   } = options;
 
   container.innerHTML = "";
@@ -995,19 +996,31 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   attachSegmentHover(svg, tooltip, container, ftp);
 
   svg.addEventListener("click", (e) => {
-    if (typeof onSelectBlock !== "function") return;
-
     const targetBlock =
       e.target && e.target.closest
         ? e.target.closest("[data-block-index]")
         : null;
 
     if (targetBlock && targetBlock.dataset.blockIndex != null) {
+      if (typeof onSelectBlock !== "function") return;
       const idx = Number(targetBlock.dataset.blockIndex);
       onSelectBlock(Number.isFinite(idx) ? idx : null);
-    } else {
-      onSelectBlock(null);
+      return;
     }
+
+    if (typeof onSetInsertAfter !== "function" || !timings.length) {
+      if (typeof onSelectBlock === "function") onSelectBlock(null);
+      return;
+    }
+
+    const svgRect = svg.getBoundingClientRect();
+    const localX = e.clientX - svgRect.left;
+    const clampedX = Math.max(0, Math.min(width, localX));
+    const timeSec = (clampedX / width) * timelineSec;
+
+    let idx = timings.findIndex(({tEnd}) => timeSec <= tEnd);
+    if (idx === -1) idx = timings.length - 1;
+    onSetInsertAfter(idx);
   });
 }
 
