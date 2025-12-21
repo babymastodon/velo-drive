@@ -947,6 +947,11 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       const x2 = ((cursor + durSec) / timelineSec) * width;
       const segWidth = Math.max(1, x2 - x1);
 
+      const p0 = pStartRel * ftp;
+      const p1 = pEndRel * ftp;
+      const y0 = height - (Math.min(maxY, Math.max(0, p0)) / maxY) * height;
+      const y1 = height - (Math.min(maxY, Math.max(0, p1)) / maxY) * height;
+
       const poly = renderSegmentPolygon({
         svg,
         totalSec: timelineSec,
@@ -963,6 +968,10 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       if (poly) {
         poly.dataset.blockIndex = String(idx);
         poly.dataset.segIndex = String(segIndex);
+        poly.dataset.x1 = String(x1);
+        poly.dataset.x2 = String(x2);
+        poly.dataset.y0 = String(y0);
+        poly.dataset.y1 = String(y1);
         poly.dataset.dragHandle = "move";
         poly.classList.add("wb-block-segment");
         poly.classList.add("wb-drag-handle", "wb-drag-handle--move");
@@ -973,12 +982,14 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
       const topHandle = document.createElementNS(
         "http://www.w3.org/2000/svg",
-        "rect",
+        "polygon",
       );
-      topHandle.setAttribute("x", String(x1));
-      topHandle.setAttribute("y", "0");
-      topHandle.setAttribute("width", String(segWidth));
-      topHandle.setAttribute("height", String(Math.min(HANDLE_TOP_HEIGHT, height)));
+      const y0b = Math.min(height, y0 + HANDLE_TOP_HEIGHT);
+      const y1b = Math.min(height, y1 + HANDLE_TOP_HEIGHT);
+      topHandle.setAttribute(
+        "points",
+        `${x1},${y0} ${x2},${y1} ${x2},${y1b} ${x1},${y0b}`,
+      );
       topHandle.setAttribute("fill", "transparent");
       topHandle.setAttribute("pointer-events", "all");
       topHandle.dataset.blockIndex = String(idx);
