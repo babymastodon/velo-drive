@@ -190,6 +190,8 @@ function createWorkoutPicker(config) {
   const builderSaveBtn = modal.querySelector("#workoutBuilderSaveBtn");
   const builderRoot = modal.querySelector("#workoutBuilderRoot");
   const builderStatusEl = modal.querySelector("#workoutBuilderStatus");
+  const builderFooter = modal.querySelector("#builderFooter");
+  const builderShortcutsEl = modal.querySelector("#builderShortcuts");
   const emptyStateEl = modal.querySelector("#pickerEmptyState");
   const emptyAddBtn = modal.querySelector("#pickerEmptyAddBtn");
   const titleEl = modal.querySelector("#workoutPickerTitle");
@@ -219,6 +221,7 @@ function createWorkoutPicker(config) {
   let hasUnsavedBuilderChanges = false;
   let builderBaseline = null; // CanonicalWorkout snapshot to compare against
   let suppressBuilderDirty = false;
+  let builderHasSelection = false;
   function syncScheduleUi() {
     if (titleEl) {
       titleEl.style.display = scheduleMode ? "none" : "";
@@ -240,6 +243,9 @@ function createWorkoutPicker(config) {
       onChange: handleBuilderChange,
       onStatusChange: updateBuilderStatus,
       onRequestBack: handleBackToLibrary,
+      onUiStateChange: (state) => {
+        updateBuilderShortcuts(state?.hasSelection);
+      },
     });
 
 
@@ -801,6 +807,26 @@ function createWorkoutPicker(config) {
     builderStatusEl.style.display = isBuilderMode ? "inline-flex" : "none";
   }
 
+  function updateBuilderShortcuts(hasSelection) {
+    builderHasSelection = !!hasSelection;
+    if (!builderShortcutsEl) return;
+
+    if (!builderHasSelection) {
+      builderShortcutsEl.innerHTML =
+        "<strong>h l</strong> or <strong>← →</strong> to move &bull; " +
+        "<strong>Enter</strong> to select &bull; " +
+        "<strong>Backspace</strong> delete &bull; " +
+        "<strong>R E T S V A W C I</strong> insert block";
+      return;
+    }
+
+    builderShortcutsEl.innerHTML =
+      "<strong>h l</strong> or <strong>← →</strong> adjust duration &bull; " +
+      "<strong>j k</strong> or <strong>↓ ↑</strong> adjust power &bull; " +
+      "<strong>Enter</strong> deselect &bull; " +
+      "<strong>Space</strong> toggle side";
+  }
+
   async function openWorkoutInBuilder(canonicalWorkout) {
     if (!workoutBuilder) {
       console.warn("[WorkoutPicker] Workout builder is not available.");
@@ -848,6 +874,7 @@ function createWorkoutPicker(config) {
       text: builderStatusEl ? builderStatusEl.textContent : "",
       tone: builderStatusEl?.dataset?.tone || "neutral",
     });
+    updateBuilderShortcuts(builderHasSelection);
 
     if (workoutBuilder) {
       requestAnimationFrame(() => {
