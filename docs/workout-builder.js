@@ -18,6 +18,7 @@ import {
  * @typedef WorkoutBuilderOptions
  * @property {HTMLElement} rootEl
  * @property {() => number} getCurrentFtp
+ * @property {() => void} [onRequestBack]
  */
 
 export function createWorkoutBuilder(options) {
@@ -26,6 +27,7 @@ export function createWorkoutBuilder(options) {
     getCurrentFtp,
     onChange,
     onStatusChange,
+    onRequestBack,
     statusMessageEl,
   } = options;
   if (!rootEl) throw new Error("[WorkoutBuilder] rootEl is required");
@@ -454,6 +456,12 @@ export function createWorkoutBuilder(options) {
         e.preventDefault();
         e.stopPropagation();
         deselectBlock();
+        return;
+      }
+      if (key === "Escape" && typeof onRequestBack === "function") {
+        e.preventDefault();
+        e.stopPropagation();
+        onRequestBack();
         return;
       }
       if (key === "Enter" && currentBlocks && currentBlocks.length) {

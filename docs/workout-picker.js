@@ -239,6 +239,7 @@ function createWorkoutPicker(config) {
       statusMessageEl: builderStatusEl,
       onChange: handleBuilderChange,
       onStatusChange: updateBuilderStatus,
+      onRequestBack: handleBackToLibrary,
     });
 
 
