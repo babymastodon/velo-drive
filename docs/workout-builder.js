@@ -789,8 +789,15 @@ export function createWorkoutBuilder(options) {
   }
 
   function snapDurationSec(sec) {
-    const snapped = Math.round(sec / 60) * 60;
-    return Math.max(60, snapped);
+    const step = getDurationStep(sec);
+    const snapped = Math.round(sec / step) * step;
+    return Math.max(step, snapped);
+  }
+
+  function getDurationStep(sec) {
+    if (sec < 60) return 10;
+    if (sec < 180) return 30;
+    return 60;
   }
 
   function reorderBlocks(fromIndex, insertAfterIndex) {
@@ -1044,7 +1051,7 @@ export function createWorkoutBuilder(options) {
         tooltip: "Length of this steady block (seconds).",
         value: durationSec,
         unit: "s",
-        step: 60,
+        kind: "duration",
         onCommit: commitDuration,
       });
       list.push({
@@ -1069,7 +1076,7 @@ export function createWorkoutBuilder(options) {
         tooltip: "Length of this ramp block (seconds).",
         value: durationSec,
         unit: "s",
-        step: 60,
+        kind: "duration",
         onCommit: commitDuration,
       });
       list.push({
@@ -1117,7 +1124,7 @@ export function createWorkoutBuilder(options) {
         tooltip: "Work interval length (seconds).",
         value: Math.round(intervals.onDurationSec),
         unit: "s",
-        step: 60,
+        kind: "duration",
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
             onDurationSec: clampDuration(val),
@@ -1142,7 +1149,7 @@ export function createWorkoutBuilder(options) {
         tooltip: "Recovery interval length (seconds).",
         value: Math.round(intervals.offDurationSec),
         unit: "s",
-        step: 60,
+        kind: "duration",
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
             offDurationSec: clampDuration(val),
@@ -1209,7 +1216,10 @@ export function createWorkoutBuilder(options) {
     minus.addEventListener("click", (e) => {
       e.preventDefault();
       const current = Number(input.value);
-      const step = Number(config.step) || 1;
+      const step =
+        config.kind === "duration"
+          ? getDurationStep(Number.isFinite(current) ? current : 0)
+          : Number(config.step) || 1;
       const next = Number.isFinite(current) ? current - step : step * -1;
       input.value = String(next);
       commitValue(next);
@@ -1218,7 +1228,10 @@ export function createWorkoutBuilder(options) {
     plus.addEventListener("click", (e) => {
       e.preventDefault();
       const current = Number(input.value);
-      const step = Number(config.step) || 1;
+      const step =
+        config.kind === "duration"
+          ? getDurationStep(Number.isFinite(current) ? current : 0)
+          : Number(config.step) || 1;
       const next = Number.isFinite(current) ? current + step : step;
       input.value = String(next);
       commitValue(next);
