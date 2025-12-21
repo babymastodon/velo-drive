@@ -630,14 +630,17 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
+    const scrollEl = containerEl.parentElement;
+    const scrollLeft = scrollEl ? scrollEl.scrollLeft : 0;
+    const viewWidth = scrollEl ? scrollEl.clientWidth : panelRect.width;
     let tx = clientX - panelRect.left + 8;
     let ty = clientY - panelRect.top + 8;
 
     const ttRect = tooltipEl.getBoundingClientRect();
-    if (tx + ttRect.width > panelRect.width - 4) {
-      tx = panelRect.width - ttRect.width - 4;
-    }
-    if (tx < 0) tx = 0;
+    const minX = scrollLeft;
+    const maxX = scrollLeft + viewWidth - ttRect.width - 4;
+    if (tx > maxX) tx = maxX;
+    if (tx < minX) tx = minX;
     if (ty + ttRect.height > panelRect.height - 4) {
       ty = panelRect.height - ttRect.height - 4;
     }
@@ -682,12 +685,25 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     lastHoverPosByContainer.delete(containerEl);
   };
 
+  const scrollEl = containerEl.parentElement;
+  const onScroll = () => {
+    const lastPos = lastHoverPosByContainer.get(containerEl);
+    if (!lastPos) return;
+    requestAnimationFrame(() =>
+      applyHoverAtClientPos(lastPos.clientX, lastPos.clientY, {remember: false})
+    );
+  };
+  if (scrollEl) {
+    scrollEl.addEventListener("scroll", onScroll, {passive: true});
+  }
+
   svg.addEventListener("mousemove", onMouseMove);
   svg.addEventListener("mouseleave", onMouseLeave);
 
   hoverCleanupMap.set(svg, () => {
     svg.removeEventListener("mousemove", onMouseMove);
     svg.removeEventListener("mouseleave", onMouseLeave);
+    if (scrollEl) scrollEl.removeEventListener("scroll", onScroll);
   });
 
   const lastPos = lastHoverPosByContainer.get(containerEl);
