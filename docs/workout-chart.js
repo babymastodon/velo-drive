@@ -106,8 +106,8 @@ function renderSegmentPolygon({
   const p0 = pStartRel * ftp;
   const p1 = pEndRel * ftp;
 
-  const y0 = h - (Math.min(maxY, Math.max(0, p0)) / maxY) * h;
-  const y1 = h - (Math.min(maxY, Math.max(0, p1)) / maxY) * h;
+  const y0 = h - (Math.max(0, p0) / maxY) * h;
+  const y1 = h - (Math.max(0, p1) / maxY) * h;
 
   const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
   poly.setAttribute("points", `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`);
@@ -949,8 +949,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
       const p0 = pStartRel * ftp;
       const p1 = pEndRel * ftp;
-      const y0 = height - (Math.min(maxY, Math.max(0, p0)) / maxY) * height;
-      const y1 = height - (Math.min(maxY, Math.max(0, p1)) / maxY) * height;
+      const y0 = height - (Math.max(0, p0) / maxY) * height;
+      const y1 = height - (Math.max(0, p1) / maxY) * height;
 
       const poly = renderSegmentPolygon({
         svg,
