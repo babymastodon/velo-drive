@@ -244,6 +244,9 @@ export function createWorkoutBuilder(options) {
       icon: "intervals",
     },
   ];
+  const buttonSpecByKey = new Map(
+    buttonSpecs.map((spec) => [spec.key, spec]),
+  );
 
   buttonSpecs.forEach((spec) => {
     const btn = document.createElement("button");
@@ -356,6 +359,231 @@ export function createWorkoutBuilder(options) {
       handleAnyChange({skipParse: true});
     });
   });
+
+  const handleBuilderShortcuts = (e) => {
+    if (e.defaultPrevented) return;
+    if (!rootEl || rootEl.getClientRects().length === 0) return;
+    const target = e.target;
+    if (
+      target &&
+      (target.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+    ) {
+      return;
+    }
+
+    const key = e.key;
+    const lower = key.toLowerCase();
+    const hasSelection =
+      selectedBlockIndex != null &&
+      currentBlocks &&
+      currentBlocks[selectedBlockIndex];
+    const block = hasSelection ? currentBlocks[selectedBlockIndex] : null;
+
+    const insertByKey = (specKey) => {
+      const spec = buttonSpecByKey.get(specKey);
+      if (!spec) return false;
+      insertSnippetAtInsertionPoint(codeTextarea, spec);
+      handleAnyChange();
+      return true;
+    };
+
+    if (lower === "r") {
+      if (insertByKey("recovery")) e.preventDefault();
+      return;
+    }
+    if (lower === "e") {
+      if (insertByKey("endurance")) e.preventDefault();
+      return;
+    }
+    if (lower === "t") {
+      if (insertByKey("tempo")) e.preventDefault();
+      return;
+    }
+    if (lower === "s") {
+      if (insertByKey("threshold")) e.preventDefault();
+      return;
+    }
+    if (lower === "v") {
+      if (insertByKey("vo2max")) e.preventDefault();
+      return;
+    }
+    if (lower === "a") {
+      if (insertByKey("anaerobic")) e.preventDefault();
+      return;
+    }
+    if (lower === "w") {
+      if (insertByKey("warmup")) e.preventDefault();
+      return;
+    }
+    if (lower === "c") {
+      if (insertByKey("cooldown")) e.preventDefault();
+      return;
+    }
+
+    if (lower === "d" || key === "Delete" || key === "Backspace") {
+      if (hasSelection) {
+        e.preventDefault();
+        deleteSelectedBlock();
+      }
+      return;
+    }
+
+    if (key === "Escape" || key === "Enter") {
+      if (hasSelection) {
+        e.preventDefault();
+        deselectBlock();
+        return;
+      }
+      if (key === "Enter" && currentBlocks && currentBlocks.length) {
+        e.preventDefault();
+        const current =
+          insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+        let next = (current ?? -1) + 1;
+        if (next >= currentBlocks.length) {
+          next = currentBlocks.length - 1;
+        }
+        if (next < 0) next = 0;
+        setSelectedBlock(next);
+      }
+      return;
+    }
+
+    if (!hasSelection) {
+      if (!currentBlocks || !currentBlocks.length) return;
+      if (lower === "h" || key === "ArrowLeft") {
+        e.preventDefault();
+        const current =
+          insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+        const next = Math.max(
+          -1,
+          Math.min((current ?? -1) - 1, currentBlocks.length - 1),
+        );
+        insertAfterOverrideIndex = next;
+        caretBlockIndex = null;
+        renderChart();
+      } else if (lower === "l" || key === "ArrowRight") {
+        e.preventDefault();
+        const current =
+          insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+        const next = Math.max(
+          -1,
+          Math.min((current ?? -1) + 1, currentBlocks.length - 1),
+        );
+        insertAfterOverrideIndex = next;
+        caretBlockIndex = null;
+        renderChart();
+      }
+      return;
+    }
+
+    const adjustDuration = (current, delta) =>
+      clampDuration(current + delta);
+    const durationStep = (current) => getDurationStep(current);
+    const powerStepRel = 0.05;
+
+    const handleDurationChange = (delta) => {
+      if (!block) return;
+      if (block.kind === "intervals") {
+        const parts = getIntervalParts(block);
+        const next = adjustDuration(parts.onDurationSec, delta);
+        applyBlockAttrUpdate(selectedBlockIndex, {onDurationSec: next});
+        return;
+      }
+      const current = getBlockDurationSec(block);
+      const next = adjustDuration(current, delta);
+      applyBlockAttrUpdate(selectedBlockIndex, {durationSec: next});
+    };
+
+    const handlePowerChange = (delta) => {
+      if (!block) return;
+      if (block.kind === "steady") {
+        const current = getBlockSteadyPower(block);
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          powerRel: clampRel(current + delta),
+        });
+        return;
+      }
+      if (block.kind === "warmup" || block.kind === "cooldown") {
+        const current = getRampHigh(block);
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          powerHighRel: clampRel(current + delta),
+        });
+        return;
+      }
+      if (block.kind === "intervals") {
+        const parts = getIntervalParts(block);
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          onPowerRel: clampRel(parts.onPowerRel + delta),
+        });
+      }
+    };
+
+    if (lower === "h" || key === "ArrowLeft") {
+      e.preventDefault();
+      const step =
+        block.kind === "intervals"
+          ? durationStep(getIntervalParts(block).onDurationSec)
+          : durationStep(getBlockDurationSec(block));
+      handleDurationChange(-step);
+      return;
+    }
+    if (lower === "l" || key === "ArrowRight") {
+      e.preventDefault();
+      const step =
+        block.kind === "intervals"
+          ? durationStep(getIntervalParts(block).onDurationSec)
+          : durationStep(getBlockDurationSec(block));
+      handleDurationChange(step);
+      return;
+    }
+    if (lower === "j" || key === "ArrowDown") {
+      e.preventDefault();
+      handlePowerChange(-powerStepRel);
+      return;
+    }
+    if (lower === "k" || key === "ArrowUp") {
+      e.preventDefault();
+      handlePowerChange(powerStepRel);
+      return;
+    }
+
+    if (lower === "i" || lower === "o") {
+      if (!block) return;
+      const delta = lower === "i" ? -powerStepRel : powerStepRel;
+      e.preventDefault();
+      if (block.kind === "warmup" || block.kind === "cooldown") {
+        const current = getRampLow(block);
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          powerLowRel: clampRel(current + delta),
+        });
+      } else if (block.kind === "intervals") {
+        const parts = getIntervalParts(block);
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          offPowerRel: clampRel(parts.offPowerRel + delta),
+        });
+      }
+      return;
+    }
+
+    if (lower === "u" || lower === "p") {
+      if (!block || block.kind !== "intervals") return;
+      e.preventDefault();
+      const parts = getIntervalParts(block);
+      const step = durationStep(parts.offDurationSec);
+      const delta = lower === "u" ? -step : step;
+      const next = adjustDuration(parts.offDurationSec, delta);
+      applyBlockAttrUpdate(selectedBlockIndex, {offDurationSec: next});
+    }
+  };
+
+  window.addEventListener("keydown", handleBuilderShortcuts);
 
   chartMiniHost.addEventListener("pointerdown", handleChartPointerDown);
 
