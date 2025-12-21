@@ -34,9 +34,6 @@
   /* everything inside defaults to 16px */
 }
 
-.workout-picker-modal.workout-picker-modal--import {
-  justify-content: center;
-}
 
 .workout-picker-header {
   position: relative;
@@ -71,16 +68,6 @@
   align-items: flex-start;
 }
 
-.workout-picker-modal--import .workout-picker-title {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: var(--nav-control-height);
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
 
 .workout-picker-modal--builder .workout-picker-title {
   display: none;
@@ -618,105 +605,6 @@
   background: var(--cta-bg-active);
 }
 
-/* --- Import view --- */
-
-.workout-import-root {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  width: 100%;
-  display: grid;
-  place-items: center;
-  padding: 0 16px;
-}
-
-.workout-import-card {
-  border-radius: var(--radius);
-  border: none;
-  background: transparent;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 75%;
-  min-width: 500px;
-  max-width: 100%;
-  margin: auto;
-  align-items: stretch;
-}
-
-.workout-import-hint {
-  margin: 0 0 4px 0;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.workout-import-title {
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.workout-import-copy {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.workout-import-form {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.workout-import-input {
-  flex: 1;
-  min-width: 320px;
-  height: var(--nav-control-height);
-  border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-  padding: 0 10px;
-  font-size: var(--font-size-base);
-  background: var(--surface-elevated);
-  color: var(--text-main);
-}
-
-.workout-import-status {
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  color: var(--text-muted);
-}
-
-.workout-import-status[data-tone="ok"] {
-  color: var(--success);
-  border-color: var(--success-soft);
-}
-
-.workout-import-status[data-tone="error"] {
-  color: var(--error);
-  border-color: var(--error-soft);
-}
-
-.workout-import-divider {
-  text-align: center;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 12px;
-  margin: 36px 0;
-}
-
-.workout-import-divider span {
-  background: var(--surface);
-  padding: 0 8px;
-}
-
-.workout-import-scratch-btn {
-  height: calc(var(--nav-control-height) * 2);
-  justify-content: center;
-}
-
 /* --- Builder layout & scrolling --- */
 
 .workout-builder-root {
@@ -1038,9 +926,6 @@
   gap: 4px;
 }
 
-.wb-code-insert-btn.workout-import-scratch-btn {
-  height: calc(var(--nav-control-height) * 3);
-}
 
 .wb-code-icon {
   width: 18px;
@@ -1094,15 +979,12 @@ body.wb-dragging .wb-drag-handle--move {
 }
 
 
-/* When builder/import mode is active, hide table+footer (JS adds this class) */
+/* When builder mode is active, hide table+footer (JS adds this class) */
 .workout-picker-modal.workout-picker-modal--builder
   .workout-picker-table-wrapper,
 .workout-picker-modal.workout-picker-modal--builder .picker-footer,
 .workout-picker-modal.workout-picker-modal--builder .workout-picker-summary,
-.workout-picker-modal.workout-picker-modal--import
-  .workout-picker-table-wrapper,
-.workout-picker-modal.workout-picker-modal--import .picker-footer,
-.workout-picker-modal.workout-picker-modal--import .workout-picker-summary {
+.workout-picker-modal.workout-picker-modal--builder .picker-empty-state {
   display: none;
 }
 
