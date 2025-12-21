@@ -363,6 +363,7 @@ export function createWorkoutBuilder(options) {
   const handleBuilderShortcuts = (e) => {
     if (e.defaultPrevented) return;
     if (!rootEl || rootEl.getClientRects().length === 0) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const target = e.target;
     if (
       target &&
@@ -475,11 +476,13 @@ export function createWorkoutBuilder(options) {
     if (key === "Escape" || key === "Enter") {
       if (hasSelection) {
         e.preventDefault();
+        e.stopPropagation();
         deselectBlock();
         return;
       }
       if (key === "Enter" && currentBlocks && currentBlocks.length) {
         e.preventDefault();
+        e.stopPropagation();
         const current =
           insertAfterOverrideIndex != null
             ? insertAfterOverrideIndex
@@ -496,6 +499,31 @@ export function createWorkoutBuilder(options) {
       }
       return;
     }
+
+    const isInsertionAtEndOfSelection = () => {
+      const insertAfter =
+        insertAfterOverrideIndex != null
+          ? insertAfterOverrideIndex
+          : getInsertAfterIndex();
+      return insertAfter === selectedBlockIndex;
+    };
+
+    if (key === " " || e.code === "Space") {
+      if (hasSelection && block && block.kind === "intervals") {
+        e.preventDefault();
+        e.stopPropagation();
+        const atEnd = isInsertionAtEndOfSelection();
+        insertAfterOverrideIndex = atEnd
+          ? selectedBlockIndex - 1
+          : selectedBlockIndex;
+        renderChart();
+      }
+      return;
+    }
+
+    const powerStepRel = 0.05;
+    const stepScale = e.shiftKey ? 5 : 1;
+    const scaledPowerStep = powerStepRel * stepScale;
 
     if (!hasSelection) {
       if (!currentBlocks || !currentBlocks.length) return;
@@ -525,6 +553,54 @@ export function createWorkoutBuilder(options) {
         insertAfterOverrideIndex = next;
         caretBlockIndex = null;
         renderChart();
+      } else if (
+        lower === "j" ||
+        lower === "k" ||
+        key === "ArrowDown" ||
+        key === "ArrowUp"
+      ) {
+        e.preventDefault();
+        const delta =
+          lower === "j" || key === "ArrowDown"
+            ? -scaledPowerStep
+            : scaledPowerStep;
+        const insertAfter =
+          insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+        const prevIndex = insertAfter != null ? insertAfter : -1;
+        const nextIndex = prevIndex + 1;
+
+        const adjustBlockPower = (idx, position) => {
+          const b = currentBlocks[idx];
+          if (!b) return;
+          if (b.kind === "steady") {
+            applyBlockAttrUpdate(idx, {
+              powerRel: clampRel(getBlockSteadyPower(b) + delta),
+            });
+          } else if (b.kind === "warmup" || b.kind === "cooldown") {
+            const isStart = position === "start";
+            const current = isStart ? getRampLow(b) : getRampHigh(b);
+            applyBlockAttrUpdate(idx, {
+              [isStart ? "powerLowRel" : "powerHighRel"]: clampRel(
+                current + delta,
+              ),
+            });
+          } else if (b.kind === "intervals") {
+            const parts = getIntervalParts(b);
+            const isStart = position === "start";
+            applyBlockAttrUpdate(idx, {
+              [isStart ? "onPowerRel" : "offPowerRel"]: clampRel(
+                (isStart ? parts.onPowerRel : parts.offPowerRel) + delta,
+              ),
+            });
+          }
+        };
+
+        if (prevIndex >= 0) adjustBlockPower(prevIndex, "end");
+        if (nextIndex >= 0 && nextIndex < currentBlocks.length) {
+          adjustBlockPower(nextIndex, "start");
+        }
       }
       return;
     }
@@ -532,17 +608,6 @@ export function createWorkoutBuilder(options) {
     const adjustDuration = (current, delta) =>
       clampDuration(current + delta);
     const durationStep = (current) => getDurationStep(current);
-    const powerStepRel = 0.05;
-    const stepScale = e.shiftKey ? 5 : 1;
-    const scaledPowerStep = powerStepRel * stepScale;
-
-    const isInsertionAtEndOfSelection = () => {
-      const insertAfter =
-        insertAfterOverrideIndex != null
-          ? insertAfterOverrideIndex
-          : getInsertAfterIndex();
-      return insertAfter === selectedBlockIndex;
-    };
 
     const handleDurationChange = (delta) => {
       if (!block) return;
