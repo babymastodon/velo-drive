@@ -1799,15 +1799,17 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "move") {
       const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
+      const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
       let insertAfterIndex = -1;
-      for (let i = 0; i < blockTimings.length; i += 1) {
-        if (timeSec <= blockTimings[i].tEnd) {
-          insertAfterIndex = blockTimings[i].index;
-          break;
-        }
+      if (segmentTimings.length) {
+        let seg = segmentTimings.find((t) => timeSec <= t.tEnd);
+        if (!seg) seg = segmentTimings[segmentTimings.length - 1];
+        const mid = (seg.tStart + seg.tEnd) / 2;
+        insertAfterIndex = timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
       }
-      if (insertAfterIndex === -1 && blockTimings.length) {
-        insertAfterIndex = blockTimings[blockTimings.length - 1].index;
+      if (insertAfterIndex < -1) insertAfterIndex = -1;
+      if (insertAfterIndex >= currentBlocks.length) {
+        insertAfterIndex = currentBlocks.length - 1;
       }
       if (insertAfterIndex !== dragInsertAfterIndex) {
         dragInsertAfterIndex = insertAfterIndex;
