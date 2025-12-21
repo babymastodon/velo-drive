@@ -13,10 +13,6 @@ import {
   loadWorkoutBuilderState,
   saveWorkoutBuilderState,
 } from "./storage.js";
-import {
-  parseZwoSnippet,
-  segmentsToZwoSnippet,
-} from "./zwo.js";
 
 /**
  * @typedef WorkoutBuilderOptions
@@ -182,74 +178,94 @@ export function createWorkoutBuilder(options) {
     {
       key: "recovery",
       label: "Recovery",
-      snippet: '<SteadyState Duration="300" Power="0.55" />',
       icon: "steady",
       zoneClass: "wb-zone-recovery",
       shortcut: "R",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 0.55,
     },
     {
       key: "endurance",
       label: "Endurance",
-      snippet: '<SteadyState Duration="300" Power="0.70" />',
       icon: "steady",
       zoneClass: "wb-zone-endurance",
       shortcut: "E",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 0.7,
     },
     {
       key: "tempo",
       label: "Tempo",
-      snippet: '<SteadyState Duration="300" Power="0.85" />',
       icon: "steady",
       zoneClass: "wb-zone-tempo",
       shortcut: "T",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 0.85,
     },
     {
       key: "threshold",
       label: "Threshold",
-      snippet: '<SteadyState Duration="300" Power="0.95" />',
       icon: "steady",
       zoneClass: "wb-zone-threshold",
       shortcut: "S",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 0.95,
     },
     {
       key: "vo2max",
       label: "VO2Max",
-      snippet: '<SteadyState Duration="300" Power="1.10" />',
       icon: "steady",
       zoneClass: "wb-zone-vo2",
       shortcut: "V",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 1.1,
     },
     {
       key: "anaerobic",
       label: "Anaerobic",
-      snippet: '<SteadyState Duration="300" Power="1.25" />',
       icon: "steady",
       zoneClass: "wb-zone-anaerobic",
       shortcut: "A",
+      kind: "steady",
+      durationSec: 300,
+      powerRel: 1.25,
     },
     {
       key: "warmup",
       label: "Warmup",
-      snippet:
-        '<Warmup Duration="600" PowerLow="0.50" PowerHigh="0.75" />',
       icon: "rampUp",
       shortcut: "W",
+      kind: "warmup",
+      durationSec: 600,
+      powerLowRel: 0.5,
+      powerHighRel: 0.75,
     },
     {
       key: "cooldown",
       label: "Cooldown",
-      snippet:
-        '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />',
       icon: "rampDown",
       shortcut: "C",
+      kind: "cooldown",
+      durationSec: 600,
+      powerLowRel: 0.75,
+      powerHighRel: 0.5,
     },
     {
       key: "intervals",
       label: "IntervalsT",
-      snippet:
-        '<IntervalsT Repeat="3" OnDuration="300" OffDuration="180" OnPower="0.90" OffPower="0.50" />',
       icon: "intervals",
       shortcut: "I",
+      kind: "intervals",
+      repeat: 3,
+      onDurationSec: 300,
+      offDurationSec: 180,
+      onPowerRel: 0.9,
+      offPowerRel: 0.5,
     },
   ];
   const buttonSpecByKey = new Map(
@@ -826,14 +842,23 @@ export function createWorkoutBuilder(options) {
   }
 
   function setDefaultBlocks() {
-    const snippet =
-      '<Warmup Duration="600" PowerLow="0.50" PowerHigh="0.75" />\n' +
-      '<SteadyState Duration="1200" Power="0.85" />\n' +
-      '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
-    const parsed = parseZwoSnippet(snippet);
-    currentBlocks = parsed.blocks || [];
-    currentRawSegments = parsed.rawSegments || [];
-    currentErrors = parsed.errors || [];
+    const warmup = createBlock("warmup", {
+      durationSec: 600,
+      powerLowRel: 0.5,
+      powerHighRel: 0.75,
+    });
+    const steady = createBlock("steady", {
+      durationSec: 1200,
+      powerRel: 0.85,
+    });
+    const cooldown = createBlock("cooldown", {
+      durationSec: 600,
+      powerLowRel: 0.75,
+      powerHighRel: 0.5,
+    });
+    currentBlocks = [warmup, steady, cooldown];
+    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
+    currentErrors = [];
   }
 
   function handleAnyChange(opts = {}) {
@@ -995,8 +1020,11 @@ export function createWorkoutBuilder(options) {
 
   function deselectBlock() {
     if (selectedBlockIndex == null) return;
+    const prevSelected = selectedBlockIndex;
     selectedBlockIndex = null;
-    insertAfterOverrideIndex = null;
+    if (insertAfterOverrideIndex == null && prevSelected != null) {
+      insertAfterOverrideIndex = prevSelected;
+    }
     updateBlockEditor();
     renderChart();
   }
@@ -1086,6 +1114,145 @@ export function createWorkoutBuilder(options) {
       });
     });
     return raw;
+  }
+
+  function segmentsToBlocks(segments) {
+    if (!Array.isArray(segments) || !segments.length) return [];
+    const normalized = [];
+
+    for (const seg of segments) {
+      if (!Array.isArray(seg) || seg.length < 2) continue;
+      const minutes = Number(seg[0]);
+      let startVal = Number(seg[1]);
+      let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
+
+      if (
+        !Number.isFinite(minutes) ||
+        minutes <= 0 ||
+        !Number.isFinite(startVal) ||
+        !Number.isFinite(endVal)
+      ) {
+        continue;
+      }
+
+      const toRel = (v) => (v <= 5 ? v : v / 100);
+      const durationSec = clampDuration(minutes * 60);
+      const pStartRel = clampRel(toRel(startVal));
+      const pEndRel = clampRel(toRel(endVal));
+
+      if (Math.abs(pStartRel - pEndRel) < 1e-6) {
+        normalized.push({
+          kind: "steady",
+          durationSec,
+          powerRel: pStartRel,
+        });
+      } else if (pEndRel > pStartRel) {
+        normalized.push({
+          kind: "rampUp",
+          durationSec,
+          powerLowRel: pStartRel,
+          powerHighRel: pEndRel,
+        });
+      } else {
+        normalized.push({
+          kind: "rampDown",
+          durationSec,
+          powerLowRel: pStartRel,
+          powerHighRel: pEndRel,
+        });
+      }
+    }
+
+    if (!normalized.length) return [];
+
+    const blocks = [];
+    const DUR_TOL = 1;
+    const PWR_TOL = 0.01;
+    let i = 0;
+
+    while (i < normalized.length) {
+      if (i + 3 < normalized.length) {
+        const firstA = normalized[i];
+        const firstB = normalized[i + 1];
+
+        if (firstA.kind === "steady" && firstB.kind === "steady") {
+          let repeat = 1;
+          let j = i + 2;
+
+          while (j + 1 < normalized.length) {
+            const nextA = normalized[j];
+            const nextB = normalized[j + 1];
+
+            if (
+              nextA.kind !== "steady" ||
+              nextB.kind !== "steady" ||
+              !blocksSimilarSteady(firstA, nextA, DUR_TOL, PWR_TOL) ||
+              !blocksSimilarSteady(firstB, nextB, DUR_TOL, PWR_TOL)
+            ) {
+              break;
+            }
+
+            repeat += 1;
+            j += 2;
+          }
+
+          if (repeat >= 2) {
+            const onDurationSec = clampDuration(firstA.durationSec);
+            const offDurationSec = clampDuration(firstB.durationSec);
+            const onPowerRel = clampRel(firstA.powerRel);
+            const offPowerRel = clampRel(firstB.powerRel);
+            blocks.push(
+              createBlock("intervals", {
+                repeat: clampRepeat(repeat),
+                onDurationSec,
+                offDurationSec,
+                onPowerRel,
+                offPowerRel,
+              }),
+            );
+            i += repeat * 2;
+            continue;
+          }
+        }
+      }
+
+      const b = normalized[i];
+      if (b.kind === "steady") {
+        blocks.push(
+          createBlock("steady", {
+            durationSec: clampDuration(b.durationSec),
+            powerRel: clampRel(b.powerRel),
+          }),
+        );
+      } else if (b.kind === "rampUp") {
+        blocks.push(
+          createBlock("warmup", {
+            durationSec: clampDuration(b.durationSec),
+            powerLowRel: clampRel(b.powerLowRel),
+            powerHighRel: clampRel(b.powerHighRel),
+          }),
+        );
+      } else if (b.kind === "rampDown") {
+        blocks.push(
+          createBlock("cooldown", {
+            durationSec: clampDuration(b.durationSec),
+            powerLowRel: clampRel(b.powerLowRel),
+            powerHighRel: clampRel(b.powerHighRel),
+          }),
+        );
+      }
+
+      i += 1;
+    }
+
+    return blocks;
+  }
+
+  function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
+    if (a.kind !== "steady" || b.kind !== "steady") return false;
+    const durDiff = Math.abs(a.durationSec - b.durationSec);
+    const pDiff = Math.abs(a.powerRel - b.powerRel);
+    return durDiff <= durTolSec && pDiff <= pwrTol;
   }
 
   function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
@@ -1204,11 +1371,9 @@ export function createWorkoutBuilder(options) {
     sourceField.input.value = state.source || "";
     descField.textarea.value = state.description || "";
     urlInput.value = state.sourceURL || "";
-    const snippet = segmentsToZwoSnippet(state.rawSegments);
-    const parsed = parseZwoSnippet(snippet);
-    currentBlocks = parsed.blocks || [];
-    currentRawSegments = parsed.rawSegments || [];
-    currentErrors = parsed.errors || [];
+    currentBlocks = segmentsToBlocks(state.rawSegments);
+    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
+    currentErrors = [];
 
     if (skipPersist) {
       refreshLayout({skipPersist: true});
@@ -1645,6 +1810,17 @@ export function createWorkoutBuilder(options) {
     };
   }
 
+  function createBlock(kind, attrs) {
+    const block = {
+      kind,
+      attrs: {...(attrs || {})},
+    };
+    return {
+      ...block,
+      segments: buildSegmentsForBlock(block),
+    };
+  }
+
   function buildSegmentsForBlock(block) {
     if (!block || !block.kind) return [];
     const attrs = block.attrs || {};
@@ -1891,20 +2067,31 @@ export function createWorkoutBuilder(options) {
   }
 
   function buildBlockFromSpec(spec) {
-    if (!spec || !spec.snippet) return null;
-    const parsed = parseZwoSnippet(spec.snippet);
-    const base = parsed.blocks && parsed.blocks[0] ? parsed.blocks[0] : null;
-    if (!base) return null;
+    if (!spec || !spec.kind) return null;
+    const kind = spec.kind;
+    const attrs = {};
 
-    if (spec.key === "warmup" || spec.key === "cooldown") {
-      return buildContextualRampBlock(spec.key, base);
+    if (kind === "steady") {
+      attrs.durationSec = clampDuration(spec.durationSec ?? 300);
+      attrs.powerRel = clampRel(spec.powerRel ?? 0.5);
+    } else if (kind === "warmup" || kind === "cooldown") {
+      attrs.durationSec = clampDuration(spec.durationSec ?? 600);
+      attrs.powerLowRel = clampRel(spec.powerLowRel ?? 0.5);
+      attrs.powerHighRel = clampRel(spec.powerHighRel ?? 0.75);
+    } else if (kind === "intervals") {
+      attrs.repeat = clampRepeat(spec.repeat ?? 3);
+      attrs.onDurationSec = clampDuration(spec.onDurationSec ?? 300);
+      attrs.offDurationSec = clampDuration(spec.offDurationSec ?? 180);
+      attrs.onPowerRel = clampRel(spec.onPowerRel ?? 0.9);
+      attrs.offPowerRel = clampRel(spec.offPowerRel ?? 0.5);
     }
 
-    return {
-      ...base,
-      segments: Array.isArray(base.segments) ? base.segments.map((seg) => ({...seg})) : [],
-      attrs: {...(base.attrs || {})},
-    };
+    const base = createBlock(kind, attrs);
+    if (kind === "warmup" || kind === "cooldown") {
+      return buildContextualRampBlock(kind, base);
+    }
+
+    return base;
   }
 
   function buildContextualRampBlock(kind, fallbackBlock) {
