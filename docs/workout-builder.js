@@ -1801,11 +1801,26 @@ export function createWorkoutBuilder(options) {
       const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
       const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
       let insertAfterIndex = -1;
-      if (segmentTimings.length) {
-        let seg = segmentTimings.find((t) => timeSec <= t.tEnd);
-        if (!seg) seg = segmentTimings[segmentTimings.length - 1];
-        const mid = (seg.tStart + seg.tEnd) / 2;
-        insertAfterIndex = timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
+      if (blockTimings.length) {
+        let blockTiming = blockTimings.find((t) => timeSec <= t.tEnd);
+        if (!blockTiming) {
+          blockTiming = blockTimings[blockTimings.length - 1];
+        }
+        const block =
+          currentBlocks && currentBlocks[blockTiming.index]
+            ? currentBlocks[blockTiming.index]
+            : null;
+        if (block && block.kind === "intervals") {
+          const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+          insertAfterIndex =
+            timeSec < mid ? blockTiming.index - 1 : blockTiming.index;
+        } else if (segmentTimings.length) {
+          let seg = segmentTimings.find((t) => timeSec <= t.tEnd);
+          if (!seg) seg = segmentTimings[segmentTimings.length - 1];
+          const mid = (seg.tStart + seg.tEnd) / 2;
+          insertAfterIndex =
+            timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
+        }
       }
       if (insertAfterIndex < -1) insertAfterIndex = -1;
       if (insertAfterIndex >= currentBlocks.length) {
