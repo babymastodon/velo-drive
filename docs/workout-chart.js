@@ -858,6 +858,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     insertAfterBlockIndex = null,
     onSelectBlock,
     onSetInsertAfter,
+    onSetInsertAfterFromSegment,
   } = options;
 
   container.innerHTML = "";
@@ -873,6 +874,21 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     DEFAULT_FTP;
 
   const {timings, totalSec} = computeBlockTimings(blocks);
+  const segmentTimings = [];
+  let segCursor = 0;
+  (blocks || []).forEach((block, blockIndex) => {
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    segs.forEach((seg, segIndex) => {
+      const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
+      segmentTimings.push({
+        blockIndex,
+        segIndex,
+        tStart: segCursor,
+        tEnd: segCursor + durSec,
+      });
+      segCursor += durSec;
+    });
+  });
   if (!totalSec) {
     container.textContent = "No workout structure available.";
     container.classList.add("picker-detail-empty");
@@ -1065,6 +1081,39 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       if (typeof onSelectBlock !== "function") return;
       const idx = Number(targetBlock.dataset.blockIndex);
       onSelectBlock(Number.isFinite(idx) ? idx : null);
+      if (typeof onSetInsertAfterFromSegment === "function") {
+        const blockIndex = Number(targetBlock.dataset.blockIndex);
+        const segIndex = Number(targetBlock.dataset.segIndex);
+        const blockTiming = timings.find((t) => t.index === blockIndex);
+        const block =
+          Number.isFinite(blockIndex) && blocks ? blocks[blockIndex] : null;
+        let insertIdx = Number.isFinite(blockIndex) ? blockIndex : -1;
+
+        if (block && block.kind === "intervals" && blockTiming) {
+          const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+          const svgRect = svg.getBoundingClientRect();
+          const localX = e.clientX - svgRect.left;
+          const clampedX = Math.max(0, Math.min(width, localX));
+          const timeSec = (clampedX / width) * timelineSec;
+          insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+        } else if (Number.isFinite(segIndex) && segmentTimings.length) {
+          const seg = segmentTimings.find(
+            (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
+          );
+          if (seg) {
+            const mid = (seg.tStart + seg.tEnd) / 2;
+            const svgRect = svg.getBoundingClientRect();
+            const localX = e.clientX - svgRect.left;
+            const clampedX = Math.max(0, Math.min(width, localX));
+            const timeSec = (clampedX / width) * timelineSec;
+            insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+          }
+        }
+
+        if (insertIdx < -1) insertIdx = -1;
+        if (insertIdx >= timings.length) insertIdx = timings.length - 1;
+        onSetInsertAfterFromSegment(insertIdx);
+      }
       return;
     }
 
@@ -1078,8 +1127,27 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     const clampedX = Math.max(0, Math.min(width, localX));
     const timeSec = (clampedX / width) * timelineSec;
 
-    let idx = timings.findIndex(({tEnd}) => timeSec <= tEnd);
-    if (idx === -1) idx = timings.length - 1;
+    let idx = -1;
+    const blockTiming =
+      timings.find(({tEnd}) => timeSec <= tEnd) ||
+      timings[timings.length - 1];
+    const block =
+      blockTiming && blocks ? blocks[blockTiming.index] : null;
+
+    if (block && block.kind === "intervals") {
+      const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+      idx = timeSec < mid ? blockTiming.index - 1 : blockTiming.index;
+    } else if (segmentTimings.length) {
+      let seg = segmentTimings.find((t) => timeSec <= t.tEnd);
+      if (!seg) seg = segmentTimings[segmentTimings.length - 1];
+      const mid = (seg.tStart + seg.tEnd) / 2;
+      idx = timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
+    } else if (blockTiming) {
+      idx = blockTiming.index;
+    }
+
+    if (idx < -1) idx = -1;
+    if (idx >= timings.length) idx = timings.length - 1;
     onSetInsertAfter(idx);
   });
 }

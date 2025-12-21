@@ -45,6 +45,7 @@ export function createWorkoutBuilder(options) {
   let selectedBlockIndex = null;
   let caretBlockIndex = null;
   let dragInsertAfterIndex = null;
+  let insertAfterOverrideIndex = null;
   let dragState = null;
   const statusTarget = statusMessageEl || null;
 
@@ -652,9 +653,12 @@ export function createWorkoutBuilder(options) {
           insertAfterBlockIndex:
             dragInsertAfterIndex != null
               ? dragInsertAfterIndex
+              : insertAfterOverrideIndex != null
+                ? insertAfterOverrideIndex
               : getInsertAfterIndex(),
           onSelectBlock: handleBlockSelectionFromChart,
           onSetInsertAfter: handleInsertAfterFromChart,
+          onSetInsertAfterFromSegment: handleInsertAfterFromSegment,
         });
       } else {
         // Fallback to raw segments if we couldn't parse blocks (should be rare)
@@ -693,6 +697,7 @@ export function createWorkoutBuilder(options) {
     if (next === selectedBlockIndex) return;
     selectedBlockIndex = next;
     caretBlockIndex = null;
+    insertAfterOverrideIndex = null;
     updateBlockEditor();
     updateErrorHighlights();
     renderChart();
@@ -702,6 +707,7 @@ export function createWorkoutBuilder(options) {
     if (selectedBlockIndex == null) return;
     caretBlockIndex = selectedBlockIndex;
     selectedBlockIndex = null;
+    insertAfterOverrideIndex = null;
     updateBlockEditor();
     updateErrorHighlights();
     renderChart();
@@ -727,10 +733,12 @@ export function createWorkoutBuilder(options) {
 
     selectedBlockIndex = null;
     if (caretBlockIndex === next) {
+      insertAfterOverrideIndex = null;
       renderChart();
       return;
     }
     caretBlockIndex = next;
+    insertAfterOverrideIndex = null;
     updateBlockEditor();
     updateErrorHighlights();
     renderChart();
@@ -746,6 +754,11 @@ export function createWorkoutBuilder(options) {
 
   function handleInsertAfterFromChart(idx) {
     setInsertAfterIndex(idx);
+  }
+
+  function handleInsertAfterFromSegment(idx) {
+    insertAfterOverrideIndex = idx;
+    renderChart();
   }
 
   function buildBlockTimings(blocks) {
