@@ -1064,6 +1064,22 @@
   background: var(--hover-medium);
 }
 
+.wb-drag-handle--top {
+  cursor: ns-resize;
+}
+
+.wb-drag-handle--right {
+  cursor: ew-resize;
+}
+
+.wb-drag-handle--move {
+  cursor: grab;
+}
+
+body.wb-dragging .wb-drag-handle--move {
+  cursor: grabbing;
+}
+
 .wb-code-insert-btn.wb-zone-recovery .wb-code-icon {
   color: var(--zone-recovery);
 }
