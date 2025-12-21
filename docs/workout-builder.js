@@ -441,12 +441,15 @@ export function createWorkoutBuilder(options) {
           insertAfterOverrideIndex != null
             ? insertAfterOverrideIndex
             : getInsertAfterIndex();
-        let next = (current ?? -1) + 1;
-        if (next >= currentBlocks.length) {
-          next = currentBlocks.length - 1;
+        const prev =
+          current != null
+            ? Math.min(current, currentBlocks.length - 1)
+            : null;
+        if (prev != null && prev >= 0) {
+          setSelectedBlock(prev);
+        } else {
+          setSelectedBlock(0);
         }
-        if (next < 0) next = 0;
-        setSelectedBlock(next);
       }
       return;
     }
@@ -487,6 +490,8 @@ export function createWorkoutBuilder(options) {
       clampDuration(current + delta);
     const durationStep = (current) => getDurationStep(current);
     const powerStepRel = 0.05;
+    const stepScale = e.shiftKey ? 5 : 1;
+    const scaledPowerStep = powerStepRel * stepScale;
 
     const handleDurationChange = (delta) => {
       if (!block) return;
@@ -531,7 +536,7 @@ export function createWorkoutBuilder(options) {
         block.kind === "intervals"
           ? durationStep(getIntervalParts(block).onDurationSec)
           : durationStep(getBlockDurationSec(block));
-      handleDurationChange(-step);
+      handleDurationChange(-step * stepScale);
       return;
     }
     if (lower === "l" || key === "ArrowRight") {
@@ -540,23 +545,23 @@ export function createWorkoutBuilder(options) {
         block.kind === "intervals"
           ? durationStep(getIntervalParts(block).onDurationSec)
           : durationStep(getBlockDurationSec(block));
-      handleDurationChange(step);
+      handleDurationChange(step * stepScale);
       return;
     }
     if (lower === "j" || key === "ArrowDown") {
       e.preventDefault();
-      handlePowerChange(-powerStepRel);
+      handlePowerChange(-scaledPowerStep);
       return;
     }
     if (lower === "k" || key === "ArrowUp") {
       e.preventDefault();
-      handlePowerChange(powerStepRel);
+      handlePowerChange(scaledPowerStep);
       return;
     }
 
     if (lower === "i" || lower === "o") {
       if (!block) return;
-      const delta = lower === "i" ? -powerStepRel : powerStepRel;
+      const delta = lower === "i" ? -scaledPowerStep : scaledPowerStep;
       e.preventDefault();
       if (block.kind === "warmup" || block.kind === "cooldown") {
         const current = getRampLow(block);
@@ -578,7 +583,7 @@ export function createWorkoutBuilder(options) {
       const parts = getIntervalParts(block);
       const step = durationStep(parts.offDurationSec);
       const delta = lower === "u" ? -step : step;
-      const next = adjustDuration(parts.offDurationSec, delta);
+      const next = adjustDuration(parts.offDurationSec, delta * stepScale);
       applyBlockAttrUpdate(selectedBlockIndex, {offDurationSec: next});
     }
   };
