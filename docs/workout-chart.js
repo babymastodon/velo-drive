@@ -930,14 +930,22 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     svg.appendChild(band);
   });
 
+  const HANDLE_TOP_HEIGHT = 12;
+  const HANDLE_RIGHT_WIDTH = 12;
+
   // Workout segments, preserving block ownership for styling
   let cursor = 0;
   (blocks || []).forEach((block, idx) => {
     const segs = Array.isArray(block?.segments) ? block.segments : [];
-    for (const seg of segs) {
+    for (let segIndex = 0; segIndex < segs.length; segIndex += 1) {
+      const seg = segs[segIndex];
       const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
       const pStartRel = seg?.pStartRel || 0;
       const pEndRel = seg?.pEndRel != null ? seg.pEndRel : pStartRel;
+
+      const x1 = (cursor / timelineSec) * width;
+      const x2 = ((cursor + durSec) / timelineSec) * width;
+      const segWidth = Math.max(1, x2 - x1);
 
       const poly = renderSegmentPolygon({
         svg,
@@ -954,11 +962,52 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
       if (poly) {
         poly.dataset.blockIndex = String(idx);
+        poly.dataset.segIndex = String(segIndex);
+        poly.dataset.dragHandle = "move";
         poly.classList.add("wb-block-segment");
+        poly.classList.add("wb-drag-handle", "wb-drag-handle--move");
         if (idx === selectedBlockIndex) {
           poly.classList.add("is-active");
         }
       }
+
+      const topHandle = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "rect",
+      );
+      topHandle.setAttribute("x", String(x1));
+      topHandle.setAttribute("y", "0");
+      topHandle.setAttribute("width", String(segWidth));
+      topHandle.setAttribute("height", String(Math.min(HANDLE_TOP_HEIGHT, height)));
+      topHandle.setAttribute("fill", "transparent");
+      topHandle.setAttribute("pointer-events", "all");
+      topHandle.dataset.blockIndex = String(idx);
+      topHandle.dataset.segIndex = String(segIndex);
+      topHandle.dataset.dragHandle = "top";
+      topHandle.dataset.x1 = String(x1);
+      topHandle.dataset.x2 = String(x2);
+      topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
+      svg.appendChild(topHandle);
+
+      const handleWidth = Math.min(
+        HANDLE_RIGHT_WIDTH,
+        Math.max(6, segWidth),
+      );
+      const rightHandle = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "rect",
+      );
+      rightHandle.setAttribute("x", String(x2 - handleWidth));
+      rightHandle.setAttribute("y", "0");
+      rightHandle.setAttribute("width", String(handleWidth));
+      rightHandle.setAttribute("height", String(height));
+      rightHandle.setAttribute("fill", "transparent");
+      rightHandle.setAttribute("pointer-events", "all");
+      rightHandle.dataset.blockIndex = String(idx);
+      rightHandle.dataset.segIndex = String(segIndex);
+      rightHandle.dataset.dragHandle = "right";
+      rightHandle.classList.add("wb-drag-handle", "wb-drag-handle--right");
+      svg.appendChild(rightHandle);
 
       cursor += durSec;
     }

@@ -44,6 +44,8 @@ export function createWorkoutBuilder(options) {
   let persistedState = null;
   let selectedBlockIndex = null;
   let caretBlockIndex = null;
+  let dragInsertAfterIndex = null;
+  let dragState = null;
   const statusTarget = statusMessageEl || null;
 
   function setStatusMessage(text, tone = "neutral") {
@@ -353,6 +355,8 @@ export function createWorkoutBuilder(options) {
     });
   });
 
+  chartMiniHost.addEventListener("pointerdown", handleChartPointerDown);
+
   // ---------- Init: restore from storage or default ----------
 
   (async () => {
@@ -645,7 +649,10 @@ export function createWorkoutBuilder(options) {
       if (currentBlocks && currentBlocks.length) {
         renderBuilderWorkoutGraph(chartMiniHost, currentBlocks, ftp, {
           selectedBlockIndex,
-          insertAfterBlockIndex: getInsertAfterIndex(),
+          insertAfterBlockIndex:
+            dragInsertAfterIndex != null
+              ? dragInsertAfterIndex
+              : getInsertAfterIndex(),
           onSelectBlock: handleBlockSelectionFromChart,
           onSetInsertAfter: handleInsertAfterFromChart,
         });
@@ -739,6 +746,81 @@ export function createWorkoutBuilder(options) {
 
   function handleInsertAfterFromChart(idx) {
     setInsertAfterIndex(idx);
+  }
+
+  function buildBlockTimings(blocks) {
+    const timings = [];
+    let totalSec = 0;
+    (blocks || []).forEach((block, idx) => {
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      const start = totalSec;
+      segs.forEach((seg) => {
+        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+        totalSec += durSec;
+      });
+      timings.push({index: idx, tStart: start, tEnd: totalSec});
+    });
+    return {timings, totalSec};
+  }
+
+  function buildSegmentTimings(blocks) {
+    const timings = [];
+    let totalSec = 0;
+    (blocks || []).forEach((block, blockIndex) => {
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      segs.forEach((seg, segIndex) => {
+        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+        const start = totalSec;
+        const end = totalSec + durSec;
+        timings.push({blockIndex, segIndex, tStart: start, tEnd: end});
+        totalSec = end;
+      });
+    });
+    return {timings, totalSec};
+  }
+
+  function snapPowerRel(rel) {
+    const snapped = Math.round(rel * 20) / 20;
+    return Math.max(0.05, snapped);
+  }
+
+  function clampRel(val) {
+    return Math.max(0.05, Number.isFinite(val) ? val : 0);
+  }
+
+  function snapDurationSec(sec) {
+    const snapped = Math.round(sec / 60) * 60;
+    return Math.max(60, snapped);
+  }
+
+  function reorderBlocks(fromIndex, insertAfterIndex) {
+    if (
+      fromIndex == null ||
+      insertAfterIndex == null ||
+      !currentBlocks ||
+      !currentBlocks[fromIndex]
+    ) {
+      return;
+    }
+
+    let target = insertAfterIndex;
+    if (target >= fromIndex) target -= 1;
+    if (target < -1) target = -1;
+    if (target + 1 === fromIndex) {
+      dragInsertAfterIndex = null;
+      renderChart();
+      return;
+    }
+
+    const updated = currentBlocks.slice();
+    const [moving] = updated.splice(fromIndex, 1);
+    updated.splice(target + 1, 0, moving);
+
+    const newSnippet = blocksToSnippet(updated);
+    selectedBlockIndex = null;
+    dragInsertAfterIndex = null;
+    setCodeValueAndRefresh(newSnippet, null);
+    setSelectedBlock(target + 1);
   }
 
   function updateErrorStyling() {
@@ -1597,6 +1679,217 @@ export function createWorkoutBuilder(options) {
     const newValue = beforeText + prefix + snippet + suffix + afterText;
     const caretPos = (beforeText + prefix + snippet).length;
     setCodeValueAndRefresh(newValue, caretPos);
+  }
+
+  function handleChartPointerDown(e) {
+    const handleEl = e.target.closest
+      ? e.target.closest("[data-drag-handle]")
+      : null;
+    if (!handleEl || !chartMiniHost) return;
+
+    const handle = handleEl.dataset.dragHandle;
+    const blockIndex = Number(handleEl.dataset.blockIndex);
+    const segIndex = Number(handleEl.dataset.segIndex);
+    if (!Number.isFinite(blockIndex) || !Number.isFinite(segIndex)) return;
+
+    const svg = chartMiniHost.querySelector("svg");
+    if (!svg) return;
+
+    e.preventDefault();
+    if (handleEl.setPointerCapture) {
+      handleEl.setPointerCapture(e.pointerId);
+    }
+
+    const rect = svg.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const localY = e.clientY - rect.top;
+
+    const {timings: segmentTimings, totalSec} = buildSegmentTimings(
+      currentBlocks,
+    );
+    const {timings: blockTimings} = buildBlockTimings(currentBlocks);
+    const segmentTiming = segmentTimings.find(
+      (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
+    );
+
+    const ftp = getCurrentFtp() || 0;
+    const safeFtp = ftp > 0 ? ftp : 200;
+    const maxY = Math.max(200, safeFtp * 2);
+    const timelineSec = Math.max(3600, totalSec || 0);
+
+    let rampRegion = null;
+    if (handle === "top") {
+      const x1 = Number(handleEl.dataset.x1);
+      const x2 = Number(handleEl.dataset.x2);
+      if (Number.isFinite(x1) && Number.isFinite(x2)) {
+        const third = (x2 - x1) / 3;
+        if (localX <= x1 + third) rampRegion = "left";
+        else if (localX >= x2 - third) rampRegion = "right";
+        else rampRegion = "middle";
+      } else {
+        rampRegion = "middle";
+      }
+    }
+
+    const block = currentBlocks[blockIndex];
+    if (!block || !segmentTiming) return;
+
+    setSelectedBlock(blockIndex);
+
+    dragState = {
+      pointerId: e.pointerId,
+      handle,
+      blockIndex,
+      segIndex,
+      rect,
+      width: rect.width,
+      height: rect.height,
+      timelineSec,
+      maxY,
+      ftp: safeFtp,
+      tStart: segmentTiming.tStart,
+      tEnd: segmentTiming.tEnd,
+      blockKind: block.kind,
+      rampRegion,
+      blockTimings,
+      startLow: getRampLow(block),
+      startHigh: getRampHigh(block),
+      startPower: getBlockSteadyPower(block),
+      startOnPower: getIntervalParts(block).onPowerRel,
+      startOffPower: getIntervalParts(block).offPowerRel,
+    };
+
+    dragInsertAfterIndex = null;
+
+    document.body.classList.add("wb-dragging");
+    window.addEventListener("pointermove", handleChartPointerMove);
+    window.addEventListener("pointerup", handleChartPointerUp);
+    window.addEventListener("pointercancel", handleChartPointerUp);
+  }
+
+  function handleChartPointerMove(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    const {
+      handle,
+      blockIndex,
+      segIndex,
+      maxY,
+      ftp,
+      tStart,
+      blockKind,
+      rampRegion,
+      startLow,
+      startHigh,
+      startOnPower,
+      startOffPower,
+    } = dragState;
+
+    const svg = chartMiniHost ? chartMiniHost.querySelector("svg") : null;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const {timings: blockTimings, totalSec} = buildBlockTimings(currentBlocks);
+    const timelineSec = Math.max(3600, totalSec || 0);
+
+    const localX = e.clientX - rect.left;
+    const localY = e.clientY - rect.top;
+    const clampedX = Math.max(0, Math.min(width, localX));
+    const clampedY = Math.max(0, Math.min(height, localY));
+
+    if (handle === "move") {
+      const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
+      let insertAfterIndex = -1;
+      for (let i = 0; i < blockTimings.length; i += 1) {
+        if (timeSec <= blockTimings[i].tEnd) {
+          insertAfterIndex = blockTimings[i].index;
+          break;
+        }
+      }
+      if (insertAfterIndex === -1 && blockTimings.length) {
+        insertAfterIndex = blockTimings[blockTimings.length - 1].index;
+      }
+      if (insertAfterIndex !== dragInsertAfterIndex) {
+        dragInsertAfterIndex = insertAfterIndex;
+        renderChart();
+      }
+      return;
+    }
+
+    const powerW = (1 - clampedY / Math.max(1, height)) * maxY;
+    const powerRel = snapPowerRel(powerW / Math.max(1, ftp));
+
+    if (handle === "top") {
+      if (blockKind === "steady") {
+        applyBlockAttrUpdate(blockIndex, {powerRel});
+        return;
+      }
+
+      if (blockKind === "warmup" || blockKind === "cooldown") {
+        if (rampRegion === "left") {
+          applyBlockAttrUpdate(blockIndex, {powerLowRel: powerRel});
+        } else if (rampRegion === "right") {
+          applyBlockAttrUpdate(blockIndex, {powerHighRel: powerRel});
+        } else {
+          const startMid = (startLow + startHigh) / 2;
+          const delta = powerRel - startMid;
+          applyBlockAttrUpdate(blockIndex, {
+            powerLowRel: clampRel(startLow + delta),
+            powerHighRel: clampRel(startHigh + delta),
+          });
+        }
+        return;
+      }
+
+      if (blockKind === "intervals") {
+        const role = segIndex % 2 === 0 ? "on" : "off";
+        if (role === "on") {
+          if (powerRel !== startOnPower) {
+            applyBlockAttrUpdate(blockIndex, {onPowerRel: powerRel});
+          }
+        } else if (powerRel !== startOffPower) {
+          applyBlockAttrUpdate(blockIndex, {offPowerRel: powerRel});
+        }
+      }
+      return;
+    }
+
+    if (handle === "right") {
+      const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
+      const duration = snapDurationSec(timeSec - tStart);
+
+      if (blockKind === "steady" || blockKind === "warmup" || blockKind === "cooldown") {
+        applyBlockAttrUpdate(blockIndex, {durationSec: duration});
+        return;
+      }
+
+      if (blockKind === "intervals") {
+        const role = segIndex % 2 === 0 ? "on" : "off";
+        if (role === "on") {
+          applyBlockAttrUpdate(blockIndex, {onDurationSec: duration});
+        } else {
+          applyBlockAttrUpdate(blockIndex, {offDurationSec: duration});
+        }
+      }
+    }
+  }
+
+  function handleChartPointerUp(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    const {handle, blockIndex} = dragState;
+
+    if (handle === "move" && dragInsertAfterIndex != null) {
+      reorderBlocks(blockIndex, dragInsertAfterIndex);
+    } else {
+      dragInsertAfterIndex = null;
+      renderChart();
+    }
+
+    dragState = null;
+    document.body.classList.remove("wb-dragging");
+    window.removeEventListener("pointermove", handleChartPointerMove);
+    window.removeEventListener("pointerup", handleChartPointerUp);
+    window.removeEventListener("pointercancel", handleChartPointerUp);
   }
 
   function setCodeValueAndRefresh(newValue, caretPos) {
