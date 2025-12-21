@@ -2115,30 +2115,43 @@ export function createWorkoutBuilder(options) {
     }
 
     const insertAfterIndex = getInsertAfterIndex();
-    if (
-      insertAfterIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[insertAfterIndex]
-    ) {
+    if (insertAfterIndex == null || !currentBlocks || !currentBlocks.length) {
       insertSnippetAtCursor(textarea, snippet);
       return;
     }
 
-    const block = currentBlocks[insertAfterIndex];
-    const endLine = Number.isFinite(block.lineEnd)
-      ? block.lineEnd
-      : Number.isFinite(block.lineStart)
-        ? block.lineStart
-        : 0;
+    let insertPos = null;
+    if (insertAfterIndex < 0) {
+      const first = currentBlocks[0];
+      const startLine = Number.isFinite(first?.lineStart) ? first.lineStart : 0;
+      const value = textarea.value || "";
+      const lines = value.split("\n");
+      const lineIdx = Math.max(0, Math.min(startLine, lines.length - 1));
+      insertPos = lines.slice(0, lineIdx).join("\n").length;
+      if (lineIdx > 0) insertPos += 1;
+    } else if (currentBlocks[insertAfterIndex]) {
+      const block = currentBlocks[insertAfterIndex];
+      const endLine = Number.isFinite(block.lineEnd)
+        ? block.lineEnd
+        : Number.isFinite(block.lineStart)
+          ? block.lineStart
+          : 0;
+      const value = textarea.value || "";
+      const lines = value.split("\n");
+      const lineIdx = Math.max(0, Math.min(endLine, lines.length - 1));
+      const beforeLines = lines.slice(0, lineIdx + 1).join("\n");
+      insertPos = beforeLines.length;
+      if (lineIdx < lines.length - 1) {
+        insertPos += 1;
+      }
+    }
+
+    if (insertPos == null) {
+      insertSnippetAtCursor(textarea, snippet);
+      return;
+    }
 
     const value = textarea.value || "";
-    const lines = value.split("\n");
-    const lineIdx = Math.max(0, Math.min(endLine, lines.length - 1));
-    const beforeLines = lines.slice(0, lineIdx + 1).join("\n");
-    let insertPos = beforeLines.length;
-    if (lineIdx < lines.length - 1) {
-      insertPos += 1;
-    }
 
     const beforeText = value.slice(0, insertPos);
     const afterText = value.slice(insertPos);
