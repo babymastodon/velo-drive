@@ -602,6 +602,7 @@ export function createWorkoutBuilder(options) {
   function renderChart() {
     const ftp = getCurrentFtp() || 0;
 
+    const prevScrollLeft = chartContainer ? chartContainer.scrollLeft : 0;
     chartMiniHost.innerHTML = "";
     try {
       if (currentBlocks && currentBlocks.length) {
@@ -618,6 +619,9 @@ export function createWorkoutBuilder(options) {
       }
     } catch (e) {
       console.error("[WorkoutBuilder] Failed to render mini chart:", e);
+    }
+    if (chartContainer) {
+      chartContainer.scrollLeft = prevScrollLeft;
     }
   }
 
