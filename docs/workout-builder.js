@@ -43,7 +43,6 @@ export function createWorkoutBuilder(options) {
   let currentZone = null;
   let persistedState = null;
   let selectedBlockIndex = null;
-  let caretBlockIndex = null;
   let dragInsertAfterIndex = null;
   let insertAfterOverrideIndex = null;
   let dragState = null;
@@ -279,8 +278,7 @@ export function createWorkoutBuilder(options) {
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
-      insertSnippetAtInsertionPoint(codeTextarea, spec);
-      handleAnyChange();
+      insertBlockAtInsertionPoint(spec);
     });
 
     toolbarButtons.appendChild(btn);
@@ -303,9 +301,6 @@ export function createWorkoutBuilder(options) {
   chartContainer.appendChild(chartMiniHost);
   chartCard.appendChild(chartContainer);
 
-  const codeHighlights = null;
-  const codeTextarea = document.createElement("textarea");
-  codeTextarea.spellcheck = false;
 
   body.appendChild(topRow);
   body.appendChild(statsCard);
@@ -351,14 +346,12 @@ export function createWorkoutBuilder(options) {
       if (lower === "a") {
         e.preventDefault();
         insertAfterOverrideIndex = -1;
-        caretBlockIndex = null;
         renderChart();
         return;
       }
       if (lower === "e") {
         e.preventDefault();
         insertAfterOverrideIndex = currentBlocks.length - 1;
-        caretBlockIndex = null;
         renderChart();
         return;
       }
@@ -369,25 +362,7 @@ export function createWorkoutBuilder(options) {
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
       if (!spec) return false;
-      const insertAfter =
-        insertAfterOverrideIndex != null
-          ? insertAfterOverrideIndex
-          : getInsertAfterIndex();
-      const targetIndex =
-        insertAfter != null
-          ? insertAfter + 1
-          : currentBlocks
-            ? currentBlocks.length
-            : 0;
-      insertSnippetAtInsertionPoint(codeTextarea, spec);
-      handleAnyChange();
-      if (currentBlocks && currentBlocks.length) {
-        const nextIdx = Math.min(
-          Math.max(0, targetIndex),
-          currentBlocks.length - 1,
-        );
-        setSelectedBlock(nextIdx);
-      }
+      insertBlockAtInsertionPoint(spec);
       return true;
     };
 
@@ -515,14 +490,12 @@ export function createWorkoutBuilder(options) {
       if (lower === "g") {
         e.preventDefault();
         insertAfterOverrideIndex = -1;
-        caretBlockIndex = null;
         renderChart();
         return;
       }
       if (lower === "$") {
         e.preventDefault();
         insertAfterOverrideIndex = currentBlocks.length - 1;
-        caretBlockIndex = null;
         renderChart();
         return;
       }
@@ -537,7 +510,6 @@ export function createWorkoutBuilder(options) {
           Math.min((current ?? -1) - 1, currentBlocks.length - 1),
         );
         insertAfterOverrideIndex = next;
-        caretBlockIndex = null;
         renderChart();
       } else if (lower === "l" || key === "ArrowRight") {
         e.preventDefault();
@@ -550,7 +522,6 @@ export function createWorkoutBuilder(options) {
           Math.min((current ?? -1) + 1, currentBlocks.length - 1),
         );
         insertAfterOverrideIndex = next;
-        caretBlockIndex = null;
         renderChart();
       } else if (
         lower === "j" ||
@@ -709,7 +680,7 @@ export function createWorkoutBuilder(options) {
     } catch (e) {
       console.warn("[WorkoutBuilder] Failed to load saved state:", e);
     }
-    if (!codeTextarea.value.trim()) {
+    if (!currentBlocks || !currentBlocks.length) {
       clearState({persist: true});
     } else {
       refreshLayout({skipPersist: true});
@@ -721,7 +692,6 @@ export function createWorkoutBuilder(options) {
   function refreshLayout(opts = {}) {
     handleAnyChange(opts);
     autoGrowTextarea(descField.textarea);
-    autoGrowTextarea(codeTextarea);
   }
 
   // Re-render chart when OS theme changes so SVG colors follow CSS vars
@@ -763,10 +733,9 @@ export function createWorkoutBuilder(options) {
     nameField.input.value = "";
     sourceField.input.value = "";
     descField.textarea.value = "";
-    codeTextarea.value = "";
     urlInput.value = "";
 
-    setDefaultSnippet();
+    setDefaultBlocks();
     if (!persist) {
       persistedState = null;
       refreshLayout({skipPersist: true});
@@ -798,12 +767,11 @@ export function createWorkoutBuilder(options) {
     const name = (nameField.input.value || "").trim();
     const source = (sourceField.input.value || "").trim();
     const desc = (descField.textarea.value || "").trim();
-    const snippet = (codeTextarea.value || "").trim();
+    const hasBlocks = currentBlocks && currentBlocks.length;
 
     nameField.input.classList.remove("wb-input-error");
     sourceField.input.classList.remove("wb-input-error");
     descField.textarea.classList.remove("wb-input-error");
-    codeTextarea.classList.remove("wb-input-error");
 
     /** @type {{field: string, message: string}[]} */
     const errors = [];
@@ -821,19 +789,10 @@ export function createWorkoutBuilder(options) {
         message: "Description is required.",
       });
     }
-    if (!snippet) {
+    if (!hasBlocks) {
       errors.push({
         field: "code",
         message: "Workout code is empty.",
-      });
-    }
-
-    if (currentErrors && currentErrors.length) {
-      const firstSyntax = currentErrors[0];
-      errors.push({
-        field: "code",
-        message:
-          firstSyntax.message || "Fix syntax errors before saving.",
       });
     }
 
@@ -849,9 +808,6 @@ export function createWorkoutBuilder(options) {
           break;
         case "description":
           descField.textarea.classList.add("wb-input-error");
-          break;
-        case "code":
-          codeTextarea.classList.add("wb-input-error");
           break;
       }
     }
@@ -869,37 +825,34 @@ export function createWorkoutBuilder(options) {
     };
   }
 
-  function setDefaultSnippet() {
-    codeTextarea.value =
+  function setDefaultBlocks() {
+    const snippet =
       '<Warmup Duration="600" PowerLow="0.50" PowerHigh="0.75" />\n' +
       '<SteadyState Duration="1200" Power="0.85" />\n' +
       '<Cooldown Duration="600" PowerLow="0.75" PowerHigh="0.50" />';
+    const parsed = parseZwoSnippet(snippet);
+    currentBlocks = parsed.blocks || [];
+    currentRawSegments = parsed.rawSegments || [];
+    currentErrors = parsed.errors || [];
   }
 
   function handleAnyChange(opts = {}) {
-    const {skipParse = false, skipPersist = false} = opts;
+    const {skipPersist = false} = opts;
 
-    if (!skipParse) {
-      const text = codeTextarea.value || "";
-      const parsed = parseZwoSnippet(text);
-      currentRawSegments = parsed.rawSegments || [];
-      currentErrors = parsed.errors || [];
-      currentBlocks = parsed.blocks || [];
-      if (
-        selectedBlockIndex != null &&
-        !currentBlocks[selectedBlockIndex]
-      ) {
-        selectedBlockIndex = null;
-      }
-      updateCaretBlockIndex();
-      if (
-        insertAfterOverrideIndex == null &&
-        selectedBlockIndex == null &&
-        caretBlockIndex == null &&
-        currentBlocks.length
-      ) {
-        insertAfterOverrideIndex = currentBlocks.length - 1;
-      }
+    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
+    currentErrors = [];
+    if (
+      selectedBlockIndex != null &&
+      !currentBlocks[selectedBlockIndex]
+    ) {
+      selectedBlockIndex = null;
+    }
+    if (
+      insertAfterOverrideIndex == null &&
+      selectedBlockIndex == null &&
+      currentBlocks.length
+    ) {
+      insertAfterOverrideIndex = currentBlocks.length - 1;
     }
 
     const ftp = getCurrentFtp() || 0;
@@ -922,7 +875,6 @@ export function createWorkoutBuilder(options) {
     updateStats();
     renderChart();
     updateErrorStyling();
-    updateErrorHighlights();
     updateBlockEditor();
 
     const state = getState();
@@ -1036,20 +988,16 @@ export function createWorkoutBuilder(options) {
 
     if (next === selectedBlockIndex) return;
     selectedBlockIndex = next;
-    caretBlockIndex = null;
     insertAfterOverrideIndex = null;
     updateBlockEditor();
-    updateErrorHighlights();
     renderChart();
   }
 
   function deselectBlock() {
     if (selectedBlockIndex == null) return;
-    caretBlockIndex = selectedBlockIndex;
     selectedBlockIndex = null;
     insertAfterOverrideIndex = null;
     updateBlockEditor();
-    updateErrorHighlights();
     renderChart();
   }
 
@@ -1072,15 +1020,8 @@ export function createWorkoutBuilder(options) {
         : idx;
 
     selectedBlockIndex = null;
-    if (caretBlockIndex === next) {
-      insertAfterOverrideIndex = null;
-      renderChart();
-      return;
-    }
-    caretBlockIndex = next;
-    insertAfterOverrideIndex = null;
+    insertAfterOverrideIndex = next;
     updateBlockEditor();
-    updateErrorHighlights();
     renderChart();
   }
 
@@ -1130,6 +1071,21 @@ export function createWorkoutBuilder(options) {
       });
     });
     return {timings, totalSec};
+  }
+
+  function buildRawSegmentsFromBlocks(blocks) {
+    const raw = [];
+    (blocks || []).forEach((block) => {
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      segs.forEach((seg) => {
+        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+        const pStartRel = Number(seg?.pStartRel) || 0;
+        const pEndRel =
+          seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+        raw.push([durSec / 60, pStartRel * 100, pEndRel * 100]);
+      });
+    });
+    return raw;
   }
 
   function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
@@ -1208,43 +1164,24 @@ export function createWorkoutBuilder(options) {
     const [moving] = updated.splice(fromIndex, 1);
     updated.splice(target + 1, 0, moving);
 
-    const newSnippet = blocksToSnippet(updated);
     selectedBlockIndex = null;
     dragInsertAfterIndex = null;
-    setCodeValueAndRefresh(newSnippet, null);
-    setSelectedBlock(target + 1);
+    commitBlocks(updated, {selectIndex: target + 1});
   }
 
   function updateErrorStyling() {
-    const text = codeTextarea.value || "";
-
-    if (!text.trim()) {
-      codeTextarea.classList.remove("wb-has-error");
+    if (!currentBlocks || !currentBlocks.length) {
       setStatusMessage("Empty workout. Add elements to begin.", "neutral");
       return;
     }
 
     if (!currentErrors.length) {
-      codeTextarea.classList.remove("wb-has-error");
       setStatusMessage("No errors detected.", "ok");
       return;
     }
 
-    codeTextarea.classList.add("wb-has-error");
     const first = currentErrors[0];
     setStatusMessage(first.message, "error");
-    updateErrorMessageForCaret();
-  }
-
-  function updateErrorMessageForCaret() {
-    if (!currentErrors.length) return;
-    const pos = codeTextarea.selectionStart || 0;
-    const overlapping = currentErrors.find(
-      (err) => pos >= err.start && pos <= err.end,
-    );
-    if (overlapping) {
-      setStatusMessage(overlapping.message, "error");
-    }
   }
 
   async function clearPersistedState() {
@@ -1266,8 +1203,12 @@ export function createWorkoutBuilder(options) {
     nameField.input.value = state.workoutTitle || "";
     sourceField.input.value = state.source || "";
     descField.textarea.value = state.description || "";
-    codeTextarea.value = segmentsToZwoSnippet(state.rawSegments);
     urlInput.value = state.sourceURL || "";
+    const snippet = segmentsToZwoSnippet(state.rawSegments);
+    const parsed = parseZwoSnippet(snippet);
+    currentBlocks = parsed.blocks || [];
+    currentRawSegments = parsed.rawSegments || [];
+    currentErrors = parsed.errors || [];
 
     if (skipPersist) {
       refreshLayout({skipPersist: true});
@@ -1288,108 +1229,6 @@ export function createWorkoutBuilder(options) {
 
     clearState({persist: true});
     return false;
-  }
-
-  // ---------- Small DOM helpers ----------
-
-  function escapeHtml(str) {
-    return (str || "").replace(/[&<>"]/g, (c) => {
-      switch (c) {
-        case "&":
-          return "&amp;";
-        case "<":
-          return "&lt;";
-        case ">":
-          return "&gt;";
-        default:
-          return c;
-      }
-    });
-  }
-
-  function updateErrorHighlights() {
-    if (!codeHighlights) return;
-
-    const text = codeTextarea.value || "";
-    const lines = text.split("\n");
-    const lineCount = lines.length;
-
-    const errorLines = new Set();
-    if (currentErrors.length) {
-      const lineOffsets = [];
-      let offset = 0;
-      for (let i = 0; i < lineCount; i += 1) {
-        lineOffsets.push(offset);
-        offset += lines[i].length + 1;
-      }
-
-      function indexToLine(idx) {
-        if (!Number.isFinite(idx)) return 0;
-        if (idx <= 0) return 0;
-        if (idx >= text.length) return lineCount - 1;
-
-        for (let i = 0; i < lineOffsets.length; i += 1) {
-          const start = lineOffsets[i];
-          const nextStart =
-            i + 1 < lineOffsets.length
-              ? lineOffsets[i + 1]
-              : Infinity;
-          if (idx >= start && idx < nextStart) {
-            return i;
-          }
-        }
-        return lineCount - 1;
-      }
-
-      for (const err of currentErrors) {
-        let start = Number.isFinite(err.start) ? err.start : 0;
-        let end = Number.isFinite(err.end) ? err.end : start;
-
-        start = Math.max(0, Math.min(start, text.length));
-        end = Math.max(start, Math.min(end, text.length));
-
-        const startLine = indexToLine(start);
-        const endLine = indexToLine(end);
-
-        const s = Math.max(0, Math.min(startLine, lineCount - 1));
-        const e = Math.max(s, Math.min(endLine, lineCount - 1));
-
-        for (let i = s; i <= e; i += 1) {
-          errorLines.add(i);
-        }
-      }
-    }
-
-    const selectedLines = new Set();
-    const selected = getSelectedBlock();
-    if (selected) {
-      const startLine = Number.isFinite(selected.lineStart)
-        ? selected.lineStart
-        : 0;
-      const endLine = Number.isFinite(selected.lineEnd)
-        ? selected.lineEnd
-        : startLine;
-      const s = Math.max(0, Math.min(startLine, lineCount - 1));
-      const e = Math.max(s, Math.min(endLine, lineCount - 1));
-      for (let i = s; i <= e; i += 1) {
-        selectedLines.add(i);
-      }
-    }
-
-    const html = lines
-      .map((line, idx) => {
-        const safe = escapeHtml(line) || " ";
-        const classes = [];
-        if (errorLines.has(idx)) classes.push("wb-highlight-line");
-        if (selectedLines.has(idx)) classes.push("wb-selected-line");
-        const classAttr = classes.length
-          ? ` class="${classes.join(" ")}"`
-          : "";
-        return `<div${classAttr}>${safe}</div>`;
-      })
-      .join("");
-
-    codeHighlights.innerHTML = html;
   }
 
   function updateBlockEditor() {
@@ -1656,6 +1495,18 @@ export function createWorkoutBuilder(options) {
     return {wrapper, input};
   }
 
+  function commitBlocks(updatedBlocks, options = {}) {
+    currentBlocks = updatedBlocks || [];
+    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
+    currentErrors = [];
+
+    if (options.selectIndex !== undefined) {
+      selectedBlockIndex = options.selectIndex;
+    }
+
+    handleAnyChange({skipParse: true, skipPersist: options.skipPersist});
+  }
+
   function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {
     if (
       blockIndex == null ||
@@ -1667,17 +1518,23 @@ export function createWorkoutBuilder(options) {
 
     const updatedBlocks = currentBlocks.map((block, idx) => {
       if (idx !== blockIndex) return block;
-      return {
+      const nextBlock = {
         ...block,
         attrs: {...(block.attrs || {}), ...attrs},
       };
+      return {
+        ...nextBlock,
+        segments: buildSegmentsForBlock(nextBlock),
+      };
     });
 
-    const newSnippet = blocksToSnippet(updatedBlocks);
-    setCodeValueAndRefresh(newSnippet, null);
-    if (options.select !== false) {
-      setSelectedBlock(blockIndex < currentBlocks.length ? blockIndex : null);
-    }
+    const nextIndex =
+      options.select === false
+        ? selectedBlockIndex
+        : blockIndex < currentBlocks.length
+          ? blockIndex
+          : null;
+    commitBlocks(updatedBlocks, {selectIndex: nextIndex});
   }
 
   function deleteSelectedBlock() {
@@ -1694,11 +1551,8 @@ export function createWorkoutBuilder(options) {
       (_block, idx) => idx !== deleteIndex,
     );
 
-    const newSnippet = blocksToSnippet(updatedBlocks);
-    selectedBlockIndex = null;
-    setCodeValueAndRefresh(newSnippet, null);
-
     if (!updatedBlocks.length) {
+      commitBlocks(updatedBlocks, {selectIndex: null});
       return;
     }
 
@@ -1706,7 +1560,7 @@ export function createWorkoutBuilder(options) {
       deleteIndex > 0
         ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
         : 0;
-    setSelectedBlock(nextIndex);
+    commitBlocks(updatedBlocks, {selectIndex: nextIndex});
   }
 
   function moveSelectedBlock(direction) {
@@ -1726,52 +1580,7 @@ export function createWorkoutBuilder(options) {
     const [moving] = updated.splice(idx, 1);
     updated.splice(target, 0, moving);
 
-    const newSnippet = blocksToSnippet(updated);
-    selectedBlockIndex = target;
-    setCodeValueAndRefresh(newSnippet, null);
-  }
-
-  function blocksToSnippet(blocks) {
-    if (!Array.isArray(blocks) || !blocks.length) return "";
-    const lines = [];
-
-    const formatRel = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n.toFixed(2) : "0.00";
-    };
-
-    for (const block of blocks) {
-      if (!block || !block.kind) continue;
-      const attrs = block.attrs || {};
-
-      if (block.kind === "steady") {
-        const duration = clampDuration(attrs.durationSec);
-        lines.push(
-          `<SteadyState Duration="${duration}" Power="${formatRel(
-            attrs.powerRel,
-          )}" />`,
-        );
-      } else if (block.kind === "warmup" || block.kind === "cooldown") {
-        const duration = clampDuration(attrs.durationSec);
-        const tag = block.kind === "cooldown" ? "Cooldown" : "Warmup";
-        lines.push(
-          `<${tag} Duration="${duration}" PowerLow="${formatRel(
-            attrs.powerLowRel,
-          )}" PowerHigh="${formatRel(attrs.powerHighRel)}" />`,
-        );
-      } else if (block.kind === "intervals") {
-        const repeat = clampRepeat(attrs.repeat);
-        const onDur = clampDuration(attrs.onDurationSec);
-        const offDur = clampDuration(attrs.offDurationSec);
-        lines.push(
-          `<IntervalsT Repeat="${repeat}" OnDuration="${onDur}" OffDuration="${offDur}" OnPower="${formatRel(
-            attrs.onPowerRel,
-          )}" OffPower="${formatRel(attrs.offPowerRel)}" />`,
-        );
-      }
-    }
-
-    return lines.join("\n");
+    commitBlocks(updated, {selectIndex: target});
   }
 
   function getBlockDurationSec(block) {
@@ -1836,6 +1645,72 @@ export function createWorkoutBuilder(options) {
     };
   }
 
+  function buildSegmentsForBlock(block) {
+    if (!block || !block.kind) return [];
+    const attrs = block.attrs || {};
+
+    if (block.kind === "steady") {
+      const durationSec = clampDuration(
+        attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
+      );
+      const powerRel =
+        attrs.powerRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
+      return [
+        {
+          durationSec,
+          pStartRel: powerRel,
+          pEndRel: powerRel,
+        },
+      ];
+    }
+
+    if (block.kind === "warmup" || block.kind === "cooldown") {
+      const durationSec = clampDuration(
+        attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
+      );
+      const low =
+        attrs.powerLowRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
+      const high =
+        attrs.powerHighRel ?? block.segments?.[0]?.pEndRel ?? low;
+      return [
+        {
+          durationSec,
+          pStartRel: low,
+          pEndRel: high,
+        },
+      ];
+    }
+
+    if (block.kind === "intervals") {
+      const parts = getIntervalParts(block);
+      const repeat = clampRepeat(attrs.repeat ?? parts.repeat);
+      const onDurationSec = clampDuration(
+        attrs.onDurationSec ?? parts.onDurationSec,
+      );
+      const offDurationSec = clampDuration(
+        attrs.offDurationSec ?? parts.offDurationSec,
+      );
+      const onPowerRel = attrs.onPowerRel ?? parts.onPowerRel;
+      const offPowerRel = attrs.offPowerRel ?? parts.offPowerRel;
+      const segments = [];
+      for (let i = 0; i < repeat; i += 1) {
+        segments.push({
+          durationSec: onDurationSec,
+          pStartRel: onPowerRel,
+          pEndRel: onPowerRel,
+        });
+        segments.push({
+          durationSec: offDurationSec,
+          pStartRel: offPowerRel,
+          pEndRel: offPowerRel,
+        });
+      }
+      return segments;
+    }
+
+    return block.segments || [];
+  }
+
   function clampDuration(val) {
     const n = Number(val);
     return Math.max(1, Math.round(Number.isFinite(n) ? n : 0));
@@ -1851,37 +1726,9 @@ export function createWorkoutBuilder(options) {
     return Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
   }
 
-  function updateCaretBlockIndex() {
-    if (!codeTextarea || !currentBlocks || !currentBlocks.length) {
-      caretBlockIndex = null;
-      renderChart();
-      return;
-    }
-    const pos = codeTextarea.selectionStart || 0;
-    const text = codeTextarea.value || "";
-    let line = 0;
-    for (let i = 0; i < Math.min(pos, text.length); i += 1) {
-      if (text[i] === "\n") line += 1;
-    }
-
-    let match = null;
-    for (let i = 0; i < currentBlocks.length; i += 1) {
-      const b = currentBlocks[i];
-      const start = Number.isFinite(b.lineStart) ? b.lineStart : 0;
-      const end = Number.isFinite(b.lineEnd) ? b.lineEnd : start;
-      if (line >= start && line <= end) {
-        match = i;
-        break;
-      }
-    }
-    caretBlockIndex = match;
-    renderChart();
-  }
-
   function getInsertAfterIndex() {
     if (insertAfterOverrideIndex != null) return insertAfterOverrideIndex;
     if (selectedBlockIndex != null) return selectedBlockIndex;
-    if (caretBlockIndex != null) return caretBlockIndex;
     return null;
   }
 
@@ -2025,108 +1872,57 @@ export function createWorkoutBuilder(options) {
     return {el, value: valueEl};
   }
 
-  function insertSnippetAtCursor(textarea, snippet) {
-    const value = textarea.value || "";
-    const startSel = textarea.selectionStart || 0;
-    const endSel = textarea.selectionEnd || startSel;
-
-    let insertPos = endSel;
-    const after = value.slice(endSel);
-    const newlineIdx = after.indexOf("\n");
-    const scanSegment =
-      newlineIdx === -1 ? after : after.slice(0, newlineIdx);
-    const nextGt = scanSegment.indexOf(">");
-    if (nextGt !== -1) {
-      insertPos = endSel + nextGt + 1;
-    }
-
-    const beforeText = value.slice(0, insertPos);
-    const afterText = value.slice(insertPos);
-
-    const prefix = beforeText && !beforeText.endsWith("\n") ? "\n" : "";
-    const suffix = afterText && !afterText.startsWith("\n") ? "\n" : "";
-
-    const newValue = beforeText + prefix + snippet + suffix + afterText;
-    const caretPos = (beforeText + prefix + snippet).length;
-    setCodeValueAndRefresh(newValue, caretPos);
-  }
-
-  function insertSnippetAtInsertionPoint(textarea, snippetOrSpec) {
-    if (!textarea) return;
-    const spec =
-      typeof snippetOrSpec === "string" ? null : snippetOrSpec || null;
-    let snippet =
-      typeof snippetOrSpec === "string"
-        ? snippetOrSpec
-        : snippetOrSpec?.snippet || "";
-
-    if (spec && (spec.key === "warmup" || spec.key === "cooldown")) {
-      snippet = buildContextualRampSnippet(spec.key, snippet);
-    }
+  function insertBlockAtInsertionPoint(spec) {
+    const block = buildBlockFromSpec(spec);
+    if (!block) return null;
 
     const insertAfterIndex = getInsertAfterIndex();
-    if (insertAfterIndex == null || !currentBlocks || !currentBlocks.length) {
-      insertSnippetAtCursor(textarea, snippet);
-      return;
-    }
+    const insertIndex =
+      insertAfterIndex == null
+        ? currentBlocks.length
+        : Math.max(0, insertAfterIndex + 1);
 
-    let insertPos = null;
-    if (insertAfterIndex < 0) {
-      const first = currentBlocks[0];
-      const startLine = Number.isFinite(first?.lineStart) ? first.lineStart : 0;
-      const value = textarea.value || "";
-      const lines = value.split("\n");
-      const lineIdx = Math.max(0, Math.min(startLine, lines.length - 1));
-      insertPos = lines.slice(0, lineIdx).join("\n").length;
-      if (lineIdx > 0) insertPos += 1;
-    } else if (currentBlocks[insertAfterIndex]) {
-      const block = currentBlocks[insertAfterIndex];
-      const endLine = Number.isFinite(block.lineEnd)
-        ? block.lineEnd
-        : Number.isFinite(block.lineStart)
-          ? block.lineStart
-          : 0;
-      const value = textarea.value || "";
-      const lines = value.split("\n");
-      const lineIdx = Math.max(0, Math.min(endLine, lines.length - 1));
-      const beforeLines = lines.slice(0, lineIdx + 1).join("\n");
-      insertPos = beforeLines.length;
-      if (lineIdx < lines.length - 1) {
-        insertPos += 1;
-      }
-    }
+    const updated = currentBlocks.slice();
+    updated.splice(insertIndex, 0, block);
 
-    if (insertPos == null) {
-      insertSnippetAtCursor(textarea, snippet);
-      return;
-    }
-
-    const value = textarea.value || "";
-
-    const beforeText = value.slice(0, insertPos);
-    const afterText = value.slice(insertPos);
-
-    const prefix = beforeText && !beforeText.endsWith("\n") ? "\n" : "";
-    const suffix = afterText && !afterText.startsWith("\n") ? "\n" : "";
-
-    const newValue = beforeText + prefix + snippet + suffix + afterText;
-    const caretPos = (beforeText + prefix + snippet).length;
-    setCodeValueAndRefresh(newValue, caretPos);
+    insertAfterOverrideIndex = insertIndex;
+    commitBlocks(updated, {selectIndex: insertIndex});
+    return insertIndex;
   }
 
-  function buildContextualRampSnippet(kind, fallbackSnippet) {
-    if (!fallbackSnippet) return fallbackSnippet;
+  function buildBlockFromSpec(spec) {
+    if (!spec || !spec.snippet) return null;
+    const parsed = parseZwoSnippet(spec.snippet);
+    const base = parsed.blocks && parsed.blocks[0] ? parsed.blocks[0] : null;
+    if (!base) return null;
+
+    if (spec.key === "warmup" || spec.key === "cooldown") {
+      return buildContextualRampBlock(spec.key, base);
+    }
+
+    return {
+      ...base,
+      segments: Array.isArray(base.segments) ? base.segments.map((seg) => ({...seg})) : [],
+      attrs: {...(base.attrs || {})},
+    };
+  }
+
+  function buildContextualRampBlock(kind, fallbackBlock) {
     const insertAfterIndex = getInsertAfterIndex();
-    if (insertAfterIndex == null) return fallbackSnippet;
+    if (insertAfterIndex == null) return fallbackBlock;
 
     const prevBlock = currentBlocks?.[insertAfterIndex] || null;
     const nextBlock = currentBlocks?.[insertAfterIndex + 1] || null;
     const prev = getBlockStartEnd(prevBlock);
     const next = getBlockStartEnd(nextBlock);
 
-    if (!prev && !next) return fallbackSnippet;
+    if (!prev && !next) return fallbackBlock;
 
-    const duration = parseDurationFromSnippet(fallbackSnippet) || 600;
+    const duration = clampDuration(
+      fallbackBlock.attrs?.durationSec ||
+        fallbackBlock.segments?.[0]?.durationSec ||
+        600,
+    );
     const delta = 0.25;
     let low = null;
     let high = null;
@@ -2150,27 +1946,27 @@ export function createWorkoutBuilder(options) {
       high = kind === "warmup" ? low + delta : low - delta;
     }
 
-    if (low == null || high == null) return fallbackSnippet;
+    if (low == null || high == null) return fallbackBlock;
 
     low = clampRel(low);
     high = clampRel(high);
 
-    const tag = kind === "cooldown" ? "Cooldown" : "Warmup";
-    return `<${tag} Duration="${duration}" PowerLow="${formatRel(
-      low,
-    )}" PowerHigh="${formatRel(high)}" />`;
-  }
+    const seg = {
+      durationSec: duration,
+      pStartRel: low,
+      pEndRel: high,
+    };
 
-  function parseDurationFromSnippet(snippet) {
-    const match = /Duration="(\d+)"/.exec(snippet || "");
-    if (!match) return null;
-    const n = Number(match[1]);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  function formatRel(val) {
-    const n = Number(val);
-    return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+    return {
+      ...fallbackBlock,
+      segments: [seg],
+      attrs: {
+        ...(fallbackBlock.attrs || {}),
+        durationSec: duration,
+        powerLowRel: low,
+        powerHighRel: high,
+      },
+    };
   }
 
   function getBlockStartEnd(block) {
@@ -2475,22 +2271,6 @@ export function createWorkoutBuilder(options) {
     window.removeEventListener("pointermove", handleChartPointerMove);
     window.removeEventListener("pointerup", handleChartPointerUp);
     window.removeEventListener("pointercancel", handleChartPointerUp);
-  }
-
-  function setCodeValueAndRefresh(newValue, caretPos) {
-    if (!codeTextarea) return;
-    const el = codeTextarea;
-    const next = newValue || "";
-    const caret = Number.isFinite(caretPos)
-      ? Math.max(0, Math.min(caretPos, next.length))
-      : null;
-    el.value = next;
-    if (caret != null) {
-      el.setSelectionRange(caret, caret);
-    }
-    autoGrowTextarea(el);
-    handleAnyChange({skipPersist: false});
-    updateCaretBlockIndex();
   }
 
   return {
