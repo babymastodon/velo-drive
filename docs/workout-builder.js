@@ -47,6 +47,7 @@ export function createWorkoutBuilder(options) {
   let dragInsertAfterIndex = null;
   let insertAfterOverrideIndex = null;
   let dragState = null;
+  const DRAG_THRESHOLD_PX = 4;
   const statusTarget = statusMessageEl || null;
 
   function setStatusMessage(text, tone = "neutral") {
@@ -790,6 +791,38 @@ export function createWorkoutBuilder(options) {
       });
     });
     return {timings, totalSec};
+  }
+
+  function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
+    if (!currentBlocks || !currentBlocks.length) return null;
+    const svg = chartMiniHost ? chartMiniHost.querySelector("svg") : null;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const width = rect.width || 1;
+    const clampedX = Math.max(0, Math.min(width, clientX - rect.left));
+    const {totalSec} = buildBlockTimings(currentBlocks);
+    const timelineSec = Math.max(3600, totalSec || 0);
+    const timeSec = (clampedX / width) * timelineSec;
+
+    const {timings: blockTimings} = buildBlockTimings(currentBlocks);
+    const blockTiming = blockTimings.find((t) => t.index === blockIndex);
+    const block = currentBlocks[blockIndex];
+
+    if (block && block.kind === "intervals" && blockTiming) {
+      const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+      return timeSec < mid ? blockIndex - 1 : blockIndex;
+    }
+
+    const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
+    const seg = segmentTimings.find(
+      (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
+    );
+    if (seg) {
+      const mid = (seg.tStart + seg.tEnd) / 2;
+      return timeSec < mid ? blockIndex - 1 : blockIndex;
+    }
+
+    return blockIndex;
   }
 
   function snapPowerRel(rel) {
@@ -1760,7 +1793,19 @@ export function createWorkoutBuilder(options) {
     const block = currentBlocks[blockIndex];
     if (!block || !segmentTiming) return;
 
-    setSelectedBlock(blockIndex);
+    const wasSelected = selectedBlockIndex === blockIndex;
+    if (!wasSelected) {
+      setSelectedBlock(blockIndex);
+    }
+    const insertIdx = computeInsertIndexFromPoint(
+      blockIndex,
+      segIndex,
+      e.clientX,
+    );
+    if (insertIdx != null) {
+      insertAfterOverrideIndex = insertIdx;
+      renderChart();
+    }
 
     dragState = {
       pointerId: e.pointerId,
@@ -1783,6 +1828,10 @@ export function createWorkoutBuilder(options) {
       startPower: getBlockSteadyPower(block),
       startOnPower: getIntervalParts(block).onPowerRel,
       startOffPower: getIntervalParts(block).offPowerRel,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      didDrag: false,
+      wasSelected,
     };
 
     dragInsertAfterIndex = null;
@@ -1820,6 +1869,12 @@ export function createWorkoutBuilder(options) {
 
     const localX = e.clientX - rect.left;
     const localY = e.clientY - rect.top;
+    if (
+      Math.abs(e.clientX - dragState.startClientX) > DRAG_THRESHOLD_PX ||
+      Math.abs(e.clientY - dragState.startClientY) > DRAG_THRESHOLD_PX
+    ) {
+      dragState.didDrag = true;
+    }
     const clampedX = Math.max(0, Math.min(width, localX));
     const clampedY = Math.max(0, Math.min(height, localY));
 
@@ -1923,6 +1978,22 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "move" && dragInsertAfterIndex != null) {
       reorderBlocks(blockIndex, dragInsertAfterIndex);
+    } else if (!dragState.didDrag) {
+      if (dragState.wasSelected) {
+        deselectBlock();
+      } else {
+        setSelectedBlock(blockIndex);
+      }
+      const insertIdx = computeInsertIndexFromPoint(
+        blockIndex,
+        dragState.segIndex,
+        e.clientX,
+      );
+      if (insertIdx != null) {
+        insertAfterOverrideIndex = insertIdx;
+      }
+      dragInsertAfterIndex = null;
+      renderChart();
     } else {
       dragInsertAfterIndex = null;
       renderChart();

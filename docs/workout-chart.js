@@ -1048,10 +1048,13 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   if (
     Number.isInteger(insertAfterBlockIndex) &&
-    insertAfterBlockIndex >= 0 &&
-    insertAfterBlockIndex < timings.length
+    insertAfterBlockIndex >= -1 &&
+    timings.length
   ) {
-    const tInsert = timings[insertAfterBlockIndex].tEnd;
+    const tInsert =
+      insertAfterBlockIndex < 0
+        ? 0
+        : timings[Math.min(insertAfterBlockIndex, timings.length - 1)].tEnd;
     const x = (tInsert / timelineSec) * width;
     const line = document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -1089,24 +1092,29 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
           Number.isFinite(blockIndex) && blocks ? blocks[blockIndex] : null;
         let insertIdx = Number.isFinite(blockIndex) ? blockIndex : -1;
 
+        const svgRect = svg.getBoundingClientRect();
+        const localX = e.clientX - svgRect.left;
+        const clampedX = Math.max(0, Math.min(width, localX));
+        const svgX = (clampedX / Math.max(1, svgRect.width)) * width;
+
         if (block && block.kind === "intervals" && blockTiming) {
           const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
-          const svgRect = svg.getBoundingClientRect();
-          const localX = e.clientX - svgRect.left;
-          const clampedX = Math.max(0, Math.min(width, localX));
           const timeSec = (clampedX / width) * timelineSec;
           insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
         } else if (Number.isFinite(segIndex) && segmentTimings.length) {
-          const seg = segmentTimings.find(
-            (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
-          );
-          if (seg) {
-            const mid = (seg.tStart + seg.tEnd) / 2;
-            const svgRect = svg.getBoundingClientRect();
-            const localX = e.clientX - svgRect.left;
-            const clampedX = Math.max(0, Math.min(width, localX));
-            const timeSec = (clampedX / width) * timelineSec;
-            insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+          if (typeof targetBlock.getBBox === "function") {
+            const bbox = targetBlock.getBBox();
+            const midX = bbox.x + bbox.width / 2;
+            insertIdx = svgX < midX ? blockIndex - 1 : blockIndex;
+          } else {
+            const seg = segmentTimings.find(
+              (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
+            );
+            if (seg) {
+              const mid = (seg.tStart + seg.tEnd) / 2;
+              const timeSec = (clampedX / width) * timelineSec;
+              insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+            }
           }
         }
 
