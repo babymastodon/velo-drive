@@ -577,7 +577,7 @@ export function createWorkoutBuilder(options) {
           if (b.kind === "steady") {
             applyBlockAttrUpdate(idx, {
               powerRel: clampRel(getBlockSteadyPower(b) + delta),
-            });
+            }, {select: false});
           } else if (b.kind === "warmup" || b.kind === "cooldown") {
             const isStart = position === "start";
             const current = isStart ? getRampLow(b) : getRampHigh(b);
@@ -585,7 +585,7 @@ export function createWorkoutBuilder(options) {
               [isStart ? "powerLowRel" : "powerHighRel"]: clampRel(
                 current + delta,
               ),
-            });
+            }, {select: false});
           } else if (b.kind === "intervals") {
             const parts = getIntervalParts(b);
             const isStart = position === "start";
@@ -593,7 +593,7 @@ export function createWorkoutBuilder(options) {
               [isStart ? "onPowerRel" : "offPowerRel"]: clampRel(
                 (isStart ? parts.onPowerRel : parts.offPowerRel) + delta,
               ),
-            });
+            }, {select: false});
           }
         };
 
@@ -1649,7 +1649,7 @@ export function createWorkoutBuilder(options) {
     return {wrapper, input};
   }
 
-  function applyBlockAttrUpdate(blockIndex, attrs) {
+  function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {
     if (
       blockIndex == null ||
       !currentBlocks ||
@@ -1668,7 +1668,9 @@ export function createWorkoutBuilder(options) {
 
     const newSnippet = blocksToSnippet(updatedBlocks);
     setCodeValueAndRefresh(newSnippet, null);
-    setSelectedBlock(blockIndex < currentBlocks.length ? blockIndex : null);
+    if (options.select !== false) {
+      setSelectedBlock(blockIndex < currentBlocks.length ? blockIndex : null);
+    }
   }
 
   function deleteSelectedBlock() {
