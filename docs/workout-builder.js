@@ -383,8 +383,25 @@ export function createWorkoutBuilder(options) {
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
       if (!spec) return false;
+      const insertAfter =
+        insertAfterOverrideIndex != null
+          ? insertAfterOverrideIndex
+          : getInsertAfterIndex();
+      const targetIndex =
+        insertAfter != null
+          ? insertAfter + 1
+          : currentBlocks
+            ? currentBlocks.length
+            : 0;
       insertSnippetAtInsertionPoint(codeTextarea, spec);
       handleAnyChange();
+      if (currentBlocks && currentBlocks.length) {
+        const nextIdx = Math.min(
+          Math.max(0, targetIndex),
+          currentBlocks.length - 1,
+        );
+        setSelectedBlock(nextIdx);
+      }
       return true;
     };
 
@@ -420,11 +437,37 @@ export function createWorkoutBuilder(options) {
       if (insertByKey("cooldown")) e.preventDefault();
       return;
     }
+    if (lower === "i") {
+      if (insertByKey("intervals")) e.preventDefault();
+      return;
+    }
 
     if (lower === "d" || key === "Delete" || key === "Backspace") {
       if (hasSelection) {
         e.preventDefault();
         deleteSelectedBlock();
+        return;
+      }
+      if (currentBlocks && currentBlocks.length) {
+        const current =
+          insertAfterOverrideIndex != null
+            ? insertAfterOverrideIndex
+            : getInsertAfterIndex();
+        if (key === "Backspace") {
+          const prev = current != null ? current : -1;
+          if (prev >= 0) {
+            e.preventDefault();
+            setSelectedBlock(prev);
+            deleteSelectedBlock();
+          }
+        } else if (key === "Delete") {
+          const next = current != null ? current + 1 : 0;
+          if (next >= 0 && next < currentBlocks.length) {
+            e.preventDefault();
+            setSelectedBlock(next);
+            deleteSelectedBlock();
+          }
+        }
       }
       return;
     }
@@ -493,12 +536,26 @@ export function createWorkoutBuilder(options) {
     const stepScale = e.shiftKey ? 5 : 1;
     const scaledPowerStep = powerStepRel * stepScale;
 
+    const isInsertionAtEndOfSelection = () => {
+      const insertAfter =
+        insertAfterOverrideIndex != null
+          ? insertAfterOverrideIndex
+          : getInsertAfterIndex();
+      return insertAfter === selectedBlockIndex;
+    };
+
     const handleDurationChange = (delta) => {
       if (!block) return;
       if (block.kind === "intervals") {
         const parts = getIntervalParts(block);
-        const next = adjustDuration(parts.onDurationSec, delta);
-        applyBlockAttrUpdate(selectedBlockIndex, {onDurationSec: next});
+        const atEnd = isInsertionAtEndOfSelection();
+        const next = adjustDuration(
+          atEnd ? parts.offDurationSec : parts.onDurationSec,
+          delta,
+        );
+        applyBlockAttrUpdate(selectedBlockIndex, {
+          [atEnd ? "offDurationSec" : "onDurationSec"]: next,
+        });
         return;
       }
       const current = getBlockDurationSec(block);
@@ -516,16 +573,20 @@ export function createWorkoutBuilder(options) {
         return;
       }
       if (block.kind === "warmup" || block.kind === "cooldown") {
-        const current = getRampHigh(block);
+        const atEnd = isInsertionAtEndOfSelection();
+        const current = atEnd ? getRampHigh(block) : getRampLow(block);
         applyBlockAttrUpdate(selectedBlockIndex, {
-          powerHighRel: clampRel(current + delta),
+          [atEnd ? "powerHighRel" : "powerLowRel"]: clampRel(current + delta),
         });
         return;
       }
       if (block.kind === "intervals") {
         const parts = getIntervalParts(block);
+        const atEnd = isInsertionAtEndOfSelection();
         applyBlockAttrUpdate(selectedBlockIndex, {
-          onPowerRel: clampRel(parts.onPowerRel + delta),
+          [atEnd ? "offPowerRel" : "onPowerRel"]: clampRel(
+            (atEnd ? parts.offPowerRel : parts.onPowerRel) + delta,
+          ),
         });
       }
     };
@@ -559,33 +620,6 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    if (lower === "i" || lower === "o") {
-      if (!block) return;
-      const delta = lower === "i" ? -scaledPowerStep : scaledPowerStep;
-      e.preventDefault();
-      if (block.kind === "warmup" || block.kind === "cooldown") {
-        const current = getRampLow(block);
-        applyBlockAttrUpdate(selectedBlockIndex, {
-          powerLowRel: clampRel(current + delta),
-        });
-      } else if (block.kind === "intervals") {
-        const parts = getIntervalParts(block);
-        applyBlockAttrUpdate(selectedBlockIndex, {
-          offPowerRel: clampRel(parts.offPowerRel + delta),
-        });
-      }
-      return;
-    }
-
-    if (lower === "u" || lower === "p") {
-      if (!block || block.kind !== "intervals") return;
-      e.preventDefault();
-      const parts = getIntervalParts(block);
-      const step = durationStep(parts.offDurationSec);
-      const delta = lower === "u" ? -step : step;
-      const next = adjustDuration(parts.offDurationSec, delta * stepScale);
-      applyBlockAttrUpdate(selectedBlockIndex, {offDurationSec: next});
-    }
   };
 
   window.addEventListener("keydown", handleBuilderShortcuts);
