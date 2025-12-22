@@ -720,6 +720,17 @@ export function createBuilderBackend() {
         ...block,
         attrs: { ...(block.attrs || {}), ...attrs },
       };
+      if (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown") {
+        const low = nextBlock.attrs?.powerLowRel;
+        const high = nextBlock.attrs?.powerHighRel;
+        if (Number.isFinite(low) && Number.isFinite(high)) {
+          if (nextBlock.kind === "warmup" && high < low) {
+            nextBlock.kind = "cooldown";
+          } else if (nextBlock.kind === "cooldown" && high > low) {
+            nextBlock.kind = "warmup";
+          }
+        }
+      }
       return {
         ...nextBlock,
         segments: buildSegmentsForBlock(nextBlock),
