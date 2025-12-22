@@ -717,13 +717,14 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    const adjustDuration = (current, delta) => clampDuration(current + delta);
-    const durationStep = (current) => getDurationStep(current);
+    const adjustDuration = (current, delta) =>
+      backend.clampDuration(current + delta);
+    const durationStep = (current) => backend.getDurationStep(current);
 
     const handleDurationChange = (delta) => {
       if (!block) return;
       if (block.kind === "intervals") {
-        const parts = getIntervalParts(block);
+        const parts = backend.getIntervalParts(block);
         const atEnd = isInsertionAtEndOfSelection();
         const next = adjustDuration(
           atEnd ? parts.offDurationSec : parts.onDurationSec,
@@ -734,7 +735,7 @@ export function createWorkoutBuilder(options) {
         });
         return;
       }
-      const current = getBlockDurationSec(block);
+      const current = backend.getBlockDurationSec(block);
       const next = adjustDuration(current, delta);
       applyBlockAttrUpdate(selectedBlockIndex, { durationSec: next });
     };
@@ -742,25 +743,29 @@ export function createWorkoutBuilder(options) {
     const handlePowerChange = (delta) => {
       if (!block) return;
       if (block.kind === "steady") {
-        const current = getBlockSteadyPower(block);
+        const current = backend.getBlockSteadyPower(block);
         applyBlockAttrUpdate(selectedBlockIndex, {
-          powerRel: clampRel(current + delta),
+          powerRel: backend.clampRel(current + delta),
         });
         return;
       }
       if (block.kind === "warmup" || block.kind === "cooldown") {
         const atEnd = isInsertionAtEndOfSelection();
-        const current = atEnd ? getRampHigh(block) : getRampLow(block);
+        const current = atEnd
+          ? backend.getRampHigh(block)
+          : backend.getRampLow(block);
         applyBlockAttrUpdate(selectedBlockIndex, {
-          [atEnd ? "powerHighRel" : "powerLowRel"]: clampRel(current + delta),
+          [atEnd ? "powerHighRel" : "powerLowRel"]: backend.clampRel(
+            current + delta,
+          ),
         });
         return;
       }
       if (block.kind === "intervals") {
-        const parts = getIntervalParts(block);
+        const parts = backend.getIntervalParts(block);
         const atEnd = isInsertionAtEndOfSelection();
         applyBlockAttrUpdate(selectedBlockIndex, {
-          [atEnd ? "offPowerRel" : "onPowerRel"]: clampRel(
+          [atEnd ? "offPowerRel" : "onPowerRel"]: backend.clampRel(
             (atEnd ? parts.offPowerRel : parts.onPowerRel) + delta,
           ),
         });
@@ -771,8 +776,8 @@ export function createWorkoutBuilder(options) {
       e.preventDefault();
       const step =
         block.kind === "intervals"
-          ? durationStep(getIntervalParts(block).onDurationSec)
-          : durationStep(getBlockDurationSec(block));
+          ? durationStep(backend.getIntervalParts(block).onDurationSec)
+          : durationStep(backend.getBlockDurationSec(block));
       handleDurationChange(-step * stepScale);
       return;
     }
@@ -780,8 +785,8 @@ export function createWorkoutBuilder(options) {
       e.preventDefault();
       const step =
         block.kind === "intervals"
-          ? durationStep(getIntervalParts(block).onDurationSec)
-          : durationStep(getBlockDurationSec(block));
+          ? durationStep(backend.getIntervalParts(block).onDurationSec)
+          : durationStep(backend.getBlockDurationSec(block));
       handleDurationChange(step * stepScale);
       return;
     }
@@ -972,10 +977,6 @@ export function createWorkoutBuilder(options) {
     };
   }
 
-  function setDefaultBlocks() {
-    backend.setDefaultBlocks();
-  }
-
   function handleAnyChange(opts = {}) {
     const { skipPersist = false } = opts;
 
@@ -1083,7 +1084,7 @@ export function createWorkoutBuilder(options) {
     const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return;
 
-    const { timings, totalSec } = buildBlockTimings(currentBlocks);
+    const { timings, totalSec } = backend.buildBlockTimings(currentBlocks);
     if (!timings.length) return;
 
     const svgRect = svg.getBoundingClientRect();
@@ -1200,21 +1201,6 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function clampCursorIndex(val) {
-    return backend.clampCursorIndex(val);
-  }
-
-  function setSelectionFromCursors(
-    anchorCursorIndex,
-    cursorIndex,
-    options = {},
-  ) {
-    backend.setSelectionFromCursors(anchorCursorIndex, cursorIndex, options);
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
-  }
-
   function shiftMoveSelection(direction) {
     backend.shiftMoveSelection(direction);
     updateBlockEditor();
@@ -1312,22 +1298,6 @@ export function createWorkoutBuilder(options) {
     if (copyBtn) copyBtn.disabled = !backend.hasSelection();
   }
 
-  function buildBlockTimings(blocks) {
-    return backend.buildBlockTimings(blocks);
-  }
-
-  function buildSegmentTimings(blocks) {
-    return backend.buildSegmentTimings(blocks);
-  }
-
-  function buildRawSegmentsFromBlocks(blocks) {
-    return backend.buildRawSegmentsFromBlocks(blocks);
-  }
-
-  function segmentsToBlocks(segments) {
-    return backend.segmentsToBlocks(segments);
-  }
-
   function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
     const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return null;
@@ -1353,7 +1323,8 @@ export function createWorkoutBuilder(options) {
       return timeSec < mid ? blockIndex - 1 : blockIndex;
     }
 
-    const { timings: segmentTimings } = backend.buildSegmentTimings(currentBlocks);
+    const { timings: segmentTimings } =
+      backend.buildSegmentTimings(currentBlocks);
     const seg = segmentTimings.find(
       (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
     );
@@ -1363,22 +1334,6 @@ export function createWorkoutBuilder(options) {
     }
 
     return blockIndex;
-  }
-
-  function snapPowerRel(rel) {
-    return backend.snapPowerRel(rel);
-  }
-
-  function clampRel(val) {
-    return backend.clampRel(val);
-  }
-
-  function snapDurationSec(sec) {
-    return backend.snapDurationSec(sec);
-  }
-
-  function getDurationStep(sec) {
-    return backend.getDurationStep(sec);
   }
 
   function reorderBlocks(fromIndex, insertAfterIndex) {
@@ -1504,13 +1459,13 @@ export function createWorkoutBuilder(options) {
   function buildBlockFieldConfigs(block) {
     const idx = backend.getSelectedBlockIndex();
     const list = [];
-    const durationSec = Math.round(getBlockDurationSec(block));
+    const durationSec = Math.round(backend.getBlockDurationSec(block));
 
     const commitDuration = (val) =>
-      applyBlockAttrUpdate(idx, { durationSec: clampDuration(val) });
+      applyBlockAttrUpdate(idx, { durationSec: backend.clampDuration(val) });
 
     if (block.kind === "steady") {
-      const powerPct = Math.round(getBlockSteadyPower(block) * 100);
+      const powerPct = Math.round(backend.getBlockSteadyPower(block) * 100);
       list.push({
         key: "durationSec",
         label: "Duration",
@@ -1530,12 +1485,12 @@ export function createWorkoutBuilder(options) {
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            powerRel: clampPowerPercent(val) / 100,
+            powerRel: backend.clampPowerPercent(val) / 100,
           }),
       });
     } else if (block.kind === "warmup" || block.kind === "cooldown") {
-      const lowPct = Math.round(getRampLow(block) * 100);
-      const highPct = Math.round(getRampHigh(block) * 100);
+      const lowPct = Math.round(backend.getRampLow(block) * 100);
+      const highPct = Math.round(backend.getRampHigh(block) * 100);
       list.push({
         key: "durationSec",
         label: "Duration",
@@ -1555,7 +1510,7 @@ export function createWorkoutBuilder(options) {
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            powerLowRel: clampPowerPercent(val) / 100,
+            powerLowRel: backend.clampPowerPercent(val) / 100,
           }),
       });
       list.push({
@@ -1568,11 +1523,11 @@ export function createWorkoutBuilder(options) {
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            powerHighRel: clampPowerPercent(val) / 100,
+            powerHighRel: backend.clampPowerPercent(val) / 100,
           }),
       });
     } else if (block.kind === "intervals") {
-      const intervals = getIntervalParts(block);
+      const intervals = backend.getIntervalParts(block);
       list.push({
         key: "repeat",
         label: "Reps",
@@ -1582,7 +1537,7 @@ export function createWorkoutBuilder(options) {
         kind: "repeat",
         step: 1,
         onCommit: (val) =>
-          applyBlockAttrUpdate(idx, { repeat: clampRepeat(val) }),
+          applyBlockAttrUpdate(idx, { repeat: backend.clampRepeat(val) }),
       });
       list.push({
         key: "onDurationSec",
@@ -1593,7 +1548,7 @@ export function createWorkoutBuilder(options) {
         kind: "duration",
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            onDurationSec: clampDuration(val),
+            onDurationSec: backend.clampDuration(val),
           }),
       });
       list.push({
@@ -1606,7 +1561,7 @@ export function createWorkoutBuilder(options) {
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            onPowerRel: clampPowerPercent(val) / 100,
+            onPowerRel: backend.clampPowerPercent(val) / 100,
           }),
       });
       list.push({
@@ -1618,7 +1573,7 @@ export function createWorkoutBuilder(options) {
         kind: "duration",
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            offDurationSec: clampDuration(val),
+            offDurationSec: backend.clampDuration(val),
           }),
       });
       list.push({
@@ -1631,7 +1586,7 @@ export function createWorkoutBuilder(options) {
         step: 5,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
-            offPowerRel: clampPowerPercent(val) / 100,
+            offPowerRel: backend.clampPowerPercent(val) / 100,
           }),
       });
     }
@@ -1692,7 +1647,7 @@ export function createWorkoutBuilder(options) {
       const current = Number(input.value);
       const step =
         config.kind === "duration"
-          ? getDurationStep(Number.isFinite(current) ? current : 0)
+          ? backend.getDurationStep(Number.isFinite(current) ? current : 0)
           : Number(config.step) || 1;
       const next = Number.isFinite(current) ? current - step : step * -1;
       input.value = String(next);
@@ -1704,7 +1659,7 @@ export function createWorkoutBuilder(options) {
       const current = Number(input.value);
       const step =
         config.kind === "duration"
-          ? getDurationStep(Number.isFinite(current) ? current : 0)
+          ? backend.getDurationStep(Number.isFinite(current) ? current : 0)
           : Number(config.step) || 1;
       const next = Number.isFinite(current) ? current + step : step;
       input.value = String(next);
@@ -1737,11 +1692,6 @@ export function createWorkoutBuilder(options) {
     return { wrapper, input };
   }
 
-  function commitBlocks(updatedBlocks, options = {}) {
-    backend.commitBlocks(updatedBlocks, options);
-    handleAnyChange({ skipPersist: options.skipPersist });
-  }
-
   function applyBlockAttrUpdate(blockIndex, attrs) {
     if (blockIndex == null) return;
     backend.applyBlockAttrUpdate(blockIndex, attrs);
@@ -1756,50 +1706,6 @@ export function createWorkoutBuilder(options) {
   function moveSelectedBlock(direction) {
     backend.moveSelectedBlock(direction);
     handleAnyChange();
-  }
-
-  function getBlockDurationSec(block) {
-    return backend.getBlockDurationSec(block);
-  }
-
-  function getBlockSteadyPower(block) {
-    return backend.getBlockSteadyPower(block);
-  }
-
-  function getRampLow(block) {
-    return backend.getRampLow(block);
-  }
-
-  function getRampHigh(block) {
-    return backend.getRampHigh(block);
-  }
-
-  function getIntervalParts(block) {
-    return backend.getIntervalParts(block);
-  }
-
-  function createBlock(kind, attrs) {
-    return backend.createBlock(kind, attrs);
-  }
-
-  function buildSegmentsForBlock(block) {
-    return backend.buildSegmentsForBlock(block);
-  }
-
-  function clampDuration(val) {
-    return backend.clampDuration(val);
-  }
-
-  function clampRepeat(val) {
-    return backend.clampRepeat(val);
-  }
-
-  function clampPowerPercent(val) {
-    return backend.clampPowerPercent(val);
-  }
-
-  function getInsertAfterIndex() {
-    return backend.getInsertAfterIndex();
   }
 
   function createWorkoutElementIcon(kind) {
@@ -2029,26 +1935,6 @@ export function createWorkoutBuilder(options) {
     return insertIndex;
   }
 
-  function buildBlockFromSpec(spec) {
-    return backend.buildBlockFromSpec(spec);
-  }
-
-  function adjustAdjacentRampsForSteady(blocks, insertIndex, steadyBlock) {
-    backend.adjustAdjacentRampsForSteady(blocks, insertIndex, steadyBlock);
-  }
-
-  function buildContextualRampBlock(kind, fallbackBlock) {
-    return backend.buildContextualRampBlock(kind, fallbackBlock);
-  }
-
-  function getBlockStartEnd(block) {
-    return backend.getBlockStartEnd(block);
-  }
-
-  function syncAdjacentRampLinks(blocks, blockIndex, oldStartEnd, newStartEnd) {
-    backend.syncAdjacentRampLinks(blocks, blockIndex, oldStartEnd, newStartEnd);
-  }
-
   function handleChartPointerDown(e) {
     blurBuilderInputs();
     if (e.shiftKey) {
@@ -2082,8 +1968,8 @@ export function createWorkoutBuilder(options) {
     const localX = e.clientX - rect.left;
 
     const { timings: segmentTimings, totalSec } =
-      buildSegmentTimings(currentBlocks);
-    const { timings: blockTimings } = buildBlockTimings(currentBlocks);
+      backend.buildSegmentTimings(currentBlocks);
+    const { timings: blockTimings } = backend.buildBlockTimings(currentBlocks);
     const segmentTiming = segmentTimings.find(
       (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
     );
@@ -2142,11 +2028,11 @@ export function createWorkoutBuilder(options) {
       lockedTimelineSec: Math.max(3600, totalSec || 0),
       rampRegion,
       blockTimings,
-      startLow: getRampLow(block),
-      startHigh: getRampHigh(block),
-      startPower: getBlockSteadyPower(block),
-      startOnPower: getIntervalParts(block).onPowerRel,
-      startOffPower: getIntervalParts(block).offPowerRel,
+      startLow: backend.getRampLow(block),
+      startHigh: backend.getRampHigh(block),
+      startPower: backend.getBlockSteadyPower(block),
+      startOnPower: backend.getIntervalParts(block).onPowerRel,
+      startOffPower: backend.getIntervalParts(block).offPowerRel,
       startClientX: e.clientX,
       startClientY: e.clientY,
       didDrag: false,
@@ -2191,7 +2077,7 @@ export function createWorkoutBuilder(options) {
     const width = rect.width;
     const height = rect.height;
     const { timings: blockTimings, totalSec } =
-      buildBlockTimings(currentBlocks);
+      backend.buildBlockTimings(currentBlocks);
     const timelineSec = Math.max(3600, totalSec || 0);
     const effectiveTimelineSec =
       handle === "right" && dragState?.lockedTimelineSec
@@ -2211,7 +2097,8 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "move") {
       const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
-      const { timings: segmentTimings } = buildSegmentTimings(currentBlocks);
+      const { timings: segmentTimings } =
+        backend.buildSegmentTimings(currentBlocks);
       let insertAfterIndex = -1;
       if (blockTimings.length) {
         let blockTiming = blockTimings.find((t) => timeSec <= t.tEnd);
@@ -2246,7 +2133,7 @@ export function createWorkoutBuilder(options) {
     }
 
     const powerW = (1 - clampedY / Math.max(1, height)) * maxY;
-    const powerRel = snapPowerRel(powerW / Math.max(1, ftp));
+    const powerRel = backend.snapPowerRel(powerW / Math.max(1, ftp));
 
     if (handle === "top") {
       if (blockKind === "steady") {
@@ -2263,8 +2150,8 @@ export function createWorkoutBuilder(options) {
           const startMid = (startLow + startHigh) / 2;
           const delta = powerRel - startMid;
           applyBlockAttrUpdate(blockIndex, {
-            powerLowRel: clampRel(startLow + delta),
-            powerHighRel: clampRel(startHigh + delta),
+            powerLowRel: backend.clampRel(startLow + delta),
+            powerHighRel: backend.clampRel(startHigh + delta),
           });
         }
         return;
@@ -2285,7 +2172,7 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "right") {
       const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
-      const duration = snapDurationSec(timeSec - tStart);
+      const duration = backend.snapDurationSec(timeSec - tStart);
 
       if (
         blockKind === "steady" ||
@@ -2298,20 +2185,20 @@ export function createWorkoutBuilder(options) {
 
       if (blockKind === "intervals") {
         const role = segIndex % 2 === 0 ? "on" : "off";
-        const parts = getIntervalParts(currentBlocks[blockIndex] || {});
+        const parts = backend.getIntervalParts(currentBlocks[blockIndex] || {});
         const repIndex = Math.floor(segIndex / 2);
         const scale = Math.max(1, repIndex + 1);
         if (role === "on") {
           const rawDuration =
             (timeSec - blockStartSec - repIndex * parts.offDurationSec) / scale;
           applyBlockAttrUpdate(blockIndex, {
-            onDurationSec: snapDurationSec(rawDuration),
+            onDurationSec: backend.snapDurationSec(rawDuration),
           });
         } else {
           const rawDuration =
             (timeSec - blockStartSec - scale * parts.onDurationSec) / scale;
           applyBlockAttrUpdate(blockIndex, {
-            offDurationSec: snapDurationSec(rawDuration),
+            offDurationSec: backend.snapDurationSec(rawDuration),
           });
         }
         return;
