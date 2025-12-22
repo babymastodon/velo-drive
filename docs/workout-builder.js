@@ -297,11 +297,11 @@ export function createWorkoutBuilder(options) {
       icon: "intervals",
       shortcut: "I",
       kind: "intervals",
-      repeat: 3,
-      onDurationSec: 300,
-      offDurationSec: 180,
-      onPowerRel: 0.9,
-      offPowerRel: 0.5,
+      repeat: 6,
+      onDurationSec: 60,
+      offDurationSec: 60,
+      onPowerRel: 1.1,
+      offPowerRel: 0.55,
     },
   ];
   const buttonSpecByKey = new Map(
@@ -929,18 +929,25 @@ export function createWorkoutBuilder(options) {
     const warmup = createBlock("warmup", {
       durationSec: 600,
       powerLowRel: 0.5,
-      powerHighRel: 0.75,
+      powerHighRel: 0.85,
     });
     const steady = createBlock("steady", {
-      durationSec: 1200,
+      durationSec: 900,
       powerRel: 0.85,
+    });
+    const intervals = createBlock("intervals", {
+      repeat: 6,
+      onDurationSec: 60,
+      offDurationSec: 60,
+      onPowerRel: 1.1,
+      offPowerRel: 0.55,
     });
     const cooldown = createBlock("cooldown", {
       durationSec: 600,
-      powerLowRel: 0.75,
+      powerLowRel: 0.55,
       powerHighRel: 0.5,
     });
-    currentBlocks = [warmup, steady, cooldown];
+    currentBlocks = [warmup, steady, intervals, cooldown];
     currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
     currentErrors = [];
   }
