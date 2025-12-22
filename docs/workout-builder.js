@@ -869,9 +869,7 @@ export function createWorkoutBuilder(options) {
   function syncMetaFromInputs() {
     const title =
       (nameField.input.value || "Custom workout").trim() || "Custom workout";
-    const source =
-      (sourceField.input.value || "VeloDrive Builder").trim() ||
-      "VeloDrive Builder";
+    const source = (sourceField.input.value || "Me").trim() || "Me";
     const description = descField.textarea.value || "";
     const sourceURL = (urlInput.value || "").trim();
     backend.setMeta({
@@ -1226,7 +1224,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
     const canonical = {
-      source: "VeloDrive Builder",
+      source: "Me",
       sourceURL: "",
       workoutTitle: "Clipboard",
       rawSegments,
