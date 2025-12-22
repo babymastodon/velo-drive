@@ -1286,10 +1286,6 @@ export function createWorkoutBuilder(options) {
     insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
   }
 
-  function startHistoryGroup() {
-    backend.startHistoryGroup();
-  }
-
   function applyMetaFromBackend() {
     const meta = backend.getMeta();
     nameField.input.value = meta.workoutTitle || "";
@@ -1748,16 +1744,9 @@ export function createWorkoutBuilder(options) {
     handleAnyChange({ skipPersist: options.skipPersist });
   }
 
-  function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {
+  function applyBlockAttrUpdate(blockIndex, attrs) {
     if (blockIndex == null) return;
     backend.applyBlockAttrUpdate(blockIndex, attrs);
-    const nextIndex =
-      options.select === false
-        ? backend.getSelectedBlockIndex()
-        : blockIndex < backend.getCurrentBlocks().length
-          ? blockIndex
-          : null;
-    backend.commitBlocks(backend.getCurrentBlocks(), { selectIndex: nextIndex });
     handleAnyChange();
   }
 
