@@ -121,7 +121,8 @@ function renderSegmentPolygon({
   poly.setAttribute("shape-rendering", "crispEdges");
   poly.classList.add("chart-segment");
 
-  const durMin = (tEnd - tStart) / 60;
+  const durSec = Math.max(1, Math.round(tEnd - tStart));
+  const durMin = durSec / 60;
   const p0Pct = pStartRel * 100;
   const p1Pct = pEndRel * 100;
 
@@ -129,6 +130,7 @@ function renderSegmentPolygon({
   poly.dataset.p0 = p0Pct.toFixed(0);
   poly.dataset.p1 = p1Pct.toFixed(0);
   poly.dataset.durMin = durMin.toFixed(1);
+  poly.dataset.durSec = String(durSec);
   poly.dataset.color = zone.color;
   poly.dataset.mutedColor = muted;
   poly.dataset.hoverColor = hover;
@@ -638,9 +640,10 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     const zone = segment.dataset.zone;
     const p0 = segment.dataset.p0;
     const p1 = segment.dataset.p1;
-    const durMin = Number(segment.dataset.durMin);
-    const durSec = Math.round(durMin * 60);
-    const dur = durMin >= 1 ? `${durMin} min` : `${durSec} sec`;
+    const durSec = Math.max(1, Math.round(Number(segment.dataset.durSec) || 0));
+    const durMin = durSec / 60;
+    const dur =
+      durSec >= 60 ? `${durMin.toFixed(1)} min` : `${durSec} sec`;
     const w0 = Math.round((p0 * ftp) / 100);
     const w1 = Math.round((p1 * ftp) / 100);
 
