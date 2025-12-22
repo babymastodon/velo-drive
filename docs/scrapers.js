@@ -460,10 +460,34 @@ async function importTrainerDayFromPathAndSource(path, sourceURL) {
       ];
     }
 
-    return [
-      null,
-      "VeloDrive couldn’t load this TrainerDay workout. Try again later.",
-    ];
+    if (err && err.status) {
+      const status = Number(err.status);
+      if (status === 404) {
+        return [null, "TrainerDay could not find that workout (404)."];
+      }
+      if (status === 401 || status === 403) {
+        return [
+          null,
+          "TrainerDay blocked access to that workout (permission denied).",
+        ];
+      }
+      if (status === 429) {
+        return [null, "TrainerDay rate limited this request. Try again soon."];
+      }
+      if (status >= 500) {
+        return [null, "TrainerDay server error. Try again later."];
+      }
+      return [null, `TrainerDay returned an error (${status}).`];
+    }
+
+    if (err && err.message === "Invalid JSON") {
+      return [
+        null,
+        "TrainerDay returned unexpected data. Try again or use a different workout.",
+      ];
+    }
+
+    return [null, "VeloDrive couldn’t load this TrainerDay workout."];
   }
 
   const rawSegments = canonicalizeTrainerDaySegments(
