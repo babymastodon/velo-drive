@@ -565,14 +565,18 @@ export function createWorkoutBuilder(options) {
           const prev = current != null ? current : -1;
           if (prev >= 0) {
             e.preventDefault();
-            setSelectedBlock(prev);
+            selectedBlockIndex = prev;
+            selectedBlockIndices = [prev];
+            selectionAnchorIndex = prev;
             deleteSelectedBlock();
           }
         } else if (key === "Delete") {
           const next = current != null ? current + 1 : 0;
           if (next >= 0 && next < currentBlocks.length) {
             e.preventDefault();
-            setSelectedBlock(next);
+            selectedBlockIndex = next;
+            selectedBlockIndices = [next];
+            selectionAnchorIndex = next;
             deleteSelectedBlock();
           }
         }
