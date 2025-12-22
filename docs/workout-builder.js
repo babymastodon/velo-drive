@@ -740,36 +740,81 @@ export function createWorkoutBuilder(options) {
         const prevIndex = insertAfter != null ? insertAfter : -1;
         const nextIndex = prevIndex + 1;
 
-        const adjustBlockPower = (idx, position) => {
+        const applyPowerUpdates = (updates) => {
+          if (!updates.length) return;
+          recordHistorySnapshot();
+          const updatedBlocks = cloneBlocks(currentBlocks);
+          const oldStartEnds = new Map();
+          updates.forEach(({idx, attrs}) => {
+            const b = updatedBlocks[idx];
+            if (!b) return;
+            oldStartEnds.set(idx, getBlockStartEnd(b));
+            const nextBlock = {
+              ...b,
+              attrs: {...(b.attrs || {}), ...attrs},
+            };
+            updatedBlocks[idx] = {
+              ...nextBlock,
+              segments: buildSegmentsForBlock(nextBlock),
+            };
+          });
+          updates.forEach(({idx}) => {
+            const oldStartEnd = oldStartEnds.get(idx);
+            const nextBlock = updatedBlocks[idx];
+            const newStartEnd = getBlockStartEnd(nextBlock);
+            if (oldStartEnd && newStartEnd) {
+              syncAdjacentRampLinks(
+                updatedBlocks,
+                idx,
+                oldStartEnd,
+                newStartEnd,
+              );
+            }
+          });
+          commitBlocks(updatedBlocks, {selectIndex: selectedBlockIndex});
+        };
+
+        const collectPowerUpdate = (idx, position, updates) => {
           const b = currentBlocks[idx];
           if (!b) return;
           if (b.kind === "steady") {
-            applyBlockAttrUpdate(idx, {
-              powerRel: clampRel(getBlockSteadyPower(b) + delta),
-            }, {select: false});
+            updates.push({
+              idx,
+              attrs: {
+                powerRel: clampRel(getBlockSteadyPower(b) + delta),
+              },
+            });
           } else if (b.kind === "warmup" || b.kind === "cooldown") {
             const isStart = position === "start";
             const current = isStart ? getRampLow(b) : getRampHigh(b);
-            applyBlockAttrUpdate(idx, {
-              [isStart ? "powerLowRel" : "powerHighRel"]: clampRel(
-                current + delta,
-              ),
-            }, {select: false});
+            updates.push({
+              idx,
+              attrs: {
+                [isStart ? "powerLowRel" : "powerHighRel"]: clampRel(
+                  current + delta,
+                ),
+              },
+            });
           } else if (b.kind === "intervals") {
             const parts = getIntervalParts(b);
             const isStart = position === "start";
-            applyBlockAttrUpdate(idx, {
-              [isStart ? "onPowerRel" : "offPowerRel"]: clampRel(
-                (isStart ? parts.onPowerRel : parts.offPowerRel) + delta,
-              ),
-            }, {select: false});
+            updates.push({
+              idx,
+              attrs: {
+                [isStart ? "onPowerRel" : "offPowerRel"]: clampRel(
+                  (isStart ? parts.onPowerRel : parts.offPowerRel) + delta,
+                ),
+              },
+            });
           }
         };
 
-        if (prevIndex >= 0) adjustBlockPower(prevIndex, "end");
+        const updates = [];
+        if (prevIndex >= 0) collectPowerUpdate(prevIndex, "end", updates);
         if (nextIndex >= 0 && nextIndex < currentBlocks.length) {
-          adjustBlockPower(nextIndex, "start");
+          collectPowerUpdate(nextIndex, "start", updates);
         }
+        applyPowerUpdates(updates);
       }
       return;
     }
