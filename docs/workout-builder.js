@@ -1970,7 +1970,7 @@ export function createWorkoutBuilder(options) {
         ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
         : 0;
     insertAfterOverrideIndex = nextIndex;
-    commitBlocks(updatedBlocks, {selectIndex: nextIndex});
+    commitBlocks(updatedBlocks, {selectIndex: null});
   }
 
   function moveSelectedBlock(direction) {
