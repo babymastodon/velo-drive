@@ -880,24 +880,19 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   const scrollEl = container.parentElement;
   const chartCard = container.closest(".wb-chart-card");
   if (chartCard) {
-    const existing = chartCard.querySelector(".wb-chart-axis-overlay");
-    if (existing) existing.remove();
+    chartCard
+      .querySelectorAll(".wb-chart-axis-overlay")
+      .forEach((node) => node.remove());
   }
 
-  if (!Array.isArray(blocks) || !blocks.length) {
-    container.textContent = "No workout structure available.";
-    container.classList.add("picker-detail-empty");
-    return;
-  }
+  const safeBlocks = Array.isArray(blocks) ? blocks : [];
 
-  const ftp =
-    currentFtp ||
-    DEFAULT_FTP;
+  const ftp = currentFtp || DEFAULT_FTP;
 
-  const {timings, totalSec} = computeBlockTimings(blocks);
+  const {timings, totalSec} = computeBlockTimings(safeBlocks);
   const segmentTimings = [];
   let segCursor = 0;
-  (blocks || []).forEach((block, blockIndex) => {
+  (safeBlocks || []).forEach((block, blockIndex) => {
     const segs = Array.isArray(block?.segments) ? block.segments : [];
     segs.forEach((seg, segIndex) => {
       const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
@@ -910,12 +905,6 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       segCursor += durSec;
     });
   });
-  if (!totalSec) {
-    container.textContent = "No workout structure available.";
-    container.classList.add("picker-detail-empty");
-    return;
-  }
-
   const rect = container.getBoundingClientRect();
   let baseWidth = rect.width;
   let height = rect.height;
@@ -923,7 +912,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   if (!baseWidth) baseWidth = container.clientWidth || 400;
   if (!height) height = container.clientHeight || 120;
 
-  const timelineSec = Math.max(3600, totalSec);
+  const timelineSec = Math.max(3600, totalSec || 0);
   const width = Math.max(1, Math.round((timelineSec / 3600) * baseWidth));
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1120,7 +1109,9 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     const ftpLabel = document.createElement("div");
     ftpLabel.className = "wb-chart-axis-label wb-chart-axis-label--ftp";
     ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
-    ftpLabel.style.top = `${Math.max(0, Math.min(height - 20, ftpY - 24))}px`;
+    const ftpOffset = 24;
+    const ftpLabelTop = Math.max(0, Math.min(height - 20, ftpY - ftpOffset));
+    ftpLabel.style.top = `${ftpLabelTop}px`;
 
     const ftpLabels = document.createElement("div");
     ftpLabels.className = "wb-chart-axis-overlay wb-chart-axis-overlay--ftp";
@@ -1130,19 +1121,35 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     ftpLabels.style.width = `${viewWidth}px`;
     ftpLabels.appendChild(ftpLabel);
 
+    const durationSec = totalSec || 0;
+    const durationMinutes = durationSec > 0 ? Math.round(durationSec / 60) : 0;
+    if (durationMinutes > 0) {
+      const durationLabel = document.createElement("div");
+      durationLabel.className = "wb-chart-axis-label wb-chart-axis-label--duration";
+      durationLabel.textContent = `${durationMinutes} min`;
+      const labelHeight = 16;
+      const durationTop = ftpY + 2;
+      if (durationTop >= 0 && durationTop + labelHeight <= height) {
+        durationLabel.style.top = `${durationTop}px`;
+        ftpLabels.appendChild(durationLabel);
+      }
+    }
+
     chartCard.appendChild(yLabels);
     chartCard.appendChild(ftpLabels);
   }
 
   if (
     Number.isInteger(insertAfterBlockIndex) &&
-    insertAfterBlockIndex >= -1 &&
-    timings.length
+    insertAfterBlockIndex >= -1
   ) {
-    const tInsert =
-      insertAfterBlockIndex < 0
-        ? 0
-        : timings[Math.min(insertAfterBlockIndex, timings.length - 1)].tEnd;
+    let tInsert = 0;
+    if (timings.length) {
+      tInsert =
+        insertAfterBlockIndex < 0
+          ? 0
+          : timings[Math.min(insertAfterBlockIndex, timings.length - 1)].tEnd;
+    }
     const x = (tInsert / timelineSec) * width;
     const line = document.createElementNS(
       "http://www.w3.org/2000/svg",

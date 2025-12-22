@@ -987,24 +987,18 @@ export function createWorkoutBuilder(options) {
     const prevScrollLeft = chartContainer ? chartContainer.scrollLeft : 0;
     chartMiniHost.innerHTML = "";
     try {
-      if (currentBlocks && currentBlocks.length) {
-        renderBuilderWorkoutGraph(chartMiniHost, currentBlocks, ftp, {
-          selectedBlockIndex,
-          insertAfterBlockIndex:
-            dragInsertAfterIndex != null
-              ? dragInsertAfterIndex
-              : insertAfterOverrideIndex != null
-                ? insertAfterOverrideIndex
+      renderBuilderWorkoutGraph(chartMiniHost, currentBlocks || [], ftp, {
+        selectedBlockIndex,
+        insertAfterBlockIndex:
+          dragInsertAfterIndex != null
+            ? dragInsertAfterIndex
+            : insertAfterOverrideIndex != null
+              ? insertAfterOverrideIndex
               : getInsertAfterIndex(),
-          onSelectBlock: handleBlockSelectionFromChart,
-          onSetInsertAfter: handleInsertAfterFromChart,
-          onSetInsertAfterFromSegment: handleInsertAfterFromSegment,
-        });
-      } else {
-        // Fallback to raw segments if we couldn't parse blocks (should be rare)
-        const canonical = getState();
-        renderMiniWorkoutGraph(chartMiniHost, canonical, ftp);
-      }
+        onSelectBlock: handleBlockSelectionFromChart,
+        onSetInsertAfter: handleInsertAfterFromChart,
+        onSetInsertAfterFromSegment: handleInsertAfterFromSegment,
+      });
     } catch (e) {
       console.error("[WorkoutBuilder] Failed to render mini chart:", e);
     }
