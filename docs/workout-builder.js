@@ -2052,6 +2052,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleChartPointerDown(e) {
+    blurBuilderInputs();
     if (e.shiftKey) {
       e.preventDefault();
       return;
@@ -2355,6 +2356,16 @@ export function createWorkoutBuilder(options) {
     window.removeEventListener("pointermove", handleChartPointerMove);
     window.removeEventListener("pointerup", handleChartPointerUp);
     window.removeEventListener("pointercancel", handleChartPointerUp);
+  }
+
+  function blurBuilderInputs() {
+    if (!rootEl) return;
+    const inputs = rootEl.querySelectorAll("input, textarea, select");
+    inputs.forEach((el) => {
+      if (typeof el.blur === "function") {
+        el.blur();
+      }
+    });
   }
 
   return {
