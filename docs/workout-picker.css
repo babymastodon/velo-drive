@@ -796,12 +796,12 @@
   left: 6px;
   font-size: 16px;
   color: var(--text-muted);
-  font-weight: normal;
+  font-weight: 300;
 }
 
 .wb-chart-axis-label--ftp {
   color: var(--ftp-line);
-  font-weight: normal;
+  font-weight: 300;
   right: 6px;
   left: auto;
   text-align: right;
