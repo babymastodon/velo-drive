@@ -818,9 +818,18 @@ export function createWorkoutBuilder(options) {
     return canonical;
   }
 
+  function resetHistory() {
+    undoStack.length = 0;
+    redoStack.length = 0;
+    historyGroupHasUndo = false;
+    historyPendingSnapshot = null;
+    updateUndoRedoButtons();
+  }
+
   function clearState(options = {}) {
     const {persist = true} = options;
 
+    resetHistory();
     nameField.input.value = "";
     sourceField.input.value = "";
     descField.textarea.value = "";
@@ -1588,6 +1597,7 @@ export function createWorkoutBuilder(options) {
 
     if (!state || !Array.isArray(state.rawSegments)) return;
 
+    resetHistory();
     nameField.input.value = state.workoutTitle || "";
     sourceField.input.value = state.source || "";
     descField.textarea.value = state.description || "";
