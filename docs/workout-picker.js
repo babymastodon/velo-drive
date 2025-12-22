@@ -823,9 +823,10 @@ function createWorkoutPicker(config) {
     builderShortcutsEl.innerHTML =
       "<strong>h l</strong> or <strong>← →</strong> adjust duration &bull; " +
       "<strong>j k</strong> or <strong>↓ ↑</strong> adjust power &bull; " +
-      "<strong>Shift</strong> ×5 &bull; " +
+      "<strong>Shift+H/J/K/L</strong> ×5 &bull; " +
+      "<strong>Shift+Click</strong> multi-select &bull; " +
       "<strong>Enter</strong> deselect &bull; " +
-      "<strong>Space</strong> toggle side";
+      "<strong>Space</strong> switch side";
   }
 
   async function openWorkoutInBuilder(canonicalWorkout) {
