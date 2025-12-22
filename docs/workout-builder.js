@@ -49,6 +49,7 @@ export function createWorkoutBuilder(options) {
   let selectedBlockIndex = null;
   let selectedBlockIndices = [];
   let selectionAnchorIndex = null;
+  let selectionAnchorCursorIndex = null;
   let dragInsertAfterIndex = null;
   let insertAfterOverrideIndex = null;
   let dragState = null;
@@ -585,6 +586,7 @@ export function createWorkoutBuilder(options) {
             selectedBlockIndex = prev;
             selectedBlockIndices = [prev];
             selectionAnchorIndex = prev;
+            selectionAnchorCursorIndex = null;
             deleteSelectedBlock();
           }
         } else if (key === "Delete") {
@@ -594,6 +596,7 @@ export function createWorkoutBuilder(options) {
             selectedBlockIndex = next;
             selectedBlockIndices = [next];
             selectionAnchorIndex = next;
+            selectionAnchorCursorIndex = null;
             deleteSelectedBlock();
           }
         }
@@ -1270,6 +1273,7 @@ export function createWorkoutBuilder(options) {
     selectedBlockIndex = next;
     selectedBlockIndices = next == null ? [] : [next];
     selectionAnchorIndex = next;
+    selectionAnchorCursorIndex = null;
     insertAfterOverrideIndex = null;
     startHistoryGroup();
     updateBlockEditor();
@@ -1283,6 +1287,7 @@ export function createWorkoutBuilder(options) {
     selectedBlockIndex = null;
     selectedBlockIndices = [];
     selectionAnchorIndex = null;
+    selectionAnchorCursorIndex = null;
     if (insertAfterOverrideIndex == null && prevSelected != null) {
       insertAfterOverrideIndex = prevSelected;
     }
@@ -1305,6 +1310,7 @@ export function createWorkoutBuilder(options) {
     selectedBlockIndex = null;
     selectedBlockIndices = [];
     selectionAnchorIndex = null;
+    selectionAnchorCursorIndex = null;
     insertAfterOverrideIndex = next;
     startHistoryGroup();
     updateBlockEditor();
@@ -1318,7 +1324,24 @@ export function createWorkoutBuilder(options) {
       return;
     }
     if (opts.shiftKey) {
-      setSelectionRange(idx);
+      const anchor =
+        selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
+      if (anchor == null || anchor === idx) {
+        setSelectedBlock(idx);
+        return;
+      }
+      const direction = idx > anchor ? 1 : -1;
+      selectionAnchorIndex = anchor;
+      selectionAnchorCursorIndex = clampCursorIndex(
+        direction > 0 ? anchor - 1 : anchor,
+      );
+      const cursorIndex = clampCursorIndex(direction > 0 ? idx : idx - 1);
+      insertAfterOverrideIndex = cursorIndex;
+      setSelectionFromCursors(
+        selectionAnchorCursorIndex,
+        cursorIndex,
+        {preserveInsert: true},
+      );
     } else {
       setSelectedBlock(idx);
     }
@@ -1344,6 +1367,7 @@ export function createWorkoutBuilder(options) {
       setSelectedBlock(idx);
       return;
     }
+    selectionAnchorCursorIndex = null;
     const start = Math.min(anchor, idx);
     const end = Math.max(anchor, idx);
     selectedBlockIndices = [];
@@ -1359,27 +1383,98 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
+  function clampCursorIndex(val) {
+    if (!currentBlocks || !currentBlocks.length) return -1;
+    const n = Number.isFinite(val) ? val : -1;
+    return Math.max(-1, Math.min(n, currentBlocks.length - 1));
+  }
+
+  function setSelectionFromCursors(anchorCursorIndex, cursorIndex, options = {}) {
+    if (!currentBlocks || !currentBlocks.length) return;
+    const {preserveInsert = false} = options;
+    const anchorCursor = clampCursorIndex(anchorCursorIndex);
+    const cursor = clampCursorIndex(cursorIndex);
+    selectionAnchorCursorIndex = anchorCursor;
+
+    const start = Math.min(anchorCursor, cursor) + 1;
+    const end = Math.max(anchorCursor, cursor);
+    selectedBlockIndices = [];
+    selectedBlockIndex = null;
+
+    if (start <= end && end >= 0 && start < currentBlocks.length) {
+      const clampedStart = Math.max(0, start);
+      const clampedEnd = Math.min(currentBlocks.length - 1, end);
+      for (let i = clampedStart; i <= clampedEnd; i += 1) {
+        selectedBlockIndices.push(i);
+      }
+      if (cursor > anchorCursor) {
+        selectedBlockIndex = clampedEnd;
+      } else if (cursor < anchorCursor) {
+        selectedBlockIndex = clampedStart;
+      }
+      if (selectionAnchorIndex == null) {
+        selectionAnchorIndex =
+          anchorCursor < cursor ? anchorCursor + 1 : anchorCursor;
+      }
+    }
+    if (!selectedBlockIndices.length) {
+      selectionAnchorIndex = null;
+      selectionAnchorCursorIndex = null;
+    }
+
+    if (!preserveInsert) {
+      insertAfterOverrideIndex = cursor;
+    }
+    updateBlockEditor();
+    renderChart();
+    emitUiState();
+  }
+
   function shiftMoveSelection(direction) {
     if (!currentBlocks || !currentBlocks.length) return;
     const current =
       insertAfterOverrideIndex != null
         ? insertAfterOverrideIndex
         : getInsertAfterIndex() ?? -1;
-    const next = Math.max(
-      -1,
-      Math.min(current + direction, currentBlocks.length - 1),
-    );
+    const next = clampCursorIndex(current + direction);
     if (next === current) return;
-    insertAfterOverrideIndex = next;
-    const crossedIndex = direction > 0 ? next : next + 1;
-    if (crossedIndex < 0 || crossedIndex >= currentBlocks.length) {
-      renderChart();
+
+    if (selectionAnchorCursorIndex != null) {
+      insertAfterOverrideIndex = next;
+      setSelectionFromCursors(selectionAnchorCursorIndex, next, {
+        preserveInsert: true,
+      });
       return;
     }
-    if (selectionAnchorIndex == null) {
-      selectionAnchorIndex = crossedIndex;
+
+    if (selectedBlockIndices.length) {
+      const anchor =
+        selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
+      if (anchor == null) {
+        insertAfterOverrideIndex = next;
+        renderChart();
+        return;
+      }
+      const anchorCursor = clampCursorIndex(
+        direction > 0 ? anchor - 1 : anchor,
+      );
+      const cursor = clampCursorIndex(
+        direction > 0 ? anchor + 1 : anchor - 1,
+      );
+      selectionAnchorIndex = anchor;
+      selectionAnchorCursorIndex = anchorCursor;
+      insertAfterOverrideIndex = cursor;
+      setSelectionFromCursors(anchorCursor, cursor, {preserveInsert: true});
+      return;
     }
-    setSelectionRange(crossedIndex, {preserveInsert: true});
+
+    const anchorCursor = clampCursorIndex(current);
+    const anchorIndex = direction > 0 ? anchorCursor + 1 : anchorCursor;
+    selectionAnchorCursorIndex = anchorCursor;
+    selectionAnchorIndex =
+      anchorIndex >= 0 && anchorIndex < currentBlocks.length ? anchorIndex : null;
+    insertAfterOverrideIndex = next;
+    setSelectionFromCursors(anchorCursor, next, {preserveInsert: true});
   }
 
   function emitUiState() {
@@ -1470,6 +1565,10 @@ export function createWorkoutBuilder(options) {
     currentBlocks = cloneBlocks(snapshot.blocks || []);
     selectedBlockIndex =
       snapshot.selectedBlockIndex != null ? snapshot.selectedBlockIndex : null;
+    selectedBlockIndices =
+      selectedBlockIndex == null ? [] : [selectedBlockIndex];
+    selectionAnchorIndex = selectedBlockIndex;
+    selectionAnchorCursorIndex = null;
     insertAfterOverrideIndex =
       snapshot.insertAfterOverrideIndex != null
         ? snapshot.insertAfterOverrideIndex
@@ -2149,9 +2248,11 @@ export function createWorkoutBuilder(options) {
       if (options.selectIndex == null) {
         selectedBlockIndices = [];
         selectionAnchorIndex = null;
+        selectionAnchorCursorIndex = null;
       } else {
         selectedBlockIndices = [options.selectIndex];
         selectionAnchorIndex = options.selectIndex;
+        selectionAnchorCursorIndex = null;
       }
     }
 
@@ -2210,6 +2311,7 @@ export function createWorkoutBuilder(options) {
       selectedBlockIndex = null;
       selectedBlockIndices = [];
       selectionAnchorIndex = null;
+      selectionAnchorCursorIndex = null;
       commitBlocks(updatedBlocks, {selectIndex: null});
       return;
     }
@@ -2222,6 +2324,7 @@ export function createWorkoutBuilder(options) {
     selectedBlockIndex = null;
     selectedBlockIndices = [];
     selectionAnchorIndex = null;
+    selectionAnchorCursorIndex = null;
     commitBlocks(updatedBlocks, {selectIndex: null});
   }
 
