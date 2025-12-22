@@ -1266,7 +1266,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       if (typeof onSelectBlock !== "function") return;
       const idx = Number(targetBlock.dataset.blockIndex);
       onSelectBlock(Number.isFinite(idx) ? idx : null, {shiftKey: e.shiftKey});
-      if (typeof onSetInsertAfterFromSegment === "function") {
+      if (!e.shiftKey && typeof onSetInsertAfterFromSegment === "function") {
         const blockIndex = Number(targetBlock.dataset.blockIndex);
         const segIndex = Number(targetBlock.dataset.segIndex);
         const blockTiming = timings.find((t) => t.index === blockIndex);

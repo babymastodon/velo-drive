@@ -1330,12 +1330,12 @@ export function createWorkoutBuilder(options) {
         setSelectedBlock(idx);
         return;
       }
-      const direction = idx > anchor ? 1 : -1;
+      const isRight = idx > anchor;
       selectionAnchorIndex = anchor;
       selectionAnchorCursorIndex = clampCursorIndex(
-        direction > 0 ? anchor - 1 : anchor,
+        isRight ? anchor - 1 : anchor,
       );
-      const cursorIndex = clampCursorIndex(direction > 0 ? idx : idx - 1);
+      const cursorIndex = clampCursorIndex(isRight ? idx : idx - 1);
       insertAfterOverrideIndex = cursorIndex;
       setSelectionFromCursors(
         selectionAnchorCursorIndex,
