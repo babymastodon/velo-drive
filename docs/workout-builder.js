@@ -2527,6 +2527,9 @@ export function createWorkoutBuilder(options) {
       renderChart();
     }
 
+    const blockTiming = blockTimings.find((t) => t.index === blockIndex);
+    const blockStartSec = blockTiming ? blockTiming.tStart : 0;
+
     dragState = {
       pointerId: e.pointerId,
       handle,
@@ -2541,6 +2544,7 @@ export function createWorkoutBuilder(options) {
       tStart: segmentTiming.tStart,
       tEnd: segmentTiming.tEnd,
       blockKind: block.kind,
+      blockStartSec,
       lockedTimelineSec: Math.max(3600, totalSec || 0),
       rampRegion,
       blockTimings,
@@ -2572,7 +2576,6 @@ export function createWorkoutBuilder(options) {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const {
       handle,
-      lockedScrollLeft,
       blockIndex,
       segIndex,
       maxY,
@@ -2580,6 +2583,7 @@ export function createWorkoutBuilder(options) {
       tStart,
       blockKind,
       rampRegion,
+      blockStartSec,
       startLow,
       startHigh,
       startOnPower,
@@ -2696,11 +2700,23 @@ export function createWorkoutBuilder(options) {
 
       if (blockKind === "intervals") {
         const role = segIndex % 2 === 0 ? "on" : "off";
+        const parts = getIntervalParts(currentBlocks[blockIndex] || {});
+        const repIndex = Math.floor(segIndex / 2);
+        const scale = Math.max(1, repIndex + 1);
         if (role === "on") {
-          applyBlockAttrUpdate(blockIndex, {onDurationSec: duration});
+          const rawDuration =
+            (timeSec - blockStartSec - repIndex * parts.offDurationSec) / scale;
+          applyBlockAttrUpdate(blockIndex, {
+            onDurationSec: snapDurationSec(rawDuration),
+          });
         } else {
-          applyBlockAttrUpdate(blockIndex, {offDurationSec: duration});
+          const rawDuration =
+            (timeSec - blockStartSec - scale * parts.onDurationSec) / scale;
+          applyBlockAttrUpdate(blockIndex, {
+            offDurationSec: snapDurationSec(rawDuration),
+          });
         }
+        return;
       }
     }
   }
