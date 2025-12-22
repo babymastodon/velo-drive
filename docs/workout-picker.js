@@ -1135,6 +1135,18 @@ function createWorkoutPicker(config) {
         return;
       }
 
+      if (key === "e" && !scheduleMode) {
+        const expanded = computeVisiblePickerWorkouts().find(
+          (item) => item.canonical.workoutTitle === pickerExpandedTitle,
+        );
+        if (expanded) {
+          e.preventDefault();
+          e.stopPropagation();
+          openWorkoutInBuilder(expanded.canonical);
+        }
+        return;
+      }
+
       if (key === "arrowdown" || key === "j") {
         e.preventDefault();
         movePickerExpansion(+1);

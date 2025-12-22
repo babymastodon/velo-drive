@@ -1433,6 +1433,16 @@ export function createWorkoutBuilder(options) {
     blockEditorFields.innerHTML = "";
     deleteBlockBtn.style.display = "";
 
+    if (!block) {
+      toolbarButtons.style.display = "";
+      blockEditor.style.display = "none";
+      blockEditorFields.innerHTML = "";
+      moveLeftBtn.style.display = "none";
+      moveRightBtn.style.display = "none";
+      deleteBlockBtn.style.display = "none";
+      return;
+    }
+
     if (selectionCount > 1) {
       moveLeftBtn.style.display = "none";
       moveRightBtn.style.display = "none";
