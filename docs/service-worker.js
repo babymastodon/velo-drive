@@ -20,6 +20,7 @@ const PRECACHE_URLS = [
   "./planner-analysis.js",
   "./planner-backend.js",
   "./workout-library.js",
+  "./builder-backend.js",
   "./ble-manager.js",
   "./beeper.js",
   "./storage.js",
