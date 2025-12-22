@@ -674,6 +674,10 @@
   font-size: var(--font-size-base);
 }
 
+.wb-chart-card {
+  position: relative;
+}
+
 .wb-meta-fields {
   display: flex;
   flex-direction: column;
@@ -755,6 +759,8 @@
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+  position: relative;
+  z-index: 2;
 }
 
 .wb-chart-mini-host {
@@ -768,6 +774,37 @@
   width: auto;
   height: 320px;
   display: block;
+}
+
+.wb-chart-axis-overlay {
+  position: absolute;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.wb-chart-axis-overlay--grid {
+  z-index: 1;
+}
+
+.wb-chart-axis-overlay--ftp {
+  z-index: 3;
+}
+
+.wb-chart-axis-label {
+  position: absolute;
+  left: 6px;
+  font-size: 16px;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.wb-chart-axis-label--ftp {
+  color: var(--ftp-line);
+  font-weight: normal;
+  right: 6px;
+  left: auto;
+  text-align: right;
 }
 
 .wb-block-band {

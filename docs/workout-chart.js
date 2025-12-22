@@ -439,8 +439,7 @@ export function drawPowerCurveChart({
   ftpLine.setAttribute("y1", String(ftpY));
   ftpLine.setAttribute("y2", String(ftpY));
   ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
-  ftpLine.setAttribute("stroke-dasharray", "6 6");
-  ftpLine.setAttribute("stroke-width", "1.4");
+  ftpLine.setAttribute("stroke-width", "2.1");
   ftpLine.setAttribute("pointer-events", "none");
   svg.appendChild(ftpLine);
 
@@ -878,6 +877,12 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   } = options;
 
   container.innerHTML = "";
+  const scrollEl = container.parentElement;
+  const chartCard = container.closest(".wb-chart-card");
+  if (chartCard) {
+    const existing = chartCard.querySelector(".wb-chart-axis-overlay");
+    if (existing) existing.remove();
+  }
 
   if (!Array.isArray(blocks) || !blocks.length) {
     container.textContent = "No workout structure available.";
@@ -940,6 +945,22 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   svg.appendChild(bg);
 
   const maxY = Math.max(200, ftp * 2);
+  const gridStep = 100;
+
+  for (let yVal = 0; yVal <= maxY; yVal += gridStep) {
+    const y = height - (yVal / maxY) * height;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", "0");
+    line.setAttribute("x2", String(width));
+    line.setAttribute("y1", String(y));
+    line.setAttribute("y2", String(y));
+    line.setAttribute("stroke", getCssVar("--grid-line-subtle"));
+    line.setAttribute("stroke-width", "0.5");
+    line.setAttribute("pointer-events", "none");
+    svg.appendChild(line);
+  }
+
+  const ftpY = height - (ftp / maxY) * height;
 
   // Block-wide highlight bands (pointer-events none so hover still works)
   timings.forEach(({index, tStart, tEnd}) => {
@@ -1056,11 +1077,62 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     }
   });
 
+  const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  ftpLine.setAttribute("x1", "0");
+  ftpLine.setAttribute("x2", String(width));
+  ftpLine.setAttribute("y1", String(ftpY));
+  ftpLine.setAttribute("y2", String(ftpY));
+  ftpLine.setAttribute("stroke", getCssVar("--ftp-line"));
+  ftpLine.setAttribute("stroke-width", "1.4");
+  ftpLine.setAttribute("pointer-events", "none");
+  svg.appendChild(ftpLine);
+
   const tooltip = document.createElement("div");
   tooltip.className = "picker-tooltip";
 
   container.appendChild(svg);
   container.appendChild(tooltip);
+
+  if (scrollEl && chartCard) {
+    const labelStep = gridStep;
+    const leftOffset = scrollEl.offsetLeft;
+    const topOffset = scrollEl.offsetTop;
+    const viewWidth = scrollEl.clientWidth;
+
+    const yLabels = document.createElement("div");
+    yLabels.className = "wb-chart-axis-overlay wb-chart-axis-overlay--grid";
+    yLabels.style.height = `${height}px`;
+    yLabels.style.top = `${topOffset}px`;
+    yLabels.style.left = `${leftOffset}px`;
+    yLabels.style.width = `${viewWidth}px`;
+
+    for (let yVal = 0; yVal <= maxY; yVal += labelStep) {
+      const y = height - (yVal / maxY) * height;
+      const labelTop = y - 24;
+      if (labelTop < 0 || labelTop > height - 20) continue;
+      const label = document.createElement("div");
+      label.className = "wb-chart-axis-label";
+      label.textContent = String(yVal);
+      label.style.top = `${labelTop}px`;
+      yLabels.appendChild(label);
+    }
+
+    const ftpLabel = document.createElement("div");
+    ftpLabel.className = "wb-chart-axis-label wb-chart-axis-label--ftp";
+    ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
+    ftpLabel.style.top = `${Math.max(0, Math.min(height - 20, ftpY - 24))}px`;
+
+    const ftpLabels = document.createElement("div");
+    ftpLabels.className = "wb-chart-axis-overlay wb-chart-axis-overlay--ftp";
+    ftpLabels.style.height = `${height}px`;
+    ftpLabels.style.top = `${topOffset}px`;
+    ftpLabels.style.left = `${leftOffset}px`;
+    ftpLabels.style.width = `${viewWidth}px`;
+    ftpLabels.appendChild(ftpLabel);
+
+    chartCard.appendChild(yLabels);
+    chartCard.appendChild(ftpLabels);
+  }
 
   if (
     Number.isInteger(insertAfterBlockIndex) &&
