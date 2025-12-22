@@ -815,13 +815,14 @@ export function createWorkoutBuilder(options) {
           saved._shouldRestore !== false &&
           Array.isArray(saved.rawSegments)
         ) {
-          persistedState = saved;
+          backend.setPersistedState(saved);
           hydrateFromState(saved, { skipPersist: true });
         }
       }
     } catch (e) {
       console.warn("[WorkoutBuilder] Failed to load saved state:", e);
     }
+    const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) {
       clearState({ persist: true });
     } else {
@@ -1286,90 +1287,28 @@ export function createWorkoutBuilder(options) {
   }
 
   function startHistoryGroup() {
-    if (isHistoryRestoring) return;
-    historyGroupHasUndo = false;
-    historyPendingSnapshot = createHistorySnapshot();
+    backend.startHistoryGroup();
   }
 
-  function createHistorySnapshot() {
-    return {
-      workoutTitle: nameField.input.value,
-      source: sourceField.input.value,
-      description: descField.textarea.value,
-      sourceURL: urlInput.value,
-      blocks: cloneBlocks(currentBlocks || []),
-      selectedBlockIndex,
-      insertAfterOverrideIndex,
-    };
-  }
-
-  function applyHistorySnapshot(snapshot) {
-    if (!snapshot) return;
-    isHistoryRestoring = true;
-    nameField.input.value = snapshot.workoutTitle || "";
-    sourceField.input.value = snapshot.source || "";
-    descField.textarea.value = snapshot.description || "";
-    urlInput.value = snapshot.sourceURL || "";
-    currentBlocks = cloneBlocks(snapshot.blocks || []);
-    selectedBlockIndex =
-      snapshot.selectedBlockIndex != null ? snapshot.selectedBlockIndex : null;
-    selectedBlockIndices =
-      selectedBlockIndex == null ? [] : [selectedBlockIndex];
-    selectionAnchorIndex = selectedBlockIndex;
-    selectionAnchorCursorIndex = null;
-    insertAfterOverrideIndex =
-      snapshot.insertAfterOverrideIndex != null
-        ? snapshot.insertAfterOverrideIndex
-        : null;
-    dragInsertAfterIndex = null;
-    refreshLayout();
-    isHistoryRestoring = false;
-    startHistoryGroup();
-    updateUndoRedoButtons();
-  }
-
-  function cloneBlocks(blocks) {
-    return (blocks || []).map((block) => ({
-      ...block,
-      attrs: { ...(block.attrs || {}) },
-      segments: Array.isArray(block.segments)
-        ? block.segments.map((seg) => ({ ...seg }))
-        : [],
-    }));
-  }
-
-  function recordHistorySnapshot() {
-    if (isHistoryRestoring) return;
-    if (selectedBlockIndex != null) {
-      if (!historyGroupHasUndo) {
-        if (!historyPendingSnapshot) {
-          historyPendingSnapshot = createHistorySnapshot();
-        }
-        undoStack.push(historyPendingSnapshot);
-        historyPendingSnapshot = null;
-        historyGroupHasUndo = true;
-        redoStack.length = 0;
-        updateUndoRedoButtons();
-      }
-      return;
-    }
-    undoStack.push(createHistorySnapshot());
-    redoStack.length = 0;
-    updateUndoRedoButtons();
+  function applyMetaFromBackend() {
+    const meta = backend.getMeta();
+    nameField.input.value = meta.workoutTitle || "";
+    sourceField.input.value = meta.source || "";
+    descField.textarea.value = meta.description || "";
+    urlInput.value = meta.sourceURL || "";
+    autoGrowTextarea(descField.textarea);
   }
 
   function undoLastChange() {
-    if (!undoStack.length) return;
-    const snapshot = undoStack.pop();
-    redoStack.push(createHistorySnapshot());
-    applyHistorySnapshot(snapshot);
+    backend.undoLastChange();
+    applyMetaFromBackend();
+    refreshLayout();
   }
 
   function redoLastChange() {
-    if (!redoStack.length) return;
-    const snapshot = redoStack.pop();
-    undoStack.push(createHistorySnapshot());
-    applyHistorySnapshot(snapshot);
+    backend.redoLastChange();
+    applyMetaFromBackend();
+    refreshLayout();
   }
 
   function updateUndoRedoButtons() {
@@ -1380,187 +1319,19 @@ export function createWorkoutBuilder(options) {
   }
 
   function buildBlockTimings(blocks) {
-    const timings = [];
-    let totalSec = 0;
-    (blocks || []).forEach((block, idx) => {
-      const segs = Array.isArray(block?.segments) ? block.segments : [];
-      const start = totalSec;
-      segs.forEach((seg) => {
-        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
-        totalSec += durSec;
-      });
-      timings.push({ index: idx, tStart: start, tEnd: totalSec });
-    });
-    return { timings, totalSec };
+    return backend.buildBlockTimings(blocks);
   }
 
   function buildSegmentTimings(blocks) {
-    const timings = [];
-    let totalSec = 0;
-    (blocks || []).forEach((block, blockIndex) => {
-      const segs = Array.isArray(block?.segments) ? block.segments : [];
-      segs.forEach((seg, segIndex) => {
-        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
-        const start = totalSec;
-        const end = totalSec + durSec;
-        timings.push({ blockIndex, segIndex, tStart: start, tEnd: end });
-        totalSec = end;
-      });
-    });
-    return { timings, totalSec };
+    return backend.buildSegmentTimings(blocks);
   }
 
   function buildRawSegmentsFromBlocks(blocks) {
-    const raw = [];
-    (blocks || []).forEach((block) => {
-      const segs = Array.isArray(block?.segments) ? block.segments : [];
-      segs.forEach((seg) => {
-        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
-        const pStartRel = Number(seg?.pStartRel) || 0;
-        const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
-        raw.push([durSec / 60, pStartRel * 100, pEndRel * 100]);
-      });
-    });
-    return raw;
+    return backend.buildRawSegmentsFromBlocks(blocks);
   }
 
   function segmentsToBlocks(segments) {
-    if (!Array.isArray(segments) || !segments.length) return [];
-    const normalized = [];
-
-    for (const seg of segments) {
-      if (!Array.isArray(seg) || seg.length < 2) continue;
-      const minutes = Number(seg[0]);
-      let startVal = Number(seg[1]);
-      let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
-
-      if (
-        !Number.isFinite(minutes) ||
-        minutes <= 0 ||
-        !Number.isFinite(startVal) ||
-        !Number.isFinite(endVal)
-      ) {
-        continue;
-      }
-
-      const toRel = (v) => (v <= 5 ? v : v / 100);
-      const durationSec = clampDuration(minutes * 60);
-      const pStartRel = clampRel(toRel(startVal));
-      const pEndRel = clampRel(toRel(endVal));
-
-      if (Math.abs(pStartRel - pEndRel) < 1e-6) {
-        normalized.push({
-          kind: "steady",
-          durationSec,
-          powerRel: pStartRel,
-        });
-      } else if (pEndRel > pStartRel) {
-        normalized.push({
-          kind: "rampUp",
-          durationSec,
-          powerLowRel: pStartRel,
-          powerHighRel: pEndRel,
-        });
-      } else {
-        normalized.push({
-          kind: "rampDown",
-          durationSec,
-          powerLowRel: pStartRel,
-          powerHighRel: pEndRel,
-        });
-      }
-    }
-
-    if (!normalized.length) return [];
-
-    const blocks = [];
-    const DUR_TOL = 1;
-    const PWR_TOL = 0.01;
-    let i = 0;
-
-    while (i < normalized.length) {
-      if (i + 3 < normalized.length) {
-        const firstA = normalized[i];
-        const firstB = normalized[i + 1];
-
-        if (firstA.kind === "steady" && firstB.kind === "steady") {
-          let repeat = 1;
-          let j = i + 2;
-
-          while (j + 1 < normalized.length) {
-            const nextA = normalized[j];
-            const nextB = normalized[j + 1];
-
-            if (
-              nextA.kind !== "steady" ||
-              nextB.kind !== "steady" ||
-              !blocksSimilarSteady(firstA, nextA, DUR_TOL, PWR_TOL) ||
-              !blocksSimilarSteady(firstB, nextB, DUR_TOL, PWR_TOL)
-            ) {
-              break;
-            }
-
-            repeat += 1;
-            j += 2;
-          }
-
-          if (repeat >= 2) {
-            const onDurationSec = clampDuration(firstA.durationSec);
-            const offDurationSec = clampDuration(firstB.durationSec);
-            const onPowerRel = clampRel(firstA.powerRel);
-            const offPowerRel = clampRel(firstB.powerRel);
-            blocks.push(
-              createBlock("intervals", {
-                repeat: clampRepeat(repeat),
-                onDurationSec,
-                offDurationSec,
-                onPowerRel,
-                offPowerRel,
-              }),
-            );
-            i += repeat * 2;
-            continue;
-          }
-        }
-      }
-
-      const b = normalized[i];
-      if (b.kind === "steady") {
-        blocks.push(
-          createBlock("steady", {
-            durationSec: clampDuration(b.durationSec),
-            powerRel: clampRel(b.powerRel),
-          }),
-        );
-      } else if (b.kind === "rampUp") {
-        blocks.push(
-          createBlock("warmup", {
-            durationSec: clampDuration(b.durationSec),
-            powerLowRel: clampRel(b.powerLowRel),
-            powerHighRel: clampRel(b.powerHighRel),
-          }),
-        );
-      } else if (b.kind === "rampDown") {
-        blocks.push(
-          createBlock("cooldown", {
-            durationSec: clampDuration(b.durationSec),
-            powerLowRel: clampRel(b.powerLowRel),
-            powerHighRel: clampRel(b.powerHighRel),
-          }),
-        );
-      }
-
-      i += 1;
-    }
-
-    return blocks;
-  }
-
-  function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
-    if (a.kind !== "steady" || b.kind !== "steady") return false;
-    const durDiff = Math.abs(a.durationSec - b.durationSec);
-    const pDiff = Math.abs(a.powerRel - b.powerRel);
-    return durDiff <= durTolSec && pDiff <= pwrTol;
+    return backend.segmentsToBlocks(segments);
   }
 
   function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
@@ -2297,6 +2068,8 @@ export function createWorkoutBuilder(options) {
       return;
     }
     if (!chartMiniHost) return;
+    const currentBlocks = backend.getCurrentBlocks();
+    if (!currentBlocks || !currentBlocks.length) return;
     const activeEl = document.elementFromPoint(e.clientX, e.clientY);
     const handleEl =
       activeEl && activeEl.closest
@@ -2356,7 +2129,7 @@ export function createWorkoutBuilder(options) {
       e.clientX,
     );
     if (insertIdx != null) {
-      insertAfterOverrideIndex = insertIdx;
+      backend.setInsertAfterOverrideIndex(insertIdx);
       renderChart();
     }
 
@@ -2406,6 +2179,8 @@ export function createWorkoutBuilder(options) {
 
   function handleChartPointerMove(e) {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
+    const currentBlocks = backend.getCurrentBlocks();
+    if (!currentBlocks || !currentBlocks.length) return;
     const {
       handle,
       blockIndex,
@@ -2570,7 +2345,7 @@ export function createWorkoutBuilder(options) {
         e.clientX,
       );
       if (insertIdx != null) {
-        insertAfterOverrideIndex = insertIdx;
+        backend.setInsertAfterOverrideIndex(insertIdx);
       }
       dragInsertAfterIndex = null;
       renderChart();
