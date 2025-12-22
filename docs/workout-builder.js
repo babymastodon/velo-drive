@@ -1923,6 +1923,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    const oldStartEnd = getBlockStartEnd(currentBlocks[blockIndex]);
     recordHistorySnapshot();
     const updatedBlocks = currentBlocks.map((block, idx) => {
       if (idx !== blockIndex) return block;
@@ -1935,6 +1936,11 @@ export function createWorkoutBuilder(options) {
         segments: buildSegmentsForBlock(nextBlock),
       };
     });
+
+    const newStartEnd = getBlockStartEnd(updatedBlocks[blockIndex]);
+    if (oldStartEnd && newStartEnd) {
+      syncAdjacentRampLinks(updatedBlocks, blockIndex, oldStartEnd, newStartEnd);
+    }
 
     const nextIndex =
       options.select === false
@@ -2519,6 +2525,35 @@ export function createWorkoutBuilder(options) {
     }
 
     return null;
+  }
+
+  function syncAdjacentRampLinks(blocks, blockIndex, oldStartEnd, newStartEnd) {
+    const EPS = 1e-6;
+    const prevBlock = blockIndex > 0 ? blocks[blockIndex - 1] : null;
+    const nextBlock =
+      blockIndex + 1 < blocks.length ? blocks[blockIndex + 1] : null;
+
+    if (prevBlock && (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")) {
+      const prevEnd = getRampHigh(prevBlock);
+      if (Math.abs(prevEnd - oldStartEnd.start) <= EPS) {
+        prevBlock.attrs = {
+          ...(prevBlock.attrs || {}),
+          powerHighRel: newStartEnd.start,
+        };
+        prevBlock.segments = buildSegmentsForBlock(prevBlock);
+      }
+    }
+
+    if (nextBlock && (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")) {
+      const nextStart = getRampLow(nextBlock);
+      if (Math.abs(nextStart - oldStartEnd.end) <= EPS) {
+        nextBlock.attrs = {
+          ...(nextBlock.attrs || {}),
+          powerLowRel: newStartEnd.end,
+        };
+        nextBlock.segments = buildSegmentsForBlock(nextBlock);
+      }
+    }
   }
 
   function handleChartPointerDown(e) {
