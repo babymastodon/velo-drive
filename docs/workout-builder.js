@@ -355,10 +355,10 @@ export function createWorkoutBuilder(options) {
   chartContainer.appendChild(chartMiniHost);
   chartCard.appendChild(chartContainer);
 
-  body.appendChild(topRow);
   body.appendChild(statsCard);
   body.appendChild(chartCard);
   body.appendChild(toolbarCard);
+  body.appendChild(topRow);
   wrapper.appendChild(body);
   rootEl.appendChild(wrapper);
 
