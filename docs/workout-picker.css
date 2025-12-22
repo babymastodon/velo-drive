@@ -959,13 +959,6 @@
   white-space: nowrap;
 }
 
-.wb-block-editor-actions {
-  display: none;
-  align-items: center;
-  margin-left: auto;
-  gap: var(--wb-action-gap);
-}
-
 .wb-block-delete-btn {
   width: var(--nav-control-height);
   height: var(--nav-control-height);
