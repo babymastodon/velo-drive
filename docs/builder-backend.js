@@ -942,6 +942,11 @@ export function createBuilderBackend() {
     recordHistorySnapshot();
     const updated = state.currentBlocks.slice();
     updated.splice(insertIndex, 0, ...blocks);
+    blocks.forEach((block, offset) => {
+      if (block && block.kind === "steady") {
+        adjustAdjacentRampsForSteady(updated, insertIndex + offset, block);
+      }
+    });
 
     const shouldSelect = options.selectOnInsert !== false;
     const selectIndex = shouldSelect ? insertIndex : null;
@@ -984,25 +989,19 @@ export function createBuilderBackend() {
     const steadyPower = getBlockSteadyPower(steadyBlock);
 
     if (prev && (prev.kind === "warmup" || prev.kind === "cooldown")) {
-      const prevEnd = getRampHigh(prev);
-      if (Math.abs(prevEnd - steadyPower) <= 1e-6) {
-        prev.attrs = {
-          ...(prev.attrs || {}),
-          powerHighRel: steadyPower,
-        };
-        prev.segments = buildSegmentsForBlock(prev);
-      }
+      prev.attrs = {
+        ...(prev.attrs || {}),
+        powerHighRel: steadyPower,
+      };
+      prev.segments = buildSegmentsForBlock(prev);
     }
 
     if (next && (next.kind === "warmup" || next.kind === "cooldown")) {
-      const nextStart = getRampLow(next);
-      if (Math.abs(nextStart - steadyPower) <= 1e-6) {
-        next.attrs = {
-          ...(next.attrs || {}),
-          powerLowRel: steadyPower,
-        };
-        next.segments = buildSegmentsForBlock(next);
-      }
+      next.attrs = {
+        ...(next.attrs || {}),
+        powerLowRel: steadyPower,
+      };
+      next.segments = buildSegmentsForBlock(next);
     }
   }
 
@@ -1025,14 +1024,14 @@ export function createBuilderBackend() {
 
     if (low != null && high != null) {
       if (kind === "warmup" && high <= low) {
-        high = low + 0.25;
+        high = low + 0.5;
       } else if (kind === "cooldown" && high >= low) {
-        high = low - 0.25;
+        high = low - 0.5;
       }
     } else if (low == null && high != null) {
-      low = kind === "cooldown" ? high + 0.25 : high - 0.25;
+      low = kind === "cooldown" ? high + 0.5 : high - 0.5;
     } else if (high == null && low != null) {
-      high = kind === "cooldown" ? low - 0.25 : low + 0.25;
+      high = kind === "cooldown" ? low - 0.5 : low + 0.5;
     }
 
     if (low == null || high == null) return fallbackBlock;
