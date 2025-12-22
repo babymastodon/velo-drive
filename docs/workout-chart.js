@@ -1264,9 +1264,14 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         const svgX = (clampedX / Math.max(1, svgRect.width)) * width;
 
         if (block && block.kind === "intervals" && blockTiming) {
-          const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
-          const timeSec = (clampedX / width) * timelineSec;
-          insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+          if (Number.isFinite(segIndex)) {
+            const isOn = segIndex % 2 === 0;
+            insertIdx = isOn ? blockIndex - 1 : blockIndex;
+          } else {
+            const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+            const timeSec = (clampedX / width) * timelineSec;
+            insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+          }
         } else if (Number.isFinite(segIndex) && segmentTimings.length) {
           if (typeof targetBlock.getBBox === "function") {
             const bbox = targetBlock.getBBox();
@@ -1308,12 +1313,21 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     const block =
       blockTiming && blocks ? blocks[blockTiming.index] : null;
 
-    if (block && block.kind === "intervals") {
-      const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
-      idx = timeSec < mid ? blockTiming.index - 1 : blockTiming.index;
-    } else if (segmentTimings.length) {
-      let seg = segmentTimings.find((t) => timeSec <= t.tEnd);
+    let seg = null;
+    if (segmentTimings.length) {
+      seg = segmentTimings.find((t) => timeSec <= t.tEnd);
       if (!seg) seg = segmentTimings[segmentTimings.length - 1];
+    }
+
+    if (block && block.kind === "intervals") {
+      if (seg && Number.isFinite(seg.segIndex)) {
+        const isOn = seg.segIndex % 2 === 0;
+        idx = isOn ? blockTiming.index - 1 : blockTiming.index;
+      } else {
+        const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+        idx = timeSec < mid ? blockTiming.index - 1 : blockTiming.index;
+      }
+    } else if (seg) {
       const mid = (seg.tStart + seg.tEnd) / 2;
       idx = timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
     } else if (blockTiming) {

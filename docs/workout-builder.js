@@ -1507,6 +1507,10 @@ export function createWorkoutBuilder(options) {
     const block = currentBlocks[blockIndex];
 
     if (block && block.kind === "intervals" && blockTiming) {
+      if (Number.isFinite(segIndex)) {
+        const isOn = segIndex % 2 === 0;
+        return isOn ? blockIndex - 1 : blockIndex;
+      }
       const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
       return timeSec < mid ? blockIndex - 1 : blockIndex;
     }
