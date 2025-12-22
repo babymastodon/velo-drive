@@ -489,11 +489,25 @@ export function createWorkoutBuilder(options) {
     ) {
       e.preventDefault();
       const direction = lower === "h" || key === "ArrowLeft" ? -1 : 1;
-      shiftMoveSelection(direction);
+      backend.shiftMoveSelection(direction);
+      updateBlockEditor();
+      renderChart();
+      emitUiState();
       return;
     }
 
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    if (selectionCount > 1 && lower === "y") {
+      e.preventDefault();
+      copySelectionToClipboard();
+      backend.deselectBlock();
+      backend.startHistoryGroup();
+      updateBlockEditor();
+      renderChart();
+      emitUiState();
+      return;
+    }
 
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
@@ -1151,14 +1165,6 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function setInsertAfterIndex(idx) {
-    backend.setInsertAfterIndex(idx);
-    backend.startHistoryGroup();
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
-  }
-
   function handleBlockSelectionFromChart(idx, opts = {}) {
     if (idx == null) {
       deselectBlock();
@@ -1192,18 +1198,15 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleInsertAfterFromChart(idx) {
-    setInsertAfterIndex(idx);
-  }
-
-  function handleInsertAfterFromSegment(idx) {
-    backend.setInsertAfterOverrideIndex(idx);
+    backend.setInsertAfterIndex(idx);
+    backend.startHistoryGroup();
+    updateBlockEditor();
     renderChart();
     emitUiState();
   }
 
-  function shiftMoveSelection(direction) {
-    backend.shiftMoveSelection(direction);
-    updateBlockEditor();
+  function handleInsertAfterFromSegment(idx) {
+    backend.setInsertAfterOverrideIndex(idx);
     renderChart();
     emitUiState();
   }
@@ -1267,7 +1270,8 @@ export function createWorkoutBuilder(options) {
     if (!canonical || !Array.isArray(canonical.rawSegments)) return;
     const blocks = backend.segmentsToBlocks(canonical.rawSegments);
     if (!blocks.length) return;
-    insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
+    backend.insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
+    handleAnyChange();
   }
 
   function applyMetaFromBackend() {
@@ -1925,12 +1929,6 @@ export function createWorkoutBuilder(options) {
 
   function insertBlockAtInsertionPoint(spec, options = {}) {
     const insertIndex = backend.insertBlockAtInsertionPoint(spec, options);
-    handleAnyChange();
-    return insertIndex;
-  }
-
-  function insertBlocksAtInsertionPoint(blocks, options = {}) {
-    const insertIndex = backend.insertBlocksAtInsertionPoint(blocks, options);
     handleAnyChange();
     return insertIndex;
   }
