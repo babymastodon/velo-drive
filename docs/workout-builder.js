@@ -1459,7 +1459,7 @@ export function createWorkoutBuilder(options) {
         direction > 0 ? anchor - 1 : anchor,
       );
       const cursor = clampCursorIndex(
-        direction > 0 ? anchor + 1 : anchor - 1,
+        direction > 0 ? anchor + 1 : anchor - 2,
       );
       selectionAnchorIndex = anchor;
       selectionAnchorCursorIndex = anchorCursor;
