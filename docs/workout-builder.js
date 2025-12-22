@@ -330,7 +330,7 @@ export function createWorkoutBuilder(options) {
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
-      insertBlockAtInsertionPoint(spec);
+      insertBlockAtInsertionPoint(spec, {selectOnInsert: false});
     });
 
     toolbarButtons.appendChild(btn);
@@ -435,7 +435,7 @@ export function createWorkoutBuilder(options) {
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
       if (!spec) return false;
-      insertBlockAtInsertionPoint(spec);
+      insertBlockAtInsertionPoint(spec, {selectOnInsert: true});
       return true;
     };
 
@@ -2324,9 +2324,10 @@ export function createWorkoutBuilder(options) {
     return {el, value: valueEl};
   }
 
-  function insertBlockAtInsertionPoint(spec) {
+  function insertBlockAtInsertionPoint(spec, options = {}) {
     const block = buildBlockFromSpec(spec);
     if (!block) return null;
+    const {selectOnInsert = true} = options;
 
     const insertAfterIndex = getInsertAfterIndex();
     const insertIndex =
@@ -2336,10 +2337,28 @@ export function createWorkoutBuilder(options) {
 
     recordHistorySnapshot();
     const updated = currentBlocks.slice();
+    const prevBlock = insertIndex > 0 ? updated[insertIndex - 1] : null;
+    const nextBlock =
+      insertIndex < updated.length ? updated[insertIndex] : null;
+
+    if (block.kind === "warmup") {
+      const durationSec = prevBlock ? 120 : 360;
+      block.attrs = {...(block.attrs || {}), durationSec};
+      block.segments = buildSegmentsForBlock(block);
+    } else if (block.kind === "cooldown") {
+      const durationSec = nextBlock ? 120 : 360;
+      block.attrs = {...(block.attrs || {}), durationSec};
+      block.segments = buildSegmentsForBlock(block);
+    }
+
     updated.splice(insertIndex, 0, block);
 
+    if (block.kind === "steady") {
+      adjustAdjacentRampsForSteady(updated, insertIndex, block);
+    }
+
     insertAfterOverrideIndex = insertIndex;
-    commitBlocks(updated, {selectIndex: insertIndex});
+    commitBlocks(updated, {selectIndex: selectOnInsert ? insertIndex : null});
     return insertIndex;
   }
 
@@ -2369,6 +2388,37 @@ export function createWorkoutBuilder(options) {
     }
 
     return base;
+  }
+
+  function adjustAdjacentRampsForSteady(blocks, insertIndex, steadyBlock) {
+    const powerRel = getBlockSteadyPower(steadyBlock);
+    const prevBlock = insertIndex > 0 ? blocks[insertIndex - 1] : null;
+    const nextBlock =
+      insertIndex + 1 < blocks.length ? blocks[insertIndex + 1] : null;
+
+    if (prevBlock && (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")) {
+      const start = getRampLow(prevBlock);
+      const end = getRampHigh(prevBlock);
+      const nextEnd = powerRel;
+      const isWarmup = prevBlock.kind === "warmup";
+      const keepsDirection = isWarmup ? nextEnd >= start : nextEnd <= start;
+      if (keepsDirection) {
+        prevBlock.attrs = {...(prevBlock.attrs || {}), powerHighRel: nextEnd};
+        prevBlock.segments = buildSegmentsForBlock(prevBlock);
+      }
+    }
+
+    if (nextBlock && (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")) {
+      const start = getRampLow(nextBlock);
+      const end = getRampHigh(nextBlock);
+      const nextStart = powerRel;
+      const isWarmup = nextBlock.kind === "warmup";
+      const keepsDirection = isWarmup ? nextStart <= end : nextStart >= end;
+      if (keepsDirection) {
+        nextBlock.attrs = {...(nextBlock.attrs || {}), powerLowRel: nextStart};
+        nextBlock.segments = buildSegmentsForBlock(nextBlock);
+      }
+    }
   }
 
   function buildContextualRampBlock(kind, fallbackBlock) {
