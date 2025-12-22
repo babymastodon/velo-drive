@@ -2453,10 +2453,13 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleChartPointerDown(e) {
-    const handleEl = e.target.closest
-      ? e.target.closest("[data-drag-handle]")
-      : null;
-    if (!handleEl || !chartMiniHost) return;
+    if (!chartMiniHost) return;
+    const activeEl = document.elementFromPoint(e.clientX, e.clientY);
+    const handleEl =
+      activeEl && activeEl.closest
+        ? activeEl.closest("[data-drag-handle]")
+        : null;
+    if (!handleEl) return;
 
     const handle = handleEl.dataset.dragHandle;
     const blockIndex = Number(handleEl.dataset.blockIndex);
