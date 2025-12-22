@@ -490,9 +490,7 @@ export function createWorkoutBuilder(options) {
       e.preventDefault();
       const direction = lower === "h" || key === "ArrowLeft" ? -1 : 1;
       backend.shiftMoveSelection(direction);
-      updateBlockEditor();
-      renderChart();
-      emitUiState();
+      syncSelectionUi();
       return;
     }
 
@@ -502,10 +500,7 @@ export function createWorkoutBuilder(options) {
       e.preventDefault();
       copySelectionToClipboard();
       backend.deselectBlock();
-      backend.startHistoryGroup();
-      updateBlockEditor();
-      renderChart();
-      emitUiState();
+      syncSelectionUi({ withHistory: true });
       return;
     }
 
@@ -1091,6 +1086,16 @@ export function createWorkoutBuilder(options) {
     ensureChartFocusVisible();
   }
 
+  function syncSelectionUi(options = {}) {
+    const { withHistory = false } = options;
+    if (withHistory) {
+      backend.startHistoryGroup();
+    }
+    updateBlockEditor();
+    renderChart();
+    emitUiState();
+  }
+
   function ensureChartFocusVisible() {
     if (!chartContainer || !chartMiniHost) return;
     const svg = chartMiniHost.querySelector("svg");
@@ -1151,18 +1156,12 @@ export function createWorkoutBuilder(options) {
 
   function setSelectedBlock(idx) {
     backend.setSelectedBlock(idx);
-    backend.startHistoryGroup();
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
+    syncSelectionUi({ withHistory: true });
   }
 
   function deselectBlock() {
     backend.deselectBlock();
-    backend.startHistoryGroup();
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
+    syncSelectionUi({ withHistory: true });
   }
 
   function handleBlockSelectionFromChart(idx, opts = {}) {
@@ -1189,9 +1188,7 @@ export function createWorkoutBuilder(options) {
       backend.setSelectionFromCursors(anchorCursor, cursorIndex, {
         preserveInsert: true,
       });
-      updateBlockEditor();
-      renderChart();
-      emitUiState();
+      syncSelectionUi();
     } else {
       setSelectedBlock(idx);
     }
@@ -1199,16 +1196,12 @@ export function createWorkoutBuilder(options) {
 
   function handleInsertAfterFromChart(idx) {
     backend.setInsertAfterIndex(idx);
-    backend.startHistoryGroup();
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
+    syncSelectionUi({ withHistory: true });
   }
 
   function handleInsertAfterFromSegment(idx) {
     backend.setInsertAfterOverrideIndex(idx);
-    renderChart();
-    emitUiState();
+    syncSelectionUi();
   }
 
   function emitUiState() {
