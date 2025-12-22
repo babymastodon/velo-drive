@@ -196,7 +196,7 @@ export function createWorkoutBuilder(options) {
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
   undoBtn.className = "wb-toolbar-action-btn";
-  undoBtn.title = "Undo (Ctrl/Cmd+Z or U)";
+  undoBtn.title = "Undo (Ctrl/⌘+Z or U)";
   undoBtn.appendChild(createUndoIcon());
   undoBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -206,7 +206,7 @@ export function createWorkoutBuilder(options) {
   const redoBtn = document.createElement("button");
   redoBtn.type = "button";
   redoBtn.className = "wb-toolbar-action-btn";
-  redoBtn.title = "Redo (Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y)";
+  redoBtn.title = "Redo (Ctrl/⌘+Shift+Z or Ctrl/⌘+Y)";
   redoBtn.appendChild(createRedoIcon());
   redoBtn.addEventListener("click", (e) => {
     e.preventDefault();
