@@ -46,6 +46,11 @@ export function createWorkoutBuilder(options) {
   let dragInsertAfterIndex = null;
   let insertAfterOverrideIndex = null;
   let dragState = null;
+  const undoStack = [];
+  const redoStack = [];
+  let historyGroupHasUndo = false;
+  let historyPendingSnapshot = null;
+  let isHistoryRestoring = false;
   const DRAG_THRESHOLD_PX = 4;
   const statusTarget = statusMessageEl || null;
 
@@ -178,6 +183,32 @@ export function createWorkoutBuilder(options) {
   blockEditorActions.appendChild(deleteBlockBtn);
   blockEditor.appendChild(blockEditorActions);
 
+  const toolbarActions = document.createElement("div");
+  toolbarActions.className = "wb-toolbar-actions";
+
+  const undoBtn = document.createElement("button");
+  undoBtn.type = "button";
+  undoBtn.className = "wb-toolbar-action-btn";
+  undoBtn.title = "Undo (Ctrl/Cmd+Z or U)";
+  undoBtn.appendChild(createUndoIcon());
+  undoBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    undoLastChange();
+  });
+
+  const redoBtn = document.createElement("button");
+  redoBtn.type = "button";
+  redoBtn.className = "wb-toolbar-action-btn";
+  redoBtn.title = "Redo (Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y)";
+  redoBtn.appendChild(createRedoIcon());
+  redoBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    redoLastChange();
+  });
+
+  toolbarActions.appendChild(undoBtn);
+  toolbarActions.appendChild(redoBtn);
+
   const buttonSpecs = [
     {
       key: "recovery",
@@ -306,6 +337,7 @@ export function createWorkoutBuilder(options) {
 
   toolbar.appendChild(toolbarButtons);
   toolbar.appendChild(blockEditor);
+  toolbar.appendChild(toolbarActions);
   toolbarCard.appendChild(toolbar);
 
   // Chart
@@ -375,6 +407,25 @@ export function createWorkoutBuilder(options) {
         renderChart();
         return;
       }
+    }
+
+    const isUndo =
+      (isMetaShortcut && lower === "z") ||
+      (!e.metaKey && !e.ctrlKey && !e.altKey && lower === "u");
+    if (isUndo) {
+      e.preventDefault();
+      undoLastChange();
+      return;
+    }
+
+    const isRedo =
+      (e.metaKey || e.ctrlKey) &&
+      !e.altKey &&
+      ((lower === "z" && e.shiftKey) || lower === "y");
+    if (isRedo) {
+      e.preventDefault();
+      redoLastChange();
+      return;
     }
 
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -923,6 +974,7 @@ export function createWorkoutBuilder(options) {
     renderChart();
     updateErrorStyling();
     updateBlockEditor();
+    updateUndoRedoButtons();
     emitUiState();
 
     const state = getState();
@@ -1084,6 +1136,7 @@ export function createWorkoutBuilder(options) {
     if (next === selectedBlockIndex) return;
     selectedBlockIndex = next;
     insertAfterOverrideIndex = null;
+    startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
@@ -1096,6 +1149,7 @@ export function createWorkoutBuilder(options) {
     if (insertAfterOverrideIndex == null && prevSelected != null) {
       insertAfterOverrideIndex = prevSelected;
     }
+    startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
@@ -1121,6 +1175,7 @@ export function createWorkoutBuilder(options) {
 
     selectedBlockIndex = null;
     insertAfterOverrideIndex = next;
+    startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
@@ -1147,6 +1202,94 @@ export function createWorkoutBuilder(options) {
   function emitUiState() {
     if (typeof onUiStateChange !== "function") return;
     onUiStateChange({hasSelection: !!getSelectedBlock()});
+  }
+
+  function startHistoryGroup() {
+    if (isHistoryRestoring) return;
+    historyGroupHasUndo = false;
+    historyPendingSnapshot = createHistorySnapshot();
+  }
+
+  function createHistorySnapshot() {
+    return {
+      workoutTitle: nameField.input.value,
+      source: sourceField.input.value,
+      description: descField.textarea.value,
+      sourceURL: urlInput.value,
+      blocks: cloneBlocks(currentBlocks || []),
+      selectedBlockIndex,
+      insertAfterOverrideIndex,
+    };
+  }
+
+  function applyHistorySnapshot(snapshot) {
+    if (!snapshot) return;
+    isHistoryRestoring = true;
+    nameField.input.value = snapshot.workoutTitle || "";
+    sourceField.input.value = snapshot.source || "";
+    descField.textarea.value = snapshot.description || "";
+    urlInput.value = snapshot.sourceURL || "";
+    currentBlocks = cloneBlocks(snapshot.blocks || []);
+    selectedBlockIndex =
+      snapshot.selectedBlockIndex != null ? snapshot.selectedBlockIndex : null;
+    insertAfterOverrideIndex =
+      snapshot.insertAfterOverrideIndex != null
+        ? snapshot.insertAfterOverrideIndex
+        : null;
+    dragInsertAfterIndex = null;
+    refreshLayout();
+    isHistoryRestoring = false;
+    startHistoryGroup();
+    updateUndoRedoButtons();
+  }
+
+  function cloneBlocks(blocks) {
+    return (blocks || []).map((block) => ({
+      ...block,
+      attrs: {...(block.attrs || {})},
+      segments: Array.isArray(block.segments)
+        ? block.segments.map((seg) => ({...seg}))
+        : [],
+    }));
+  }
+
+  function recordHistorySnapshot() {
+    if (isHistoryRestoring) return;
+    if (selectedBlockIndex != null) {
+      if (!historyGroupHasUndo) {
+        if (!historyPendingSnapshot) {
+          historyPendingSnapshot = createHistorySnapshot();
+        }
+        undoStack.push(historyPendingSnapshot);
+        historyPendingSnapshot = null;
+        historyGroupHasUndo = true;
+        redoStack.length = 0;
+        updateUndoRedoButtons();
+      }
+      return;
+    }
+    undoStack.push(createHistorySnapshot());
+    redoStack.length = 0;
+    updateUndoRedoButtons();
+  }
+
+  function undoLastChange() {
+    if (!undoStack.length) return;
+    const snapshot = undoStack.pop();
+    redoStack.push(createHistorySnapshot());
+    applyHistorySnapshot(snapshot);
+  }
+
+  function redoLastChange() {
+    if (!redoStack.length) return;
+    const snapshot = redoStack.pop();
+    undoStack.push(createHistorySnapshot());
+    applyHistorySnapshot(snapshot);
+  }
+
+  function updateUndoRedoButtons() {
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
   }
 
   function buildBlockTimings(blocks) {
@@ -1406,6 +1549,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    recordHistorySnapshot();
     const updated = currentBlocks.slice();
     const [moving] = updated.splice(fromIndex, 1);
     updated.splice(target + 1, 0, moving);
@@ -1760,6 +1904,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    recordHistorySnapshot();
     const updatedBlocks = currentBlocks.map((block, idx) => {
       if (idx !== blockIndex) return block;
       const nextBlock = {
@@ -1791,6 +1936,7 @@ export function createWorkoutBuilder(options) {
     }
 
     const deleteIndex = selectedBlockIndex;
+    recordHistorySnapshot();
     const updatedBlocks = currentBlocks.filter(
       (_block, idx) => idx !== deleteIndex,
     );
@@ -1820,6 +1966,7 @@ export function createWorkoutBuilder(options) {
     const target = idx + direction;
     if (target < 0 || target >= currentBlocks.length) return;
 
+    recordHistorySnapshot();
     const updated = currentBlocks.slice();
     const [moving] = updated.splice(idx, 1);
     updated.splice(target, 0, moving);
@@ -2071,6 +2218,36 @@ export function createWorkoutBuilder(options) {
     return svg;
   }
 
+  function createUndoIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M7 8H4l3-3m0 3h6a6 6 0 1 1 0 12H7");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function createRedoIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M17 8h3l-3-3m0 3h-6a6 6 0 1 0 0 12h6");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+    return svg;
+  }
+
   function autoGrowTextarea(el) {
     if (!el) return;
     el.style.height = "auto";
@@ -2137,6 +2314,7 @@ export function createWorkoutBuilder(options) {
         ? currentBlocks.length
         : Math.max(0, insertAfterIndex + 1);
 
+    recordHistorySnapshot();
     const updated = currentBlocks.slice();
     updated.splice(insertIndex, 0, block);
 

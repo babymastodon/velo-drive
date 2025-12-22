@@ -855,6 +855,43 @@
   font-size: var(--font-size-base);
 }
 
+.wb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wb-toolbar-action-btn {
+  width: var(--nav-control-height);
+  height: var(--nav-control-height);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: var(--interactive-transition);
+}
+
+.wb-toolbar-action-btn:hover {
+  background: var(--hover-medium);
+}
+
+.wb-toolbar-action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wb-toolbar-action-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .wb-block-editor {
   display: flex;
   flex-wrap: wrap;
