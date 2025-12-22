@@ -807,6 +807,14 @@
   text-align: right;
 }
 
+.wb-chart-axis-label--duration {
+  color: var(--ftp-line);
+  font-weight: 300;
+  right: 6px;
+  left: auto;
+  text-align: right;
+}
+
 .wb-block-band {
   transition: fill-opacity 0.14s ease;
 }
