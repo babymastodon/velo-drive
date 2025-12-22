@@ -1,10 +1,7 @@
 // workout-builder.js
 
 import { renderBuilderWorkoutGraph } from "./workout-chart.js";
-import {
-  computeMetricsFromSegments,
-  inferZoneFromSegments,
-} from "./workout-metrics.js";
+import { createBuilderBackend } from "./builder-backend.js";
 import {
   clearWorkoutBuilderState,
   loadWorkoutBuilderState,
@@ -36,25 +33,9 @@ export function createWorkoutBuilder(options) {
   if (!rootEl) throw new Error("[WorkoutBuilder] rootEl is required");
 
   // ---------- State ----------
-  /** @type {Array<[number, number, number]>} */ // [minutes, startPct, endPct]
-  let currentRawSegments = [];
-  let currentErrors = [];
-  let currentBlocks = [];
-  let currentMetrics = null;
-  let currentZone = null;
-  let persistedState = null;
-  let selectedBlockIndex = null;
-  let selectedBlockIndices = [];
-  let selectionAnchorIndex = null;
-  let selectionAnchorCursorIndex = null;
+  const backend = createBuilderBackend();
   let dragInsertAfterIndex = null;
-  let insertAfterOverrideIndex = null;
   let dragState = null;
-  const undoStack = [];
-  const redoStack = [];
-  let historyGroupHasUndo = false;
-  let historyPendingSnapshot = null;
-  let isHistoryRestoring = false;
   let timelineLockSec = 0;
   const DRAG_THRESHOLD_PX = 4;
   const statusTarget = statusMessageEl || null;
@@ -408,6 +389,9 @@ export function createWorkoutBuilder(options) {
 
     const key = e.key;
     const lower = key.toLowerCase();
+    const currentBlocks = backend.getCurrentBlocks();
+    const selectedBlockIndices = backend.getSelectedBlockIndices();
+    const selectedBlockIndex = backend.getSelectedBlockIndex();
     const selectionCount = selectedBlockIndices.length;
     const hasSelection = selectionCount > 0;
     const singleSelection = selectionCount === 1;
@@ -420,13 +404,13 @@ export function createWorkoutBuilder(options) {
       if (!currentBlocks || !currentBlocks.length) return;
       if (lower === "a") {
         e.preventDefault();
-        insertAfterOverrideIndex = -1;
+        backend.setInsertAfterOverrideIndex(-1);
         renderChart();
         return;
       }
       if (lower === "e") {
         e.preventDefault();
-        insertAfterOverrideIndex = currentBlocks.length - 1;
+        backend.setInsertAfterOverrideIndex(currentBlocks.length - 1);
         renderChart();
         return;
       }
@@ -569,27 +553,21 @@ export function createWorkoutBuilder(options) {
       }
       if (currentBlocks && currentBlocks.length) {
         const current =
-          insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
         if (key === "Backspace") {
           const prev = current != null ? current : -1;
           if (prev >= 0) {
             e.preventDefault();
-            selectedBlockIndex = prev;
-            selectedBlockIndices = [prev];
-            selectionAnchorIndex = prev;
-            selectionAnchorCursorIndex = null;
+            backend.setSelectedBlock(prev);
             deleteSelectedBlock();
           }
         } else if (key === "Delete") {
           const next = current != null ? current + 1 : 0;
           if (next >= 0 && next < currentBlocks.length) {
             e.preventDefault();
-            selectedBlockIndex = next;
-            selectedBlockIndices = [next];
-            selectionAnchorIndex = next;
-            selectionAnchorCursorIndex = null;
+            backend.setSelectedBlock(next);
             deleteSelectedBlock();
           }
         }
@@ -614,9 +592,9 @@ export function createWorkoutBuilder(options) {
         e.preventDefault();
         e.stopPropagation();
         const current =
-          insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
         const prev =
           current != null ? Math.min(current, currentBlocks.length - 1) : null;
         if (prev != null && prev >= 0) {
@@ -630,9 +608,9 @@ export function createWorkoutBuilder(options) {
 
     const isInsertionAtEndOfSelection = () => {
       const insertAfter =
-        insertAfterOverrideIndex != null
-          ? insertAfterOverrideIndex
-          : getInsertAfterIndex();
+        backend.getInsertAfterOverrideIndex() != null
+          ? backend.getInsertAfterOverrideIndex()
+          : backend.getInsertAfterIndex();
       if (singleSelection) return insertAfter === selectedBlockIndex;
       if (!selectedBlockIndices.length) return false;
       const last = selectedBlockIndices[selectedBlockIndices.length - 1];
@@ -645,14 +623,14 @@ export function createWorkoutBuilder(options) {
         e.stopPropagation();
         if (singleSelection) {
           const atEnd = isInsertionAtEndOfSelection();
-          insertAfterOverrideIndex = atEnd
-            ? selectedBlockIndex - 1
-            : selectedBlockIndex;
+          backend.setInsertAfterOverrideIndex(
+            atEnd ? selectedBlockIndex - 1 : selectedBlockIndex,
+          );
         } else {
           const first = selectedBlockIndices[0];
           const last = selectedBlockIndices[selectedBlockIndices.length - 1];
-          const atEnd = insertAfterOverrideIndex === last;
-          insertAfterOverrideIndex = atEnd ? first - 1 : last;
+          const atEnd = backend.getInsertAfterOverrideIndex() === last;
+          backend.setInsertAfterOverrideIndex(atEnd ? first - 1 : last);
         }
         renderChart();
       }
@@ -667,51 +645,51 @@ export function createWorkoutBuilder(options) {
       if (!currentBlocks || !currentBlocks.length) return;
       if (key === "Home") {
         e.preventDefault();
-        insertAfterOverrideIndex = -1;
+        backend.setInsertAfterOverrideIndex(-1);
         renderChart();
         return;
       }
       if (key === "End") {
         e.preventDefault();
-        insertAfterOverrideIndex = currentBlocks.length - 1;
+        backend.setInsertAfterOverrideIndex(currentBlocks.length - 1);
         renderChart();
         return;
       }
       if (lower === "g") {
         e.preventDefault();
-        insertAfterOverrideIndex = -1;
+        backend.setInsertAfterOverrideIndex(-1);
         renderChart();
         return;
       }
       if (lower === "$") {
         e.preventDefault();
-        insertAfterOverrideIndex = currentBlocks.length - 1;
+        backend.setInsertAfterOverrideIndex(currentBlocks.length - 1);
         renderChart();
         return;
       }
       if (lower === "h" || key === "ArrowLeft") {
         e.preventDefault();
         const current =
-          insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
         const next = Math.max(
           -1,
           Math.min((current ?? -1) - 1, currentBlocks.length - 1),
         );
-        insertAfterOverrideIndex = next;
+        backend.setInsertAfterOverrideIndex(next);
         renderChart();
       } else if (lower === "l" || key === "ArrowRight") {
         e.preventDefault();
         const current =
-          insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
         const next = Math.max(
           -1,
           Math.min((current ?? -1) + 1, currentBlocks.length - 1),
         );
-        insertAfterOverrideIndex = next;
+        backend.setInsertAfterOverrideIndex(next);
         renderChart();
       } else if (
         lower === "j" ||
@@ -725,87 +703,14 @@ export function createWorkoutBuilder(options) {
             ? -scaledPowerStep
             : scaledPowerStep;
         const insertAfter =
-          insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
         const prevIndex = insertAfter != null ? insertAfter : -1;
         const nextIndex = prevIndex + 1;
 
-        const applyPowerUpdates = (updates) => {
-          if (!updates.length) return;
-          recordHistorySnapshot();
-          const updatedBlocks = cloneBlocks(currentBlocks);
-          const oldStartEnds = new Map();
-          updates.forEach(({ idx, attrs }) => {
-            const b = updatedBlocks[idx];
-            if (!b) return;
-            oldStartEnds.set(idx, getBlockStartEnd(b));
-            const nextBlock = {
-              ...b,
-              attrs: { ...(b.attrs || {}), ...attrs },
-            };
-            updatedBlocks[idx] = {
-              ...nextBlock,
-              segments: buildSegmentsForBlock(nextBlock),
-            };
-          });
-          updates.forEach(({ idx }) => {
-            const oldStartEnd = oldStartEnds.get(idx);
-            const nextBlock = updatedBlocks[idx];
-            const newStartEnd = getBlockStartEnd(nextBlock);
-            if (oldStartEnd && newStartEnd) {
-              syncAdjacentRampLinks(
-                updatedBlocks,
-                idx,
-                oldStartEnd,
-                newStartEnd,
-              );
-            }
-          });
-          commitBlocks(updatedBlocks, { selectIndex: selectedBlockIndex });
-        };
-
-        const collectPowerUpdate = (idx, position, updates) => {
-          const b = currentBlocks[idx];
-          if (!b) return;
-          if (b.kind === "steady") {
-            updates.push({
-              idx,
-              attrs: {
-                powerRel: clampRel(getBlockSteadyPower(b) + delta),
-              },
-            });
-          } else if (b.kind === "warmup" || b.kind === "cooldown") {
-            const isStart = position === "start";
-            const current = isStart ? getRampLow(b) : getRampHigh(b);
-            updates.push({
-              idx,
-              attrs: {
-                [isStart ? "powerLowRel" : "powerHighRel"]: clampRel(
-                  current + delta,
-                ),
-              },
-            });
-          } else if (b.kind === "intervals") {
-            const parts = getIntervalParts(b);
-            const isStart = position === "start";
-            updates.push({
-              idx,
-              attrs: {
-                [isStart ? "onPowerRel" : "offPowerRel"]: clampRel(
-                  (isStart ? parts.onPowerRel : parts.offPowerRel) + delta,
-                ),
-              },
-            });
-          }
-        };
-
-        const updates = [];
-        if (prevIndex >= 0) collectPowerUpdate(prevIndex, "end", updates);
-        if (nextIndex >= 0 && nextIndex < currentBlocks.length) {
-          collectPowerUpdate(nextIndex, "start", updates);
-        }
-        applyPowerUpdates(updates);
+        backend.applyPowerUpdatesAroundCursor(prevIndex, nextIndex, delta);
+        handleAnyChange();
       }
       return;
     }
@@ -944,6 +849,11 @@ export function createWorkoutBuilder(options) {
   }
 
   function getState() {
+    syncMetaFromInputs();
+    return backend.getCanonicalState();
+  }
+
+  function syncMetaFromInputs() {
     const title =
       (nameField.input.value || "Custom workout").trim() || "Custom workout";
     const source =
@@ -951,24 +861,16 @@ export function createWorkoutBuilder(options) {
       "VeloDrive Builder";
     const description = descField.textarea.value || "";
     const sourceURL = (urlInput.value || "").trim();
-
-    /** @type {import("./zwo.js").CanonicalWorkout} */
-    const canonical = {
-      source,
-      sourceURL,
+    backend.setMeta({
       workoutTitle: title,
-      rawSegments: currentRawSegments.slice(),
+      source,
       description,
-    };
-
-    return canonical;
+      sourceURL,
+    });
   }
 
   function resetHistory() {
-    undoStack.length = 0;
-    redoStack.length = 0;
-    historyGroupHasUndo = false;
-    historyPendingSnapshot = null;
+    backend.resetHistory();
     updateUndoRedoButtons();
   }
 
@@ -981,9 +883,9 @@ export function createWorkoutBuilder(options) {
     descField.textarea.value = "";
     urlInput.value = "";
 
-    setDefaultBlocks();
+    backend.setDefaultBlocks();
     if (!persist) {
-      persistedState = null;
+      backend.setPersistedState(null);
       refreshLayout({ skipPersist: true });
     } else {
       refreshLayout();
@@ -1013,7 +915,7 @@ export function createWorkoutBuilder(options) {
     const name = (nameField.input.value || "").trim();
     const source = (sourceField.input.value || "").trim();
     const desc = (descField.textarea.value || "").trim();
-    const hasBlocks = currentBlocks && currentBlocks.length;
+    const hasBlocks = backend.getCurrentBlocks().length > 0;
 
     nameField.input.classList.remove("wb-input-error");
     sourceField.input.classList.remove("wb-input-error");
@@ -1072,64 +974,15 @@ export function createWorkoutBuilder(options) {
   }
 
   function setDefaultBlocks() {
-    const warmup = createBlock("warmup", {
-      durationSec: 600,
-      powerLowRel: 0.5,
-      powerHighRel: 0.85,
-    });
-    const steady = createBlock("steady", {
-      durationSec: 900,
-      powerRel: 0.85,
-    });
-    const intervals = createBlock("intervals", {
-      repeat: 6,
-      onDurationSec: 60,
-      offDurationSec: 60,
-      onPowerRel: 1.1,
-      offPowerRel: 0.55,
-    });
-    const cooldown = createBlock("cooldown", {
-      durationSec: 600,
-      powerLowRel: 0.55,
-      powerHighRel: 0.5,
-    });
-    currentBlocks = [warmup, steady, intervals, cooldown];
-    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
-    currentErrors = [];
+    backend.setDefaultBlocks();
   }
 
   function handleAnyChange(opts = {}) {
     const { skipPersist = false } = opts;
 
-    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
-    currentErrors = [];
-    if (selectedBlockIndex != null && !currentBlocks[selectedBlockIndex]) {
-      selectedBlockIndex = null;
-    }
-    if (
-      insertAfterOverrideIndex == null &&
-      selectedBlockIndex == null &&
-      currentBlocks.length
-    ) {
-      insertAfterOverrideIndex = currentBlocks.length - 1;
-    }
-
+    syncMetaFromInputs();
     const ftp = getCurrentFtp() || 0;
-
-    if (currentRawSegments.length && ftp > 0) {
-      currentMetrics = computeMetricsFromSegments(currentRawSegments, ftp);
-      currentZone = inferZoneFromSegments(currentRawSegments);
-    } else {
-      currentMetrics = {
-        totalSec: 0,
-        durationMin: 0,
-        ifValue: null,
-        tss: null,
-        kj: null,
-        ftp: ftp || null,
-      };
-      currentZone = null;
-    }
+    backend.recomputeDerived(ftp);
 
     updateStats();
     renderChart();
@@ -1147,7 +1000,7 @@ export function createWorkoutBuilder(options) {
     if (!skipPersist) {
       try {
         const toSave = { ...state, _shouldRestore: true };
-        persistedState = toSave;
+        backend.setPersistedState(toSave);
         if (typeof saveWorkoutBuilderState === "function") {
           saveWorkoutBuilderState(toSave);
         }
@@ -1159,6 +1012,8 @@ export function createWorkoutBuilder(options) {
 
   function updateStats() {
     const ftp = getCurrentFtp() || 0;
+    const currentMetrics = backend.getCurrentMetrics();
+    const currentZone = backend.getCurrentZone();
 
     if (!currentMetrics || currentMetrics.totalSec === 0) {
       statTss.value.textContent = "--";
@@ -1189,6 +1044,9 @@ export function createWorkoutBuilder(options) {
 
   function renderChart() {
     const ftp = getCurrentFtp() || 0;
+    const currentBlocks = backend.getCurrentBlocks();
+    const selectedBlockIndex = backend.getSelectedBlockIndex();
+    const selectedBlockIndices = backend.getSelectedBlockIndices();
 
     const prevScrollLeft = chartContainer ? chartContainer.scrollLeft : 0;
     chartMiniHost.innerHTML = "";
@@ -1199,9 +1057,9 @@ export function createWorkoutBuilder(options) {
         insertAfterBlockIndex:
           dragInsertAfterIndex != null
             ? dragInsertAfterIndex
-            : insertAfterOverrideIndex != null
-              ? insertAfterOverrideIndex
-              : getInsertAfterIndex(),
+            : backend.getInsertAfterOverrideIndex() != null
+              ? backend.getInsertAfterOverrideIndex()
+              : backend.getInsertAfterIndex(),
         onSelectBlock: handleBlockSelectionFromChart,
         onSetInsertAfter: handleInsertAfterFromChart,
         onSetInsertAfterFromSegment: handleInsertAfterFromSegment,
@@ -1223,6 +1081,7 @@ export function createWorkoutBuilder(options) {
     if (!chartContainer || !chartMiniHost) return;
     const svg = chartMiniHost.querySelector("svg");
     if (!svg) return;
+    const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return;
 
     const { timings, totalSec } = buildBlockTimings(currentBlocks);
@@ -1233,6 +1092,7 @@ export function createWorkoutBuilder(options) {
     const timelineSec = Math.max(3600, totalSec || 0);
 
     let focusTimeSec = null;
+    const selectedBlockIndex = backend.getSelectedBlockIndex();
     if (
       selectedBlockIndex != null &&
       currentBlocks[selectedBlockIndex] &&
@@ -1244,9 +1104,9 @@ export function createWorkoutBuilder(options) {
       const insertAfter =
         dragInsertAfterIndex != null
           ? dragInsertAfterIndex
-          : insertAfterOverrideIndex != null
-            ? insertAfterOverrideIndex
-            : getInsertAfterIndex();
+          : backend.getInsertAfterOverrideIndex() != null
+            ? backend.getInsertAfterOverrideIndex()
+            : backend.getInsertAfterIndex();
       if (insertAfter != null) {
         const timing =
           insertAfter < 0
@@ -1272,72 +1132,28 @@ export function createWorkoutBuilder(options) {
   }
 
   function getSelectedBlock() {
-    if (
-      selectedBlockIndices.length !== 1 ||
-      selectedBlockIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[selectedBlockIndex]
-    ) {
-      return null;
-    }
-    return currentBlocks[selectedBlockIndex];
+    return backend.getSelectedBlock();
   }
 
   function setSelectedBlock(idx) {
-    const next =
-      idx == null ||
-      !Number.isFinite(idx) ||
-      idx < 0 ||
-      !currentBlocks ||
-      idx >= currentBlocks.length
-        ? null
-        : idx;
-
-    if (next === selectedBlockIndex && selectedBlockIndices.length === 1)
-      return;
-    selectedBlockIndex = next;
-    selectedBlockIndices = next == null ? [] : [next];
-    selectionAnchorIndex = next;
-    selectionAnchorCursorIndex = null;
-    insertAfterOverrideIndex = null;
-    startHistoryGroup();
+    backend.setSelectedBlock(idx);
+    backend.startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
   }
 
   function deselectBlock() {
-    if (selectedBlockIndex == null && !selectedBlockIndices.length) return;
-    const prevSelected = selectedBlockIndex;
-    selectedBlockIndex = null;
-    selectedBlockIndices = [];
-    selectionAnchorIndex = null;
-    selectionAnchorCursorIndex = null;
-    if (insertAfterOverrideIndex == null && prevSelected != null) {
-      insertAfterOverrideIndex = prevSelected;
-    }
-    startHistoryGroup();
+    backend.deselectBlock();
+    backend.startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
   }
 
   function setInsertAfterIndex(idx) {
-    const next =
-      idx == null ||
-      !Number.isFinite(idx) ||
-      idx < 0 ||
-      !currentBlocks ||
-      idx >= currentBlocks.length
-        ? null
-        : idx;
-
-    selectedBlockIndex = null;
-    selectedBlockIndices = [];
-    selectionAnchorIndex = null;
-    selectionAnchorCursorIndex = null;
-    insertAfterOverrideIndex = next;
-    startHistoryGroup();
+    backend.setInsertAfterIndex(idx);
+    backend.startHistoryGroup();
     updateBlockEditor();
     renderChart();
     emitUiState();
@@ -1349,24 +1165,27 @@ export function createWorkoutBuilder(options) {
       return;
     }
     if (opts.shiftKey) {
+      const selection = backend.getSelectionSnapshot();
       const anchor =
-        selectionAnchorIndex != null
-          ? selectionAnchorIndex
-          : selectedBlockIndex;
+        selection.selectionAnchorIndex != null
+          ? selection.selectionAnchorIndex
+          : selection.selectedBlockIndex;
       if (anchor == null || anchor === idx) {
         setSelectedBlock(idx);
         return;
       }
       const isRight = idx > anchor;
-      selectionAnchorIndex = anchor;
-      selectionAnchorCursorIndex = clampCursorIndex(
+      const anchorCursor = backend.clampCursorIndex(
         isRight ? anchor - 1 : anchor,
       );
-      const cursorIndex = clampCursorIndex(isRight ? idx : idx - 1);
-      insertAfterOverrideIndex = cursorIndex;
-      setSelectionFromCursors(selectionAnchorCursorIndex, cursorIndex, {
+      const cursorIndex = backend.clampCursorIndex(isRight ? idx : idx - 1);
+      backend.setInsertAfterOverrideIndex(cursorIndex);
+      backend.setSelectionFromCursors(anchorCursor, cursorIndex, {
         preserveInsert: true,
       });
+      updateBlockEditor();
+      renderChart();
+      emitUiState();
     } else {
       setSelectedBlock(idx);
     }
@@ -1377,15 +1196,13 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleInsertAfterFromSegment(idx) {
-    insertAfterOverrideIndex = idx;
+    backend.setInsertAfterOverrideIndex(idx);
     renderChart();
     emitUiState();
   }
 
   function clampCursorIndex(val) {
-    if (!currentBlocks || !currentBlocks.length) return -1;
-    const n = Number.isFinite(val) ? val : -1;
-    return Math.max(-1, Math.min(n, currentBlocks.length - 1));
+    return backend.clampCursorIndex(val);
   }
 
   function setSelectionFromCursors(
@@ -1393,111 +1210,37 @@ export function createWorkoutBuilder(options) {
     cursorIndex,
     options = {},
   ) {
-    if (!currentBlocks || !currentBlocks.length) return;
-    const { preserveInsert = false } = options;
-    const anchorCursor = clampCursorIndex(anchorCursorIndex);
-    const cursor = clampCursorIndex(cursorIndex);
-    selectionAnchorCursorIndex = anchorCursor;
-
-    const start = Math.min(anchorCursor, cursor) + 1;
-    const end = Math.max(anchorCursor, cursor);
-    selectedBlockIndices = [];
-    selectedBlockIndex = null;
-
-    if (start <= end && end >= 0 && start < currentBlocks.length) {
-      const clampedStart = Math.max(0, start);
-      const clampedEnd = Math.min(currentBlocks.length - 1, end);
-      for (let i = clampedStart; i <= clampedEnd; i += 1) {
-        selectedBlockIndices.push(i);
-      }
-      if (cursor > anchorCursor) {
-        selectedBlockIndex = clampedEnd;
-      } else if (cursor < anchorCursor) {
-        selectedBlockIndex = clampedStart;
-      }
-      if (selectionAnchorIndex == null) {
-        selectionAnchorIndex =
-          anchorCursor < cursor ? anchorCursor + 1 : anchorCursor;
-      }
-    }
-    if (!selectedBlockIndices.length) {
-      selectionAnchorIndex = null;
-      selectionAnchorCursorIndex = null;
-    }
-
-    if (!preserveInsert) {
-      insertAfterOverrideIndex = cursor;
-    }
+    backend.setSelectionFromCursors(anchorCursorIndex, cursorIndex, options);
     updateBlockEditor();
     renderChart();
     emitUiState();
   }
 
   function shiftMoveSelection(direction) {
-    if (!currentBlocks || !currentBlocks.length) return;
-    const current =
-      insertAfterOverrideIndex != null
-        ? insertAfterOverrideIndex
-        : (getInsertAfterIndex() ?? -1);
-    const next = clampCursorIndex(current + direction);
-    if (next === current) return;
-
-    if (selectionAnchorCursorIndex != null) {
-      insertAfterOverrideIndex = next;
-      setSelectionFromCursors(selectionAnchorCursorIndex, next, {
-        preserveInsert: true,
-      });
-      return;
-    }
-
-    if (selectedBlockIndices.length) {
-      const anchor =
-        selectionAnchorIndex != null
-          ? selectionAnchorIndex
-          : selectedBlockIndex;
-      if (anchor == null) {
-        insertAfterOverrideIndex = next;
-        renderChart();
-        return;
-      }
-      const anchorCursor = clampCursorIndex(
-        direction > 0 ? anchor - 1 : anchor,
-      );
-      const cursor = clampCursorIndex(direction > 0 ? anchor + 1 : anchor - 2);
-      selectionAnchorIndex = anchor;
-      selectionAnchorCursorIndex = anchorCursor;
-      insertAfterOverrideIndex = cursor;
-      setSelectionFromCursors(anchorCursor, cursor, { preserveInsert: true });
-      return;
-    }
-
-    const anchorCursor = clampCursorIndex(current);
-    const anchorIndex = direction > 0 ? anchorCursor + 1 : anchorCursor;
-    selectionAnchorCursorIndex = anchorCursor;
-    selectionAnchorIndex =
-      anchorIndex >= 0 && anchorIndex < currentBlocks.length
-        ? anchorIndex
-        : null;
-    insertAfterOverrideIndex = next;
-    setSelectionFromCursors(anchorCursor, next, { preserveInsert: true });
+    backend.shiftMoveSelection(direction);
+    updateBlockEditor();
+    renderChart();
+    emitUiState();
   }
 
   function emitUiState() {
     if (typeof onUiStateChange !== "function") return;
-    onUiStateChange({ hasSelection: selectedBlockIndices.length > 0 });
+    onUiStateChange({ hasSelection: backend.hasSelection() });
   }
 
   function getSelectedIndicesSorted() {
-    return selectedBlockIndices.slice().sort((a, b) => a - b);
+    return backend.getSelectedIndicesSorted();
   }
 
   async function copySelectionToClipboard() {
-    if (!selectedBlockIndices.length) {
+    if (!backend.hasSelection()) {
       return;
     }
     const indices = getSelectedIndicesSorted();
-    const blocks = indices.map((idx) => currentBlocks[idx]).filter(Boolean);
-    const rawSegments = buildRawSegmentsFromBlocks(blocks);
+    const blocks = indices
+      .map((idx) => backend.getCurrentBlocks()[idx])
+      .filter(Boolean);
+    const rawSegments = backend.buildRawSegmentsFromBlocks(blocks);
     if (!rawSegments.length) {
       return;
     }
@@ -1537,7 +1280,7 @@ export function createWorkoutBuilder(options) {
     if (!text) return;
     const canonical = parseZwoXmlToCanonicalWorkout(text);
     if (!canonical || !Array.isArray(canonical.rawSegments)) return;
-    const blocks = segmentsToBlocks(canonical.rawSegments);
+    const blocks = backend.segmentsToBlocks(canonical.rawSegments);
     if (!blocks.length) return;
     insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
   }
@@ -1630,9 +1373,10 @@ export function createWorkoutBuilder(options) {
   }
 
   function updateUndoRedoButtons() {
-    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
-    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
-    if (copyBtn) copyBtn.disabled = selectedBlockIndices.length === 0;
+    const history = backend.getHistoryStatus();
+    if (undoBtn) undoBtn.disabled = !history.canUndo;
+    if (redoBtn) redoBtn.disabled = !history.canRedo;
+    if (copyBtn) copyBtn.disabled = !backend.hasSelection();
   }
 
   function buildBlockTimings(blocks) {
@@ -1820,17 +1564,18 @@ export function createWorkoutBuilder(options) {
   }
 
   function computeInsertIndexFromPoint(blockIndex, segIndex, clientX) {
+    const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return null;
     const svg = chartMiniHost ? chartMiniHost.querySelector("svg") : null;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
     const width = rect.width || 1;
     const clampedX = Math.max(0, Math.min(width, clientX - rect.left));
-    const { totalSec } = buildBlockTimings(currentBlocks);
+    const { totalSec } = backend.buildBlockTimings(currentBlocks);
     const timelineSec = Math.max(3600, totalSec || 0);
     const timeSec = (clampedX / width) * timelineSec;
 
-    const { timings: blockTimings } = buildBlockTimings(currentBlocks);
+    const { timings: blockTimings } = backend.buildBlockTimings(currentBlocks);
     const blockTiming = blockTimings.find((t) => t.index === blockIndex);
     const block = currentBlocks[blockIndex];
 
@@ -1843,7 +1588,7 @@ export function createWorkoutBuilder(options) {
       return timeSec < mid ? blockIndex - 1 : blockIndex;
     }
 
-    const { timings: segmentTimings } = buildSegmentTimings(currentBlocks);
+    const { timings: segmentTimings } = backend.buildSegmentTimings(currentBlocks);
     const seg = segmentTimings.find(
       (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
     );
@@ -1856,56 +1601,31 @@ export function createWorkoutBuilder(options) {
   }
 
   function snapPowerRel(rel) {
-    const snapped = Math.round(rel * 20) / 20;
-    return Math.max(0.05, snapped);
+    return backend.snapPowerRel(rel);
   }
 
   function clampRel(val) {
-    return Math.max(0.05, Number.isFinite(val) ? val : 0);
+    return backend.clampRel(val);
   }
 
   function snapDurationSec(sec) {
-    const step = getDurationStep(sec);
-    const snapped = Math.round(sec / step) * step;
-    return Math.max(step, snapped);
+    return backend.snapDurationSec(sec);
   }
 
   function getDurationStep(sec) {
-    if (sec < 60) return 10;
-    if (sec < 180) return 30;
-    return 60;
+    return backend.getDurationStep(sec);
   }
 
   function reorderBlocks(fromIndex, insertAfterIndex) {
-    if (
-      fromIndex == null ||
-      insertAfterIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[fromIndex]
-    ) {
-      return;
-    }
-
-    let target = insertAfterIndex;
-    if (target >= fromIndex) target -= 1;
-    if (target < -1) target = -1;
-    if (target + 1 === fromIndex) {
-      dragInsertAfterIndex = null;
-      renderChart();
-      return;
-    }
-
-    recordHistorySnapshot();
-    const updated = currentBlocks.slice();
-    const [moving] = updated.splice(fromIndex, 1);
-    updated.splice(target + 1, 0, moving);
-
-    selectedBlockIndex = null;
+    const didMove = backend.reorderBlocks(fromIndex, insertAfterIndex);
+    if (!didMove) return;
     dragInsertAfterIndex = null;
-    commitBlocks(updated, { selectIndex: target + 1 });
+    handleAnyChange();
   }
 
   function updateErrorStyling() {
+    const currentBlocks = backend.getCurrentBlocks();
+    const currentErrors = backend.getCurrentErrors();
     if (!currentBlocks || !currentBlocks.length) {
       setStatusMessage("Empty workout. Add elements to begin.", "neutral");
       return;
@@ -1921,7 +1641,7 @@ export function createWorkoutBuilder(options) {
   }
 
   async function clearPersistedState() {
-    persistedState = null;
+    backend.setPersistedState(null);
     try {
       if (typeof clearWorkoutBuilderState === "function") {
         await clearWorkoutBuilderState();
@@ -1944,9 +1664,15 @@ export function createWorkoutBuilder(options) {
     sourceField.input.value = state.source || "";
     descField.textarea.value = state.description || "";
     urlInput.value = state.sourceURL || "";
-    currentBlocks = segmentsToBlocks(state.rawSegments);
-    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
-    currentErrors = [];
+    backend.setMeta({
+      workoutTitle: nameField.input.value,
+      source: sourceField.input.value,
+      description: descField.textarea.value,
+      sourceURL: urlInput.value,
+    });
+    backend.commitBlocks(backend.segmentsToBlocks(state.rawSegments), {
+      selectIndex: null,
+    });
 
     if (skipPersist) {
       refreshLayout({ skipPersist: true });
@@ -1956,6 +1682,7 @@ export function createWorkoutBuilder(options) {
   }
 
   async function restorePersistedStateOrDefault() {
+    const persistedState = backend.getPersistedState();
     if (
       persistedState &&
       Array.isArray(persistedState.rawSegments) &&
@@ -1972,7 +1699,7 @@ export function createWorkoutBuilder(options) {
   function updateBlockEditor() {
     if (!blockEditor || !toolbarButtons) return;
 
-    const selectionCount = selectedBlockIndices.length;
+    const selectionCount = backend.getSelectedBlockIndices().length;
     const block = getSelectedBlock();
     if (!selectionCount) {
       toolbarButtons.style.display = "";
@@ -2010,7 +1737,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function buildBlockFieldConfigs(block) {
-    const idx = selectedBlockIndex;
+    const idx = backend.getSelectedBlockIndex();
     const list = [];
     const durationSec = Math.round(getBlockDurationSec(block));
 
@@ -2246,270 +1973,75 @@ export function createWorkoutBuilder(options) {
   }
 
   function commitBlocks(updatedBlocks, options = {}) {
-    currentBlocks = updatedBlocks || [];
-    currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
-    currentErrors = [];
-
-    if (options.selectIndex !== undefined) {
-      selectedBlockIndex = options.selectIndex;
-      if (options.selectIndex == null) {
-        selectedBlockIndices = [];
-        selectionAnchorIndex = null;
-        selectionAnchorCursorIndex = null;
-      } else {
-        selectedBlockIndices = [options.selectIndex];
-        selectionAnchorIndex = options.selectIndex;
-        selectionAnchorCursorIndex = null;
-      }
-    }
-
+    backend.commitBlocks(updatedBlocks, options);
     handleAnyChange({ skipPersist: options.skipPersist });
   }
 
   function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {
-    if (blockIndex == null || !currentBlocks || !currentBlocks[blockIndex]) {
-      return;
-    }
-
-    const oldStartEnd = getBlockStartEnd(currentBlocks[blockIndex]);
-    recordHistorySnapshot();
-    const updatedBlocks = currentBlocks.map((block, idx) => {
-      if (idx !== blockIndex) return block;
-      const nextBlock = {
-        ...block,
-        attrs: { ...(block.attrs || {}), ...attrs },
-      };
-      return {
-        ...nextBlock,
-        segments: buildSegmentsForBlock(nextBlock),
-      };
-    });
-
-    const newStartEnd = getBlockStartEnd(updatedBlocks[blockIndex]);
-    if (oldStartEnd && newStartEnd) {
-      syncAdjacentRampLinks(
-        updatedBlocks,
-        blockIndex,
-        oldStartEnd,
-        newStartEnd,
-      );
-    }
-
+    if (blockIndex == null) return;
+    backend.applyBlockAttrUpdate(blockIndex, attrs);
     const nextIndex =
       options.select === false
-        ? selectedBlockIndex
-        : blockIndex < currentBlocks.length
+        ? backend.getSelectedBlockIndex()
+        : blockIndex < backend.getCurrentBlocks().length
           ? blockIndex
           : null;
-    commitBlocks(updatedBlocks, { selectIndex: nextIndex });
+    backend.commitBlocks(backend.getCurrentBlocks(), { selectIndex: nextIndex });
+    handleAnyChange();
   }
 
   function deleteSelectedBlock() {
-    if (!currentBlocks || !currentBlocks.length) return;
-    if (!selectedBlockIndices.length) return;
-
-    const indices = selectedBlockIndices.slice().sort((a, b) => a - b);
-    const deleteIndex = indices[0];
-    recordHistorySnapshot();
-    const updatedBlocks = currentBlocks.filter(
-      (_block, idx) => !indices.includes(idx),
-    );
-
-    if (!updatedBlocks.length) {
-      selectedBlockIndex = null;
-      selectedBlockIndices = [];
-      selectionAnchorIndex = null;
-      selectionAnchorCursorIndex = null;
-      commitBlocks(updatedBlocks, { selectIndex: null });
-      return;
-    }
-
-    const nextIndex =
-      deleteIndex > 0 ? Math.min(deleteIndex - 1, updatedBlocks.length - 1) : 0;
-    insertAfterOverrideIndex = nextIndex;
-    selectedBlockIndex = null;
-    selectedBlockIndices = [];
-    selectionAnchorIndex = null;
-    selectionAnchorCursorIndex = null;
-    commitBlocks(updatedBlocks, { selectIndex: null });
+    backend.deleteSelectedBlock();
+    handleAnyChange();
   }
 
   function moveSelectedBlock(direction) {
-    if (
-      selectedBlockIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[selectedBlockIndex]
-    ) {
-      return;
-    }
-
-    const idx = selectedBlockIndex;
-    const target = idx + direction;
-    if (target < 0 || target >= currentBlocks.length) return;
-
-    recordHistorySnapshot();
-    const updated = currentBlocks.slice();
-    const [moving] = updated.splice(idx, 1);
-    updated.splice(target, 0, moving);
-
-    commitBlocks(updated, { selectIndex: target });
+    backend.moveSelectedBlock(direction);
+    handleAnyChange();
   }
 
   function getBlockDurationSec(block) {
-    if (!block) return 0;
-    const attrVal = block.attrs?.durationSec;
-    if (Number.isFinite(attrVal) && attrVal > 0) return attrVal;
-    const segs = Array.isArray(block.segments) ? block.segments : [];
-    return segs.reduce(
-      (sum, seg) => sum + Math.max(0, Number(seg?.durationSec) || 0),
-      0,
-    );
+    return backend.getBlockDurationSec(block);
   }
 
   function getBlockSteadyPower(block) {
-    if (!block) return 0;
-    const attrVal = block.attrs?.powerRel;
-    if (Number.isFinite(attrVal)) return attrVal;
-    const first = block.segments?.[0];
-    if (first && Number.isFinite(first.pStartRel)) return first.pStartRel;
-    return 0;
+    return backend.getBlockSteadyPower(block);
   }
 
   function getRampLow(block) {
-    if (!block) return 0;
-    const attrVal = block.attrs?.powerLowRel;
-    if (Number.isFinite(attrVal)) return attrVal;
-    const first = block.segments?.[0];
-    if (first && Number.isFinite(first.pStartRel)) return first.pStartRel;
-    return 0;
+    return backend.getRampLow(block);
   }
 
   function getRampHigh(block) {
-    if (!block) return 0;
-    const attrVal = block.attrs?.powerHighRel;
-    if (Number.isFinite(attrVal)) return attrVal;
-    const last = block.segments?.[block.segments.length - 1];
-    if (last && Number.isFinite(last.pEndRel)) return last.pEndRel;
-    return getRampLow(block);
+    return backend.getRampHigh(block);
   }
 
   function getIntervalParts(block) {
-    const attrs = block?.attrs || {};
-    const segs = Array.isArray(block?.segments) ? block.segments : [];
-    const onSeg = segs[0];
-    const offSeg = segs[1];
-    return {
-      repeat: Number.isFinite(attrs.repeat)
-        ? attrs.repeat
-        : Math.max(1, Math.round(segs.length / 2)),
-      onDurationSec: Number.isFinite(attrs.onDurationSec)
-        ? attrs.onDurationSec
-        : onSeg?.durationSec || 0,
-      offDurationSec: Number.isFinite(attrs.offDurationSec)
-        ? attrs.offDurationSec
-        : offSeg?.durationSec || 0,
-      onPowerRel: Number.isFinite(attrs.onPowerRel)
-        ? attrs.onPowerRel
-        : onSeg?.pStartRel || 0,
-      offPowerRel: Number.isFinite(attrs.offPowerRel)
-        ? attrs.offPowerRel
-        : offSeg?.pStartRel || 0,
-    };
+    return backend.getIntervalParts(block);
   }
 
   function createBlock(kind, attrs) {
-    const block = {
-      kind,
-      attrs: { ...(attrs || {}) },
-    };
-    return {
-      ...block,
-      segments: buildSegmentsForBlock(block),
-    };
+    return backend.createBlock(kind, attrs);
   }
 
   function buildSegmentsForBlock(block) {
-    if (!block || !block.kind) return [];
-    const attrs = block.attrs || {};
-
-    if (block.kind === "steady") {
-      const durationSec = clampDuration(
-        attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
-      );
-      const powerRel = attrs.powerRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
-      return [
-        {
-          durationSec,
-          pStartRel: powerRel,
-          pEndRel: powerRel,
-        },
-      ];
-    }
-
-    if (block.kind === "warmup" || block.kind === "cooldown") {
-      const durationSec = clampDuration(
-        attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
-      );
-      const low = attrs.powerLowRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
-      const high = attrs.powerHighRel ?? block.segments?.[0]?.pEndRel ?? low;
-      return [
-        {
-          durationSec,
-          pStartRel: low,
-          pEndRel: high,
-        },
-      ];
-    }
-
-    if (block.kind === "intervals") {
-      const parts = getIntervalParts(block);
-      const repeat = clampRepeat(attrs.repeat ?? parts.repeat);
-      const onDurationSec = clampDuration(
-        attrs.onDurationSec ?? parts.onDurationSec,
-      );
-      const offDurationSec = clampDuration(
-        attrs.offDurationSec ?? parts.offDurationSec,
-      );
-      const onPowerRel = attrs.onPowerRel ?? parts.onPowerRel;
-      const offPowerRel = attrs.offPowerRel ?? parts.offPowerRel;
-      const segments = [];
-      for (let i = 0; i < repeat; i += 1) {
-        segments.push({
-          durationSec: onDurationSec,
-          pStartRel: onPowerRel,
-          pEndRel: onPowerRel,
-        });
-        segments.push({
-          durationSec: offDurationSec,
-          pStartRel: offPowerRel,
-          pEndRel: offPowerRel,
-        });
-      }
-      return segments;
-    }
-
-    return block.segments || [];
+    return backend.buildSegmentsForBlock(block);
   }
 
   function clampDuration(val) {
-    const n = Number(val);
-    return Math.max(1, Math.round(Number.isFinite(n) ? n : 0));
+    return backend.clampDuration(val);
   }
 
   function clampRepeat(val) {
-    const n = Number(val);
-    return Math.max(1, Math.round(Number.isFinite(n) ? n : 1));
+    return backend.clampRepeat(val);
   }
 
   function clampPowerPercent(val) {
-    const n = Number(val);
-    return Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+    return backend.clampPowerPercent(val);
   }
 
   function getInsertAfterIndex() {
-    if (insertAfterOverrideIndex != null) return insertAfterOverrideIndex;
-    if (selectedBlockIndex != null) return selectedBlockIndex;
-    return null;
+    return backend.getInsertAfterIndex();
   }
 
   function createWorkoutElementIcon(kind) {
@@ -2728,259 +2260,35 @@ export function createWorkoutBuilder(options) {
   }
 
   function insertBlockAtInsertionPoint(spec, options = {}) {
-    const block = buildBlockFromSpec(spec);
-    if (!block) return null;
-    const { selectOnInsert = true } = options;
-
-    const insertAfterIndex = getInsertAfterIndex();
-    const insertIndex =
-      insertAfterIndex == null
-        ? currentBlocks.length
-        : Math.max(0, insertAfterIndex + 1);
-
-    recordHistorySnapshot();
-    const updated = currentBlocks.slice();
-    const prevBlock = insertIndex > 0 ? updated[insertIndex - 1] : null;
-    const nextBlock =
-      insertIndex < updated.length ? updated[insertIndex] : null;
-
-    if (block.kind === "warmup") {
-      const durationSec = prevBlock ? 120 : 360;
-      block.attrs = { ...(block.attrs || {}), durationSec };
-      block.segments = buildSegmentsForBlock(block);
-    } else if (block.kind === "cooldown") {
-      const durationSec = nextBlock ? 120 : 360;
-      block.attrs = { ...(block.attrs || {}), durationSec };
-      block.segments = buildSegmentsForBlock(block);
-    }
-
-    updated.splice(insertIndex, 0, block);
-
-    if (block.kind === "steady") {
-      adjustAdjacentRampsForSteady(updated, insertIndex, block);
-    }
-
-    insertAfterOverrideIndex = insertIndex;
-    commitBlocks(updated, { selectIndex: selectOnInsert ? insertIndex : null });
+    const insertIndex = backend.insertBlockAtInsertionPoint(spec, options);
+    handleAnyChange();
     return insertIndex;
   }
 
   function insertBlocksAtInsertionPoint(blocks, options = {}) {
-    if (!Array.isArray(blocks) || !blocks.length) return null;
-    const { selectOnInsert = false } = options;
-    const insertAfterIndex = getInsertAfterIndex();
-    const insertIndex =
-      insertAfterIndex == null
-        ? currentBlocks.length
-        : Math.max(0, insertAfterIndex + 1);
-
-    recordHistorySnapshot();
-    const updated = currentBlocks.slice();
-    const copies = cloneBlocks(blocks);
-    updated.splice(insertIndex, 0, ...copies);
-
-    insertAfterOverrideIndex = insertIndex + copies.length - 1;
-    commitBlocks(updated, {
-      selectIndex: selectOnInsert ? insertIndex : null,
-    });
+    const insertIndex = backend.insertBlocksAtInsertionPoint(blocks, options);
+    handleAnyChange();
     return insertIndex;
   }
 
   function buildBlockFromSpec(spec) {
-    if (!spec || !spec.kind) return null;
-    const kind = spec.kind;
-    const attrs = {};
-
-    if (kind === "steady") {
-      attrs.durationSec = clampDuration(spec.durationSec ?? 300);
-      attrs.powerRel = clampRel(spec.powerRel ?? 0.5);
-    } else if (kind === "warmup" || kind === "cooldown") {
-      attrs.durationSec = clampDuration(spec.durationSec ?? 600);
-      attrs.powerLowRel = clampRel(spec.powerLowRel ?? 0.5);
-      attrs.powerHighRel = clampRel(spec.powerHighRel ?? 0.75);
-    } else if (kind === "intervals") {
-      attrs.repeat = clampRepeat(spec.repeat ?? 3);
-      attrs.onDurationSec = clampDuration(spec.onDurationSec ?? 300);
-      attrs.offDurationSec = clampDuration(spec.offDurationSec ?? 180);
-      attrs.onPowerRel = clampRel(spec.onPowerRel ?? 0.9);
-      attrs.offPowerRel = clampRel(spec.offPowerRel ?? 0.5);
-    }
-
-    const base = createBlock(kind, attrs);
-    if (kind === "warmup" || kind === "cooldown") {
-      return buildContextualRampBlock(kind, base);
-    }
-
-    return base;
+    return backend.buildBlockFromSpec(spec);
   }
 
   function adjustAdjacentRampsForSteady(blocks, insertIndex, steadyBlock) {
-    const powerRel = getBlockSteadyPower(steadyBlock);
-    const prevBlock = insertIndex > 0 ? blocks[insertIndex - 1] : null;
-    const nextBlock =
-      insertIndex + 1 < blocks.length ? blocks[insertIndex + 1] : null;
-
-    if (
-      prevBlock &&
-      (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")
-    ) {
-      const start = getRampLow(prevBlock);
-      const nextEnd = powerRel;
-      const isWarmup = prevBlock.kind === "warmup";
-      const keepsDirection = isWarmup ? nextEnd >= start : nextEnd <= start;
-      if (keepsDirection) {
-        prevBlock.attrs = { ...(prevBlock.attrs || {}), powerHighRel: nextEnd };
-        prevBlock.segments = buildSegmentsForBlock(prevBlock);
-      }
-    }
-
-    if (
-      nextBlock &&
-      (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")
-    ) {
-      const end = getRampHigh(nextBlock);
-      const nextStart = powerRel;
-      const isWarmup = nextBlock.kind === "warmup";
-      const keepsDirection = isWarmup ? nextStart <= end : nextStart >= end;
-      if (keepsDirection) {
-        nextBlock.attrs = {
-          ...(nextBlock.attrs || {}),
-          powerLowRel: nextStart,
-        };
-        nextBlock.segments = buildSegmentsForBlock(nextBlock);
-      }
-    }
+    backend.adjustAdjacentRampsForSteady(blocks, insertIndex, steadyBlock);
   }
 
   function buildContextualRampBlock(kind, fallbackBlock) {
-    const insertAfterIndex = getInsertAfterIndex();
-    if (insertAfterIndex == null) return fallbackBlock;
-
-    const prevBlock = currentBlocks?.[insertAfterIndex] || null;
-    const nextBlock = currentBlocks?.[insertAfterIndex + 1] || null;
-    const prev = getBlockStartEnd(prevBlock);
-    const next = getBlockStartEnd(nextBlock);
-
-    if (!prev && !next) return fallbackBlock;
-
-    const duration = clampDuration(
-      fallbackBlock.attrs?.durationSec ||
-        fallbackBlock.segments?.[0]?.durationSec ||
-        600,
-    );
-    const delta = 0.25;
-    let low = null;
-    let high = null;
-
-    if (prev && next) {
-      if (kind === "warmup" && next.start > prev.end) {
-        low = prev.end;
-        high = next.start;
-      } else if (kind === "cooldown" && next.start < prev.end) {
-        low = prev.end;
-        high = next.start;
-      } else {
-        low = prev.end;
-        high = kind === "warmup" ? low + delta : low - delta;
-      }
-    } else if (!prev && next) {
-      high = next.start;
-      low = high - delta;
-    } else if (prev && !next) {
-      low = prev.end;
-      high = kind === "warmup" ? low + delta : low - delta;
-    }
-
-    if (low == null || high == null) return fallbackBlock;
-
-    low = clampRel(low);
-    high = clampRel(high);
-
-    const seg = {
-      durationSec: duration,
-      pStartRel: low,
-      pEndRel: high,
-    };
-
-    return {
-      ...fallbackBlock,
-      segments: [seg],
-      attrs: {
-        ...(fallbackBlock.attrs || {}),
-        durationSec: duration,
-        powerLowRel: low,
-        powerHighRel: high,
-      },
-    };
+    return backend.buildContextualRampBlock(kind, fallbackBlock);
   }
 
   function getBlockStartEnd(block) {
-    if (!block) return null;
-    const segs = Array.isArray(block.segments) ? block.segments : [];
-    if (segs.length) {
-      const first = segs[0];
-      const last = segs[segs.length - 1];
-      const start = Number.isFinite(first?.pStartRel) ? first.pStartRel : null;
-      const end = Number.isFinite(last?.pEndRel) ? last.pEndRel : start;
-      if (start != null && end != null) {
-        return { start, end };
-      }
-    }
-
-    const attrs = block.attrs || {};
-    if (block.kind === "steady") {
-      const power = attrs.powerRel;
-      if (Number.isFinite(power)) return { start: power, end: power };
-    } else if (block.kind === "warmup" || block.kind === "cooldown") {
-      const low = attrs.powerLowRel;
-      const high = attrs.powerHighRel;
-      if (Number.isFinite(low) && Number.isFinite(high)) {
-        return { start: low, end: high };
-      }
-    } else if (block.kind === "intervals") {
-      const on = attrs.onPowerRel;
-      const off = attrs.offPowerRel;
-      if (Number.isFinite(on) && Number.isFinite(off)) {
-        return { start: on, end: off };
-      }
-    }
-
-    return null;
+    return backend.getBlockStartEnd(block);
   }
 
   function syncAdjacentRampLinks(blocks, blockIndex, oldStartEnd, newStartEnd) {
-    const EPS = 1e-6;
-    const prevBlock = blockIndex > 0 ? blocks[blockIndex - 1] : null;
-    const nextBlock =
-      blockIndex + 1 < blocks.length ? blocks[blockIndex + 1] : null;
-
-    if (
-      prevBlock &&
-      (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")
-    ) {
-      const prevEnd = getRampHigh(prevBlock);
-      if (Math.abs(prevEnd - oldStartEnd.start) <= EPS) {
-        prevBlock.attrs = {
-          ...(prevBlock.attrs || {}),
-          powerHighRel: newStartEnd.start,
-        };
-        prevBlock.segments = buildSegmentsForBlock(prevBlock);
-      }
-    }
-
-    if (
-      nextBlock &&
-      (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")
-    ) {
-      const nextStart = getRampLow(nextBlock);
-      if (Math.abs(nextStart - oldStartEnd.end) <= EPS) {
-        nextBlock.attrs = {
-          ...(nextBlock.attrs || {}),
-          powerLowRel: newStartEnd.end,
-        };
-        nextBlock.segments = buildSegmentsForBlock(nextBlock);
-      }
-    }
+    backend.syncAdjacentRampLinks(blocks, blockIndex, oldStartEnd, newStartEnd);
   }
 
   function handleChartPointerDown(e) {
