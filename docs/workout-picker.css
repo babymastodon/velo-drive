@@ -856,12 +856,13 @@
   flex-wrap: wrap;
   font-size: var(--font-size-base);
   width: 100%;
+  --wb-action-gap: 6px;
 }
 
 .wb-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--wb-action-gap);
   margin-left: auto;
 }
 
@@ -962,7 +963,7 @@
   display: none;
   align-items: center;
   margin-left: auto;
-  gap: 6px;
+  gap: var(--wb-action-gap);
 }
 
 .wb-block-delete-btn {
