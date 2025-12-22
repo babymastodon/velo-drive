@@ -897,7 +897,8 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .wb-block-editor-fields {
