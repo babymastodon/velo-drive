@@ -20,6 +20,7 @@ import {
 
 import { createWorkoutBuilder } from "./workout-builder.js";
 import { renderMiniWorkoutGraph } from "./workout-chart.js";
+import { parseTrainerDayUrl } from "./scrapers.js";
 
 import {
   ensureDirPermission,
@@ -203,6 +204,9 @@ function createWorkoutPicker(config) {
   const addWorkoutBtn = modal.querySelector("#pickerAddWorkoutBtn");
   const builderBackBtn = modal.querySelector("#workoutBuilderBackBtn");
   const builderSaveBtn = modal.querySelector("#workoutBuilderSaveBtn");
+  const builderTrainerDayBtn = modal.querySelector(
+    "#workoutBuilderTrainerDayBtn",
+  );
   const builderRoot = modal.querySelector("#workoutBuilderRoot");
   const builderStatusEl = modal.querySelector("#workoutBuilderStatus");
   const builderFooter = modal.querySelector("#builderFooter");
@@ -263,6 +267,34 @@ function createWorkoutPicker(config) {
         updateBuilderShortcuts(state?.hasSelection);
       },
     });
+
+  if (builderTrainerDayBtn) {
+    builderTrainerDayBtn.addEventListener("click", async (evt) => {
+      evt.preventDefault();
+      if (!workoutBuilder) return;
+      const url = window.prompt("Paste TrainerDay workout URL");
+      if (!url) return;
+      const [canonical, error] = await parseTrainerDayUrl(url.trim());
+      if (!canonical) {
+        if (error) alert(error);
+        return;
+      }
+      suppressBuilderDirty = true;
+      try {
+        workoutBuilder.loadCanonicalWorkout(canonical);
+        workoutBuilder.refreshLayout();
+        builderOriginalTitle = null;
+        builderBaseline = cloneCanonicalWorkout(canonical);
+        hasUnsavedBuilderChanges = true;
+        if (titleEl) {
+          titleEl.textContent =
+            canonical.workoutTitle || "TrainerDay Workout";
+        }
+      } finally {
+        suppressBuilderDirty = false;
+      }
+    });
+  }
 
 
   // --------------------------- helpers for derived info ---------------------------
@@ -923,6 +955,7 @@ function createWorkoutPicker(config) {
     if (durationFilter) durationFilter.style.display = "none";
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
+    if (builderTrainerDayBtn) builderTrainerDayBtn.style.display = "inline-flex";
     if (builderSaveBtn) builderSaveBtn.style.display = "inline-flex";
     if (builderBackBtn) builderBackBtn.style.display = "inline-flex";
 
@@ -956,6 +989,7 @@ function createWorkoutPicker(config) {
     if (zoneFilter) zoneFilter.style.display = "";
     if (durationFilter) durationFilter.style.display = "";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "inline-flex";
+    if (builderTrainerDayBtn) builderTrainerDayBtn.style.display = "none";
     if (builderSaveBtn) builderSaveBtn.style.display = "none";
     if (builderBackBtn) builderBackBtn.style.display = "none";
     resetHeaderStatus();

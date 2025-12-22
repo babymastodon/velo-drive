@@ -520,6 +520,31 @@ export async function parseTrainerDayPage() {
   }
 }
 
+/**
+ * Parse a TrainerDay workout URL into a CanonicalWorkout tuple.
+ *
+ * @param {string} urlString
+ * @returns {Promise<[CanonicalWorkout|null, string|null]>}
+ */
+export async function parseTrainerDayUrl(urlString) {
+  if (!urlString || typeof urlString !== "string") {
+    return [null, "Please enter a TrainerDay workout URL."];
+  }
+
+  let url;
+  try {
+    url = new URL(urlString);
+  } catch {
+    return [null, "That does not look like a valid URL."];
+  }
+
+  if (!url.hostname.includes("trainerday.com")) {
+    return [null, "Please enter a TrainerDay workout URL."];
+  }
+
+  return importTrainerDayFromPathAndSource(url.pathname, url.toString());
+}
+
 // ---------- WhatsOnZwift (DOM helpers) ----------
 
 function extractWozTitleFromDoc(doc) {
