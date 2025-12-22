@@ -500,84 +500,104 @@ export function createBuilderBackend() {
   }
 
   function segmentsToBlocks(segments) {
-    if (!Array.isArray(segments)) return [];
+    if (!Array.isArray(segments) || !segments.length) return [];
+    const normalized = [];
 
-    const normalized = segments
-      .map((seg) => {
-        if (!Array.isArray(seg)) return null;
-        const mins = Number(seg[0]) || 0;
-        const startPct = Number(seg[1]) || 0;
-        const endPct = seg[2] != null ? Number(seg[2]) : startPct;
-        return {
-          durationSec: Math.max(1, Math.round(mins * 60)),
-          pStartRel: clampRel(startPct / 100),
-          pEndRel: clampRel(endPct / 100),
-        };
-      })
-      .filter(Boolean);
+    for (const seg of segments) {
+      if (!Array.isArray(seg) || seg.length < 2) continue;
+      const minutes = Number(seg[0]);
+      let startVal = Number(seg[1]);
+      let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
+
+      if (
+        !Number.isFinite(minutes) ||
+        minutes <= 0 ||
+        !Number.isFinite(startVal) ||
+        !Number.isFinite(endVal)
+      ) {
+        continue;
+      }
+
+      const toRel = (v) => (v <= 5 ? v : v / 100);
+      const durationSec = clampDuration(minutes * 60);
+      const pStartRel = clampRel(toRel(startVal));
+      const pEndRel = clampRel(toRel(endVal));
+
+      if (Math.abs(pStartRel - pEndRel) < 1e-6) {
+        normalized.push({
+          kind: "steady",
+          durationSec,
+          powerRel: pStartRel,
+        });
+      } else if (pEndRel > pStartRel) {
+        normalized.push({
+          kind: "rampUp",
+          durationSec,
+          powerLowRel: pStartRel,
+          powerHighRel: pEndRel,
+        });
+      } else {
+        normalized.push({
+          kind: "rampDown",
+          durationSec,
+          powerLowRel: pStartRel,
+          powerHighRel: pEndRel,
+        });
+      }
+    }
+
+    if (!normalized.length) return [];
 
     /** @type {ReturnType<typeof createBlock>[]} */
     const blocks = [];
+    const DUR_TOL = 1;
+    const PWR_TOL = 0.01;
     let i = 0;
+
     while (i < normalized.length) {
-      const current = normalized[i];
-      const next = normalized[i + 1];
-      if (!current) {
-        i += 1;
-        continue;
-      }
+      if (i + 3 < normalized.length) {
+        const firstA = normalized[i];
+        const firstB = normalized[i + 1];
 
-      const canInterval =
-        next &&
-        blocksSimilarSteady(current, next, 15, 0.02) &&
-        blocksSimilarSteady(current, normalized[i + 2], 15, 0.02);
+        if (firstA.kind === "steady" && firstB.kind === "steady") {
+          let repeat = 1;
+          let j = i + 2;
 
-      if (canInterval) {
-        let repeat = 1;
-        let j = i;
-        while (
-          normalized[j] &&
-          normalized[j + 1] &&
-          blocksSimilarSteady(normalized[j], normalized[j + 1], 15, 0.02)
-        ) {
-          repeat += 1;
-          j += 2;
+          while (j + 1 < normalized.length) {
+            const nextA = normalized[j];
+            const nextB = normalized[j + 1];
+
+            if (
+              nextA.kind !== "steady" ||
+              nextB.kind !== "steady" ||
+              !blocksSimilarSteady(firstA, nextA, DUR_TOL, PWR_TOL) ||
+              !blocksSimilarSteady(firstB, nextB, DUR_TOL, PWR_TOL)
+            ) {
+              break;
+            }
+
+            repeat += 1;
+            j += 2;
+          }
+
+          if (repeat >= 2) {
+            const onDurationSec = clampDuration(firstA.durationSec);
+            const offDurationSec = clampDuration(firstB.durationSec);
+            const onPowerRel = clampRel(firstA.powerRel);
+            const offPowerRel = clampRel(firstB.powerRel);
+            blocks.push(
+              createBlock("intervals", {
+                repeat: clampRepeat(repeat),
+                onDurationSec,
+                offDurationSec,
+                onPowerRel,
+                offPowerRel,
+              }),
+            );
+            i += repeat * 2;
+            continue;
+          }
         }
-        const on = normalized[i];
-        const off = normalized[i + 1];
-        blocks.push(
-          createBlock("intervals", {
-            repeat,
-            onDurationSec: clampDuration(on.durationSec),
-            offDurationSec: clampDuration(off.durationSec),
-            onPowerRel: clampRel(on.pStartRel),
-            offPowerRel: clampRel(off.pStartRel),
-          }),
-        );
-        i += repeat * 2;
-        continue;
-      }
-
-      if (current.pStartRel !== current.pEndRel) {
-        if (current.pEndRel > current.pStartRel) {
-          blocks.push(
-            createBlock("warmup", {
-              durationSec: clampDuration(current.durationSec),
-              powerLowRel: clampRel(current.pStartRel),
-              powerHighRel: clampRel(current.pEndRel),
-            }),
-          );
-        } else {
-          blocks.push(
-            createBlock("cooldown", {
-              durationSec: clampDuration(current.durationSec),
-              powerLowRel: clampRel(current.pEndRel),
-              powerHighRel: clampRel(current.pStartRel),
-            }),
-          );
-        }
-        i += 1;
-        continue;
       }
 
       const b = normalized[i];
