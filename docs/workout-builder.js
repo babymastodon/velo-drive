@@ -2173,8 +2173,8 @@ export function createWorkoutBuilder(options) {
     plus.textContent = "+";
 
     if (config.kind === "duration") {
-      minus.title = "Decrease duration (H / \u2190 / Shift+H)";
-      plus.title = "Increase duration (L / \u2192 / Shift+L)";
+      minus.title = "Decrease duration (H / \u2190)";
+      plus.title = "Increase duration (L / \u2192)";
     } else if (config.kind === "power") {
       minus.title = "Decrease power (J / \u2193 / Shift+J)";
       plus.title = "Increase power (K / \u2191 / Shift+K)";
