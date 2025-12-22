@@ -654,15 +654,21 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     tooltipEl.style.display = "block";
 
     const panelRect = containerEl.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
     const scrollEl = containerEl.parentElement;
-    const scrollLeft = scrollEl ? scrollEl.scrollLeft : 0;
-    const viewWidth = scrollEl ? scrollEl.clientWidth : panelRect.width;
+    const isScrollable =
+      scrollEl && scrollEl.scrollWidth > scrollEl.clientWidth + 1;
+    const scrollLeft = isScrollable ? scrollEl.scrollLeft : 0;
+    const baseLeft = svgRect.left - panelRect.left;
+    const viewWidth = isScrollable
+      ? scrollEl.clientWidth
+      : svgRect.width || panelRect.width;
     let tx = clientX - panelRect.left + 8;
     let ty = clientY - panelRect.top + 8;
 
     const ttRect = tooltipEl.getBoundingClientRect();
-    const minX = scrollLeft;
-    const maxX = scrollLeft + viewWidth - ttRect.width - 4;
+    const minX = baseLeft + scrollLeft;
+    const maxX = minX + viewWidth - ttRect.width - 4;
     if (tx > maxX) tx = maxX;
     if (tx < minX) tx = minX;
     if (ty + ttRect.height > panelRect.height - 4) {
