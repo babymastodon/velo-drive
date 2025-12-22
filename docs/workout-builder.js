@@ -157,8 +157,6 @@ export function createWorkoutBuilder(options) {
   blockEditorFields.className = "wb-block-editor-fields";
   blockEditor.appendChild(blockEditorFields);
 
-  const blockEditorActions = document.createElement("div");
-  blockEditorActions.className = "wb-block-editor-actions";
   const moveLeftBtn = document.createElement("button");
   moveLeftBtn.type = "button";
   moveLeftBtn.className = "wb-block-move-btn";
@@ -186,10 +184,6 @@ export function createWorkoutBuilder(options) {
     e.preventDefault();
     deleteSelectedBlock();
   });
-  blockEditorActions.appendChild(moveLeftBtn);
-  blockEditorActions.appendChild(moveRightBtn);
-  blockEditorActions.appendChild(deleteBlockBtn);
-  blockEditor.appendChild(blockEditorActions);
 
   const toolbarActions = document.createElement("div");
   toolbarActions.className = "wb-toolbar-actions";
@@ -234,6 +228,9 @@ export function createWorkoutBuilder(options) {
     pasteFromClipboard();
   });
 
+  toolbarActions.appendChild(moveLeftBtn);
+  toolbarActions.appendChild(moveRightBtn);
+  toolbarActions.appendChild(deleteBlockBtn);
   toolbarActions.appendChild(undoBtn);
   toolbarActions.appendChild(redoBtn);
   toolbarActions.appendChild(copyBtn);
@@ -2016,16 +2013,16 @@ export function createWorkoutBuilder(options) {
       toolbarButtons.style.display = "";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
-      blockEditorActions.style.display = "none";
-      moveLeftBtn.style.display = "";
-      moveRightBtn.style.display = "";
+      moveLeftBtn.style.display = "none";
+      moveRightBtn.style.display = "none";
+      deleteBlockBtn.style.display = "none";
       return;
     }
 
     toolbarButtons.style.display = "none";
     blockEditor.style.display = "flex";
     blockEditorFields.innerHTML = "";
-    blockEditorActions.style.display = "flex";
+    deleteBlockBtn.style.display = "";
 
     if (selectionCount > 1) {
       moveLeftBtn.style.display = "none";
