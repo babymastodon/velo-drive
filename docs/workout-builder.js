@@ -179,7 +179,7 @@ export function createWorkoutBuilder(options) {
   const deleteBlockBtn = document.createElement("button");
   deleteBlockBtn.type = "button";
   deleteBlockBtn.className = "wb-block-delete-btn";
-  deleteBlockBtn.title = "Delete selected block (D / Backspace)";
+  deleteBlockBtn.title = "Delete selected block (Backspace / Delete)";
   deleteBlockBtn.appendChild(createTrashIcon());
   deleteBlockBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -213,8 +213,30 @@ export function createWorkoutBuilder(options) {
     redoLastChange();
   });
 
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "wb-toolbar-action-btn";
+  copyBtn.title = "Copy (Ctrl/⌘+C or Ctrl/⌘+Insert)";
+  copyBtn.appendChild(createCopyIcon());
+  copyBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    copySelectionToClipboard();
+  });
+
+  const pasteBtn = document.createElement("button");
+  pasteBtn.type = "button";
+  pasteBtn.className = "wb-toolbar-action-btn";
+  pasteBtn.title = "Paste (Ctrl/⌘+V or Shift+Insert)";
+  pasteBtn.appendChild(createPasteIcon());
+  pasteBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    pasteFromClipboard();
+  });
+
   toolbarActions.appendChild(undoBtn);
   toolbarActions.appendChild(redoBtn);
+  toolbarActions.appendChild(copyBtn);
+  toolbarActions.appendChild(pasteBtn);
 
   const buttonSpecs = [
     {
@@ -457,6 +479,11 @@ export function createWorkoutBuilder(options) {
       pasteFromClipboard();
       return;
     }
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && lower === "p") {
+      e.preventDefault();
+      pasteFromClipboard();
+      return;
+    }
     if (isCtrlInsert) {
       e.preventDefault();
       copySelectionToClipboard();
@@ -522,7 +549,11 @@ export function createWorkoutBuilder(options) {
     if (lower === "d" || key === "Delete" || key === "Backspace") {
       if (hasSelection) {
         e.preventDefault();
-        deleteSelectedBlock();
+        if (lower === "d") {
+          cutSelectionToClipboard();
+        } else {
+          deleteSelectedBlock();
+        }
         return;
       }
       if (currentBlocks && currentBlocks.length) {
@@ -1450,6 +1481,7 @@ export function createWorkoutBuilder(options) {
   function updateUndoRedoButtons() {
     if (undoBtn) undoBtn.disabled = undoStack.length === 0;
     if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+    if (copyBtn) copyBtn.disabled = selectedBlockIndices.length === 0;
   }
 
   function buildBlockTimings(blocks) {
@@ -2438,6 +2470,60 @@ export function createWorkoutBuilder(options) {
     path.setAttribute("stroke-linecap", "round");
     path.setAttribute("stroke-linejoin", "round");
     svg.appendChild(path);
+    return svg;
+  }
+
+  function createCopyIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const r1 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    r1.setAttribute("x", "8");
+    r1.setAttribute("y", "8");
+    r1.setAttribute("width", "10");
+    r1.setAttribute("height", "10");
+    r1.setAttribute("rx", "2");
+    r1.setAttribute("fill", "none");
+    r1.setAttribute("stroke", "currentColor");
+    r1.setAttribute("stroke-width", "2");
+    const r2 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    r2.setAttribute("x", "4");
+    r2.setAttribute("y", "4");
+    r2.setAttribute("width", "10");
+    r2.setAttribute("height", "10");
+    r2.setAttribute("rx", "2");
+    r2.setAttribute("fill", "none");
+    r2.setAttribute("stroke", "currentColor");
+    r2.setAttribute("stroke-width", "2");
+    svg.appendChild(r2);
+    svg.appendChild(r1);
+    return svg;
+  }
+
+  function createPasteIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "6");
+    rect.setAttribute("y", "7");
+    rect.setAttribute("width", "12");
+    rect.setAttribute("height", "13");
+    rect.setAttribute("rx", "2");
+    rect.setAttribute("fill", "none");
+    rect.setAttribute("stroke", "currentColor");
+    rect.setAttribute("stroke-width", "2");
+    const clip = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    clip.setAttribute("x", "9");
+    clip.setAttribute("y", "3");
+    clip.setAttribute("width", "6");
+    clip.setAttribute("height", "4");
+    clip.setAttribute("rx", "1.5");
+    clip.setAttribute("fill", "none");
+    clip.setAttribute("stroke", "currentColor");
+    clip.setAttribute("stroke-width", "2");
+    svg.appendChild(rect);
+    svg.appendChild(clip);
     return svg;
   }
 
