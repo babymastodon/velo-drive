@@ -813,7 +813,7 @@ function createWorkoutPicker(config) {
 
     if (!builderHasSelection) {
       builderShortcutsEl.innerHTML =
-        "<strong>h l</strong> or <strong>← →</strong> to move &bull; " +
+        "<strong>h l</strong> <strong>← →</strong> to move &bull; " +
         "<strong>Enter</strong> to select &bull; " +
         "<strong>Backspace</strong> delete &bull; " +
         "<strong>R E T S V A W C I</strong> insert block";
@@ -821,10 +821,10 @@ function createWorkoutPicker(config) {
     }
 
     builderShortcutsEl.innerHTML =
-      "<strong>h l</strong> or <strong>← →</strong> adjust duration &bull; " +
-      "<strong>j k</strong> or <strong>↓ ↑</strong> adjust power &bull; " +
-      "<strong>Shift+Click</strong> or <strong>Shift+H/L</strong> or " +
-      "<strong>Shift+←/→</strong> multi-select &bull; " +
+      "<strong>h l</strong> <strong>← →</strong> adjust duration &bull; " +
+      "<strong>(Shift)</strong> <strong>j k</strong> <strong>↓ ↑</strong> adjust power &bull; " +
+      "<strong>Shift+Click</strong> or <strong>Shift+H/L/←/→</strong> " +
+      "multi-select &bull; " +
       "<strong>Enter</strong> deselect &bull; " +
       "<strong>Space</strong> switch side";
   }
