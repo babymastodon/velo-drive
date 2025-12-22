@@ -935,6 +935,10 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   const maxY = Math.max(200, ftp * 2);
   const gridStep = 100;
+  const tickStepSec = 600;
+  const hourStepSec = 3600;
+  const tickBaseLen = 24;
+  const tickHourLen = 32;
 
   for (let yVal = 0; yVal <= maxY; yVal += gridStep) {
     const y = height - (yVal / maxY) * height;
@@ -947,6 +951,34 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     line.setAttribute("stroke-width", "0.5");
     line.setAttribute("pointer-events", "none");
     svg.appendChild(line);
+  }
+
+  for (let t = tickStepSec; t <= timelineSec; t += tickStepSec) {
+    const x = (t / timelineSec) * width;
+    const isHour = t % hourStepSec === 0;
+    const tickLen = isHour ? tickHourLen : tickBaseLen;
+    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    tick.setAttribute("x1", String(x));
+    tick.setAttribute("x2", String(x));
+    tick.setAttribute("y1", "0");
+    tick.setAttribute("y2", String(tickLen));
+    tick.setAttribute("stroke", getCssVar("--grid-line-subtle"));
+    tick.setAttribute("stroke-width", isHour ? "2" : "1.4");
+    tick.setAttribute("pointer-events", "none");
+    svg.appendChild(tick);
+
+    const labelInset = 8;
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", String(x - labelInset));
+    label.setAttribute("y", "2");
+    label.setAttribute("dominant-baseline", "hanging");
+    label.setAttribute("font-size", "16");
+    label.setAttribute("font-weight", "300");
+    label.setAttribute("fill", getCssVar("--text-muted"));
+    label.setAttribute("text-anchor", "end");
+    label.setAttribute("pointer-events", "none");
+    label.textContent = String(Math.round(t / 60));
+    svg.appendChild(label);
   }
 
   const ftpY = height - (ftp / maxY) * height;
