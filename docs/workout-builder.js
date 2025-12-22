@@ -2593,6 +2593,10 @@ export function createWorkoutBuilder(options) {
     const height = rect.height;
     const {timings: blockTimings, totalSec} = buildBlockTimings(currentBlocks);
     const timelineSec = Math.max(3600, totalSec || 0);
+    const effectiveTimelineSec =
+      handle === "right" && dragState?.lockedTimelineSec
+        ? Math.max(dragState.lockedTimelineSec, timelineSec)
+        : timelineSec;
 
     const localX = e.clientX - rect.left;
     const localY = e.clientY - rect.top;
@@ -2606,7 +2610,8 @@ export function createWorkoutBuilder(options) {
     const clampedY = Math.max(0, Math.min(height, localY));
 
     if (handle === "move") {
-      const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
+      const timeSec =
+        (clampedX / Math.max(1, width)) * effectiveTimelineSec;
       const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
       let insertAfterIndex = -1;
       if (blockTimings.length) {
@@ -2680,7 +2685,8 @@ export function createWorkoutBuilder(options) {
     }
 
     if (handle === "right") {
-      const timeSec = (clampedX / Math.max(1, width)) * timelineSec;
+      const timeSec =
+        (clampedX / Math.max(1, width)) * effectiveTimelineSec;
       const duration = snapDurationSec(timeSec - tStart);
 
       if (blockKind === "steady" || blockKind === "warmup" || blockKind === "cooldown") {
