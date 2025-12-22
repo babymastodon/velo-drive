@@ -1018,6 +1018,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   const HANDLE_TOP_HEIGHT = 12;
   const HANDLE_RIGHT_WIDTH = 12;
+  const rightHandles = [];
 
   // Workout segments, preserving block ownership for styling
   let cursor = 0;
@@ -1086,11 +1087,21 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       topHandle.dataset.dragHandle = "top";
       topHandle.dataset.x1 = String(x1);
       topHandle.dataset.x2 = String(x2);
-      const handleWidth = Math.min(
+      const handleBaseWidth = Math.min(
         HANDLE_RIGHT_WIDTH,
         Math.max(6, segWidth),
       );
-      const handleHalf = handleWidth / 2;
+      const nextSeg =
+        segIndex + 1 < segs.length
+          ? segs[segIndex + 1]
+          : blocks?.[idx + 1]?.segments?.[0];
+      const nextDurationSec = Math.max(
+        0,
+        Math.round(nextSeg?.durationSec || 0),
+      );
+      const extraRight = nextDurationSec > 90 ? handleBaseWidth : 0;
+      const handleWidth = handleBaseWidth + extraRight;
+      const handleHalf = handleBaseWidth / 2;
       const rightHandle = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "rect",
@@ -1105,7 +1116,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       rightHandle.dataset.segIndex = String(segIndex);
       rightHandle.dataset.dragHandle = "right";
       rightHandle.classList.add("wb-drag-handle", "wb-drag-handle--right");
-      svg.appendChild(rightHandle);
+      rightHandles.push(rightHandle);
 
       topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
       svg.appendChild(topHandle);
@@ -1113,6 +1124,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       cursor += durSec;
     }
   });
+
+  rightHandles.forEach((handle) => svg.appendChild(handle));
 
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
