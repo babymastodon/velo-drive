@@ -823,6 +823,7 @@ function createWorkoutPicker(config) {
     builderShortcutsEl.innerHTML =
       "<strong>h l</strong> or <strong>← →</strong> adjust duration &bull; " +
       "<strong>j k</strong> or <strong>↓ ↑</strong> adjust power &bull; " +
+      "<strong>Shift</strong> ×5 &bull; " +
       "<strong>Enter</strong> deselect &bull; " +
       "<strong>Space</strong> toggle side";
   }
