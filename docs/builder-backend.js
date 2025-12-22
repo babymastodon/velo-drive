@@ -989,19 +989,33 @@ export function createBuilderBackend() {
     const steadyPower = getBlockSteadyPower(steadyBlock);
 
     if (prev && (prev.kind === "warmup" || prev.kind === "cooldown")) {
-      prev.attrs = {
-        ...(prev.attrs || {}),
-        powerHighRel: steadyPower,
-      };
-      prev.segments = buildSegmentsForBlock(prev);
+      const start = getRampLow(prev);
+      const canUpdate =
+        prev.kind === "warmup"
+          ? steadyPower > start
+          : steadyPower < start;
+      if (canUpdate) {
+        prev.attrs = {
+          ...(prev.attrs || {}),
+          powerHighRel: steadyPower,
+        };
+        prev.segments = buildSegmentsForBlock(prev);
+      }
     }
 
     if (next && (next.kind === "warmup" || next.kind === "cooldown")) {
-      next.attrs = {
-        ...(next.attrs || {}),
-        powerLowRel: steadyPower,
-      };
-      next.segments = buildSegmentsForBlock(next);
+      const end = getRampHigh(next);
+      const canUpdate =
+        next.kind === "warmup"
+          ? steadyPower < end
+          : steadyPower > end;
+      if (canUpdate) {
+        next.attrs = {
+          ...(next.attrs || {}),
+          powerLowRel: steadyPower,
+        };
+        next.segments = buildSegmentsForBlock(next);
+      }
     }
   }
 
