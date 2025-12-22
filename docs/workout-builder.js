@@ -1161,14 +1161,6 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function toggleBlockSelection(idx) {
-    if (selectedBlockIndex === idx) {
-      deselectBlock();
-    } else {
-      setSelectedBlock(idx);
-    }
-  }
-
   function setInsertAfterIndex(idx) {
     const next =
       idx == null ||
@@ -1192,7 +1184,7 @@ export function createWorkoutBuilder(options) {
       deselectBlock();
       return;
     }
-    toggleBlockSelection(idx);
+    setSelectedBlock(idx);
   }
 
   function handleInsertAfterFromChart(idx) {
@@ -2513,10 +2505,7 @@ export function createWorkoutBuilder(options) {
     const block = currentBlocks[blockIndex];
     if (!block || !segmentTiming) return;
 
-    const wasSelected = selectedBlockIndex === blockIndex;
-    if (!wasSelected) {
-      setSelectedBlock(blockIndex);
-    }
+    setSelectedBlock(blockIndex);
     const insertIdx = computeInsertIndexFromPoint(
       blockIndex,
       segIndex,
@@ -2556,7 +2545,6 @@ export function createWorkoutBuilder(options) {
       startClientX: e.clientX,
       startClientY: e.clientY,
       didDrag: false,
-      wasSelected,
     };
 
     dragInsertAfterIndex = null;
@@ -2728,11 +2716,7 @@ export function createWorkoutBuilder(options) {
     if (handle === "move" && dragInsertAfterIndex != null) {
       reorderBlocks(blockIndex, dragInsertAfterIndex);
     } else if (!dragState.didDrag) {
-      if (dragState.wasSelected) {
-        deselectBlock();
-      } else {
-        setSelectedBlock(blockIndex);
-      }
+      setSelectedBlock(blockIndex);
       const insertIdx = computeInsertIndexFromPoint(
         blockIndex,
         dragState.segIndex,
