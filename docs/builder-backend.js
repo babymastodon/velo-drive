@@ -758,11 +758,12 @@ export function createBuilderBackend() {
       return;
     }
 
-    const nextIndex =
-      deleteIndex > 0
-        ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
-        : 0;
-    state.insertAfterOverrideIndex = nextIndex;
+    let nextInsertAfter = deleteIndex - 1;
+    if (nextInsertAfter >= updatedBlocks.length) {
+      nextInsertAfter = updatedBlocks.length - 1;
+    }
+    if (nextInsertAfter < -1) nextInsertAfter = -1;
+    state.insertAfterOverrideIndex = nextInsertAfter;
     state.selectedBlockIndex = null;
     state.selectedBlockIndices = [];
     state.selectionAnchorIndex = null;
@@ -1039,8 +1040,11 @@ export function createBuilderBackend() {
     low = clampRel(low);
     high = clampRel(high);
 
+    const hasPrev = low != null && prevPower != null;
+    const hasNext = high != null && nextPower != null;
+    const durationSec = hasPrev && hasNext ? 120 : 360;
     const seg = {
-      durationSec: fallbackBlock.segments?.[0]?.durationSec || 300,
+      durationSec,
       pStartRel: low,
       pEndRel: high,
     };
