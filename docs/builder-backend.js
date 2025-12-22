@@ -911,8 +911,12 @@ export function createBuilderBackend() {
 
   function insertBlockAtInsertionPoint(spec, options = {}) {
     const { selectOnInsert = true } = options;
-    const block = buildBlockFromSpec(spec);
+    let block = buildBlockFromSpec(spec);
     if (!block) return;
+    if (block.kind === "warmup" || block.kind === "cooldown") {
+      const contextual = buildContextualRampBlock(block.kind, block);
+      if (contextual) block = contextual;
+    }
     const insertAfterIndex = getInsertAfterIndex();
     const insertIndex =
       insertAfterIndex == null
@@ -1018,13 +1022,16 @@ export function createBuilderBackend() {
 
     if (low == null && high == null) return fallbackBlock;
 
-    if (low == null) low = high;
-    if (high == null) high = low;
-
-    if (kind === "warmup" && low > high) {
-      const delta = low - high;
-      low = high;
-      high = kind === "warmup" ? low + delta : low - delta;
+    if (low != null && high != null) {
+      if (kind === "warmup" && high <= low) {
+        high = low + 0.25;
+      } else if (kind === "cooldown" && high >= low) {
+        high = low - 0.25;
+      }
+    } else if (low == null && high != null) {
+      low = kind === "cooldown" ? high + 0.25 : high - 0.25;
+    } else if (high == null && low != null) {
+      high = kind === "cooldown" ? low - 0.25 : low + 0.25;
     }
 
     if (low == null || high == null) return fallbackBlock;
