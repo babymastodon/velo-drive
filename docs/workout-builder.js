@@ -500,6 +500,23 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    if (
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      e.shiftKey &&
+      (lower === "h" ||
+        lower === "l" ||
+        key === "ArrowLeft" ||
+        key === "ArrowRight")
+    ) {
+      e.preventDefault();
+      const direction =
+        lower === "h" || key === "ArrowLeft" ? -1 : 1;
+      shiftMoveSelection(direction);
+      return;
+    }
+
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
     const insertByKey = (specKey) => {
@@ -1317,8 +1334,9 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function setSelectionRange(targetIndex) {
+  function setSelectionRange(targetIndex, options = {}) {
     if (!currentBlocks || !currentBlocks.length) return;
+    const {preserveInsert = false} = options;
     const idx = Math.max(0, Math.min(targetIndex, currentBlocks.length - 1));
     const anchor =
       selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
@@ -1333,10 +1351,35 @@ export function createWorkoutBuilder(options) {
       selectedBlockIndices.push(i);
     }
     selectedBlockIndex = idx;
-    insertAfterOverrideIndex = null;
+    if (!preserveInsert) {
+      insertAfterOverrideIndex = null;
+    }
     updateBlockEditor();
     renderChart();
     emitUiState();
+  }
+
+  function shiftMoveSelection(direction) {
+    if (!currentBlocks || !currentBlocks.length) return;
+    const current =
+      insertAfterOverrideIndex != null
+        ? insertAfterOverrideIndex
+        : getInsertAfterIndex() ?? -1;
+    const next = Math.max(
+      -1,
+      Math.min(current + direction, currentBlocks.length - 1),
+    );
+    if (next === current) return;
+    insertAfterOverrideIndex = next;
+    const crossedIndex = direction > 0 ? next : next + 1;
+    if (crossedIndex < 0 || crossedIndex >= currentBlocks.length) {
+      renderChart();
+      return;
+    }
+    if (selectionAnchorIndex == null) {
+      selectionAnchorIndex = crossedIndex;
+    }
+    setSelectionRange(crossedIndex, {preserveInsert: true});
   }
 
   function emitUiState() {
