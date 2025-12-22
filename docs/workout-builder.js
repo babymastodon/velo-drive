@@ -411,7 +411,7 @@ export function createWorkoutBuilder(options) {
 
     const isUndo =
       (isMetaShortcut && lower === "z") ||
-      (!e.metaKey && !e.ctrlKey && !e.altKey && lower === "u");
+      (!e.metaKey && !e.ctrlKey && !e.altKey && lower === "u" && !e.shiftKey);
     if (isUndo) {
       e.preventDefault();
       undoLastChange();
@@ -419,9 +419,10 @@ export function createWorkoutBuilder(options) {
     }
 
     const isRedo =
-      (e.metaKey || e.ctrlKey) &&
-      !e.altKey &&
-      ((lower === "z" && e.shiftKey) || lower === "y");
+      ((e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        ((lower === "z" && e.shiftKey) || lower === "y")) ||
+      (!e.metaKey && !e.ctrlKey && !e.altKey && lower === "u" && e.shiftKey);
     if (isRedo) {
       e.preventDefault();
       redoLastChange();
