@@ -798,6 +798,7 @@
   font-size: 16px;
   color: var(--text-muted);
   font-weight: 300;
+  user-select: none;
 }
 
 .wb-chart-axis-label--ftp {

@@ -883,6 +883,7 @@ function computeBlockTimings(blocks) {
 export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options = {}) {
   const {
     selectedBlockIndex = null,
+    selectedBlockIndices = null,
     insertAfterBlockIndex = null,
     onSelectBlock,
     onSetInsertAfter,
@@ -995,11 +996,20 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     label.setAttribute("fill", getCssVar("--text-muted"));
     label.setAttribute("text-anchor", "end");
     label.setAttribute("pointer-events", "none");
+    label.style.userSelect = "none";
     label.textContent = String(Math.round(t / 60));
     svg.appendChild(label);
   }
 
   const ftpY = height - (ftp / maxY) * height;
+
+  const selectedSet = new Set(
+    Array.isArray(selectedBlockIndices)
+      ? selectedBlockIndices
+      : selectedBlockIndex != null
+        ? [selectedBlockIndex]
+        : [],
+  );
 
   // Block-wide highlight bands (pointer-events none so hover still works)
   timings.forEach(({index, tStart, tEnd}) => {
@@ -1016,7 +1026,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     band.setAttribute("pointer-events", "none");
     band.classList.add("wb-block-band");
     band.dataset.blockIndex = String(index);
-    if (index === selectedBlockIndex) {
+    if (selectedSet.has(index)) {
       band.classList.add("is-active");
     }
     svg.appendChild(band);
@@ -1069,7 +1079,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         poly.dataset.dragHandle = "move";
         poly.classList.add("wb-block-segment");
         poly.classList.add("wb-drag-handle", "wb-drag-handle--move");
-        if (idx === selectedBlockIndex) {
+        if (selectedSet.has(idx)) {
           poly.classList.add("is-active");
         }
       }
@@ -1240,6 +1250,12 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   attachSegmentHover(svg, tooltip, container, ftp);
 
+  svg.addEventListener("mousedown", (e) => {
+    if (e.shiftKey) {
+      e.preventDefault();
+    }
+  });
+
   svg.addEventListener("click", (e) => {
     const targetBlock =
       e.target && e.target.closest
@@ -1249,7 +1265,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     if (targetBlock && targetBlock.dataset.blockIndex != null) {
       if (typeof onSelectBlock !== "function") return;
       const idx = Number(targetBlock.dataset.blockIndex);
-      onSelectBlock(Number.isFinite(idx) ? idx : null);
+      onSelectBlock(Number.isFinite(idx) ? idx : null, {shiftKey: e.shiftKey});
       if (typeof onSetInsertAfterFromSegment === "function") {
         const blockIndex = Number(targetBlock.dataset.blockIndex);
         const segIndex = Number(targetBlock.dataset.segIndex);
