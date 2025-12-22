@@ -438,6 +438,10 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
+    const isShiftInsert = !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Insert";
+    const isShiftDelete = !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Delete";
+    const isCtrlInsert = (e.metaKey || e.ctrlKey) && !e.altKey && key === "Insert";
+
     if (isMetaShortcut && lower === "c") {
       e.preventDefault();
       copySelectionToClipboard();
@@ -451,6 +455,21 @@ export function createWorkoutBuilder(options) {
     if (isMetaShortcut && lower === "v") {
       e.preventDefault();
       pasteFromClipboard();
+      return;
+    }
+    if (isCtrlInsert) {
+      e.preventDefault();
+      copySelectionToClipboard();
+      return;
+    }
+    if (isShiftInsert) {
+      e.preventDefault();
+      pasteFromClipboard();
+      return;
+    }
+    if (isShiftDelete) {
+      e.preventDefault();
+      cutSelectionToClipboard();
       return;
     }
 
@@ -1295,11 +1314,15 @@ export function createWorkoutBuilder(options) {
   }
 
   async function copySelectionToClipboard() {
-    if (!selectedBlockIndices.length) return;
+    if (!selectedBlockIndices.length) {
+      return;
+    }
     const indices = getSelectedIndicesSorted();
     const blocks = indices.map((idx) => currentBlocks[idx]).filter(Boolean);
     const rawSegments = buildRawSegmentsFromBlocks(blocks);
-    if (!rawSegments.length) return;
+    if (!rawSegments.length) {
+      return;
+    }
     const canonical = {
       source: "VeloDrive Builder",
       sourceURL: "",
@@ -1308,9 +1331,12 @@ export function createWorkoutBuilder(options) {
       description: "",
     };
     try {
-      await navigator.clipboard.writeText(
-        canonicalWorkoutToZwoXml(canonical),
-      );
+      const xml = canonicalWorkoutToZwoXml(canonical);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(xml);
+        return;
+      }
+      console.warn("[WorkoutBuilder] Clipboard writeText not available.");
     } catch (err) {
       console.warn("[WorkoutBuilder] Clipboard write failed:", err);
     }
