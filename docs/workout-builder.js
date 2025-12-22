@@ -51,6 +51,7 @@ export function createWorkoutBuilder(options) {
   let historyGroupHasUndo = false;
   let historyPendingSnapshot = null;
   let isHistoryRestoring = false;
+  let timelineLockSec = 0;
   const DRAG_THRESHOLD_PX = 4;
   const statusTarget = statusMessageEl || null;
 
@@ -1051,6 +1052,10 @@ export function createWorkoutBuilder(options) {
         onSelectBlock: handleBlockSelectionFromChart,
         onSetInsertAfter: handleInsertAfterFromChart,
         onSetInsertAfterFromSegment: handleInsertAfterFromSegment,
+        lockTimelineSec:
+          dragState && dragState.handle === "right"
+            ? dragState.lockedTimelineSec
+            : timelineLockSec,
       });
     } catch (e) {
       console.error("[WorkoutBuilder] Failed to render mini chart:", e);
@@ -2536,6 +2541,7 @@ export function createWorkoutBuilder(options) {
       tStart: segmentTiming.tStart,
       tEnd: segmentTiming.tEnd,
       blockKind: block.kind,
+      lockedTimelineSec: Math.max(3600, totalSec || 0),
       rampRegion,
       blockTimings,
       startLow: getRampLow(block),
@@ -2552,6 +2558,9 @@ export function createWorkoutBuilder(options) {
     dragInsertAfterIndex = null;
     chartMiniHost.dataset.dragBlockIndex = String(blockIndex);
     chartMiniHost.dataset.dragSegIndex = String(segIndex);
+    if (handle === "right") {
+      timelineLockSec = dragState.lockedTimelineSec || 0;
+    }
 
     document.body.classList.add("wb-dragging");
     window.addEventListener("pointermove", handleChartPointerMove);
@@ -2563,6 +2572,7 @@ export function createWorkoutBuilder(options) {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
     const {
       handle,
+      lockedScrollLeft,
       blockIndex,
       segIndex,
       maxY,
@@ -2716,6 +2726,9 @@ export function createWorkoutBuilder(options) {
       renderChart();
     }
 
+    if (dragState && dragState.handle === "right") {
+      timelineLockSec = 0;
+    }
     dragState = null;
     if (chartMiniHost) {
       chartMiniHost.removeAttribute("data-drag-block-index");

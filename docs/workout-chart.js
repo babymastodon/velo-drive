@@ -831,6 +831,7 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
   bg.setAttribute("fill", "transparent");
   svg.appendChild(bg);
 
+
   // Vertical scale: same logic as before
   const maxY = Math.max(200, ftp * 2);
 
@@ -886,6 +887,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     onSelectBlock,
     onSetInsertAfter,
     onSetInsertAfterFromSegment,
+    lockTimelineSec = null,
   } = options;
 
   container.innerHTML = "";
@@ -924,7 +926,11 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   if (!baseWidth) baseWidth = container.clientWidth || 400;
   if (!height) height = container.clientHeight || 120;
 
-  const timelineSec = Math.max(3600, totalSec || 0);
+  const timelineSec = Math.max(
+    3600,
+    totalSec || 0,
+    lockTimelineSec || 0,
+  );
   const width = Math.max(1, Math.round((timelineSec / 3600) * baseWidth));
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
