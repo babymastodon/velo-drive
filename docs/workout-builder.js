@@ -1969,6 +1969,7 @@ export function createWorkoutBuilder(options) {
       deleteIndex > 0
         ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
         : 0;
+    insertAfterOverrideIndex = nextIndex;
     commitBlocks(updatedBlocks, {selectIndex: nextIndex});
   }
 
