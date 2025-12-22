@@ -161,6 +161,21 @@ function createIconSvg(kind) {
     svg.appendChild(p1);
     svg.appendChild(p2);
     svg.appendChild(p3);
+  } else if (kind === "clone") {
+    const r1 = document.createElementNS(svgNS, "rect");
+    r1.setAttribute("x", "8");
+    r1.setAttribute("y", "7");
+    r1.setAttribute("width", "10");
+    r1.setAttribute("height", "10");
+    r1.setAttribute("rx", "2");
+    const r2 = document.createElementNS(svgNS, "rect");
+    r2.setAttribute("x", "5");
+    r2.setAttribute("y", "4");
+    r2.setAttribute("width", "10");
+    r2.setAttribute("height", "10");
+    r2.setAttribute("rx", "2");
+    svg.appendChild(r1);
+    svg.appendChild(r2);
   }
 
   return svg;
@@ -220,6 +235,7 @@ function createWorkoutPicker(config) {
   let isBuilderMode = false;
   let hasUnsavedBuilderChanges = false;
   let builderBaseline = null; // CanonicalWorkout snapshot to compare against
+  let builderOriginalTitle = null;
   let suppressBuilderDirty = false;
   let builderHasSelection = false;
   function syncScheduleUi() {
@@ -562,6 +578,32 @@ function createWorkoutPicker(config) {
           deleteWorkoutFile(canonical);
         });
 
+        // CLONE button
+        const cloneBtn = document.createElement("button");
+        cloneBtn.type = "button";
+        cloneBtn.className = "wb-code-insert-btn clone-workout-btn";
+        cloneBtn.title = "Clone this workout.";
+
+        const cloneIcon = createIconSvg("clone");
+        const cloneText = document.createElement("span");
+        cloneText.textContent = "Clone";
+        cloneBtn.appendChild(cloneIcon);
+        cloneBtn.appendChild(cloneText);
+
+        cloneBtn.addEventListener("click", async (evt) => {
+          evt.stopPropagation();
+          const copy = cloneCanonicalWorkout(canonical);
+          if (!copy) return;
+          copy.workoutTitle = buildCopyTitle(canonical.workoutTitle || "Workout");
+          const result = await saveCanonicalWorkoutToZwoDir(copy);
+          if (!result.ok) return;
+          if (result.dirHandle) {
+            await rescanWorkouts(result.dirHandle, { skipRestoreState: true });
+          }
+          pickerExpandedTitle = copy.workoutTitle || null;
+          renderWorkoutPickerTable();
+        });
+
         // EDIT button
         const editBtn = document.createElement("button");
         editBtn.type = "button";
@@ -607,6 +649,7 @@ function createWorkoutPicker(config) {
 
         if (!scheduleMode) {
           actionsRow.appendChild(deleteBtn);
+          actionsRow.appendChild(cloneBtn);
           actionsRow.appendChild(editBtn);
         }
         actionsRow.appendChild(selectBtn);
@@ -735,6 +778,19 @@ function createWorkoutPicker(config) {
     };
   }
 
+  function buildCopyTitle(originalTitle) {
+    const base = `${originalTitle} Copy`;
+    const existing = new Set(
+      pickerWorkouts.map((workout) => workout.workoutTitle || ""),
+    );
+    if (!existing.has(base)) return base;
+    let i = 2;
+    while (existing.has(`${base} (${i})`)) {
+      i += 1;
+    }
+    return `${base} (${i})`;
+  }
+
   function canonicalEquals(a, b) {
     if (!a || !b) return false;
     if (
@@ -838,6 +894,7 @@ function createWorkoutPicker(config) {
     const title =
       (canonicalWorkout && canonicalWorkout.workoutTitle) || "Edit workout";
     enterBuilderMode({ title });
+    builderOriginalTitle = canonicalWorkout?.workoutTitle || null;
 
     suppressBuilderDirty = true;
     try {
@@ -889,6 +946,7 @@ function createWorkoutPicker(config) {
     isBuilderMode = false;
     hasUnsavedBuilderChanges = false;
     builderBaseline = null;
+    builderOriginalTitle = null;
     if (builderRoot) builderRoot.style.display = "none";
     modal.classList.remove("workout-picker-modal--builder");
 
@@ -906,6 +964,7 @@ function createWorkoutPicker(config) {
   async function startBuilderFromScratch() {
     if (!workoutBuilder) return;
     enterBuilderMode({ title: "New Workout" });
+    builderOriginalTitle = null;
     suppressBuilderDirty = true;
 
     let restored = false;
@@ -1364,6 +1423,20 @@ function createWorkoutPicker(config) {
         return { ok: false };
       }
 
+      const originalTitle =
+        builderOriginalTitle && builderOriginalTitle.trim()
+          ? builderOriginalTitle.trim()
+          : null;
+      const nextTitle = (canonical.workoutTitle || "").trim();
+      if (originalTitle && nextTitle && originalTitle !== nextTitle) {
+        const originalFileName =
+          sanitizeZwoFileName(originalTitle) + ".zwo";
+        const moved = await moveWorkoutFileToTrash(originalFileName);
+        if (!moved) {
+          return { ok: false };
+        }
+      }
+
       const result = await saveCanonicalWorkoutToZwoDir(canonical);
       if (!result.ok) {
         // Helper already alerted the user.
@@ -1372,6 +1445,7 @@ function createWorkoutPicker(config) {
 
       hasUnsavedBuilderChanges = false;
       builderBaseline = cloneCanonicalWorkout(canonical);
+      builderOriginalTitle = canonical.workoutTitle || null;
 
       await clearPersistedBuilderState();
 
