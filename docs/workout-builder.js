@@ -1,9 +1,6 @@
 // workout-builder.js
 
-import {
-  renderBuilderWorkoutGraph,
-  renderMiniWorkoutGraph,
-} from "./workout-chart.js";
+import { renderBuilderWorkoutGraph } from "./workout-chart.js";
 import {
   computeMetricsFromSegments,
   inferZoneFromSegments,
@@ -68,7 +65,7 @@ export function createWorkoutBuilder(options) {
       statusTarget.dataset.tone = tone;
     }
     if (typeof onStatusChange === "function") {
-      onStatusChange({text, tone});
+      onStatusChange({ text, tone });
     }
   }
 
@@ -95,7 +92,8 @@ export function createWorkoutBuilder(options) {
   const nameField = createLabeledInput("Name");
   const sourceField = createLabeledInput("Author / Source");
   const descField = createLabeledTextarea("Description");
-  descField.textarea.placeholder = "Short description, goals, or cues (optional)";
+  descField.textarea.placeholder =
+    "Short description, goals, or cues (optional)";
 
   const urlInput = document.createElement("input");
   urlInput.type = "hidden";
@@ -330,9 +328,7 @@ export function createWorkoutBuilder(options) {
       offPowerRel: 0.55,
     },
   ];
-  const buttonSpecByKey = new Map(
-    buttonSpecs.map((spec) => [spec.key, spec]),
-  );
+  const buttonSpecByKey = new Map(buttonSpecs.map((spec) => [spec.key, spec]));
 
   buttonSpecs.forEach((spec) => {
     const btn = document.createElement("button");
@@ -356,7 +352,7 @@ export function createWorkoutBuilder(options) {
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
-      insertBlockAtInsertionPoint(spec, {selectOnInsert: false});
+      insertBlockAtInsertionPoint(spec, { selectOnInsert: false });
     });
 
     toolbarButtons.appendChild(btn);
@@ -380,7 +376,6 @@ export function createWorkoutBuilder(options) {
   chartContainer.appendChild(chartMiniHost);
   chartCard.appendChild(chartContainer);
 
-
   body.appendChild(topRow);
   body.appendChild(statsCard);
   body.appendChild(chartCard);
@@ -401,8 +396,7 @@ export function createWorkoutBuilder(options) {
   const handleBuilderShortcuts = (e) => {
     if (e.defaultPrevented) return;
     if (!rootEl || rootEl.getClientRects().length === 0) return;
-    const isMetaShortcut =
-      (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+    const isMetaShortcut = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
     const target = e.target;
     if (
       target &&
@@ -458,9 +452,12 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    const isShiftInsert = !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Insert";
-    const isShiftDelete = !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Delete";
-    const isCtrlInsert = (e.metaKey || e.ctrlKey) && !e.altKey && key === "Insert";
+    const isShiftInsert =
+      !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Insert";
+    const isShiftDelete =
+      !e.metaKey && !e.ctrlKey && e.shiftKey && key === "Delete";
+    const isCtrlInsert =
+      (e.metaKey || e.ctrlKey) && !e.altKey && key === "Insert";
 
     if (isMetaShortcut && lower === "c") {
       e.preventDefault();
@@ -509,8 +506,7 @@ export function createWorkoutBuilder(options) {
         key === "ArrowRight")
     ) {
       e.preventDefault();
-      const direction =
-        lower === "h" || key === "ArrowLeft" ? -1 : 1;
+      const direction = lower === "h" || key === "ArrowLeft" ? -1 : 1;
       shiftMoveSelection(direction);
       return;
     }
@@ -520,7 +516,7 @@ export function createWorkoutBuilder(options) {
     const insertByKey = (specKey) => {
       const spec = buttonSpecByKey.get(specKey);
       if (!spec) return false;
-      insertBlockAtInsertionPoint(spec, {selectOnInsert: true});
+      insertBlockAtInsertionPoint(spec, { selectOnInsert: true });
       return true;
     };
 
@@ -622,9 +618,7 @@ export function createWorkoutBuilder(options) {
             ? insertAfterOverrideIndex
             : getInsertAfterIndex();
         const prev =
-          current != null
-            ? Math.min(current, currentBlocks.length - 1)
-            : null;
+          current != null ? Math.min(current, currentBlocks.length - 1) : null;
         if (prev != null && prev >= 0) {
           setSelectedBlock(prev);
         } else {
@@ -742,20 +736,20 @@ export function createWorkoutBuilder(options) {
           recordHistorySnapshot();
           const updatedBlocks = cloneBlocks(currentBlocks);
           const oldStartEnds = new Map();
-          updates.forEach(({idx, attrs}) => {
+          updates.forEach(({ idx, attrs }) => {
             const b = updatedBlocks[idx];
             if (!b) return;
             oldStartEnds.set(idx, getBlockStartEnd(b));
             const nextBlock = {
               ...b,
-              attrs: {...(b.attrs || {}), ...attrs},
+              attrs: { ...(b.attrs || {}), ...attrs },
             };
             updatedBlocks[idx] = {
               ...nextBlock,
               segments: buildSegmentsForBlock(nextBlock),
             };
           });
-          updates.forEach(({idx}) => {
+          updates.forEach(({ idx }) => {
             const oldStartEnd = oldStartEnds.get(idx);
             const nextBlock = updatedBlocks[idx];
             const newStartEnd = getBlockStartEnd(nextBlock);
@@ -768,7 +762,7 @@ export function createWorkoutBuilder(options) {
               );
             }
           });
-          commitBlocks(updatedBlocks, {selectIndex: selectedBlockIndex});
+          commitBlocks(updatedBlocks, { selectIndex: selectedBlockIndex });
         };
 
         const collectPowerUpdate = (idx, position, updates) => {
@@ -820,8 +814,7 @@ export function createWorkoutBuilder(options) {
       return;
     }
 
-    const adjustDuration = (current, delta) =>
-      clampDuration(current + delta);
+    const adjustDuration = (current, delta) => clampDuration(current + delta);
     const durationStep = (current) => getDurationStep(current);
 
     const handleDurationChange = (delta) => {
@@ -840,7 +833,7 @@ export function createWorkoutBuilder(options) {
       }
       const current = getBlockDurationSec(block);
       const next = adjustDuration(current, delta);
-      applyBlockAttrUpdate(selectedBlockIndex, {durationSec: next});
+      applyBlockAttrUpdate(selectedBlockIndex, { durationSec: next });
     };
 
     const handlePowerChange = (delta) => {
@@ -899,7 +892,6 @@ export function createWorkoutBuilder(options) {
       handlePowerChange(scaledPowerStep);
       return;
     }
-
   };
 
   window.addEventListener("keydown", handleBuilderShortcuts);
@@ -919,16 +911,16 @@ export function createWorkoutBuilder(options) {
           Array.isArray(saved.rawSegments)
         ) {
           persistedState = saved;
-          hydrateFromState(saved, {skipPersist: true});
+          hydrateFromState(saved, { skipPersist: true });
         }
       }
     } catch (e) {
       console.warn("[WorkoutBuilder] Failed to load saved state:", e);
     }
     if (!currentBlocks || !currentBlocks.length) {
-      clearState({persist: true});
+      clearState({ persist: true });
     } else {
-      refreshLayout({skipPersist: true});
+      refreshLayout({ skipPersist: true });
     }
   })();
 
@@ -944,7 +936,7 @@ export function createWorkoutBuilder(options) {
   if (window.matchMedia && themePref === "auto") {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
     const onThemeChange = () => {
-      refreshLayout({skipPersist: true});
+      refreshLayout({ skipPersist: true });
     };
     if (mql.addEventListener) {
       mql.addEventListener("change", onThemeChange);
@@ -981,7 +973,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function clearState(options = {}) {
-    const {persist = true} = options;
+    const { persist = true } = options;
 
     resetHistory();
     nameField.input.value = "";
@@ -992,7 +984,7 @@ export function createWorkoutBuilder(options) {
     setDefaultBlocks();
     if (!persist) {
       persistedState = null;
-      refreshLayout({skipPersist: true});
+      refreshLayout({ skipPersist: true });
     } else {
       refreshLayout();
     }
@@ -1030,7 +1022,7 @@ export function createWorkoutBuilder(options) {
     /** @type {{field: string, message: string}[]} */
     const errors = [];
 
-    if (!name) errors.push({field: "name", message: "Name is required."});
+    if (!name) errors.push({ field: "name", message: "Name is required." });
     if (!source) {
       errors.push({
         field: "source",
@@ -1107,14 +1099,11 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleAnyChange(opts = {}) {
-    const {skipPersist = false} = opts;
+    const { skipPersist = false } = opts;
 
     currentRawSegments = buildRawSegmentsFromBlocks(currentBlocks);
     currentErrors = [];
-    if (
-      selectedBlockIndex != null &&
-      !currentBlocks[selectedBlockIndex]
-    ) {
+    if (selectedBlockIndex != null && !currentBlocks[selectedBlockIndex]) {
       selectedBlockIndex = null;
     }
     if (
@@ -1157,7 +1146,7 @@ export function createWorkoutBuilder(options) {
 
     if (!skipPersist) {
       try {
-        const toSave = {...state, _shouldRestore: true};
+        const toSave = { ...state, _shouldRestore: true };
         persistedState = toSave;
         if (typeof saveWorkoutBuilderState === "function") {
           saveWorkoutBuilderState(toSave);
@@ -1176,8 +1165,7 @@ export function createWorkoutBuilder(options) {
       statIf.value.textContent = "--";
       statKj.value.textContent = "--";
       statDuration.value.textContent = "--";
-      statFtp.value.textContent =
-        ftp > 0 ? `${Math.round(ftp)} W` : "--";
+      statFtp.value.textContent = ftp > 0 ? `${Math.round(ftp)} W` : "--";
       statZone.value.textContent = currentZone || "--";
       return;
     }
@@ -1187,21 +1175,15 @@ export function createWorkoutBuilder(options) {
         ? String(Math.round(currentMetrics.tss))
         : "--";
     statIf.value.textContent =
-      currentMetrics.ifValue != null
-        ? currentMetrics.ifValue.toFixed(2)
-        : "--";
+      currentMetrics.ifValue != null ? currentMetrics.ifValue.toFixed(2) : "--";
     statKj.value.textContent =
-      currentMetrics.kj != null
-        ? String(Math.round(currentMetrics.kj))
-        : "--";
+      currentMetrics.kj != null ? String(Math.round(currentMetrics.kj)) : "--";
     statDuration.value.textContent =
       currentMetrics.durationMin != null
         ? `${Math.round(currentMetrics.durationMin)} min`
         : "--";
     statFtp.value.textContent =
-      currentMetrics.ftp != null
-        ? `${Math.round(currentMetrics.ftp)} W`
-        : "--";
+      currentMetrics.ftp != null ? `${Math.round(currentMetrics.ftp)} W` : "--";
     statZone.value.textContent = currentZone || "--";
   }
 
@@ -1243,7 +1225,7 @@ export function createWorkoutBuilder(options) {
     if (!svg) return;
     if (!currentBlocks || !currentBlocks.length) return;
 
-    const {timings, totalSec} = buildBlockTimings(currentBlocks);
+    const { timings, totalSec } = buildBlockTimings(currentBlocks);
     if (!timings.length) return;
 
     const svgRect = svg.getBoundingClientRect();
@@ -1268,7 +1250,7 @@ export function createWorkoutBuilder(options) {
       if (insertAfter != null) {
         const timing =
           insertAfter < 0
-            ? {tEnd: 0}
+            ? { tEnd: 0 }
             : timings[Math.min(insertAfter, timings.length - 1)];
         focusTimeSec = timing ? timing.tEnd : null;
       }
@@ -1311,7 +1293,8 @@ export function createWorkoutBuilder(options) {
         ? null
         : idx;
 
-    if (next === selectedBlockIndex && selectedBlockIndices.length === 1) return;
+    if (next === selectedBlockIndex && selectedBlockIndices.length === 1)
+      return;
     selectedBlockIndex = next;
     selectedBlockIndices = next == null ? [] : [next];
     selectionAnchorIndex = next;
@@ -1367,7 +1350,9 @@ export function createWorkoutBuilder(options) {
     }
     if (opts.shiftKey) {
       const anchor =
-        selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
+        selectionAnchorIndex != null
+          ? selectionAnchorIndex
+          : selectedBlockIndex;
       if (anchor == null || anchor === idx) {
         setSelectedBlock(idx);
         return;
@@ -1379,11 +1364,9 @@ export function createWorkoutBuilder(options) {
       );
       const cursorIndex = clampCursorIndex(isRight ? idx : idx - 1);
       insertAfterOverrideIndex = cursorIndex;
-      setSelectionFromCursors(
-        selectionAnchorCursorIndex,
-        cursorIndex,
-        {preserveInsert: true},
-      );
+      setSelectionFromCursors(selectionAnchorCursorIndex, cursorIndex, {
+        preserveInsert: true,
+      });
     } else {
       setSelectedBlock(idx);
     }
@@ -1399,41 +1382,19 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function setSelectionRange(targetIndex, options = {}) {
-    if (!currentBlocks || !currentBlocks.length) return;
-    const {preserveInsert = false} = options;
-    const idx = Math.max(0, Math.min(targetIndex, currentBlocks.length - 1));
-    const anchor =
-      selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
-    if (anchor == null) {
-      setSelectedBlock(idx);
-      return;
-    }
-    selectionAnchorCursorIndex = null;
-    const start = Math.min(anchor, idx);
-    const end = Math.max(anchor, idx);
-    selectedBlockIndices = [];
-    for (let i = start; i <= end; i += 1) {
-      selectedBlockIndices.push(i);
-    }
-    selectedBlockIndex = idx;
-    if (!preserveInsert) {
-      insertAfterOverrideIndex = null;
-    }
-    updateBlockEditor();
-    renderChart();
-    emitUiState();
-  }
-
   function clampCursorIndex(val) {
     if (!currentBlocks || !currentBlocks.length) return -1;
     const n = Number.isFinite(val) ? val : -1;
     return Math.max(-1, Math.min(n, currentBlocks.length - 1));
   }
 
-  function setSelectionFromCursors(anchorCursorIndex, cursorIndex, options = {}) {
+  function setSelectionFromCursors(
+    anchorCursorIndex,
+    cursorIndex,
+    options = {},
+  ) {
     if (!currentBlocks || !currentBlocks.length) return;
-    const {preserveInsert = false} = options;
+    const { preserveInsert = false } = options;
     const anchorCursor = clampCursorIndex(anchorCursorIndex);
     const cursor = clampCursorIndex(cursorIndex);
     selectionAnchorCursorIndex = anchorCursor;
@@ -1477,7 +1438,7 @@ export function createWorkoutBuilder(options) {
     const current =
       insertAfterOverrideIndex != null
         ? insertAfterOverrideIndex
-        : getInsertAfterIndex() ?? -1;
+        : (getInsertAfterIndex() ?? -1);
     const next = clampCursorIndex(current + direction);
     if (next === current) return;
 
@@ -1491,7 +1452,9 @@ export function createWorkoutBuilder(options) {
 
     if (selectedBlockIndices.length) {
       const anchor =
-        selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
+        selectionAnchorIndex != null
+          ? selectionAnchorIndex
+          : selectedBlockIndex;
       if (anchor == null) {
         insertAfterOverrideIndex = next;
         renderChart();
@@ -1500,13 +1463,11 @@ export function createWorkoutBuilder(options) {
       const anchorCursor = clampCursorIndex(
         direction > 0 ? anchor - 1 : anchor,
       );
-      const cursor = clampCursorIndex(
-        direction > 0 ? anchor + 1 : anchor - 2,
-      );
+      const cursor = clampCursorIndex(direction > 0 ? anchor + 1 : anchor - 2);
       selectionAnchorIndex = anchor;
       selectionAnchorCursorIndex = anchorCursor;
       insertAfterOverrideIndex = cursor;
-      setSelectionFromCursors(anchorCursor, cursor, {preserveInsert: true});
+      setSelectionFromCursors(anchorCursor, cursor, { preserveInsert: true });
       return;
     }
 
@@ -1514,14 +1475,16 @@ export function createWorkoutBuilder(options) {
     const anchorIndex = direction > 0 ? anchorCursor + 1 : anchorCursor;
     selectionAnchorCursorIndex = anchorCursor;
     selectionAnchorIndex =
-      anchorIndex >= 0 && anchorIndex < currentBlocks.length ? anchorIndex : null;
+      anchorIndex >= 0 && anchorIndex < currentBlocks.length
+        ? anchorIndex
+        : null;
     insertAfterOverrideIndex = next;
-    setSelectionFromCursors(anchorCursor, next, {preserveInsert: true});
+    setSelectionFromCursors(anchorCursor, next, { preserveInsert: true });
   }
 
   function emitUiState() {
     if (typeof onUiStateChange !== "function") return;
-    onUiStateChange({hasSelection: selectedBlockIndices.length > 0});
+    onUiStateChange({ hasSelection: selectedBlockIndices.length > 0 });
   }
 
   function getSelectedIndicesSorted() {
@@ -1576,7 +1539,7 @@ export function createWorkoutBuilder(options) {
     if (!canonical || !Array.isArray(canonical.rawSegments)) return;
     const blocks = segmentsToBlocks(canonical.rawSegments);
     if (!blocks.length) return;
-    insertBlocksAtInsertionPoint(blocks, {selectOnInsert: false});
+    insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
   }
 
   function startHistoryGroup() {
@@ -1625,9 +1588,9 @@ export function createWorkoutBuilder(options) {
   function cloneBlocks(blocks) {
     return (blocks || []).map((block) => ({
       ...block,
-      attrs: {...(block.attrs || {})},
+      attrs: { ...(block.attrs || {}) },
       segments: Array.isArray(block.segments)
-        ? block.segments.map((seg) => ({...seg}))
+        ? block.segments.map((seg) => ({ ...seg }))
         : [],
     }));
   }
@@ -1682,9 +1645,9 @@ export function createWorkoutBuilder(options) {
         const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
         totalSec += durSec;
       });
-      timings.push({index: idx, tStart: start, tEnd: totalSec});
+      timings.push({ index: idx, tStart: start, tEnd: totalSec });
     });
-    return {timings, totalSec};
+    return { timings, totalSec };
   }
 
   function buildSegmentTimings(blocks) {
@@ -1696,11 +1659,11 @@ export function createWorkoutBuilder(options) {
         const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
         const start = totalSec;
         const end = totalSec + durSec;
-        timings.push({blockIndex, segIndex, tStart: start, tEnd: end});
+        timings.push({ blockIndex, segIndex, tStart: start, tEnd: end });
         totalSec = end;
       });
     });
-    return {timings, totalSec};
+    return { timings, totalSec };
   }
 
   function buildRawSegmentsFromBlocks(blocks) {
@@ -1710,8 +1673,7 @@ export function createWorkoutBuilder(options) {
       segs.forEach((seg) => {
         const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
         const pStartRel = Number(seg?.pStartRel) || 0;
-        const pEndRel =
-          seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+        const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
         raw.push([durSec / 60, pStartRel * 100, pEndRel * 100]);
       });
     });
@@ -1864,11 +1826,11 @@ export function createWorkoutBuilder(options) {
     const rect = svg.getBoundingClientRect();
     const width = rect.width || 1;
     const clampedX = Math.max(0, Math.min(width, clientX - rect.left));
-    const {totalSec} = buildBlockTimings(currentBlocks);
+    const { totalSec } = buildBlockTimings(currentBlocks);
     const timelineSec = Math.max(3600, totalSec || 0);
     const timeSec = (clampedX / width) * timelineSec;
 
-    const {timings: blockTimings} = buildBlockTimings(currentBlocks);
+    const { timings: blockTimings } = buildBlockTimings(currentBlocks);
     const blockTiming = blockTimings.find((t) => t.index === blockIndex);
     const block = currentBlocks[blockIndex];
 
@@ -1881,7 +1843,7 @@ export function createWorkoutBuilder(options) {
       return timeSec < mid ? blockIndex - 1 : blockIndex;
     }
 
-    const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
+    const { timings: segmentTimings } = buildSegmentTimings(currentBlocks);
     const seg = segmentTimings.find(
       (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
     );
@@ -1940,7 +1902,7 @@ export function createWorkoutBuilder(options) {
 
     selectedBlockIndex = null;
     dragInsertAfterIndex = null;
-    commitBlocks(updated, {selectIndex: target + 1});
+    commitBlocks(updated, { selectIndex: target + 1 });
   }
 
   function updateErrorStyling() {
@@ -1965,12 +1927,15 @@ export function createWorkoutBuilder(options) {
         await clearWorkoutBuilderState();
       }
     } catch (err) {
-      console.warn("[WorkoutBuilder] Failed to clear saved builder state:", err);
+      console.warn(
+        "[WorkoutBuilder] Failed to clear saved builder state:",
+        err,
+      );
     }
   }
 
   function hydrateFromState(state, opts = {}) {
-    const {skipPersist = false} = opts;
+    const { skipPersist = false } = opts;
 
     if (!state || !Array.isArray(state.rawSegments)) return;
 
@@ -1984,7 +1949,7 @@ export function createWorkoutBuilder(options) {
     currentErrors = [];
 
     if (skipPersist) {
-      refreshLayout({skipPersist: true});
+      refreshLayout({ skipPersist: true });
     } else {
       refreshLayout();
     }
@@ -1996,11 +1961,11 @@ export function createWorkoutBuilder(options) {
       Array.isArray(persistedState.rawSegments) &&
       persistedState.rawSegments.length
     ) {
-      hydrateFromState(persistedState, {skipPersist: true});
+      hydrateFromState(persistedState, { skipPersist: true });
       return true;
     }
 
-    clearState({persist: true});
+    clearState({ persist: true });
     return false;
   }
 
@@ -2050,7 +2015,7 @@ export function createWorkoutBuilder(options) {
     const durationSec = Math.round(getBlockDurationSec(block));
 
     const commitDuration = (val) =>
-      applyBlockAttrUpdate(idx, {durationSec: clampDuration(val)});
+      applyBlockAttrUpdate(idx, { durationSec: clampDuration(val) });
 
     if (block.kind === "steady") {
       const powerPct = Math.round(getBlockSteadyPower(block) * 100);
@@ -2125,7 +2090,7 @@ export function createWorkoutBuilder(options) {
         kind: "repeat",
         step: 1,
         onCommit: (val) =>
-          applyBlockAttrUpdate(idx, {repeat: clampRepeat(val)}),
+          applyBlockAttrUpdate(idx, { repeat: clampRepeat(val) }),
       });
       list.push({
         key: "onDurationSec",
@@ -2277,7 +2242,7 @@ export function createWorkoutBuilder(options) {
       wrapper.dataset.kind = config.kind;
     }
     wrapper.appendChild(group);
-    return {wrapper, input};
+    return { wrapper, input };
   }
 
   function commitBlocks(updatedBlocks, options = {}) {
@@ -2298,15 +2263,11 @@ export function createWorkoutBuilder(options) {
       }
     }
 
-    handleAnyChange({skipPersist: options.skipPersist});
+    handleAnyChange({ skipPersist: options.skipPersist });
   }
 
   function applyBlockAttrUpdate(blockIndex, attrs, options = {}) {
-    if (
-      blockIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[blockIndex]
-    ) {
+    if (blockIndex == null || !currentBlocks || !currentBlocks[blockIndex]) {
       return;
     }
 
@@ -2316,7 +2277,7 @@ export function createWorkoutBuilder(options) {
       if (idx !== blockIndex) return block;
       const nextBlock = {
         ...block,
-        attrs: {...(block.attrs || {}), ...attrs},
+        attrs: { ...(block.attrs || {}), ...attrs },
       };
       return {
         ...nextBlock,
@@ -2326,7 +2287,12 @@ export function createWorkoutBuilder(options) {
 
     const newStartEnd = getBlockStartEnd(updatedBlocks[blockIndex]);
     if (oldStartEnd && newStartEnd) {
-      syncAdjacentRampLinks(updatedBlocks, blockIndex, oldStartEnd, newStartEnd);
+      syncAdjacentRampLinks(
+        updatedBlocks,
+        blockIndex,
+        oldStartEnd,
+        newStartEnd,
+      );
     }
 
     const nextIndex =
@@ -2335,7 +2301,7 @@ export function createWorkoutBuilder(options) {
         : blockIndex < currentBlocks.length
           ? blockIndex
           : null;
-    commitBlocks(updatedBlocks, {selectIndex: nextIndex});
+    commitBlocks(updatedBlocks, { selectIndex: nextIndex });
   }
 
   function deleteSelectedBlock() {
@@ -2354,20 +2320,18 @@ export function createWorkoutBuilder(options) {
       selectedBlockIndices = [];
       selectionAnchorIndex = null;
       selectionAnchorCursorIndex = null;
-      commitBlocks(updatedBlocks, {selectIndex: null});
+      commitBlocks(updatedBlocks, { selectIndex: null });
       return;
     }
 
     const nextIndex =
-      deleteIndex > 0
-        ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
-        : 0;
+      deleteIndex > 0 ? Math.min(deleteIndex - 1, updatedBlocks.length - 1) : 0;
     insertAfterOverrideIndex = nextIndex;
     selectedBlockIndex = null;
     selectedBlockIndices = [];
     selectionAnchorIndex = null;
     selectionAnchorCursorIndex = null;
-    commitBlocks(updatedBlocks, {selectIndex: null});
+    commitBlocks(updatedBlocks, { selectIndex: null });
   }
 
   function moveSelectedBlock(direction) {
@@ -2388,7 +2352,7 @@ export function createWorkoutBuilder(options) {
     const [moving] = updated.splice(idx, 1);
     updated.splice(target, 0, moving);
 
-    commitBlocks(updated, {selectIndex: target});
+    commitBlocks(updated, { selectIndex: target });
   }
 
   function getBlockDurationSec(block) {
@@ -2456,7 +2420,7 @@ export function createWorkoutBuilder(options) {
   function createBlock(kind, attrs) {
     const block = {
       kind,
-      attrs: {...(attrs || {})},
+      attrs: { ...(attrs || {}) },
     };
     return {
       ...block,
@@ -2472,8 +2436,7 @@ export function createWorkoutBuilder(options) {
       const durationSec = clampDuration(
         attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
       );
-      const powerRel =
-        attrs.powerRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
+      const powerRel = attrs.powerRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
       return [
         {
           durationSec,
@@ -2487,10 +2450,8 @@ export function createWorkoutBuilder(options) {
       const durationSec = clampDuration(
         attrs.durationSec ?? block.segments?.[0]?.durationSec ?? 300,
       );
-      const low =
-        attrs.powerLowRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
-      const high =
-        attrs.powerHighRel ?? block.segments?.[0]?.pEndRel ?? low;
+      const low = attrs.powerLowRel ?? block.segments?.[0]?.pStartRel ?? 0.5;
+      const high = attrs.powerHighRel ?? block.segments?.[0]?.pEndRel ?? low;
       return [
         {
           durationSec,
@@ -2552,17 +2513,11 @@ export function createWorkoutBuilder(options) {
   }
 
   function createWorkoutElementIcon(kind) {
-    const svg = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "svg",
-    );
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.classList.add("wb-code-icon");
 
-    const path = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path",
-    );
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("fill", "currentColor");
 
     switch (kind) {
@@ -2577,10 +2532,7 @@ export function createWorkoutBuilder(options) {
         break;
       case "intervals":
       default:
-        path.setAttribute(
-          "d",
-          "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z",
-        );
+        path.setAttribute("d", "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z");
         break;
     }
 
@@ -2740,7 +2692,7 @@ export function createWorkoutBuilder(options) {
     wrapper.appendChild(label);
     wrapper.appendChild(input);
 
-    return {wrapper, input};
+    return { wrapper, input };
   }
 
   function createLabeledTextarea(labelText) {
@@ -2758,7 +2710,7 @@ export function createWorkoutBuilder(options) {
     wrapper.appendChild(label);
     wrapper.appendChild(textarea);
 
-    return {wrapper, textarea};
+    return { wrapper, textarea };
   }
 
   function createStatChip(label) {
@@ -2772,13 +2724,13 @@ export function createWorkoutBuilder(options) {
     valueEl.textContent = "--";
     el.appendChild(labelEl);
     el.appendChild(valueEl);
-    return {el, value: valueEl};
+    return { el, value: valueEl };
   }
 
   function insertBlockAtInsertionPoint(spec, options = {}) {
     const block = buildBlockFromSpec(spec);
     if (!block) return null;
-    const {selectOnInsert = true} = options;
+    const { selectOnInsert = true } = options;
 
     const insertAfterIndex = getInsertAfterIndex();
     const insertIndex =
@@ -2794,11 +2746,11 @@ export function createWorkoutBuilder(options) {
 
     if (block.kind === "warmup") {
       const durationSec = prevBlock ? 120 : 360;
-      block.attrs = {...(block.attrs || {}), durationSec};
+      block.attrs = { ...(block.attrs || {}), durationSec };
       block.segments = buildSegmentsForBlock(block);
     } else if (block.kind === "cooldown") {
       const durationSec = nextBlock ? 120 : 360;
-      block.attrs = {...(block.attrs || {}), durationSec};
+      block.attrs = { ...(block.attrs || {}), durationSec };
       block.segments = buildSegmentsForBlock(block);
     }
 
@@ -2809,13 +2761,13 @@ export function createWorkoutBuilder(options) {
     }
 
     insertAfterOverrideIndex = insertIndex;
-    commitBlocks(updated, {selectIndex: selectOnInsert ? insertIndex : null});
+    commitBlocks(updated, { selectIndex: selectOnInsert ? insertIndex : null });
     return insertIndex;
   }
 
   function insertBlocksAtInsertionPoint(blocks, options = {}) {
     if (!Array.isArray(blocks) || !blocks.length) return null;
-    const {selectOnInsert = false} = options;
+    const { selectOnInsert = false } = options;
     const insertAfterIndex = getInsertAfterIndex();
     const insertIndex =
       insertAfterIndex == null
@@ -2868,26 +2820,33 @@ export function createWorkoutBuilder(options) {
     const nextBlock =
       insertIndex + 1 < blocks.length ? blocks[insertIndex + 1] : null;
 
-    if (prevBlock && (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")) {
+    if (
+      prevBlock &&
+      (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")
+    ) {
       const start = getRampLow(prevBlock);
-      const end = getRampHigh(prevBlock);
       const nextEnd = powerRel;
       const isWarmup = prevBlock.kind === "warmup";
       const keepsDirection = isWarmup ? nextEnd >= start : nextEnd <= start;
       if (keepsDirection) {
-        prevBlock.attrs = {...(prevBlock.attrs || {}), powerHighRel: nextEnd};
+        prevBlock.attrs = { ...(prevBlock.attrs || {}), powerHighRel: nextEnd };
         prevBlock.segments = buildSegmentsForBlock(prevBlock);
       }
     }
 
-    if (nextBlock && (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")) {
-      const start = getRampLow(nextBlock);
+    if (
+      nextBlock &&
+      (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")
+    ) {
       const end = getRampHigh(nextBlock);
       const nextStart = powerRel;
       const isWarmup = nextBlock.kind === "warmup";
       const keepsDirection = isWarmup ? nextStart <= end : nextStart >= end;
       if (keepsDirection) {
-        nextBlock.attrs = {...(nextBlock.attrs || {}), powerLowRel: nextStart};
+        nextBlock.attrs = {
+          ...(nextBlock.attrs || {}),
+          powerLowRel: nextStart,
+        };
         nextBlock.segments = buildSegmentsForBlock(nextBlock);
       }
     }
@@ -2961,32 +2920,28 @@ export function createWorkoutBuilder(options) {
     if (segs.length) {
       const first = segs[0];
       const last = segs[segs.length - 1];
-      const start = Number.isFinite(first?.pStartRel)
-        ? first.pStartRel
-        : null;
-      const end = Number.isFinite(last?.pEndRel)
-        ? last.pEndRel
-        : start;
+      const start = Number.isFinite(first?.pStartRel) ? first.pStartRel : null;
+      const end = Number.isFinite(last?.pEndRel) ? last.pEndRel : start;
       if (start != null && end != null) {
-        return {start, end};
+        return { start, end };
       }
     }
 
     const attrs = block.attrs || {};
     if (block.kind === "steady") {
       const power = attrs.powerRel;
-      if (Number.isFinite(power)) return {start: power, end: power};
+      if (Number.isFinite(power)) return { start: power, end: power };
     } else if (block.kind === "warmup" || block.kind === "cooldown") {
       const low = attrs.powerLowRel;
       const high = attrs.powerHighRel;
       if (Number.isFinite(low) && Number.isFinite(high)) {
-        return {start: low, end: high};
+        return { start: low, end: high };
       }
     } else if (block.kind === "intervals") {
       const on = attrs.onPowerRel;
       const off = attrs.offPowerRel;
       if (Number.isFinite(on) && Number.isFinite(off)) {
-        return {start: on, end: off};
+        return { start: on, end: off };
       }
     }
 
@@ -2999,7 +2954,10 @@ export function createWorkoutBuilder(options) {
     const nextBlock =
       blockIndex + 1 < blocks.length ? blocks[blockIndex + 1] : null;
 
-    if (prevBlock && (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")) {
+    if (
+      prevBlock &&
+      (prevBlock.kind === "warmup" || prevBlock.kind === "cooldown")
+    ) {
       const prevEnd = getRampHigh(prevBlock);
       if (Math.abs(prevEnd - oldStartEnd.start) <= EPS) {
         prevBlock.attrs = {
@@ -3010,7 +2968,10 @@ export function createWorkoutBuilder(options) {
       }
     }
 
-    if (nextBlock && (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")) {
+    if (
+      nextBlock &&
+      (nextBlock.kind === "warmup" || nextBlock.kind === "cooldown")
+    ) {
       const nextStart = getRampLow(nextBlock);
       if (Math.abs(nextStart - oldStartEnd.end) <= EPS) {
         nextBlock.attrs = {
@@ -3050,12 +3011,10 @@ export function createWorkoutBuilder(options) {
 
     const rect = svg.getBoundingClientRect();
     const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
 
-    const {timings: segmentTimings, totalSec} = buildSegmentTimings(
-      currentBlocks,
-    );
-    const {timings: blockTimings} = buildBlockTimings(currentBlocks);
+    const { timings: segmentTimings, totalSec } =
+      buildSegmentTimings(currentBlocks);
+    const { timings: blockTimings } = buildBlockTimings(currentBlocks);
     const segmentTiming = segmentTimings.find(
       (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
     );
@@ -3160,7 +3119,8 @@ export function createWorkoutBuilder(options) {
     const rect = svg.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
-    const {timings: blockTimings, totalSec} = buildBlockTimings(currentBlocks);
+    const { timings: blockTimings, totalSec } =
+      buildBlockTimings(currentBlocks);
     const timelineSec = Math.max(3600, totalSec || 0);
     const effectiveTimelineSec =
       handle === "right" && dragState?.lockedTimelineSec
@@ -3179,9 +3139,8 @@ export function createWorkoutBuilder(options) {
     const clampedY = Math.max(0, Math.min(height, localY));
 
     if (handle === "move") {
-      const timeSec =
-        (clampedX / Math.max(1, width)) * effectiveTimelineSec;
-      const {timings: segmentTimings} = buildSegmentTimings(currentBlocks);
+      const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
+      const { timings: segmentTimings } = buildSegmentTimings(currentBlocks);
       let insertAfterIndex = -1;
       if (blockTimings.length) {
         let blockTiming = blockTimings.find((t) => timeSec <= t.tEnd);
@@ -3220,15 +3179,15 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "top") {
       if (blockKind === "steady") {
-        applyBlockAttrUpdate(blockIndex, {powerRel});
+        applyBlockAttrUpdate(blockIndex, { powerRel });
         return;
       }
 
       if (blockKind === "warmup" || blockKind === "cooldown") {
         if (rampRegion === "left") {
-          applyBlockAttrUpdate(blockIndex, {powerLowRel: powerRel});
+          applyBlockAttrUpdate(blockIndex, { powerLowRel: powerRel });
         } else if (rampRegion === "right") {
-          applyBlockAttrUpdate(blockIndex, {powerHighRel: powerRel});
+          applyBlockAttrUpdate(blockIndex, { powerHighRel: powerRel });
         } else {
           const startMid = (startLow + startHigh) / 2;
           const delta = powerRel - startMid;
@@ -3244,22 +3203,25 @@ export function createWorkoutBuilder(options) {
         const role = segIndex % 2 === 0 ? "on" : "off";
         if (role === "on") {
           if (powerRel !== startOnPower) {
-            applyBlockAttrUpdate(blockIndex, {onPowerRel: powerRel});
+            applyBlockAttrUpdate(blockIndex, { onPowerRel: powerRel });
           }
         } else if (powerRel !== startOffPower) {
-          applyBlockAttrUpdate(blockIndex, {offPowerRel: powerRel});
+          applyBlockAttrUpdate(blockIndex, { offPowerRel: powerRel });
         }
       }
       return;
     }
 
     if (handle === "right") {
-      const timeSec =
-        (clampedX / Math.max(1, width)) * effectiveTimelineSec;
+      const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
       const duration = snapDurationSec(timeSec - tStart);
 
-      if (blockKind === "steady" || blockKind === "warmup" || blockKind === "cooldown") {
-        applyBlockAttrUpdate(blockIndex, {durationSec: duration});
+      if (
+        blockKind === "steady" ||
+        blockKind === "warmup" ||
+        blockKind === "cooldown"
+      ) {
+        applyBlockAttrUpdate(blockIndex, { durationSec: duration });
         return;
       }
 
@@ -3288,7 +3250,7 @@ export function createWorkoutBuilder(options) {
 
   function handleChartPointerUp(e) {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
-    const {handle, blockIndex} = dragState;
+    const { handle, blockIndex } = dragState;
 
     if (handle === "move" && dragInsertAfterIndex != null) {
       reorderBlocks(blockIndex, dragInsertAfterIndex);
