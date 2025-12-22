@@ -593,9 +593,21 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
       lastHoveredSegment = null;
     }
 
-    const hitEl = document.elementFromPoint(clientX, clientY);
-    const segment =
-      hitEl && hitEl.closest ? hitEl.closest(".chart-segment") : null;
+    let segment = null;
+    const dragBlockIndex = Number(containerEl.dataset.dragBlockIndex);
+    const dragSegIndex = Number(containerEl.dataset.dragSegIndex);
+    if (
+      Number.isFinite(dragBlockIndex) &&
+      Number.isFinite(dragSegIndex)
+    ) {
+      segment = svg.querySelector(
+        `[data-block-index="${dragBlockIndex}"][data-seg-index="${dragSegIndex}"]`,
+      );
+    }
+    if (!segment) {
+      const hitEl = document.elementFromPoint(clientX, clientY);
+      segment = hitEl && hitEl.closest ? hitEl.closest(".chart-segment") : null;
+    }
 
     if (!segment || !svg.contains(segment)) {
       tooltipEl.style.display = "none";
@@ -1058,11 +1070,14 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         "http://www.w3.org/2000/svg",
         "polygon",
       );
-      const y0b = Math.min(height, y0 + HANDLE_TOP_HEIGHT);
-      const y1b = Math.min(height, y1 + HANDLE_TOP_HEIGHT);
+      const clampY = (val) => Math.max(0, Math.min(height, val));
+      const y0t = clampY(y0 - HANDLE_TOP_HEIGHT);
+      const y1t = clampY(y1 - HANDLE_TOP_HEIGHT);
+      const y0b = clampY(y0 + HANDLE_TOP_HEIGHT);
+      const y1b = clampY(y1 + HANDLE_TOP_HEIGHT);
       topHandle.setAttribute(
         "points",
-        `${x1},${y0} ${x2},${y1} ${x2},${y1b} ${x1},${y0b}`,
+        `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`,
       );
       topHandle.setAttribute("fill", "transparent");
       topHandle.setAttribute("pointer-events", "all");
@@ -1075,11 +1090,12 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         HANDLE_RIGHT_WIDTH,
         Math.max(6, segWidth),
       );
+      const handleHalf = handleWidth / 2;
       const rightHandle = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "rect",
       );
-      rightHandle.setAttribute("x", String(x2 - handleWidth));
+      rightHandle.setAttribute("x", String(x2 - handleHalf));
       rightHandle.setAttribute("y", "0");
       rightHandle.setAttribute("width", String(handleWidth));
       rightHandle.setAttribute("height", String(height));

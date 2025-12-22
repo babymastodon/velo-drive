@@ -2547,6 +2547,8 @@ export function createWorkoutBuilder(options) {
     };
 
     dragInsertAfterIndex = null;
+    chartMiniHost.dataset.dragBlockIndex = String(blockIndex);
+    chartMiniHost.dataset.dragSegIndex = String(segIndex);
 
     document.body.classList.add("wb-dragging");
     window.addEventListener("pointermove", handleChartPointerMove);
@@ -2712,6 +2714,10 @@ export function createWorkoutBuilder(options) {
     }
 
     dragState = null;
+    if (chartMiniHost) {
+      chartMiniHost.removeAttribute("data-drag-block-index");
+      chartMiniHost.removeAttribute("data-drag-seg-index");
+    }
     document.body.classList.remove("wb-dragging");
     window.removeEventListener("pointermove", handleChartPointerMove);
     window.removeEventListener("pointerup", handleChartPointerUp);
