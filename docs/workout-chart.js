@@ -607,6 +607,16 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     if (!segment) {
       const hitEl = document.elementFromPoint(clientX, clientY);
       segment = hitEl && hitEl.closest ? hitEl.closest(".chart-segment") : null;
+      if (!segment && hitEl && hitEl.closest) {
+        const handleEl = hitEl.closest("[data-block-index][data-seg-index]");
+        if (handleEl && svg.contains(handleEl)) {
+          const blockIndex = handleEl.dataset.blockIndex;
+          const segIndex = handleEl.dataset.segIndex;
+          segment = svg.querySelector(
+            `.chart-segment[data-block-index="${blockIndex}"][data-seg-index="${segIndex}"]`,
+          );
+        }
+      }
     }
 
     if (!segment || !svg.contains(segment)) {
