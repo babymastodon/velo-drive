@@ -13,6 +13,10 @@ import {
   loadWorkoutBuilderState,
   saveWorkoutBuilderState,
 } from "./storage.js";
+import {
+  canonicalWorkoutToZwoXml,
+  parseZwoXmlToCanonicalWorkout,
+} from "./zwo.js";
 
 /**
  * @typedef WorkoutBuilderOptions
@@ -43,6 +47,8 @@ export function createWorkoutBuilder(options) {
   let currentZone = null;
   let persistedState = null;
   let selectedBlockIndex = null;
+  let selectedBlockIndices = [];
+  let selectionAnchorIndex = null;
   let dragInsertAfterIndex = null;
   let insertAfterOverrideIndex = null;
   let dragState = null;
@@ -388,11 +394,13 @@ export function createWorkoutBuilder(options) {
 
     const key = e.key;
     const lower = key.toLowerCase();
-    const hasSelection =
-      selectedBlockIndex != null &&
-      currentBlocks &&
-      currentBlocks[selectedBlockIndex];
-    const block = hasSelection ? currentBlocks[selectedBlockIndex] : null;
+    const selectionCount = selectedBlockIndices.length;
+    const hasSelection = selectionCount > 0;
+    const singleSelection = selectionCount === 1;
+    const block =
+      singleSelection && selectedBlockIndex != null
+        ? currentBlocks[selectedBlockIndex]
+        : null;
 
     if (isMetaShortcut && !hasSelection) {
       if (!currentBlocks || !currentBlocks.length) return;
@@ -427,6 +435,22 @@ export function createWorkoutBuilder(options) {
     if (isRedo) {
       e.preventDefault();
       redoLastChange();
+      return;
+    }
+
+    if (isMetaShortcut && lower === "c") {
+      e.preventDefault();
+      copySelectionToClipboard();
+      return;
+    }
+    if (isMetaShortcut && lower === "x") {
+      e.preventDefault();
+      cutSelectionToClipboard();
+      return;
+    }
+    if (isMetaShortcut && lower === "v") {
+      e.preventDefault();
+      pasteFromClipboard();
       return;
     }
 
@@ -544,17 +568,27 @@ export function createWorkoutBuilder(options) {
         insertAfterOverrideIndex != null
           ? insertAfterOverrideIndex
           : getInsertAfterIndex();
-      return insertAfter === selectedBlockIndex;
+      if (singleSelection) return insertAfter === selectedBlockIndex;
+      if (!selectedBlockIndices.length) return false;
+      const last = selectedBlockIndices[selectedBlockIndices.length - 1];
+      return insertAfter === last;
     };
 
     if (key === " " || e.code === "Space") {
-      if (hasSelection && block) {
+      if (hasSelection) {
         e.preventDefault();
         e.stopPropagation();
-        const atEnd = isInsertionAtEndOfSelection();
-        insertAfterOverrideIndex = atEnd
-          ? selectedBlockIndex - 1
-          : selectedBlockIndex;
+        if (singleSelection) {
+          const atEnd = isInsertionAtEndOfSelection();
+          insertAfterOverrideIndex = atEnd
+            ? selectedBlockIndex - 1
+            : selectedBlockIndex;
+        } else {
+          const first = selectedBlockIndices[0];
+          const last = selectedBlockIndices[selectedBlockIndices.length - 1];
+          const atEnd = insertAfterOverrideIndex === last;
+          insertAfterOverrideIndex = atEnd ? first - 1 : last;
+        }
         renderChart();
       }
       return;
@@ -663,6 +697,10 @@ export function createWorkoutBuilder(options) {
           adjustBlockPower(nextIndex, "start");
         }
       }
+      return;
+    }
+
+    if (!singleSelection) {
       return;
     }
 
@@ -1059,6 +1097,7 @@ export function createWorkoutBuilder(options) {
     try {
       renderBuilderWorkoutGraph(chartMiniHost, currentBlocks || [], ftp, {
         selectedBlockIndex,
+        selectedBlockIndices,
         insertAfterBlockIndex:
           dragInsertAfterIndex != null
             ? dragInsertAfterIndex
@@ -1136,6 +1175,7 @@ export function createWorkoutBuilder(options) {
 
   function getSelectedBlock() {
     if (
+      selectedBlockIndices.length !== 1 ||
       selectedBlockIndex == null ||
       !currentBlocks ||
       !currentBlocks[selectedBlockIndex]
@@ -1155,8 +1195,10 @@ export function createWorkoutBuilder(options) {
         ? null
         : idx;
 
-    if (next === selectedBlockIndex) return;
+    if (next === selectedBlockIndex && selectedBlockIndices.length === 1) return;
     selectedBlockIndex = next;
+    selectedBlockIndices = next == null ? [] : [next];
+    selectionAnchorIndex = next;
     insertAfterOverrideIndex = null;
     startHistoryGroup();
     updateBlockEditor();
@@ -1165,9 +1207,11 @@ export function createWorkoutBuilder(options) {
   }
 
   function deselectBlock() {
-    if (selectedBlockIndex == null) return;
+    if (selectedBlockIndex == null && !selectedBlockIndices.length) return;
     const prevSelected = selectedBlockIndex;
     selectedBlockIndex = null;
+    selectedBlockIndices = [];
+    selectionAnchorIndex = null;
     if (insertAfterOverrideIndex == null && prevSelected != null) {
       insertAfterOverrideIndex = prevSelected;
     }
@@ -1188,6 +1232,8 @@ export function createWorkoutBuilder(options) {
         : idx;
 
     selectedBlockIndex = null;
+    selectedBlockIndices = [];
+    selectionAnchorIndex = null;
     insertAfterOverrideIndex = next;
     startHistoryGroup();
     updateBlockEditor();
@@ -1195,12 +1241,16 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
-  function handleBlockSelectionFromChart(idx) {
+  function handleBlockSelectionFromChart(idx, opts = {}) {
     if (idx == null) {
       deselectBlock();
       return;
     }
-    setSelectedBlock(idx);
+    if (opts.shiftKey) {
+      setSelectionRange(idx);
+    } else {
+      setSelectedBlock(idx);
+    }
   }
 
   function handleInsertAfterFromChart(idx) {
@@ -1213,9 +1263,79 @@ export function createWorkoutBuilder(options) {
     emitUiState();
   }
 
+  function setSelectionRange(targetIndex) {
+    if (!currentBlocks || !currentBlocks.length) return;
+    const idx = Math.max(0, Math.min(targetIndex, currentBlocks.length - 1));
+    const anchor =
+      selectionAnchorIndex != null ? selectionAnchorIndex : selectedBlockIndex;
+    if (anchor == null) {
+      setSelectedBlock(idx);
+      return;
+    }
+    const start = Math.min(anchor, idx);
+    const end = Math.max(anchor, idx);
+    selectedBlockIndices = [];
+    for (let i = start; i <= end; i += 1) {
+      selectedBlockIndices.push(i);
+    }
+    selectedBlockIndex = idx;
+    insertAfterOverrideIndex = null;
+    updateBlockEditor();
+    renderChart();
+    emitUiState();
+  }
+
   function emitUiState() {
     if (typeof onUiStateChange !== "function") return;
-    onUiStateChange({hasSelection: !!getSelectedBlock()});
+    onUiStateChange({hasSelection: selectedBlockIndices.length > 0});
+  }
+
+  function getSelectedIndicesSorted() {
+    return selectedBlockIndices.slice().sort((a, b) => a - b);
+  }
+
+  async function copySelectionToClipboard() {
+    if (!selectedBlockIndices.length) return;
+    const indices = getSelectedIndicesSorted();
+    const blocks = indices.map((idx) => currentBlocks[idx]).filter(Boolean);
+    const rawSegments = buildRawSegmentsFromBlocks(blocks);
+    if (!rawSegments.length) return;
+    const canonical = {
+      source: "VeloDrive Builder",
+      sourceURL: "",
+      workoutTitle: "Clipboard",
+      rawSegments,
+      description: "",
+    };
+    try {
+      await navigator.clipboard.writeText(
+        canonicalWorkoutToZwoXml(canonical),
+      );
+    } catch (err) {
+      console.warn("[WorkoutBuilder] Clipboard write failed:", err);
+    }
+  }
+
+  async function cutSelectionToClipboard() {
+    await copySelectionToClipboard();
+    deleteSelectedBlock();
+  }
+
+  async function pasteFromClipboard() {
+    if (!navigator.clipboard?.readText) return;
+    let text = "";
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (err) {
+      console.warn("[WorkoutBuilder] Clipboard read failed:", err);
+      return;
+    }
+    if (!text) return;
+    const canonical = parseZwoXmlToCanonicalWorkout(text);
+    if (!canonical || !Array.isArray(canonical.rawSegments)) return;
+    const blocks = segmentsToBlocks(canonical.rawSegments);
+    if (!blocks.length) return;
+    insertBlocksAtInsertionPoint(blocks, {selectOnInsert: false});
   }
 
   function startHistoryGroup() {
@@ -1641,12 +1761,15 @@ export function createWorkoutBuilder(options) {
   function updateBlockEditor() {
     if (!blockEditor || !toolbarButtons) return;
 
+    const selectionCount = selectedBlockIndices.length;
     const block = getSelectedBlock();
-    if (!block) {
+    if (!selectionCount) {
       toolbarButtons.style.display = "";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
       blockEditorActions.style.display = "none";
+      moveLeftBtn.style.display = "";
+      moveRightBtn.style.display = "";
       return;
     }
 
@@ -1654,6 +1777,15 @@ export function createWorkoutBuilder(options) {
     blockEditor.style.display = "flex";
     blockEditorFields.innerHTML = "";
     blockEditorActions.style.display = "flex";
+
+    if (selectionCount > 1) {
+      moveLeftBtn.style.display = "none";
+      moveRightBtn.style.display = "none";
+      return;
+    }
+
+    moveLeftBtn.style.display = "";
+    moveRightBtn.style.display = "";
 
     const configs = buildBlockFieldConfigs(block);
     configs.forEach((cfg) => {
@@ -1909,6 +2041,13 @@ export function createWorkoutBuilder(options) {
 
     if (options.selectIndex !== undefined) {
       selectedBlockIndex = options.selectIndex;
+      if (options.selectIndex == null) {
+        selectedBlockIndices = [];
+        selectionAnchorIndex = null;
+      } else {
+        selectedBlockIndices = [options.selectIndex];
+        selectionAnchorIndex = options.selectIndex;
+      }
     }
 
     handleAnyChange({skipPersist: options.skipPersist});
@@ -1952,21 +2091,20 @@ export function createWorkoutBuilder(options) {
   }
 
   function deleteSelectedBlock() {
-    if (
-      selectedBlockIndex == null ||
-      !currentBlocks ||
-      !currentBlocks[selectedBlockIndex]
-    ) {
-      return;
-    }
+    if (!currentBlocks || !currentBlocks.length) return;
+    if (!selectedBlockIndices.length) return;
 
-    const deleteIndex = selectedBlockIndex;
+    const indices = selectedBlockIndices.slice().sort((a, b) => a - b);
+    const deleteIndex = indices[0];
     recordHistorySnapshot();
     const updatedBlocks = currentBlocks.filter(
-      (_block, idx) => idx !== deleteIndex,
+      (_block, idx) => !indices.includes(idx),
     );
 
     if (!updatedBlocks.length) {
+      selectedBlockIndex = null;
+      selectedBlockIndices = [];
+      selectionAnchorIndex = null;
       commitBlocks(updatedBlocks, {selectIndex: null});
       return;
     }
@@ -1976,6 +2114,9 @@ export function createWorkoutBuilder(options) {
         ? Math.min(deleteIndex - 1, updatedBlocks.length - 1)
         : 0;
     insertAfterOverrideIndex = nextIndex;
+    selectedBlockIndex = null;
+    selectedBlockIndices = [];
+    selectionAnchorIndex = null;
     commitBlocks(updatedBlocks, {selectIndex: null});
   }
 
@@ -2368,6 +2509,27 @@ export function createWorkoutBuilder(options) {
     return insertIndex;
   }
 
+  function insertBlocksAtInsertionPoint(blocks, options = {}) {
+    if (!Array.isArray(blocks) || !blocks.length) return null;
+    const {selectOnInsert = false} = options;
+    const insertAfterIndex = getInsertAfterIndex();
+    const insertIndex =
+      insertAfterIndex == null
+        ? currentBlocks.length
+        : Math.max(0, insertAfterIndex + 1);
+
+    recordHistorySnapshot();
+    const updated = currentBlocks.slice();
+    const copies = cloneBlocks(blocks);
+    updated.splice(insertIndex, 0, ...copies);
+
+    insertAfterOverrideIndex = insertIndex + copies.length - 1;
+    commitBlocks(updated, {
+      selectIndex: selectOnInsert ? insertIndex : null,
+    });
+    return insertIndex;
+  }
+
   function buildBlockFromSpec(spec) {
     if (!spec || !spec.kind) return null;
     const kind = spec.kind;
@@ -2557,6 +2719,10 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleChartPointerDown(e) {
+    if (e.shiftKey) {
+      e.preventDefault();
+      return;
+    }
     if (!chartMiniHost) return;
     const activeEl = document.elementFromPoint(e.clientX, e.clientY);
     const handleEl =
