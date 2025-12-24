@@ -9,7 +9,7 @@ export function createBuilderBackend() {
   const state = {
     meta: {
       workoutTitle: "",
-      source: "",
+      source: "Me",
       description: "",
       sourceURL: "",
     },

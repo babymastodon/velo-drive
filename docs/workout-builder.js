@@ -73,6 +73,7 @@ export function createWorkoutBuilder(options) {
 
   const nameField = createLabeledInput("Name");
   const sourceField = createLabeledInput("Author / Source");
+  sourceField.input.value = "Me";
   const descField = createLabeledTextarea("Description");
   descField.textarea.placeholder =
     "Short description, goals, or cues (optional)";
@@ -870,7 +871,7 @@ export function createWorkoutBuilder(options) {
   function syncMetaFromInputs() {
     const title =
       (nameField.input.value || "Custom workout").trim() || "Custom workout";
-    const source = (sourceField.input.value || "Me").trim() || "Me";
+    const source = (sourceField.input.value || "").trim();
     const description = descField.textarea.value || "";
     const sourceURL = (urlInput.value || "").trim();
     backend.setMeta({
@@ -891,7 +892,7 @@ export function createWorkoutBuilder(options) {
 
     resetHistory();
     nameField.input.value = "";
-    sourceField.input.value = "";
+    sourceField.input.value = "Me";
     descField.textarea.value = "";
     urlInput.value = "";
 
