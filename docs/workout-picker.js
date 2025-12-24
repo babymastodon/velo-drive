@@ -1775,9 +1775,20 @@ function createWorkoutPicker(config) {
   }
 
   if (overlay) {
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay && overlay.classList.contains("picker-mode"))
+    let overlayPointerDown = false;
+    overlay.addEventListener("pointerdown", (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      overlayPointerDown = e.target === overlay;
+    });
+    overlay.addEventListener("pointerup", (e) => {
+      if (
+        overlayPointerDown &&
+        e.target === overlay &&
+        overlay.classList.contains("picker-mode")
+      ) {
         close();
+      }
+      overlayPointerDown = false;
     });
   }
 
