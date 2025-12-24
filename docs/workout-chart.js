@@ -584,16 +584,195 @@ const lastHoverPosByContainer = new WeakMap();
 /**
  * Attaches hover behavior for segments: shows tooltip and highlights polygon.
  */
-function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
+function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
   if (!svg || !tooltipEl || !containerEl) return;
+
+  const {
+    liveSamples = [],
+    totalSec = 0,
+    width = 0,
+    height = 0,
+    maxY = 0,
+    gapBreakSeconds = 0,
+  } = options;
 
   const cleanup = hoverCleanupMap.get(svg);
   if (cleanup) cleanup();
+
+  const lineDots = {};
+  const createLineDot = (color) => {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("r", "4");
+    dot.setAttribute("fill", color);
+    dot.setAttribute("pointer-events", "none");
+    dot.style.display = "none";
+    svg.appendChild(dot);
+    return dot;
+  };
+
+  if (liveSamples && liveSamples.length && totalSec > 0 && width > 0 && height > 0) {
+    lineDots.power = createLineDot(getCssVar("--power-line"));
+    lineDots.hr = createLineDot(getCssVar("--hr-line"));
+    lineDots.cadence = createLineDot(getCssVar("--cad-line"));
+  }
+
+  const hideLineDots = () => {
+    Object.values(lineDots).forEach((dot) => {
+      dot.style.display = "none";
+    });
+  };
+
+  const clearSegmentHover = () => {
+    tooltipEl.style.display = "none";
+    if (lastHoveredSegment) {
+      const prevColor =
+        lastHoveredSegment.dataset.mutedColor ||
+        lastHoveredSegment.dataset.color;
+      if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
+      lastHoveredSegment = null;
+    }
+  };
+
+  const updateTooltipPosition = (clientX, clientY) => {
+    const panelRect = containerEl.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    const scrollEl = containerEl.parentElement;
+    const isScrollable =
+      scrollEl && scrollEl.scrollWidth > scrollEl.clientWidth + 1;
+    const scrollLeft = isScrollable ? scrollEl.scrollLeft : 0;
+    const baseLeft = svgRect.left - panelRect.left;
+    const viewWidth = isScrollable
+      ? scrollEl.clientWidth
+      : svgRect.width || panelRect.width;
+    let tx = clientX - panelRect.left + 8;
+    let ty = clientY - panelRect.top + 8;
+
+    const ttRect = tooltipEl.getBoundingClientRect();
+    const minX = baseLeft + scrollLeft;
+    const maxX = minX + viewWidth - ttRect.width - 4;
+    if (tx > maxX) tx = maxX;
+    if (tx < minX) tx = minX;
+    if (ty + ttRect.height > panelRect.height - 4) {
+      ty = panelRect.height - ttRect.height - 4;
+    }
+    if (ty < 0) ty = 0;
+
+    tooltipEl.style.left = `${tx}px`;
+    tooltipEl.style.top = `${ty}px`;
+  };
+
+  const findSamplesAround = (targetT) => {
+    if (!liveSamples || !liveSamples.length) return {prev: null, next: null};
+    let lo = 0;
+    let hi = liveSamples.length - 1;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const t = Number(liveSamples[mid]?.t);
+      if (!Number.isFinite(t) || t < targetT) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    const next = liveSamples[lo] || null;
+    const prev = lo > 0 ? liveSamples[lo - 1] : null;
+    return {prev, next};
+  };
+
+  const getLineHover = (clientX, clientY) => {
+    if (!Object.keys(lineDots).length) return null;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) {
+      return null;
+    }
+    const svgX = (relX / rect.width) * width;
+    const svgY = (relY / rect.height) * height;
+    const targetT = (svgX / width) * totalSec;
+    const {prev, next} = findSamplesAround(targetT);
+    if (!prev && !next) return null;
+
+    const keys = [
+      {key: "power", label: "Power", unit: "W"},
+      {key: "hr", label: "HR", unit: "bpm"},
+      {key: "cadence", label: "Cadence", unit: "rpm"},
+    ];
+
+    const HIT_PX = 16;
+    let best = null;
+    keys.forEach(({key, label, unit}) => {
+      const prevT = Number(prev?.t);
+      const nextT = Number(next?.t);
+      const prevVal = prev ? Number(prev[key]) : null;
+      const nextVal = next ? Number(next[key]) : null;
+      let val = null;
+
+      if (Number.isFinite(prevT) && Number.isFinite(nextT)) {
+        if (
+          gapBreakSeconds &&
+          nextT - prevT > gapBreakSeconds &&
+          targetT > prevT &&
+          targetT < nextT
+        ) {
+          return;
+        }
+        const span = nextT - prevT;
+        if (span > 0 && Number.isFinite(prevVal) && Number.isFinite(nextVal)) {
+          const t = (targetT - prevT) / span;
+          val = prevVal + (nextVal - prevVal) * t;
+        } else if (Number.isFinite(prevVal) && targetT <= prevT) {
+          val = prevVal;
+        } else if (Number.isFinite(nextVal) && targetT >= nextT) {
+          val = nextVal;
+        }
+      } else if (Number.isFinite(prevVal)) {
+        val = prevVal;
+      } else if (Number.isFinite(nextVal)) {
+        val = nextVal;
+      }
+
+      if (!Number.isFinite(val)) return;
+      const yVal = Math.min(maxY, Math.max(0, val));
+      const y = height - (yVal / maxY) * height;
+      const dist = Math.abs(y - svgY);
+      if (dist > HIT_PX) return;
+      if (!best || dist < best.dist) {
+        best = {key, label, unit, val, y, dist};
+      }
+    });
+
+    if (!best) return null;
+    const x = Math.min(width, Math.max(0, (targetT / totalSec) * width));
+    return {x, y: best.y, label: best.label, unit: best.unit, val: best.val, key: best.key};
+  };
 
   const applyHoverAtClientPos = (clientX, clientY, {remember = true} = {}) => {
     if (lastHoveredSegment && !document.contains(lastHoveredSegment)) {
       lastHoveredSegment = null;
     }
+
+    const lineHover = getLineHover(clientX, clientY);
+    if (lineHover) {
+      clearSegmentHover();
+      hideLineDots();
+      const dot = lineDots[lineHover.key];
+      if (dot) {
+        dot.setAttribute("cx", String(lineHover.x));
+        dot.setAttribute("cy", String(lineHover.y));
+        dot.style.display = "block";
+      }
+      tooltipEl.textContent = `${lineHover.label}: ${Math.round(lineHover.val)} ${lineHover.unit}`;
+      tooltipEl.style.display = "block";
+      updateTooltipPosition(clientX, clientY);
+      if (remember) {
+        lastHoverPosByContainer.set(containerEl, {clientX, clientY});
+      }
+      return;
+    }
+
+    hideLineDots();
 
     let segment = null;
     const dragBlockIndex = Number(containerEl.dataset.dragBlockIndex);
@@ -622,14 +801,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
     }
 
     if (!segment || !svg.contains(segment)) {
-      tooltipEl.style.display = "none";
-      if (lastHoveredSegment) {
-        const prevColor =
-          lastHoveredSegment.dataset.mutedColor ||
-          lastHoveredSegment.dataset.color;
-        if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
-        lastHoveredSegment = null;
-      }
+      clearSegmentHover();
       return;
     }
 
@@ -653,31 +825,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
         : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
     tooltipEl.style.display = "block";
 
-    const panelRect = containerEl.getBoundingClientRect();
-    const svgRect = svg.getBoundingClientRect();
-    const scrollEl = containerEl.parentElement;
-    const isScrollable =
-      scrollEl && scrollEl.scrollWidth > scrollEl.clientWidth + 1;
-    const scrollLeft = isScrollable ? scrollEl.scrollLeft : 0;
-    const baseLeft = svgRect.left - panelRect.left;
-    const viewWidth = isScrollable
-      ? scrollEl.clientWidth
-      : svgRect.width || panelRect.width;
-    let tx = clientX - panelRect.left + 8;
-    let ty = clientY - panelRect.top + 8;
-
-    const ttRect = tooltipEl.getBoundingClientRect();
-    const minX = baseLeft + scrollLeft;
-    const maxX = minX + viewWidth - ttRect.width - 4;
-    if (tx > maxX) tx = maxX;
-    if (tx < minX) tx = minX;
-    if (ty + ttRect.height > panelRect.height - 4) {
-      ty = panelRect.height - ttRect.height - 4;
-    }
-    if (ty < 0) ty = 0;
-
-    tooltipEl.style.left = `${tx}px`;
-    tooltipEl.style.top = `${ty}px`;
+    updateTooltipPosition(clientX, clientY);
 
     if (lastHoveredSegment && lastHoveredSegment !== segment) {
       const prevColor =
@@ -704,14 +852,8 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp) {
   };
 
   const onMouseLeave = () => {
-    tooltipEl.style.display = "none";
-    if (lastHoveredSegment) {
-      const prevColor =
-        lastHoveredSegment.dataset.mutedColor ||
-        lastHoveredSegment.dataset.color;
-      if (prevColor) lastHoveredSegment.setAttribute("fill", prevColor);
-      lastHoveredSegment = null;
-    }
+    hideLineDots();
+    clearSegmentHover();
     lastHoverPosByContainer.delete(containerEl);
   };
 
@@ -1602,5 +1744,12 @@ export function drawWorkoutChart({
     addPaths(pathsForKey("cadence"), cadColor, 1.5);
   }
 
-  attachSegmentHover(svg, tooltipEl, panel, ftp);
+  attachSegmentHover(svg, tooltipEl, panel, ftp, {
+    liveSamples: samples,
+    totalSec: safeTotalSec,
+    width: w,
+    height: h,
+    maxY,
+    gapBreakSeconds: GAP_BREAK_SECONDS,
+  });
 }
