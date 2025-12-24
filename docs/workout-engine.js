@@ -13,6 +13,8 @@ import {
   saveActiveState,
   clearActiveState,
   loadWorkoutDirHandle,
+  loadFreeRideSettings,
+  saveFreeRideSettings,
 } from "./storage.js";
 
 let instance = null;
@@ -583,6 +585,26 @@ function createWorkoutEngine() {
       recomputeWorkoutTotalSec();
     }
 
+    try {
+      const storedFreeRide = await loadFreeRideSettings();
+      if (storedFreeRide && typeof storedFreeRide === "object") {
+        if (
+          storedFreeRide.freeRideMode === "erg" ||
+          storedFreeRide.freeRideMode === "resistance"
+        ) {
+          freeRideMode = storedFreeRide.freeRideMode;
+        }
+        if (Number.isFinite(storedFreeRide.manualErgTarget)) {
+          manualErgTarget = storedFreeRide.manualErgTarget;
+        }
+        if (Number.isFinite(storedFreeRide.manualResistance)) {
+          manualResistance = storedFreeRide.manualResistance;
+        }
+      }
+    } catch (_err) {
+      // ignore load failures
+    }
+
     const active = await loadActiveState();
     if (active) {
       log("Restoring previous active workout state.");
@@ -650,6 +672,11 @@ function createWorkoutEngine() {
       if (newMode !== "erg" && newMode !== "resistance") return;
       if (newMode === freeRideMode || workoutStarting) return;
       freeRideMode = newMode;
+      saveFreeRideSettings({
+        freeRideMode,
+        manualErgTarget,
+        manualResistance,
+      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
         log("Trainer state send on free ride mode change failed: " + err)
@@ -668,6 +695,11 @@ function createWorkoutEngine() {
 
     adjustManualErg(delta) {
       manualErgTarget = Math.max(50, Math.min(1500, manualErgTarget + delta));
+      saveFreeRideSettings({
+        freeRideMode,
+        manualErgTarget,
+        manualResistance,
+      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
@@ -675,6 +707,11 @@ function createWorkoutEngine() {
 
     adjustManualResistance(delta) {
       manualResistance = Math.max(0, Math.min(100, manualResistance + delta));
+      saveFreeRideSettings({
+        freeRideMode,
+        manualErgTarget,
+        manualResistance,
+      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
