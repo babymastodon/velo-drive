@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v47";
+const CACHE_VERSION = "v48";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -43,12 +43,22 @@ const PRECACHE_URLS = [
   "./velodrive.webmanifest",
 
   // Bundled default workouts
-  "./workouts/Basefire%2520Waves.zwo",
-  "./workouts/Breath%2520of%2520Power.zwo",
-  "./workouts/Into%2520the%2520Black.zwo",
-  "./workouts/Keep%2520Turning.zwo",
-  "./workouts/Rise%2520Against%2520the%2520Odds.zwo",
-  "./workouts/Sleepy%2520Spin.zwo",
+  "./workouts/Basefire%20Waves.zwo",
+  "./workouts/Breath%20of%20Power.zwo",
+  "./workouts/Crestline%20Endurance.zwo",
+  "./workouts/Endurance%20Drift.zwo",
+  "./workouts/Endurance%20Espresso.zwo",
+  "./workouts/Freeride.zwo",
+  "./workouts/Into%20the%20Black.zwo",
+  "./workouts/Keep%20Turning.zwo",
+  "./workouts/Long%20Rollers.zwo",
+  "./workouts/Lullaby%20Legs.zwo",
+  "./workouts/Mellow%20Matchsticks.zwo",
+  "./workouts/Pillow%20Pops.zwo",
+  "./workouts/Rise%20Against%20the%20Odds.zwo",
+  "./workouts/Rolling%20Crests.zwo",
+  "./workouts/Sleepy%20Spin.zwo",
+  "./workouts/Snooze%20Cruise.zwo",
 
   // Icons
   "./icons/logo_sq.svg",
