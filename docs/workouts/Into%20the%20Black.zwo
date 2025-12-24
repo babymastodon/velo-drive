@@ -9,7 +9,7 @@
   <workout>
     <Warmup Duration="240" PowerLow="0.40" PowerHigh="0.65" />
     <SteadyState Duration="480" Power="0.80" />
-    <SteadyState Duration="180" Power="0.60" />
+    <SteadyState Duration="165" Power="0.60" />
     <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" />
     <SteadyState Duration="150" Power="0.65" />
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" />

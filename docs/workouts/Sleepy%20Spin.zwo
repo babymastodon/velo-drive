@@ -2,7 +2,7 @@
 <workout_file>
   <author>VeloDrive</author>
   <name>Sleepy Spin</name>
-  <description><![CDATA[A gentle opening that eases you in, followed by two focused but manageable sections to wake up the legs and lift your rhythm. The effort stays comfortable overall, with just enough intensity in the middle to feel rewarding without leaving you fatigued. Just settle in, build gradually, and enjoy the flow.]]></description>
+  <description><![CDATA[Settle into long, quiet recovery miles with a few bright moments. Cruise easy, add 5×1-min gentle pick-ups and 3×90-sec smooth lifts, then finish with 3×30-sec sparks at ~110% before drifting into a relaxed cooldown.]]></description>
   <sportType>bike</sportType>
   <tags>
   </tags>
@@ -10,10 +10,11 @@
     <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" />
     <SteadyState Duration="600" Power="0.55" />
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.72" OffPower="0.58" />
-    <SteadyState Duration="360" Power="0.58" />
+    <SteadyState Duration="315" Power="0.58" />
     <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.85" OffPower="0.60" />
     <SteadyState Duration="480" Power="0.55" />
-    <SteadyState Duration="645" Power="0.50" />
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" />
+    <SteadyState Duration="360" Power="0.50" />
     <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" />
   </workout>
 </workout_file>
