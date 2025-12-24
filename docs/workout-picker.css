@@ -1081,6 +1081,12 @@
   gap: 4px;
 }
 
+.wb-code-insert-btn--icon-only {
+  padding: 0;
+  width: var(--nav-control-height);
+  justify-content: center;
+}
+
 
 .wb-code-icon {
   width: 18px;
