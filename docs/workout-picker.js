@@ -15,6 +15,7 @@
 import {
   computeMetricsFromSegments,
   getDurationBucket,
+  formatDurationMinSec,
   inferZoneFromSegments,
 } from "./workout-metrics.js";
 
@@ -456,6 +457,17 @@ function createWorkoutPicker(config) {
     return { el, value: valueEl };
   }
 
+  function formatPickerDuration(metrics) {
+    if (!metrics) return "";
+    if (Number.isFinite(metrics.totalSec) && metrics.totalSec > 0) {
+      return formatDurationMinSec(metrics.totalSec);
+    }
+    if (Number.isFinite(metrics.durationMin) && metrics.durationMin > 0) {
+      return formatDurationMinSec(metrics.durationMin * 60);
+    }
+    return "";
+  }
+
   function renderWorkoutPickerTable() {
     if (!tbody) return;
 
@@ -525,10 +537,7 @@ function createWorkoutPicker(config) {
         tr.appendChild(tdTss);
 
         const tdDur = document.createElement("td");
-        tdDur.textContent =
-          metrics.durationMin != null
-            ? `${Math.round(metrics.durationMin)} min`
-            : "";
+        tdDur.textContent = formatPickerDuration(metrics);
         tr.appendChild(tdDur);
 
         const tdKj = document.createElement("td");
@@ -727,9 +736,9 @@ function createWorkoutPicker(config) {
           tagsRow.appendChild(tssChip.el);
         }
 
-        if (metrics.durationMin != null) {
+        if (metrics.durationMin != null || metrics.totalSec != null) {
           const durChip = createStatChip("Duration");
-          durChip.value.textContent = `${Math.round(metrics.durationMin)} min`;
+          durChip.value.textContent = formatPickerDuration(metrics);
           tagsRow.appendChild(durChip.el);
         }
 

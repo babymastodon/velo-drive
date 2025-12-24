@@ -1,7 +1,7 @@
 // workout-chart.js
 // Shared chart helpers: zones, colors, SVG rendering, hover, and raw-segment handling.
 
-import {DEFAULT_FTP} from "./workout-metrics.js";
+import {DEFAULT_FTP, formatDurationMinSec} from "./workout-metrics.js";
 
 // --------------------------- CSS / color helpers ---------------------------
 
@@ -1222,11 +1222,10 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     ftpLabels.appendChild(ftpLabel);
 
     const durationSec = totalSec || 0;
-    const durationMinutes = durationSec > 0 ? Math.round(durationSec / 60) : 0;
-    if (durationMinutes > 0) {
+    if (durationSec > 0) {
       const durationLabel = document.createElement("div");
       durationLabel.className = "wb-chart-axis-label wb-chart-axis-label--duration";
-      durationLabel.textContent = `${durationMinutes} min`;
+      durationLabel.textContent = formatDurationMinSec(durationSec);
       const labelHeight = 16;
       const durationTop = ftpY + 2;
       if (durationTop >= 0 && durationTop + labelHeight <= height) {
@@ -1499,9 +1498,7 @@ export function drawWorkoutChart({
   ftpLabel.textContent = `FTP ${ftp}`;
   svg.appendChild(ftpLabel);
 
-  const durationMinutes =
-    totalFromStructure > 0 ? Math.round(totalFromStructure / 60) : null;
-  if (durationMinutes) {
+  if (totalFromStructure > 0) {
     const durationLabel = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "text"
@@ -1512,7 +1509,7 @@ export function drawWorkoutChart({
     durationLabel.setAttribute("fill", getCssVar("--ftp-line"));
     durationLabel.setAttribute("text-anchor", "end");
     durationLabel.setAttribute("pointer-events", "none");
-    durationLabel.textContent = `${durationMinutes} min`;
+    durationLabel.textContent = formatDurationMinSec(totalFromStructure);
     svg.appendChild(durationLabel);
   }
 

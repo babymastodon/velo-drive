@@ -2,6 +2,7 @@
 
 import { renderBuilderWorkoutGraph } from "./workout-chart.js";
 import { createBuilderBackend } from "./builder-backend.js";
+import { formatDurationMinSec } from "./workout-metrics.js";
 import {
   clearWorkoutBuilderState,
   loadWorkoutBuilderState,
@@ -1041,8 +1042,8 @@ export function createWorkoutBuilder(options) {
     statKj.value.textContent =
       currentMetrics.kj != null ? String(Math.round(currentMetrics.kj)) : "--";
     statDuration.value.textContent =
-      currentMetrics.durationMin != null
-        ? `${Math.round(currentMetrics.durationMin)} min`
+      currentMetrics.totalSec != null
+        ? formatDurationMinSec(currentMetrics.totalSec)
         : "--";
     statFtp.value.textContent =
       currentMetrics.ftp != null ? `${Math.round(currentMetrics.ftp)} W` : "--";
