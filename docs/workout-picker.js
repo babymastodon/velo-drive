@@ -783,7 +783,9 @@ function createWorkoutPicker(config) {
         expTr.appendChild(expTd);
         tbody.appendChild(expTr);
 
-        renderMiniWorkoutGraph(graphDiv, canonical, currentFtp);
+        requestAnimationFrame(() => {
+          renderMiniWorkoutGraph(graphDiv, canonical, currentFtp);
+        });
 
         // NOTE: no click handler on expTr — clicking does NOT collapse the row
       }

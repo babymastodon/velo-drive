@@ -1086,7 +1086,7 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
 
   // Fallbacks in case the container has 0 size at render time
   if (!width) width = container.clientWidth || 400;
-  if (!height) height = container.clientHeight || 120;
+  if (!height) height = container.clientHeight || 200;
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   // Internal coordinate system matches the pixel size of the container
