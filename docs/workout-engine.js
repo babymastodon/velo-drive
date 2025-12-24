@@ -341,6 +341,16 @@ function createWorkoutEngine() {
           targetPower: currentTarget || null,
         });
 
+        if (
+          mode === "workout" &&
+          workoutRunning &&
+          workoutTotalSec > 0 &&
+          elapsedSec >= workoutTotalSec
+        ) {
+          await endWorkout();
+          return;
+        }
+
         if (mode === "workout" && workoutRunning && !workoutPaused) {
           handleIntervalBeep(elapsedSec);
         }
