@@ -696,7 +696,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
 
     const keys = [
       {key: "power", label: "Power", unit: "W"},
-      {key: "hr", label: "HR", unit: "bpm"},
+      {key: "hr", label: "Heart Rate", unit: "bpm"},
       {key: "cadence", label: "Cadence", unit: "rpm"},
     ];
 
