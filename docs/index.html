@@ -254,64 +254,53 @@
         </button>
       </div>
 
-      <div class="mode-toggle-wrapper">
-        <div class="mode-toggle-inner">
-          <!-- Mode toggle (shown when no workout is running) -->
-          <div id="modeToggle" class="mode-toggle" title="Control mode">
+      <div class="workout-title-wrapper">
+        <div
+          id="workoutTitleCenter"
+          class="workout-title-center"
+          style="display: none"
+          title=""
+        >
+          <!-- text filled by JS -->
+        </div>
+      </div>
+
+      <div class="nav-right">
+        <!-- Workout controls: FTP + title + playback -->
+        <div id="workoutControls" class="workout-controls">
+          <div id="modeToggle" class="mode-toggle" title="Free ride control mode">
             <button
               class="mode-toggle-button active"
-              data-mode="workout"
-              title="Change to workout mode (W)"
-            >
-              Workout
-            </button>
-            <button
-              class="mode-toggle-button"
               data-mode="erg"
-              title="Change to erg mode (E)"
+              title="Change to ERG (E)"
             >
               ERG
             </button>
             <button
               class="mode-toggle-button"
               data-mode="resistance"
-              title="Change to resistance mode (R)"
+              title="Change to resistance (R)"
             >
               Resistance
             </button>
           </div>
 
-          <!-- Center workout title (shown when workout is running) -->
-          <div
-            id="workoutTitleCenter"
-            class="workout-title-center"
-            style="display: none"
-            title=""
-          >
-            <!-- text filled by JS -->
+          <!-- Manual controls for ERG / Resistance -->
+          <div id="manualControls" class="control-group" style="display: none">
+            <button class="control-btn" data-delta="-10">-</button>
+            <div class="control-value">
+              <!-- Reuse the FTP input styling -->
+              <input
+                id="manualInput"
+                class="settings-ftp-input"
+                type="number"
+                inputmode="numeric"
+              />
+              <span id="manualUnit" class="settings-ftp-unit"></span>
+            </div>
+            <button class="control-btn" data-delta="10">+</button>
           </div>
-        </div>
-      </div>
 
-      <div class="nav-right">
-        <!-- Manual controls for ERG / Resistance -->
-        <div id="manualControls" class="control-group" style="display: none">
-          <button class="control-btn" data-delta="-10">-</button>
-          <div class="control-value">
-            <!-- Reuse the FTP input styling -->
-            <input
-              id="manualInput"
-              class="settings-ftp-input"
-              type="number"
-              inputmode="numeric"
-            />
-            <span id="manualUnit" class="settings-ftp-unit"></span>
-          </div>
-          <button class="control-btn" data-delta="10">+</button>
-        </div>
-
-        <!-- Workout controls: FTP + title + playback -->
-        <div id="workoutControls" class="workout-controls">
           <div id="workoutNameLabel" class="inline-clicktoggle">
             Selected workout
           </div>

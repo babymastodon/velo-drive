@@ -3,6 +3,9 @@
 
 import {DEFAULT_FTP, formatDurationMinSec} from "./workout-metrics.js";
 
+const FREERIDE_POWER_REL = 0.5;
+let freeridePatternCounter = 0;
+
 // --------------------------- CSS / color helpers ---------------------------
 
 export function getCssVar(name) {
@@ -36,6 +39,70 @@ export function mixColors(hexA, hexB, factor) {
   const bC = Math.round(a.b * (1 - f) + b.b * f);
   const toHex = (x) => x.toString(16).padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(bC)}`;
+}
+
+function isFreeRideSegment(seg) {
+  return Array.isArray(seg) && seg[3] === "freeride";
+}
+
+function ensureFreeridePatterns(svg) {
+  if (!svg) return null;
+  if (svg._freeridePatternIds) return svg._freeridePatternIds;
+
+  const baseFill = getCssVar("--freeride-fill") || "#d0d0d0";
+  const stripe = getCssVar("--freeride-stripe") || "#b2b2b2";
+  const bg = getCssVar("--bg") || "#f4f4f4";
+  const hoverFill = mixColors(baseFill, bg, 0.18);
+  const hoverStripe = mixColors(stripe, bg, 0.18);
+
+  const baseId = `freeride-pattern-${++freeridePatternCounter}`;
+  const hoverId = `${baseId}-hover`;
+
+  const defs =
+    svg.querySelector("defs") ||
+    document.createElementNS("http://www.w3.org/2000/svg", "defs");
+  if (!defs.parentNode) {
+    svg.appendChild(defs);
+  }
+
+  const buildPattern = (id, fill, stripeColor) => {
+    const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+    pattern.setAttribute("id", id);
+    pattern.setAttribute("patternUnits", "userSpaceOnUse");
+    pattern.setAttribute("width", "16");
+    pattern.setAttribute("height", "16");
+    pattern.setAttribute("patternTransform", "rotate(45)");
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("width", "16");
+    rect.setAttribute("height", "16");
+    rect.setAttribute("fill", fill);
+    pattern.appendChild(rect);
+
+    const wave1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    wave1.setAttribute("d", "M-8 4 Q-4 0 0 4 T8 4 T16 4 T24 4");
+    wave1.setAttribute("fill", "none");
+    wave1.setAttribute("stroke", stripeColor);
+    wave1.setAttribute("stroke-width", "2.2");
+    wave1.setAttribute("stroke-linecap", "round");
+    pattern.appendChild(wave1);
+
+    const wave2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    wave2.setAttribute("d", "M-8 12 Q-4 8 0 12 T8 12 T16 12 T24 12");
+    wave2.setAttribute("fill", "none");
+    wave2.setAttribute("stroke", stripeColor);
+    wave2.setAttribute("stroke-width", "2.2");
+    wave2.setAttribute("stroke-linecap", "round");
+    pattern.appendChild(wave2);
+
+    defs.appendChild(pattern);
+  };
+
+  buildPattern(baseId, baseFill, stripe);
+  buildPattern(hoverId, hoverFill, hoverStripe);
+
+  svg._freeridePatternIds = {baseId, hoverId};
+  return svg._freeridePatternIds;
 }
 
 // --------------------------- Zone / color mapping ---------------------------
@@ -74,6 +141,9 @@ export function zoneInfoFromRel(rel) {
 function clearSvg(svg) {
   if (!svg) return;
   while (svg.firstChild) svg.removeChild(svg.firstChild);
+  if (svg._freeridePatternIds) {
+    delete svg._freeridePatternIds;
+  }
 }
 
 /**
@@ -91,6 +161,7 @@ function renderSegmentPolygon({
   tEnd,
   pStartRel,
   pEndRel,
+  isFreeride = false,
 }) {
   if (!svg || totalSec <= 0) return;
 
@@ -101,7 +172,9 @@ function renderSegmentPolygon({
   const x2 = (tEnd / totalSec) * w;
 
   const avgRel = (pStartRel + pEndRel) / 2;
-  const zone = zoneInfoFromRel(avgRel);
+  const zone = isFreeride
+    ? {key: "Free ride", color: getCssVar("--freeride-fill"), bg: getCssVar("--bg")}
+    : zoneInfoFromRel(avgRel);
 
   const p0 = pStartRel * ftp;
   const p1 = pEndRel * ftp;
@@ -115,7 +188,22 @@ function renderSegmentPolygon({
   const muted = mixColors(zone.color, zone.bg, 0.3);
   const hover = mixColors(zone.color, zone.bg, 0.15);
 
-  poly.setAttribute("fill", muted);
+  if (isFreeride) {
+    const patterns = ensureFreeridePatterns(svg);
+    const baseFill = patterns ? `url(#${patterns.baseId})` : muted;
+    const hoverFill = patterns ? `url(#${patterns.hoverId})` : hover;
+    poly.setAttribute("fill", baseFill);
+    poly.dataset.freeRide = "true";
+    poly.dataset.color = baseFill;
+    poly.dataset.mutedColor = baseFill;
+    poly.dataset.hoverColor = hoverFill;
+  } else {
+    poly.setAttribute("fill", muted);
+    poly.dataset.color = zone.color;
+    poly.dataset.mutedColor = muted;
+    poly.dataset.hoverColor = hover;
+  }
+
   poly.setAttribute("fill-opacity", "1");
   poly.setAttribute("stroke", "none");
   poly.setAttribute("shape-rendering", "crispEdges");
@@ -131,9 +219,6 @@ function renderSegmentPolygon({
   poly.dataset.p1 = p1Pct.toFixed(0);
   poly.dataset.durMin = durMin.toFixed(1);
   poly.dataset.durSec = String(durSec);
-  poly.dataset.color = zone.color;
-  poly.dataset.mutedColor = muted;
-  poly.dataset.hoverColor = hover;
 
   svg.appendChild(poly);
 
@@ -205,11 +290,13 @@ export function drawMiniHistoryChart({
   // Target bands
   if (rawSegments.length) {
     let acc = 0;
-    rawSegments.forEach(([minutes, startPct, endPct]) => {
+    rawSegments.forEach((seg) => {
+      const [minutes, startPct, endPct] = seg;
       const dur = Math.max(1, Math.round((minutes || 0) * 60));
       const tStart = acc;
       const tEnd = acc + dur;
       acc = tEnd;
+      const isFreeride = isFreeRideSegment(seg);
       renderSegmentPolygon({
         svg,
         totalSec,
@@ -219,8 +306,11 @@ export function drawMiniHistoryChart({
         maxY,
         tStart,
         tEnd,
-        pStartRel: (startPct || 0) / 100,
-        pEndRel: (endPct != null ? endPct : startPct || 0) / 100,
+        pStartRel: isFreeride ? FREERIDE_POWER_REL : (startPct || 0) / 100,
+        pEndRel: isFreeride
+          ? FREERIDE_POWER_REL
+          : (endPct != null ? endPct : startPct || 0) / 100,
+        isFreeride,
       });
     });
   }
@@ -833,10 +923,14 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
     const w0 = Math.round((p0 * ftp) / 100);
     const w1 = Math.round((p1 * ftp) / 100);
 
-    tooltipEl.textContent =
-      p0 === p1
-        ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}`
-        : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
+    if (segment.dataset.freeRide === "true") {
+      tooltipEl.textContent = `Free ride: ${dur}`;
+    } else {
+      tooltipEl.textContent =
+        p0 === p1
+          ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}`
+          : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
+    }
     tooltipEl.style.display = "block";
 
     updateTooltipPosition(clientX, clientY);
@@ -922,10 +1016,16 @@ function renderSegmentsFromRaw({
   maxY,
 }) {
   let t = 0;
-  for (const [minutes, startPct, endPct] of rawSegments) {
+  for (const seg of rawSegments) {
+    const [minutes, startPct, endPct] = seg;
     const durSec = Math.max(1, Math.round((minutes || 0) * 60));
-    const pStartRel = (startPct || 0) / 100;
-    const pEndRel = (endPct != null ? endPct : startPct || 0) / 100;
+    const isFreeride = isFreeRideSegment(seg);
+    const pStartRel = isFreeride
+      ? FREERIDE_POWER_REL
+      : (startPct || 0) / 100;
+    const pEndRel = isFreeride
+      ? FREERIDE_POWER_REL
+      : (endPct != null ? endPct : startPct || 0) / 100;
 
     renderSegmentPolygon({
       svg,
@@ -938,6 +1038,7 @@ function renderSegmentsFromRaw({
       tEnd: t + durSec,
       pStartRel,
       pEndRel,
+      isFreeride,
     });
 
     t += durSec;
@@ -1242,6 +1343,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         tEnd: cursor + durSec,
         pStartRel,
         pEndRel,
+        isFreeride: block?.kind === "freeride" || seg?.isFreeRide,
       });
 
       if (poly) {
@@ -1259,26 +1361,31 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         }
       }
 
-      const topHandle = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "polygon",
-      );
-      const clampY = (val) => Math.max(0, Math.min(height, val));
-      const y0t = clampY(y0 - HANDLE_TOP_HEIGHT);
-      const y1t = clampY(y1 - HANDLE_TOP_HEIGHT);
-      const y0b = clampY(y0 + HANDLE_TOP_HEIGHT);
-      const y1b = clampY(y1 + HANDLE_TOP_HEIGHT);
-      topHandle.setAttribute(
-        "points",
-        `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`,
-      );
-      topHandle.setAttribute("fill", "transparent");
-      topHandle.setAttribute("pointer-events", "all");
-      topHandle.dataset.blockIndex = String(idx);
-      topHandle.dataset.segIndex = String(segIndex);
-      topHandle.dataset.dragHandle = "top";
-      topHandle.dataset.x1 = String(x1);
-      topHandle.dataset.x2 = String(x2);
+      const isFreeride =
+        block?.kind === "freeride" || seg?.isFreeRide;
+      let topHandle = null;
+      if (!isFreeride) {
+        topHandle = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "polygon",
+        );
+        const clampY = (val) => Math.max(0, Math.min(height, val));
+        const y0t = clampY(y0 - HANDLE_TOP_HEIGHT);
+        const y1t = clampY(y1 - HANDLE_TOP_HEIGHT);
+        const y0b = clampY(y0 + HANDLE_TOP_HEIGHT);
+        const y1b = clampY(y1 + HANDLE_TOP_HEIGHT);
+        topHandle.setAttribute(
+          "points",
+          `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`,
+        );
+        topHandle.setAttribute("fill", "transparent");
+        topHandle.setAttribute("pointer-events", "all");
+        topHandle.dataset.blockIndex = String(idx);
+        topHandle.dataset.segIndex = String(segIndex);
+        topHandle.dataset.dragHandle = "top";
+        topHandle.dataset.x1 = String(x1);
+        topHandle.dataset.x2 = String(x2);
+      }
       const handleBaseWidth = Math.min(
         HANDLE_RIGHT_WIDTH,
         Math.max(6, segWidth),
@@ -1312,8 +1419,10 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       rightHandle.classList.add("wb-drag-handle", "wb-drag-handle--right");
       rightHandles.push(rightHandle);
 
-      topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
-      topHandles.push(topHandle);
+      if (topHandle) {
+        topHandle.classList.add("wb-drag-handle", "wb-drag-handle--top");
+        topHandles.push(topHandle);
+      }
 
       cursor += durSec;
     }

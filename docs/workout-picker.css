@@ -728,6 +728,7 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 0;
+  align-items: center;
 }
 
 
@@ -856,7 +857,7 @@
   flex-wrap: wrap;
   font-size: var(--font-size-base);
   width: 100%;
-  --wb-action-gap: 6px;
+  --wb-action-gap: 8px;
 }
 
 .wb-toolbar-actions {
@@ -864,6 +865,7 @@
   align-items: center;
   gap: var(--wb-action-gap);
   margin-left: auto;
+  align-self: center;
 }
 
 .wb-toolbar-action-btn {
