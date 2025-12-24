@@ -301,7 +301,7 @@ export function createWorkoutBuilder(options) {
     },
     {
       key: "intervals",
-      label: "IntervalsT",
+      label: "Intervals",
       icon: "intervals",
       shortcut: "I",
       kind: "intervals",
@@ -313,7 +313,7 @@ export function createWorkoutBuilder(options) {
     },
     {
       key: "freeride",
-      label: "Free ride",
+      label: "Freeride",
       icon: "freeride",
       shortcut: "F",
       kind: "freeride",
@@ -321,7 +321,7 @@ export function createWorkoutBuilder(options) {
     },
     {
       key: "textevent",
-      label: "Text event",
+      label: "Text",
       icon: "text",
       shortcut: "X",
       kind: "textevent",
@@ -2021,8 +2021,26 @@ export function createWorkoutBuilder(options) {
         path.setAttribute("d", "M4 8 L20 16 20 20 4 20 Z");
         break;
       case "text":
-        path.setAttribute("d", "M6 6h12v3h-4v9h-4V9H6z");
-        break;
+        path.setAttribute(
+          "d",
+          "M4 6h16v9H8l-4 3v-3H4z",
+        );
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", "currentColor");
+        path.setAttribute("stroke-width", "1.8");
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+        svg.appendChild(path);
+        ["M7 9h10", "M7 12h8"].forEach((d) => {
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          line.setAttribute("d", d);
+          line.setAttribute("fill", "none");
+          line.setAttribute("stroke", "currentColor");
+          line.setAttribute("stroke-width", "1.8");
+          line.setAttribute("stroke-linecap", "round");
+          svg.appendChild(line);
+        });
+        return svg;
       case "intervals":
       default:
         path.setAttribute("d", "M4 20h4v-8H4zm6 0h4v-14h-4zm6 0h4v-10h-4z");
