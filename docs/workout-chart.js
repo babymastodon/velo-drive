@@ -1389,6 +1389,7 @@ export function drawWorkoutChart({
   elapsedSec,
   liveSamples,
   manualErgTarget,
+  showProgress = true,
 }) {
   if (!svg || !panel) return;
   clearSvg(svg);
@@ -1439,6 +1440,8 @@ export function drawWorkoutChart({
     samples.length ? samples[samples.length - 1].t || 0 : 0
   );
 
+  const elapsedClamped = Math.max(0, Math.min(safeTotalSec, elapsedSec || 0));
+
   // workout segments (from rawSegments)
   if (mode === "workout" && rawSegments && rawSegments.length) {
     renderSegmentsFromRaw({
@@ -1471,7 +1474,18 @@ export function drawWorkoutChart({
   }
 
   // past shade
-  // (no past shade/progress in detail view)
+  if (showProgress && elapsedClamped > 0 && safeTotalSec > 0) {
+    const xPast = Math.min(w, (elapsedClamped / safeTotalSec) * w);
+    const shade = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    shade.setAttribute("x", "0");
+    shade.setAttribute("y", "0");
+    shade.setAttribute("width", String(xPast));
+    shade.setAttribute("height", String(h));
+    shade.setAttribute("fill", getCssVar("--shade-bg"));
+    shade.setAttribute("fill-opacity", "0.05");
+    shade.setAttribute("pointer-events", "none");
+    svg.appendChild(shade);
+  }
 
   // FTP line
   const ftpY = h - (ftp / maxY) * h;
@@ -1513,7 +1527,19 @@ export function drawWorkoutChart({
     svg.appendChild(durationLabel);
   }
 
-  // (no position line for detail view)
+  // position line
+  if (showProgress && elapsedClamped > 0) {
+    const xNow = Math.min(w, (elapsedClamped / safeTotalSec) * w);
+    const posLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    posLine.setAttribute("x1", String(xNow));
+    posLine.setAttribute("x2", String(xNow));
+    posLine.setAttribute("y1", "0");
+    posLine.setAttribute("y2", String(h));
+    posLine.setAttribute("stroke", "#fdd835");
+    posLine.setAttribute("stroke-width", "1.5");
+    posLine.setAttribute("pointer-events", "none");
+    svg.appendChild(posLine);
+  }
 
   // live sample lines
   const powerColor = getCssVar("--power-line");
