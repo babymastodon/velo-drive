@@ -3,6 +3,14 @@
 
 export const DEFAULT_FTP = 250;
 
+export function formatDurationMinSec(totalSec) {
+  const s = Math.max(0, Math.round(totalSec || 0));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  if (!sec) return `${m} min`;
+  return `${m} min ${sec} s`;
+}
+
 
 // --------------------------- Metrics from segments ---------------------------
 
