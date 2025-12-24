@@ -540,10 +540,16 @@ function wireSettingsEvents() {
   }
 
   if (settingsOverlay && settingsModal) {
-    settingsOverlay.addEventListener("click", (e) => {
-      if (e.target === settingsOverlay) {
+    let overlayPointerDown = false;
+    settingsOverlay.addEventListener("pointerdown", (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      overlayPointerDown = e.target === settingsOverlay;
+    });
+    settingsOverlay.addEventListener("pointerup", (e) => {
+      if (overlayPointerDown && e.target === settingsOverlay) {
         closeSettings();
       }
+      overlayPointerDown = false;
     });
   }
 

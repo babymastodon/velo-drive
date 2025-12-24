@@ -1460,8 +1460,14 @@ export function createWorkoutPlanner({
     });
   }
 
-  overlay.addEventListener("click", (ev) => {
+  let overlayPointerDown = false;
+  overlay.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    overlayPointerDown = ev.target === overlay;
+  });
+  overlay.addEventListener("pointerup", (ev) => {
     if (
+      overlayPointerDown &&
       ev.target === overlay &&
       overlay.classList.contains("planner-mode") &&
       modal &&
@@ -1469,6 +1475,7 @@ export function createWorkoutPlanner({
     ) {
       close();
     }
+    overlayPointerDown = false;
   });
 
   if (scheduleBtn) {
