@@ -450,8 +450,11 @@ export function createWorkoutBuilder(options) {
     (val) => updateSelectedTextEvent({ offsetSec: val })
   );
 
+  const textEventField = document.createElement("div");
+  textEventField.className = "wb-block-field";
+
   const textEventLabel = document.createElement("label");
-  textEventLabel.className = "wb-text-event-label";
+  textEventLabel.className = "wb-block-field-label";
   textEventLabel.textContent = "Text";
 
   const textEventInput = document.createElement("input");
@@ -460,11 +463,12 @@ export function createWorkoutBuilder(options) {
   textEventInput.className = "wb-text-event-input";
   textEventInput.placeholder = "Cue text";
   textEventLabel.setAttribute("for", textEventInput.id);
+  textEventField.appendChild(textEventLabel);
+  textEventField.appendChild(textEventInput);
 
   textEventEditor.appendChild(textEventDurationField.wrapper);
   textEventEditor.appendChild(textEventOffsetField.wrapper);
-  textEventEditor.appendChild(textEventLabel);
-  textEventEditor.appendChild(textEventInput);
+  textEventEditor.appendChild(textEventField);
   textEventCard.appendChild(textEventEditor);
 
   body.appendChild(statsCard);
@@ -1600,6 +1604,9 @@ export function createWorkoutBuilder(options) {
     if (!blockEditor || !toolbarButtons) return;
 
     if (selectedTextEventIndex != null) {
+      if (toolbarCard) {
+        toolbarCard.style.display = "none";
+      }
       toolbarButtons.style.display = "none";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
@@ -1607,6 +1614,10 @@ export function createWorkoutBuilder(options) {
       moveRightBtn.style.display = "none";
       deleteBlockBtn.style.display = "none";
       return;
+    }
+
+    if (toolbarCard) {
+      toolbarCard.style.display = "";
     }
 
     const selectionCount = backend.getSelectedBlockIndices().length;
@@ -2256,7 +2267,6 @@ export function createWorkoutBuilder(options) {
     label.textContent = labelText;
 
     const textarea = document.createElement("textarea");
-    textarea.rows = 3;
     textarea.className = "wb-field-textarea";
 
     wrapper.appendChild(label);

@@ -1620,15 +1620,6 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   rightHandles.forEach((handle) => svg.appendChild(handle));
   topHandles.forEach((handle) => svg.appendChild(handle));
 
-  renderTextEventMarkers({
-    svg,
-    textEvents,
-    totalSec: timelineSec,
-    width,
-    height,
-    activeIndex: activeTextEventIndex,
-  });
-
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
   ftpLine.setAttribute("x2", String(width));
@@ -1638,6 +1629,15 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   ftpLine.setAttribute("stroke-width", "1.4");
   ftpLine.setAttribute("pointer-events", "none");
   svg.appendChild(ftpLine);
+
+  renderTextEventMarkers({
+    svg,
+    textEvents,
+    totalSec: timelineSec,
+    width,
+    height,
+    activeIndex: activeTextEventIndex,
+  });
 
   const tooltip = document.createElement("div");
   tooltip.className = "picker-tooltip";
