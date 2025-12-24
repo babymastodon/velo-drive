@@ -110,7 +110,7 @@ export const Beeper = (() => {
   // PRIVATE: simple beep (no stopping here)
   // ---------------------------------------------------------------------------
 
-  function playBeep(durationMs = 120, freq = 880, gain = 0.75) {
+  function playBeep(durationMs = 120, freq = 880, gain = 0.6) {
     if (!enabled) return;
     const ctx = ensureAudioContext();
     if (!ctx) return;
