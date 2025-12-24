@@ -1256,52 +1256,79 @@ function renderTextEventMarkers({
     g.style.color = textColor;
     g.setAttribute("pointer-events", "all");
 
+    const rectStrokeWidth = activeIndex === idx ? 2 : 1;
+    const rectInset = rectStrokeWidth / 2;
     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", "0");
-    rect.setAttribute("y", "0");
-    rect.setAttribute("width", String(iconSize));
-    rect.setAttribute("height", String(iconSize));
+    rect.setAttribute("x", String(rectInset));
+    rect.setAttribute("y", String(rectInset));
+    rect.setAttribute("width", String(iconSize - rectStrokeWidth));
+    rect.setAttribute("height", String(iconSize - rectStrokeWidth));
     rect.setAttribute("rx", "4");
     rect.setAttribute("fill", activeIndex === idx ? activeBg : bg);
     rect.setAttribute("stroke", border);
-    rect.setAttribute("stroke-width", "1.2");
+    rect.setAttribute("stroke-width", String(rectStrokeWidth));
     g.appendChild(rect);
 
-    const baseSize = 18;
-    const targetSize = Math.max(12, iconSize - 4);
-    const scale = targetSize / baseSize;
-    const offset = (iconSize - baseSize * scale) / 2;
-
     const iconGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    iconGroup.setAttribute(
-      "transform",
-      `translate(${offset}, ${offset}) scale(${scale})`,
-    );
 
     const bubble = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    bubble.setAttribute("d", "M3.5 5.5h11v6.5H7l-3 2v-2H3.5z");
+    const iconPadding = Math.max(3, Math.round(iconSize * 0.24));
+    const half = 0.5;
+    const left = iconPadding + half;
+    const right = iconSize - iconPadding - half;
+    const top = iconPadding + half;
+    const tailHeight = 2;
+    const bottom = iconSize - iconPadding - tailHeight - 2.5;
+    const tailWidth = 3.5;
+    const bubbleBottom = bottom + tailHeight;
+    const bubbleCenterY = (top + bubbleBottom) / 2;
+    const desiredCenterY = iconSize / 2;
+    const offsetY = Math.round((desiredCenterY - bubbleCenterY) * 2) / 2;
+    if (offsetY) {
+      iconGroup.setAttribute("transform", `translate(0 ${offsetY})`);
+    }
+    bubble.setAttribute(
+      "d",
+      `M${left} ${top}H${right}V${bottom}H${left + tailWidth}L${left} ${
+        bottom + tailHeight
+      }V${bottom}H${left}Z`,
+    );
     bubble.setAttribute("fill", "none");
     bubble.setAttribute("stroke", "currentColor");
-    bubble.setAttribute("stroke-width", "1.1");
+    bubble.setAttribute("stroke-width", "1");
     bubble.setAttribute("stroke-linecap", "round");
     bubble.setAttribute("stroke-linejoin", "round");
     iconGroup.appendChild(bubble);
 
     const line1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    line1.setAttribute("d", "M5.5 8h7");
+    const lineLeft = left + 2;
+    const lineRight = right - 2;
+    const line1Y = top + 2.5;
+    line1.setAttribute("d", `M${lineLeft} ${line1Y}H${lineRight}`);
     line1.setAttribute("fill", "none");
     line1.setAttribute("stroke", "currentColor");
-    line1.setAttribute("stroke-width", "1.1");
+    line1.setAttribute("stroke-width", "1");
     line1.setAttribute("stroke-linecap", "round");
     iconGroup.appendChild(line1);
 
     const line2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    line2.setAttribute("d", "M5.5 10.5h5.5");
+    line2.setAttribute("d", `M${lineLeft} ${top + 4.5}H${right - 4}`);
     line2.setAttribute("fill", "none");
     line2.setAttribute("stroke", "currentColor");
-    line2.setAttribute("stroke-width", "1.1");
+    line2.setAttribute("stroke-width", "1");
     line2.setAttribute("stroke-linecap", "round");
     iconGroup.appendChild(line2);
+
+    [top + 6.5, top + 8.5].forEach((y, idx) => {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const inset = idx + 3;
+      line.setAttribute("d", `M${lineLeft} ${y}H${right - inset}`);
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", "currentColor");
+      line.setAttribute("stroke-width", "1");
+      line.setAttribute("stroke-linecap", "round");
+      iconGroup.appendChild(line);
+    });
 
     g.appendChild(iconGroup);
 
