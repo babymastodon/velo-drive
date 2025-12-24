@@ -709,10 +709,10 @@ function extractWozSegmentsFromDoc(doc) {
 }
 
 /**
- * Map WhatsOnZwift DOM segments into canonical [minutes, startPower, endPower].
+ * Map WhatsOnZwift DOM segments into canonical [minutes, startPower, endPower, type?, cadenceRpm?].
  *
- * @param {Array<{minutes:number,startPct:number,endPct:number}>} segments
- * @returns {Array<[number, number, number]>}
+ * @param {Array<{minutes:number,startPct:number,endPct:number,cadence:(number|null)}>} segments
+ * @returns {Array<[number, number, number, (string?), (number?)]>}
  */
 function canonicalizeWozSegments(segments) {
   if (!Array.isArray(segments)) return [];
@@ -724,6 +724,7 @@ function canonicalizeWozSegments(segments) {
     const start = Number(s.startPct);
     const end =
       s.endPct != null ? Number(s.endPct) : start;
+    const cadence = Number.isFinite(s.cadence) ? Math.round(s.cadence) : null;
 
     if (
       Number.isFinite(minutes) &&
@@ -731,7 +732,11 @@ function canonicalizeWozSegments(segments) {
       Number.isFinite(start) &&
       Number.isFinite(end)
     ) {
-      out.push([minutes, start, end]);
+      if (cadence != null) {
+        out.push([minutes, start, end, null, cadence]);
+      } else {
+        out.push([minutes, start, end]);
+      }
     }
   }
 

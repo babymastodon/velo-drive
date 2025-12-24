@@ -863,7 +863,8 @@
 .wb-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: var(--wb-action-gap);
+  gap: 8px;
+  column-gap: 8px;
   margin-left: auto;
   align-self: center;
 }
@@ -923,6 +924,11 @@
   min-width: 120px;
 }
 
+.wb-block-field--nolabel {
+  gap: 0;
+  min-width: 0;
+}
+
 .wb-block-field-label {
   font-size: var(--font-size-base);
   color: var(--text-muted);
@@ -940,6 +946,14 @@
 
 .wb-block-field[data-kind="power"] .wb-block-stepper-input {
   width: 4ch;
+}
+
+.wb-block-field[data-kind="cadence"] .wb-block-stepper-input {
+  width: 4ch;
+}
+
+.wb-block-field[data-kind="timestamp"] .wb-block-stepper-input {
+  width: 6ch;
 }
 
 .wb-block-field[data-kind="repeat"] .wb-block-stepper-input {
@@ -978,6 +992,52 @@
 
 .wb-block-delete-btn:hover {
   background: var(--hover-medium);
+}
+
+.wb-text-event-card {
+  flex: 0 0 auto;
+}
+
+.wb-text-event-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wb-text-event-label {
+  font-size: var(--font-size-base);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.wb-text-event-input {
+  flex: 1 1 320px;
+  min-width: 220px;
+  font-size: var(--font-size-base);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  padding: 6px 10px;
+  background: var(--surface-elevated);
+  color: var(--text-main);
+}
+
+.wb-text-event-input:focus {
+  outline: none;
+  border-color: var(--border);
+}
+
+.wb-text-event {
+  cursor: ew-resize;
+}
+
+.wb-text-event:hover rect {
+  fill: var(--hover-medium);
+}
+
+.wb-text-event.is-active rect {
+  stroke: var(--text-main);
+  stroke-width: 1.6;
 }
 
 .wb-block-move-btn {

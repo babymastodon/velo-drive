@@ -15,14 +15,17 @@
  *   Original workout page URL
  * @property {string} workoutTitle
  *   Human-readable workout title
- * @property {Array<[number, number, number, (string?)]>} rawSegments
- *   Canonical segments: [minutes, startPower, endPower, type?]
+ * @property {Array<[number, number, number, (string?), (number?)]>} rawSegments
+ *   Canonical segments: [minutes, startPower, endPower, type?, cadenceRpm?]
  *   - minutes: duration in minutes (float allowed)
  *   - startPower: % FTP or equivalent "start power" (0–100 usually)
  *   - endPower: % FTP or equivalent "end power" (0–100 usually)
  *   - type: optional string (e.g. "freeride")
+ *   - cadenceRpm: optional cadence target (rpm)
  * @property {string} description
  *   Human-readable description/notes
+ * @property {Array<{offsetSec:number,durationSec:number,text:string}>} [textEvents]
+ *   Optional text events aligned to workout timeline
  */
 
 // ---------------- Safety limits for ZWO parsing ----------------
@@ -82,7 +85,8 @@ function cdataUnwrap(text) {
  *
  * @param {string} text
  * @returns {{
- *   rawSegments:Array<[number,number,number]>,
+ *   rawSegments:Array<[number,number,number,(string?),(number?)]>,
+ *   textEvents:Array<{offsetSec:number,durationSec:number,text:string}>,
  *   errors:Array<{start:number,end:number,message:string}>,
  *   blocks:Array<{
  *     kind:"steady"|"warmup"|"cooldown"|"intervals"|"freeride",
@@ -92,7 +96,7 @@ function cdataUnwrap(text) {
  *     lineEnd:number,
  *     segmentStart:number,
  *     segmentCount:number,
- *     segments:Array<{durationSec:number,pStartRel:number,pEndRel:number}>,
+ *     segments:Array<{durationSec:number,pStartRel:number,pEndRel:number,cadenceRpm?:(number|null)}>,
  *     attrs:Record<string, number>
  *   }>,
  *   sourceText:string
@@ -101,6 +105,7 @@ function cdataUnwrap(text) {
 export function parseZwoSnippet(text) {
   /** @type {Array<{durationSec:number,pStartRel:number,pEndRel:number}>} */
   const segments = [];
+  const textEvents = [];
   const errors = [];
   const blocks = [];
 
@@ -111,7 +116,9 @@ export function parseZwoSnippet(text) {
     .replace(/<\/\s*workout\s*>/gi, (m) => " ".repeat(m.length));
 
   const working = withoutWorkoutWrappers;
-  if (!working.trim()) return {rawSegments: [], errors, blocks, sourceText: working};
+  if (!working.trim()) {
+    return {rawSegments: [], textEvents, errors, blocks, sourceText: working};
+  }
 
   const tagRegex = /<([A-Za-z]+)\b([^>]*)\/>/g;
   let lastIndex = 0;
@@ -172,6 +179,10 @@ export function parseZwoSnippet(text) {
       case "Freeride":
         blockResult = handleZwoFreeRide(attrs, segments, errors, startIdx, endIdx);
         break;
+      case "TextEvent":
+      case "textevent":
+        handleZwoTextEvent(attrs, textEvents, errors, startIdx, endIdx);
+        break;
       case "IntervalsT":
         blockResult = handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
         break;
@@ -219,14 +230,19 @@ export function parseZwoSnippet(text) {
         FREERIDE_SEGMENT_FLAG,
       ];
     }
-    return [
+    const cadence = Number.isFinite(seg.cadenceRpm) ? seg.cadenceRpm : null;
+    const base = [
       seg.durationSec / 60,   // minutes
       seg.pStartRel * 100,    // startPct
       seg.pEndRel * 100       // endPct
     ];
+    if (cadence != null) {
+      base.push(null, cadence);
+    }
+    return base;
   });
 
-  return {rawSegments, errors, blocks, sourceText: working};
+  return {rawSegments, textEvents, errors, blocks, sourceText: working};
 }
 
 function parseZwoAttributes(attrText) {
@@ -255,9 +271,25 @@ function parseZwoAttributes(attrText) {
   return {attrs, hasGarbage};
 }
 
+function getAttrValue(attrs, name) {
+  if (!attrs || !name) return null;
+  if (name in attrs) return attrs[name];
+  const target = name.toLowerCase();
+  for (const key of Object.keys(attrs)) {
+    if (key.toLowerCase() === target) return attrs[key];
+  }
+  return null;
+}
+
+function getAttrNumber(attrs, name) {
+  const raw = getAttrValue(attrs, name);
+  return raw != null ? Number(raw) : NaN;
+}
+
 function handleZwoSteady(attrs, segments, errors, start, end) {
   const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
   const power = attrs.Power != null ? Number(attrs.Power) : NaN;
+  const cadence = getAttrNumber(attrs, "Cadence");
 
   if (!validateZwoDuration(duration, "SteadyState", start, end, errors)) return;
   if (!Number.isFinite(power) || power <= 0) {
@@ -274,6 +306,7 @@ function handleZwoSteady(attrs, segments, errors, start, end) {
     durationSec: duration,
     pStartRel: power,
     pEndRel: power,
+    cadenceRpm: Number.isFinite(cadence) ? cadence : null,
   };
   segments.push(seg);
 
@@ -283,6 +316,7 @@ function handleZwoSteady(attrs, segments, errors, start, end) {
     attrs: {
       durationSec: duration,
       powerRel: power,
+      cadenceRpm: Number.isFinite(cadence) ? cadence : null,
     },
   };
 }
@@ -291,6 +325,7 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
   const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
   const pLow = attrs.PowerLow != null ? Number(attrs.PowerLow) : NaN;
   const pHigh = attrs.PowerHigh != null ? Number(attrs.PowerHigh) : NaN;
+  const cadence = getAttrNumber(attrs, "Cadence");
 
   if (!validateZwoDuration(duration, tagName, start, end, errors)) return;
   if (!Number.isFinite(pLow) || !Number.isFinite(pHigh)) {
@@ -306,6 +341,7 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
     durationSec: duration,
     pStartRel: pLow,
     pEndRel: pHigh,
+    cadenceRpm: Number.isFinite(cadence) ? cadence : null,
   };
 
   segments.push(seg);
@@ -317,6 +353,7 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
       durationSec: duration,
       powerLowRel: pLow,
       powerHighRel: pHigh,
+      cadenceRpm: Number.isFinite(cadence) ? cadence : null,
     },
   };
 }
@@ -342,6 +379,27 @@ function handleZwoFreeRide(attrs, segments, errors, start, end) {
       durationSec: duration,
     },
   };
+}
+
+function handleZwoTextEvent(attrs, textEvents, errors, start, end) {
+  const offset = getAttrNumber(attrs, "timeoffset");
+  const durationRaw = getAttrNumber(attrs, "duration");
+  const message = getAttrValue(attrs, "message");
+
+  if (!Number.isFinite(offset) || offset < 0) {
+    errors.push({
+      start,
+      end,
+      message: "TextEvent must include a non-negative timeoffset (seconds).",
+    });
+    return;
+  }
+
+  const durationSec = Number.isFinite(durationRaw)
+    ? Math.max(1, Math.round(durationRaw))
+    : 10;
+  const text = message != null ? unescapeXml(String(message)) : "";
+  textEvents.push({ offsetSec: Math.round(offset), durationSec, text });
 }
 
 function validateZwoDuration(duration, tagName, start, end, errors) {
@@ -370,6 +428,8 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
   const offDur = attrs.OffDuration != null ? Number(attrs.OffDuration) : NaN;
   const onPow = attrs.OnPower != null ? Number(attrs.OnPower) : NaN;
   const offPow = attrs.OffPower != null ? Number(attrs.OffPower) : NaN;
+  const onCad = getAttrNumber(attrs, "Cadence");
+  const offCad = getAttrNumber(attrs, "CadenceResting");
 
   if (!Number.isFinite(repeat) || repeat <= 0 || repeat > ZWO_MAX_INTERVAL_REPEATS) {
     errors.push({
@@ -410,11 +470,13 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
       durationSec: onDur,
       pStartRel: onPow,
       pEndRel: onPow,
+      cadenceRpm: Number.isFinite(onCad) ? onCad : null,
     };
     const offSeg = {
       durationSec: offDur,
       pStartRel: offPow,
       pEndRel: offPow,
+      cadenceRpm: Number.isFinite(offCad) ? offCad : null,
     };
 
     segments.push(onSeg);
@@ -431,6 +493,8 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
       offDurationSec: offDur,
       onPowerRel: onPow,
       offPowerRel: offPow,
+      onCadenceRpm: Number.isFinite(onCad) ? onCad : null,
+      offCadenceRpm: Number.isFinite(offCad) ? offCad : null,
     },
   };
 }
@@ -438,12 +502,13 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
 // ---------------- Canonical segments -> ZWO body ----------------
 
 /**
- * segments: [minutes, startPower, endPower, type?]
+ * segments: [minutes, startPower, endPower, type?, cadenceRpm?]
  *
- * @param {Array<[number, number, number]>} segments
+ * @param {Array<[number, number, number, (string?), (number?)]>} segments
+ * @param {Array<{offsetSec:number,durationSec:number,text:string}>} [textEvents]
  * @returns {string} ZWO <workout> body lines joined by "\n"
  */
-export function segmentsToZwoSnippet(segments) {
+export function segmentsToZwoSnippet(segments, textEvents = []) {
   if (!Array.isArray(segments) || !segments.length) return "";
 
   const blocks = [];
@@ -456,6 +521,7 @@ export function segmentsToZwoSnippet(segments) {
     let startVal = Number(seg[1]);
     let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
     const isFreeRide = seg[3] === FREERIDE_SEGMENT_FLAG;
+    const cadence = getRawCadence(seg);
 
     if (
       !Number.isFinite(minutes) ||
@@ -478,13 +544,19 @@ export function segmentsToZwoSnippet(segments) {
     if (durationSec <= 0) continue;
 
     if (Math.abs(pStartRel - pEndRel) < 1e-6) {
-      blocks.push({kind: "steady", durationSec, powerRel: pStartRel});
+      blocks.push({
+        kind: "steady",
+        durationSec,
+        powerRel: pStartRel,
+        cadenceRpm: cadence,
+      });
     } else if (pEndRel > pStartRel) {
       blocks.push({
         kind: "rampUp",
         durationSec,
         powerLowRel: pStartRel,
         powerHighRel: pEndRel,
+        cadenceRpm: cadence,
       });
     } else {
       blocks.push({
@@ -492,6 +564,7 @@ export function segmentsToZwoSnippet(segments) {
         durationSec,
         powerLowRel: pStartRel,
         powerHighRel: pEndRel,
+        cadenceRpm: cadence,
       });
     }
   }
@@ -500,10 +573,12 @@ export function segmentsToZwoSnippet(segments) {
 
   // ---------- 2) compress blocks -> ZWO lines ----------
   const lines = [];
+  const lineBlocks = [];
   const DUR_TOL = 1;    // seconds
   const PWR_TOL = 0.01; // relative FTP
 
   let i = 0;
+  let cursorSec = 0;
 
   while (i < blocks.length) {
     // Try to detect repeated steady on/off pairs → IntervalsT
@@ -535,12 +610,26 @@ export function segmentsToZwoSnippet(segments) {
           const offDur = Math.round(firstB.durationSec);
           const onPow = firstA.powerRel.toFixed(2);
           const offPow = firstB.powerRel.toFixed(2);
+          const onCad = Number.isFinite(firstA.cadenceRpm)
+            ? Math.round(firstA.cadenceRpm)
+            : null;
+          const offCad = Number.isFinite(firstB.cadenceRpm)
+            ? Math.round(firstB.cadenceRpm)
+            : null;
 
+          const cadenceAttrs =
+            (onCad != null ? ` Cadence="${onCad}"` : "") +
+            (offCad != null ? ` CadenceResting="${offCad}"` : "");
           lines.push(
             `<IntervalsT Repeat="${repeat}"` +
             ` OnDuration="${onDur}" OffDuration="${offDur}"` +
-            ` OnPower="${onPow}" OffPower="${offPow}" />`
+            ` OnPower="${onPow}" OffPower="${offPow}"${cadenceAttrs} />`
           );
+          lineBlocks.push({
+            start: cursorSec,
+            end: cursorSec + (onDur + offDur) * repeat,
+          });
+          cursorSec += (onDur + offDur) * repeat;
 
           i += repeat * 2;
           continue;
@@ -551,34 +640,94 @@ export function segmentsToZwoSnippet(segments) {
     const b = blocks[i];
 
     if (b.kind === "steady") {
+      const cadenceAttr = Number.isFinite(b.cadenceRpm)
+        ? ` Cadence="${Math.round(b.cadenceRpm)}"`
+        : "";
+      const dur = Math.round(b.durationSec);
       lines.push(
         `<SteadyState Duration="${Math.round(
           b.durationSec
-        )}" Power="${b.powerRel.toFixed(2)}" />`
+        )}" Power="${b.powerRel.toFixed(2)}"${cadenceAttr} />`
       );
+      lineBlocks.push({ start: cursorSec, end: cursorSec + dur });
+      cursorSec += dur;
     } else if (b.kind === "freeride") {
+      const dur = Math.round(b.durationSec);
       lines.push(
         `<FreeRide Duration="${Math.round(b.durationSec)}" />`
       );
+      lineBlocks.push({ start: cursorSec, end: cursorSec + dur });
+      cursorSec += dur;
     } else if (b.kind === "rampUp") {
+      const cadenceAttr = Number.isFinite(b.cadenceRpm)
+        ? ` Cadence="${Math.round(b.cadenceRpm)}"`
+        : "";
+      const dur = Math.round(b.durationSec);
       lines.push(
         `<Warmup Duration="${Math.round(
           b.durationSec
         )}" PowerLow="${b.powerLowRel.toFixed(
           2
-        )}" PowerHigh="${b.powerHighRel.toFixed(2)}" />`
+        )}" PowerHigh="${b.powerHighRel.toFixed(2)}"${cadenceAttr} />`
       );
+      lineBlocks.push({ start: cursorSec, end: cursorSec + dur });
+      cursorSec += dur;
     } else if (b.kind === "rampDown") {
+      const cadenceAttr = Number.isFinite(b.cadenceRpm)
+        ? ` Cadence="${Math.round(b.cadenceRpm)}"`
+        : "";
+      const dur = Math.round(b.durationSec);
       lines.push(
         `<Cooldown Duration="${Math.round(
           b.durationSec
         )}" PowerLow="${b.powerLowRel.toFixed(
           2
-        )}" PowerHigh="${b.powerHighRel.toFixed(2)}" />`
+        )}" PowerHigh="${b.powerHighRel.toFixed(2)}"${cadenceAttr} />`
       );
+      lineBlocks.push({ start: cursorSec, end: cursorSec + dur });
+      cursorSec += dur;
     }
 
     i++;
+  }
+
+  if (Array.isArray(textEvents) && textEvents.length) {
+    const withEvents = [];
+    const normalizedEvents = textEvents.map((evt) => ({
+      offsetSec: Math.max(0, Math.round(Number(evt?.offsetSec) || 0)),
+      durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+      text: evt?.text || "",
+    })).sort((a, b) => a.offsetSec - b.offsetSec);
+
+    lines.forEach((line, idx) => {
+      withEvents.push(line);
+      const block = lineBlocks[idx];
+      if (!block) return;
+      const eventsInBlock = normalizedEvents.filter(
+        (evt) => evt.offsetSec >= block.start && evt.offsetSec < block.end,
+      );
+      eventsInBlock.forEach((evt) => {
+        const durationAttr =
+          evt.durationSec ? ` duration="${evt.durationSec}"` : "";
+        withEvents.push(
+          `<textevent timeoffset="${evt.offsetSec}"${durationAttr} message="${escapeXml(evt.text)}" />`,
+        );
+      });
+    });
+
+    const totalSec = lineBlocks.length
+      ? lineBlocks[lineBlocks.length - 1].end
+      : 0;
+    const trailing = normalizedEvents.filter((evt) => evt.offsetSec >= totalSec);
+    trailing.forEach((evt) => {
+      const durationAttr =
+        evt.durationSec ? ` duration="${evt.durationSec}"` : "";
+      withEvents.push(
+        `<textevent timeoffset="${evt.offsetSec}"${durationAttr} message="${escapeXml(evt.text)}" />`,
+      );
+    });
+
+    return withEvents.join("\n");
   }
 
   return lines.join("\n");
@@ -588,7 +737,20 @@ function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
   if (a.kind !== "steady" || b.kind !== "steady") return false;
   const durDiff = Math.abs(a.durationSec - b.durationSec);
   const pDiff = Math.abs(a.powerRel - b.powerRel);
-  return durDiff <= durTolSec && pDiff <= pwrTol;
+  const cadA = Number.isFinite(a.cadenceRpm) ? Math.round(a.cadenceRpm) : null;
+  const cadB = Number.isFinite(b.cadenceRpm) ? Math.round(b.cadenceRpm) : null;
+  const cadenceMatch = cadA == null && cadB == null ? true : cadA === cadB;
+  return durDiff <= durTolSec && pDiff <= pwrTol && cadenceMatch;
+}
+
+function getRawCadence(seg) {
+  if (!Array.isArray(seg)) return null;
+  if (seg[3] === FREERIDE_SEGMENT_FLAG) return null;
+  if (Number.isFinite(seg[4])) return Number(seg[4]);
+  if (typeof seg[3] === "number" && Number.isFinite(seg[3])) {
+    return Number(seg[3]);
+  }
+  return null;
 }
 
 // ---------------- CanonicalWorkout -> ZWO XML ----------------
@@ -611,12 +773,13 @@ export function canonicalWorkoutToZwoXml(meta) {
     workoutTitle = "",
     rawSegments = [],
     description = "",
+    textEvents = [],
   } = meta || {};
 
   const name = workoutTitle;
   const author = source;
 
-  const workoutSnippet = segmentsToZwoSnippet(rawSegments);
+  const workoutSnippet = segmentsToZwoSnippet(rawSegments, textEvents);
 
   const descCombined = description;
 
@@ -697,7 +860,7 @@ export function parseZwoXmlToCanonicalWorkout(xmlText) {
     /<workout[^>]*>([\s\S]*?)<\/workout>/i
   );
   const workoutInner = workoutMatch ? workoutMatch[1] : "";
-  const {rawSegments} = parseZwoSnippet(workoutInner);
+  const {rawSegments, textEvents} = parseZwoSnippet(workoutInner);
 
   /** @type {CanonicalWorkout} */
   return {
@@ -706,5 +869,6 @@ export function parseZwoXmlToCanonicalWorkout(xmlText) {
     workoutTitle,
     rawSegments,
     description,
+    textEvents,
   };
 }

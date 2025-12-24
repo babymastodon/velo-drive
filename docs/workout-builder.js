@@ -38,6 +38,7 @@ export function createWorkoutBuilder(options) {
   let dragInsertAfterIndex = null;
   let dragState = null;
   let timelineLockSec = 0;
+  let selectedTextEventIndex = null;
   const DRAG_THRESHOLD_PX = 4;
   const statusTarget = statusMessageEl || null;
 
@@ -318,6 +319,13 @@ export function createWorkoutBuilder(options) {
       kind: "freeride",
       durationSec: 300,
     },
+    {
+      key: "textevent",
+      label: "Text event",
+      icon: "text",
+      shortcut: "X",
+      kind: "textevent",
+    },
   ];
   const buttonSpecByKey = new Map(buttonSpecs.map((spec) => [spec.key, spec]));
 
@@ -366,8 +374,58 @@ export function createWorkoutBuilder(options) {
   chartContainer.appendChild(chartMiniHost);
   chartCard.appendChild(chartContainer);
 
+  const textEventCard = document.createElement("div");
+  textEventCard.className = "wb-card wb-text-event-card";
+  textEventCard.style.display = "none";
+
+  const textEventEditor = document.createElement("div");
+  textEventEditor.className = "wb-text-event-editor";
+
+  const textEventDurationField = createStepperField(
+    {
+      key: "textEventDurationSec",
+      label: "Duration",
+      tooltip: "How long the text event shows (seconds).",
+      value: 10,
+      unit: "s",
+      kind: "duration",
+    },
+    (val) => updateSelectedTextEvent({ durationSec: val })
+  );
+
+  const textEventOffsetField = createStepperField(
+    {
+      key: "textEventOffsetSec",
+      label: "Time",
+      tooltip: "When this text event appears (seconds from start).",
+      value: 0,
+      unit: "s",
+      kind: "timestamp",
+      step: 30,
+    },
+    (val) => updateSelectedTextEvent({ offsetSec: val })
+  );
+
+  const textEventLabel = document.createElement("label");
+  textEventLabel.className = "wb-text-event-label";
+  textEventLabel.textContent = "Text";
+
+  const textEventInput = document.createElement("input");
+  textEventInput.type = "text";
+  textEventInput.id = "wbTextEventInput";
+  textEventInput.className = "wb-text-event-input";
+  textEventInput.placeholder = "Cue text";
+  textEventLabel.setAttribute("for", textEventInput.id);
+
+  textEventEditor.appendChild(textEventDurationField.wrapper);
+  textEventEditor.appendChild(textEventOffsetField.wrapper);
+  textEventEditor.appendChild(textEventLabel);
+  textEventEditor.appendChild(textEventInput);
+  textEventCard.appendChild(textEventEditor);
+
   body.appendChild(statsCard);
   body.appendChild(chartCard);
+  body.appendChild(textEventCard);
   body.appendChild(toolbarCard);
   body.appendChild(topRow);
   wrapper.appendChild(body);
@@ -382,6 +440,12 @@ export function createWorkoutBuilder(options) {
       handleAnyChange();
     });
   });
+
+  if (textEventInput) {
+    textEventInput.addEventListener("input", () => {
+      updateSelectedTextEvent({ text: textEventInput.value });
+    });
+  }
 
   const handleBuilderShortcuts = (e) => {
     if (e.defaultPrevented) return;
@@ -403,6 +467,7 @@ export function createWorkoutBuilder(options) {
     const selectedBlockIndex = backend.getSelectedBlockIndex();
     const selectionCount = selectedBlockIndices.length;
     const hasSelection = selectionCount > 0;
+    const hasTextEventSelection = selectedTextEventIndex != null;
     const singleSelection = selectionCount === 1;
     const block =
       singleSelection && selectedBlockIndex != null
@@ -562,8 +627,19 @@ export function createWorkoutBuilder(options) {
       if (insertByKey("freeride")) e.preventDefault();
       return;
     }
+    if (lower === "x") {
+      if (insertByKey("textevent")) e.preventDefault();
+      return;
+    }
 
     if (lower === "d" || key === "Delete" || key === "Backspace") {
+      if (hasTextEventSelection) {
+        e.preventDefault();
+        backend.deleteTextEvent(selectedTextEventIndex);
+        clearSelectedTextEvent();
+        handleAnyChange();
+        return;
+      }
       if (hasSelection) {
         e.preventDefault();
         if (lower === "d") {
@@ -598,10 +674,14 @@ export function createWorkoutBuilder(options) {
     }
 
     if (key === "Escape" || key === "Enter") {
-      if (hasSelection) {
+      if (hasSelection || hasTextEventSelection) {
         e.preventDefault();
         e.stopPropagation();
-        deselectBlock();
+        if (hasSelection) {
+          deselectBlock();
+        } else {
+          clearSelectedTextEvent();
+        }
         return;
       }
       if (key === "Escape" && typeof onRequestBack === "function") {
@@ -913,6 +993,7 @@ export function createWorkoutBuilder(options) {
     urlInput.value = "";
 
     backend.setDefaultBlocks();
+    selectedTextEventIndex = null;
     if (!persist) {
       backend.setPersistedState(null);
       refreshLayout({ skipPersist: true });
@@ -1013,6 +1094,7 @@ export function createWorkoutBuilder(options) {
     renderChart();
     updateErrorStyling();
     updateBlockEditor();
+    updateTextEventEditor();
     updateUndoRedoButtons();
     emitUiState();
 
@@ -1079,6 +1161,8 @@ export function createWorkoutBuilder(options) {
       renderBuilderWorkoutGraph(chartMiniHost, currentBlocks || [], ftp, {
         selectedBlockIndex,
         selectedBlockIndices,
+        textEvents: backend.getTextEvents(),
+        activeTextEventIndex: selectedTextEventIndex,
         insertAfterBlockIndex:
           dragInsertAfterIndex != null
             ? dragInsertAfterIndex
@@ -1170,12 +1254,48 @@ export function createWorkoutBuilder(options) {
     return backend.getSelectedBlock();
   }
 
+  function getSelectedTextEvent() {
+    if (selectedTextEventIndex == null) return null;
+    const events = backend.getTextEvents();
+    return events[selectedTextEventIndex] || null;
+  }
+
+  function setSelectedTextEventIndex(index) {
+    if (index == null || !Number.isFinite(index)) {
+      selectedTextEventIndex = null;
+      updateTextEventEditor();
+      updateBlockEditor();
+      return;
+    }
+    selectedTextEventIndex = index;
+    backend.deselectBlock();
+    updateTextEventEditor();
+    updateBlockEditor();
+    renderChart();
+  }
+
+  function clearSelectedTextEvent() {
+    if (selectedTextEventIndex == null) return;
+    selectedTextEventIndex = null;
+    updateTextEventEditor();
+    updateBlockEditor();
+    renderChart();
+  }
+
+  function updateSelectedTextEvent(updates) {
+    if (selectedTextEventIndex == null) return;
+    backend.updateTextEvent(selectedTextEventIndex, updates);
+    handleAnyChange();
+  }
+
   function setSelectedBlock(idx) {
+    clearSelectedTextEvent();
     backend.setSelectedBlock(idx);
     syncSelectionUi({ withHistory: true });
   }
 
   function deselectBlock() {
+    clearSelectedTextEvent();
     backend.deselectBlock();
     syncSelectionUi({ withHistory: true });
   }
@@ -1211,6 +1331,7 @@ export function createWorkoutBuilder(options) {
   }
 
   function handleInsertAfterFromChart(idx) {
+    clearSelectedTextEvent();
     backend.setInsertAfterIndex(idx);
     syncSelectionUi({ withHistory: true });
   }
@@ -1406,6 +1527,8 @@ export function createWorkoutBuilder(options) {
     backend.commitBlocks(backend.segmentsToBlocks(state.rawSegments), {
       selectIndex: null,
     });
+    backend.setTextEvents(state.textEvents || []);
+    selectedTextEventIndex = null;
 
     if (skipPersist) {
       refreshLayout({ skipPersist: true });
@@ -1431,6 +1554,16 @@ export function createWorkoutBuilder(options) {
 
   function updateBlockEditor() {
     if (!blockEditor || !toolbarButtons) return;
+
+    if (selectedTextEventIndex != null) {
+      toolbarButtons.style.display = "";
+      blockEditor.style.display = "none";
+      blockEditorFields.innerHTML = "";
+      moveLeftBtn.style.display = "none";
+      moveRightBtn.style.display = "none";
+      deleteBlockBtn.style.display = "none";
+      return;
+    }
 
     const selectionCount = backend.getSelectedBlockIndices().length;
     const block = getSelectedBlock();
@@ -1489,6 +1622,7 @@ export function createWorkoutBuilder(options) {
 
     if (block.kind === "steady") {
       const powerPct = Math.round(backend.getBlockSteadyPower(block) * 100);
+      const cadence = backend.getBlockCadence(block);
       list.push({
         key: "durationSec",
         label: "Duration",
@@ -1511,9 +1645,23 @@ export function createWorkoutBuilder(options) {
             powerRel: backend.clampPowerPercent(val) / 100,
           }),
       });
+      list.push({
+        key: "cadenceRpm",
+        label: "Cadence",
+        tooltip: "Target cadence (rpm). Leave empty for no target.",
+        value: cadence,
+        unit: "rpm",
+        kind: "cadence",
+        step: 5,
+        allowEmpty: true,
+        defaultValue: 90,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, { cadenceRpm: val }),
+      });
     } else if (block.kind === "warmup" || block.kind === "cooldown") {
       const lowPct = Math.round(backend.getRampLow(block) * 100);
       const highPct = Math.round(backend.getRampHigh(block) * 100);
+      const cadence = backend.getBlockCadence(block);
       list.push({
         key: "durationSec",
         label: "Duration",
@@ -1548,6 +1696,19 @@ export function createWorkoutBuilder(options) {
           applyBlockAttrUpdate(idx, {
             powerHighRel: backend.clampPowerPercent(val) / 100,
           }),
+      });
+      list.push({
+        key: "cadenceRpm",
+        label: "Cadence",
+        tooltip: "Target cadence (rpm). Leave empty for no target.",
+        value: cadence,
+        unit: "rpm",
+        kind: "cadence",
+        step: 5,
+        allowEmpty: true,
+        defaultValue: 90,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, { cadenceRpm: val }),
       });
     } else if (block.kind === "freeride") {
       list.push({
@@ -1592,10 +1753,25 @@ export function createWorkoutBuilder(options) {
         unit: "%",
         kind: "power",
         step: 5,
+        hideLabel: true,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
             onPowerRel: backend.clampPowerPercent(val) / 100,
           }),
+      });
+      list.push({
+        key: "onCadenceRpm",
+        label: "Cadence",
+        tooltip: "Work interval cadence (rpm). Leave empty for no target.",
+        value: intervals.onCadenceRpm,
+        unit: "rpm",
+        kind: "cadence",
+        step: 5,
+        allowEmpty: true,
+        defaultValue: 90,
+        hideLabel: true,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, { onCadenceRpm: val }),
       });
       list.push({
         key: "offDurationSec",
@@ -1617,25 +1793,69 @@ export function createWorkoutBuilder(options) {
         unit: "%",
         kind: "power",
         step: 5,
+        hideLabel: true,
         onCommit: (val) =>
           applyBlockAttrUpdate(idx, {
             offPowerRel: backend.clampPowerPercent(val) / 100,
           }),
+      });
+      list.push({
+        key: "offCadenceRpm",
+        label: "Cadence",
+        tooltip: "Recovery cadence (rpm). Leave empty for no target.",
+        value: intervals.offCadenceRpm,
+        unit: "rpm",
+        kind: "cadence",
+        step: 5,
+        allowEmpty: true,
+        defaultValue: 90,
+        hideLabel: true,
+        onCommit: (val) =>
+          applyBlockAttrUpdate(idx, { offCadenceRpm: val }),
       });
     }
 
     return list;
   }
 
+  function updateTextEventEditor() {
+    if (!textEventCard) return;
+    const evt = getSelectedTextEvent();
+    if (!evt) {
+      textEventCard.style.display = "none";
+      return;
+    }
+
+    textEventCard.style.display = "flex";
+    if (textEventDurationField?.input) {
+      textEventDurationField.input.value = String(
+        Math.max(1, Math.round(evt.durationSec || 10)),
+      );
+    }
+    if (textEventOffsetField?.input) {
+      textEventOffsetField.input.value = String(
+        Math.max(0, Math.round(evt.offsetSec || 0)),
+      );
+    }
+    if (textEventInput) {
+      textEventInput.value = evt.text || "";
+    }
+  }
+
   function createStepperField(config, onCommit) {
     const wrapper = document.createElement("div");
     wrapper.className = "wb-block-field";
 
-    const label = document.createElement("label");
-    label.className = "wb-block-field-label";
-    label.textContent = config.label || "";
-    if (config.tooltip) label.title = config.tooltip;
-    wrapper.appendChild(label);
+    if (config.hideLabel) {
+      wrapper.classList.add("wb-block-field--nolabel");
+      if (config.tooltip) wrapper.title = config.tooltip;
+    } else {
+      const label = document.createElement("label");
+      label.className = "wb-block-field-label";
+      label.textContent = config.label || "";
+      if (config.tooltip) label.title = config.tooltip;
+      wrapper.appendChild(label);
+    }
 
     const group = document.createElement("div");
     group.className = "control-group wb-block-stepper";
@@ -1651,8 +1871,15 @@ export function createWorkoutBuilder(options) {
     const input = document.createElement("input");
     input.type = "number";
     input.className = "settings-ftp-input wb-block-stepper-input";
-    input.value = Number.isFinite(config.value) ? String(config.value) : "0";
+    if (config.allowEmpty && !Number.isFinite(config.value)) {
+      input.value = "";
+    } else {
+      input.value = Number.isFinite(config.value) ? String(config.value) : "0";
+    }
     input.inputMode = "numeric";
+    if (Number.isFinite(config.step)) {
+      input.step = String(config.step);
+    }
 
     const plus = document.createElement("button");
     plus.type = "button";
@@ -1665,9 +1892,21 @@ export function createWorkoutBuilder(options) {
     } else if (config.kind === "power") {
       minus.title = "Decrease power (J / \u2193 / Shift+J)";
       plus.title = "Increase power (K / \u2191 / Shift+K)";
+    } else if (config.kind === "cadence") {
+      minus.title = "Decrease cadence (J / \u2193)";
+      plus.title = "Increase cadence (K / \u2191)";
+    } else if (config.kind === "timestamp") {
+      minus.title = "Move earlier";
+      plus.title = "Move later";
     }
 
     const commitValue = (raw) => {
+      if (config.allowEmpty && (raw == null || String(raw).trim() === "")) {
+        if (typeof onCommit === "function") {
+          onCommit(null);
+        }
+        return;
+      }
       const n = Number(raw);
       const base = Number.isFinite(n) ? n : Number(config.value) || 0;
       if (typeof onCommit === "function") {
@@ -1677,6 +1916,14 @@ export function createWorkoutBuilder(options) {
 
     minus.addEventListener("click", (e) => {
       e.preventDefault();
+      if (config.allowEmpty && input.value.trim() === "") {
+        const fallback = Number(config.defaultValue);
+        if (Number.isFinite(fallback)) {
+          input.value = String(fallback);
+          commitValue(fallback);
+        }
+        return;
+      }
       const current = Number(input.value);
       const step =
         config.kind === "duration"
@@ -1689,6 +1936,14 @@ export function createWorkoutBuilder(options) {
 
     plus.addEventListener("click", (e) => {
       e.preventDefault();
+      if (config.allowEmpty && input.value.trim() === "") {
+        const fallback = Number(config.defaultValue);
+        if (Number.isFinite(fallback)) {
+          input.value = String(fallback);
+          commitValue(fallback);
+        }
+        return;
+      }
       const current = Number(input.value);
       const step =
         config.kind === "duration"
@@ -1764,6 +2019,9 @@ export function createWorkoutBuilder(options) {
         break;
       case "rampDown":
         path.setAttribute("d", "M4 8 L20 16 20 20 4 20 Z");
+        break;
+      case "text":
+        path.setAttribute("d", "M6 6h12v3h-4v9h-4V9H6z");
         break;
       case "intervals":
       default:
@@ -1963,9 +2221,41 @@ export function createWorkoutBuilder(options) {
   }
 
   function insertBlockAtInsertionPoint(spec, options = {}) {
+    if (spec?.kind === "textevent") {
+      return insertTextEventAtInsertionPoint();
+    }
     const insertIndex = backend.insertBlockAtInsertionPoint(spec, options);
     handleAnyChange();
     return insertIndex;
+  }
+
+  function insertTextEventAtInsertionPoint() {
+    const currentBlocks = backend.getCurrentBlocks();
+    const { timings } = backend.buildBlockTimings(currentBlocks);
+    const insertAfter =
+      dragInsertAfterIndex != null
+        ? dragInsertAfterIndex
+        : backend.getInsertAfterOverrideIndex() != null
+          ? backend.getInsertAfterOverrideIndex()
+          : backend.getInsertAfterIndex();
+    let offsetSec = 0;
+    if (timings.length) {
+      const safeIndex =
+        insertAfter == null
+          ? -1
+          : Math.max(-1, Math.min(insertAfter, timings.length - 1));
+      if (safeIndex >= 0) {
+        offsetSec = timings[safeIndex]?.tEnd || 0;
+      }
+    }
+    const nextIndex = backend.addTextEvent({
+      offsetSec,
+      durationSec: 10,
+      text: "",
+    });
+    selectedTextEventIndex = nextIndex;
+    handleAnyChange();
+    return nextIndex;
   }
 
   function handleChartPointerDown(e) {
@@ -1978,6 +2268,49 @@ export function createWorkoutBuilder(options) {
     const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return;
     const activeEl = document.elementFromPoint(e.clientX, e.clientY);
+    const textEventEl =
+      activeEl && activeEl.closest
+        ? activeEl.closest("[data-text-event-index]")
+        : null;
+    if (textEventEl && chartMiniHost.contains(textEventEl)) {
+      const textEventIndex = Number(textEventEl.dataset.textEventIndex);
+      if (!Number.isFinite(textEventIndex)) return;
+      const svg = chartMiniHost.querySelector("svg");
+      if (!svg) return;
+      e.preventDefault();
+      if (textEventEl.setPointerCapture) {
+        textEventEl.setPointerCapture(e.pointerId);
+      }
+
+      const rect = svg.getBoundingClientRect();
+      const { totalSec } = backend.buildSegmentTimings(currentBlocks);
+      const timelineSec = Math.max(3600, totalSec || 0);
+      const events = backend.getTextEvents();
+      const evt = events[textEventIndex];
+      if (!evt) return;
+
+      setSelectedTextEventIndex(textEventIndex);
+      dragState = {
+        pointerId: e.pointerId,
+        handle: "text-event",
+        textEventIndex,
+        rect,
+        width: rect.width,
+        height: rect.height,
+        timelineSec,
+        totalSec: totalSec || 0,
+        startOffsetSec: evt.offsetSec || 0,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        didDrag: false,
+      };
+      chartMiniHost.dataset.dragTextEventIndex = String(textEventIndex);
+      document.body.classList.add("wb-dragging");
+      window.addEventListener("pointermove", handleChartPointerMove);
+      window.addEventListener("pointerup", handleChartPointerUp);
+      window.addEventListener("pointercancel", handleChartPointerUp);
+      return;
+    }
     const handleEl =
       activeEl && activeEl.closest
         ? activeEl.closest("[data-drag-handle]")
@@ -2128,6 +2461,15 @@ export function createWorkoutBuilder(options) {
     const clampedX = Math.max(0, Math.min(width, localX));
     const clampedY = Math.max(0, Math.min(height, localY));
 
+    if (handle === "text-event") {
+      const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
+      const snapped = Math.round(timeSec / 30) * 30;
+      const maxOffset = Math.max(0, totalSec || 0);
+      const nextOffset = Math.max(0, Math.min(maxOffset, snapped));
+      updateSelectedTextEvent({ offsetSec: nextOffset });
+      return;
+    }
+
     if (handle === "move") {
       const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
       const { timings: segmentTimings } =
@@ -2242,7 +2584,22 @@ export function createWorkoutBuilder(options) {
 
   function handleChartPointerUp(e) {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
-    const { handle, blockIndex } = dragState;
+    const { handle, blockIndex, textEventIndex } = dragState;
+
+    if (handle === "text-event") {
+      if (!dragState.didDrag && Number.isFinite(textEventIndex)) {
+        setSelectedTextEventIndex(textEventIndex);
+      }
+      dragState = null;
+      if (chartMiniHost) {
+        chartMiniHost.removeAttribute("data-drag-text-event-index");
+      }
+      document.body.classList.remove("wb-dragging");
+      window.removeEventListener("pointermove", handleChartPointerMove);
+      window.removeEventListener("pointerup", handleChartPointerUp);
+      window.removeEventListener("pointercancel", handleChartPointerUp);
+      return;
+    }
 
     if (handle === "move" && dragInsertAfterIndex != null) {
       reorderBlocks(blockIndex, dragInsertAfterIndex);
@@ -2270,6 +2627,7 @@ export function createWorkoutBuilder(options) {
     if (chartMiniHost) {
       chartMiniHost.removeAttribute("data-drag-block-index");
       chartMiniHost.removeAttribute("data-drag-seg-index");
+      chartMiniHost.removeAttribute("data-drag-text-event-index");
     }
     document.body.classList.remove("wb-dragging");
     window.removeEventListener("pointermove", handleChartPointerMove);

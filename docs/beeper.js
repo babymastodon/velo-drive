@@ -384,6 +384,58 @@ export const Beeper = (() => {
     }, longOffsetMs);
   }
 
+  function playTextEventTaps(gain = 0.5) {
+    if (!enabled) return;
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const tapSpacing = 0.18;
+    const tapDuration = 0.12;
+
+    const scheduleTap = (startTime) => {
+      const master = track(ctx.createGain());
+      master.gain.value = 0.0001;
+      master.connect(ctx.destination);
+
+      const osc1 = track(ctx.createOscillator());
+      const osc2 = track(ctx.createOscillator());
+      osc1.type = "triangle";
+      osc2.type = "sine";
+
+      const base1 = 220;
+      const base2 = 330;
+      osc1.frequency.setValueAtTime(base1 * 1.04, startTime);
+      osc1.frequency.linearRampToValueAtTime(base1, startTime + 0.04);
+      osc2.frequency.setValueAtTime(base2 * 0.98, startTime);
+      osc2.frequency.linearRampToValueAtTime(base2 * 1.01, startTime + 0.03);
+
+      osc1.detune.value = -6;
+      osc2.detune.value = 5;
+
+      osc1.connect(master);
+      osc2.connect(master);
+
+      const attack = 0.003;
+      const release = tapDuration;
+      master.gain.setValueAtTime(0.0001, startTime);
+      master.gain.linearRampToValueAtTime(gain, startTime + attack);
+      master.gain.exponentialRampToValueAtTime(
+        0.0001,
+        startTime + release,
+      );
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(startTime + release + 0.05);
+      osc2.stop(startTime + release + 0.05);
+    };
+
+    for (let i = 0; i < 3; i += 1) {
+      scheduleTap(now + i * tapSpacing);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // PUBLIC: Paused / Resumed overlays
   // ---------------------------------------------------------------------------
@@ -493,6 +545,7 @@ export const Beeper = (() => {
     runStartCountdown,
     showPausedOverlay,
     showResumedOverlay,
-    playDangerDanger
+    playDangerDanger,
+    playTextEventTaps
   };
 })();
