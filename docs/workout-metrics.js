@@ -260,6 +260,8 @@ export function inferZoneFromSegments(rawSegments) {
 
     const avgPct = (startPct + endPct) / 2;
     if (isFreeRide) {
+      totalSec += durSec;
+      zoneTime.recovery += durSec;
       continue;
     }
 
