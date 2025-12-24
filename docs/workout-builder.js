@@ -2065,17 +2065,14 @@ export function createWorkoutBuilder(options) {
         path.setAttribute("d", "M4 8 L20 16 20 20 4 20 Z");
         break;
       case "text":
-        path.setAttribute(
-          "d",
-          "M3 5h18v11H9l-6 4v-4H3z",
-        );
+        path.setAttribute("d", "M5 5h14v10H10l-5 4v-4H5z");
         path.setAttribute("fill", "none");
         path.setAttribute("stroke", "currentColor");
         path.setAttribute("stroke-width", "1.8");
         path.setAttribute("stroke-linecap", "round");
         path.setAttribute("stroke-linejoin", "round");
         svg.appendChild(path);
-        ["M6 9.5h12", "M6 13h9"].forEach((d) => {
+        ["M8 9h8", "M8 12h6"].forEach((d) => {
           const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
           line.setAttribute("d", d);
           line.setAttribute("fill", "none");
