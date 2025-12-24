@@ -242,8 +242,12 @@ export function drawMiniHistoryChart({
   clearSvg(svg);
 
   const w = Math.max(120, width);
-  const h = Math.max(80, height);
+  const h = Math.max(36, height);
   svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("width", String(w));
+  svg.setAttribute("height", String(h));
+  svg.style.width = `${w}px`;
+  svg.style.height = `${h}px`;
 
   const totalSegSec = rawSegments.reduce(
     (sum, [minutes]) => sum + Math.max(1, Math.round((minutes || 0) * 60)),
