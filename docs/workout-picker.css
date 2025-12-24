@@ -704,7 +704,7 @@
   font-size: var(--font-size-base);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  padding: 6px 10px;
+  padding: 0 10px;
   background: var(--surface-elevated);
   color: var(--text-main);
 }
@@ -712,7 +712,13 @@
 .wb-field-textarea {
   overflow: hidden;
   resize: none;
-  min-height: 100px;
+  min-height: 88px;
+  padding: 6px 10px;
+}
+
+.wb-field-input {
+  height: var(--nav-control-height);
+  box-sizing: border-box;
 }
 
 .wb-field-input:focus,
@@ -1005,19 +1011,15 @@
   gap: 12px;
 }
 
-.wb-text-event-label {
-  font-size: var(--font-size-base);
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
 .wb-text-event-input {
   flex: 1 1 320px;
   min-width: 220px;
   font-size: var(--font-size-base);
+  height: var(--nav-control-height);
+  box-sizing: border-box;
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
-  padding: 6px 10px;
+  padding: 0 10px;
   background: var(--surface-elevated);
   color: var(--text-main);
 }
@@ -1032,10 +1034,15 @@
 }
 
 .wb-text-event:hover rect {
-  fill: var(--hover-medium);
+  fill: color-mix(in srgb, var(--surface-elevated) 94%, var(--text-main));
+  fill-opacity: 1;
+  stroke: var(--border);
+  stroke-width: 1.2;
 }
 
 .wb-text-event.is-active rect {
+  fill: color-mix(in srgb, var(--surface-elevated) 88%, var(--text-main));
+  fill-opacity: 1;
   stroke: var(--text-main);
   stroke-width: 1.6;
 }
