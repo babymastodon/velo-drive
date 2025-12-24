@@ -1233,7 +1233,15 @@ function renderTextEventMarkers({
     const x = (offsetSec / Math.max(1, totalSec)) * width;
     const clampedX = Math.max(0, Math.min(width, x));
 
+    const marker = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    marker.classList.add("wb-text-event");
+    if (activeIndex === idx) marker.classList.add("is-active");
+    marker.dataset.textEventIndex = String(idx);
+    marker.dataset.dragHandle = "text-event";
+    marker.dataset.textEventTooltip = `${durationSec}s: ${evt?.text || "Text event"}`;
+
     const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    tick.classList.add("wb-text-event-tick");
     tick.setAttribute("x1", String(clampedX));
     tick.setAttribute("x2", String(clampedX));
     tick.setAttribute("y1", "0");
@@ -1241,18 +1249,13 @@ function renderTextEventMarkers({
     tick.setAttribute("stroke", border);
     tick.setAttribute("stroke-width", "1.4");
     tick.setAttribute("pointer-events", "none");
-    svg.appendChild(tick);
+    marker.appendChild(tick);
 
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.classList.add("wb-text-event");
-    if (activeIndex === idx) g.classList.add("is-active");
     g.setAttribute(
       "transform",
       `translate(${clampedX - iconSize / 2}, ${iconY})`,
     );
-    g.dataset.textEventIndex = String(idx);
-    g.dataset.dragHandle = "text-event";
-    g.dataset.textEventTooltip = `${durationSec}s: ${evt?.text || "Text event"}`;
     g.style.color = textColor;
     g.setAttribute("pointer-events", "all");
 
@@ -1332,7 +1335,8 @@ function renderTextEventMarkers({
 
     g.appendChild(iconGroup);
 
-    svg.appendChild(g);
+    marker.appendChild(g);
+    svg.appendChild(marker);
   });
 }
 

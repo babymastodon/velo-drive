@@ -1002,18 +1002,30 @@
 
 .wb-text-event-card {
   flex: 0 0 auto;
+  width: 100%;
 }
 
 .wb-text-event-editor {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
+  width: 100%;
+}
+
+.wb-text-event-editor .wb-block-field {
+  flex: 0 0 auto;
+}
+
+.wb-text-event-editor .wb-text-event-field {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .wb-text-event-input {
-  flex: 1 1 320px;
-  min-width: 220px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   font-size: var(--font-size-base);
   height: var(--nav-control-height);
   box-sizing: border-box;
@@ -1045,6 +1057,16 @@
   fill-opacity: 1;
   stroke: var(--text-main);
   stroke-width: 1.6;
+}
+
+.wb-text-event:hover .wb-text-event-tick {
+  stroke: var(--border);
+  stroke-width: 1.6;
+}
+
+.wb-text-event.is-active .wb-text-event-tick {
+  stroke: var(--text-main);
+  stroke-width: 2;
 }
 
 .wb-block-move-btn {
