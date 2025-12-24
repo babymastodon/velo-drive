@@ -2532,7 +2532,7 @@ export function createWorkoutBuilder(options) {
 
     if (handle === "text-event") {
       const timeSec = (clampedX / Math.max(1, width)) * effectiveTimelineSec;
-      const snapped = Math.round(timeSec / 30) * 30;
+      const snapped = Math.round(timeSec / 15) * 15;
       const maxOffset = Math.max(0, totalSec || 0);
       const nextOffset = Math.max(0, Math.min(maxOffset, snapped));
       updateSelectedTextEvent({ offsetSec: nextOffset });
