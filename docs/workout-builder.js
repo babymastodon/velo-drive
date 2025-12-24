@@ -1600,7 +1600,7 @@ export function createWorkoutBuilder(options) {
     if (!blockEditor || !toolbarButtons) return;
 
     if (selectedTextEventIndex != null) {
-      toolbarButtons.style.display = "";
+      toolbarButtons.style.display = "none";
       blockEditor.style.display = "none";
       blockEditorFields.innerHTML = "";
       moveLeftBtn.style.display = "none";
@@ -2067,7 +2067,7 @@ export function createWorkoutBuilder(options) {
       case "text":
         path.setAttribute(
           "d",
-          "M4 6h16v9H8l-4 3v-3H4z",
+          "M3 5h18v11H9l-6 4v-4H3z",
         );
         path.setAttribute("fill", "none");
         path.setAttribute("stroke", "currentColor");
@@ -2075,7 +2075,7 @@ export function createWorkoutBuilder(options) {
         path.setAttribute("stroke-linecap", "round");
         path.setAttribute("stroke-linejoin", "round");
         svg.appendChild(path);
-        ["M7 9h10", "M7 12h8"].forEach((d) => {
+        ["M6 9.5h12", "M6 13h9"].forEach((d) => {
           const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
           line.setAttribute("d", d);
           line.setAttribute("fill", "none");

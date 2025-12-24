@@ -1214,8 +1214,9 @@ function renderTextEventMarkers({
   activeIndex = null,
 }) {
   if (!svg || !Array.isArray(textEvents) || !textEvents.length) return;
-  const iconSize = 18;
-  const tickHeight = 10;
+  const controlHeight = parseFloat(getCssVar("--nav-control-height")) || 36;
+  const iconSize = Math.max(18, Math.round(controlHeight));
+  const tickHeight = Math.max(10, Math.round(iconSize * 0.28));
   const topOffset = 6;
   const iconY = Math.max(
     0,
@@ -1266,30 +1267,43 @@ function renderTextEventMarkers({
     rect.setAttribute("stroke-width", "1.2");
     g.appendChild(rect);
 
+    const baseSize = 18;
+    const targetSize = Math.max(12, iconSize - 4);
+    const scale = targetSize / baseSize;
+    const offset = (iconSize - baseSize * scale) / 2;
+
+    const iconGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    iconGroup.setAttribute(
+      "transform",
+      `translate(${offset}, ${offset}) scale(${scale})`,
+    );
+
     const bubble = document.createElementNS("http://www.w3.org/2000/svg", "path");
     bubble.setAttribute("d", "M3.5 5.5h11v6.5H7l-3 2v-2H3.5z");
     bubble.setAttribute("fill", "none");
     bubble.setAttribute("stroke", "currentColor");
-    bubble.setAttribute("stroke-width", "1.4");
+    bubble.setAttribute("stroke-width", "1.1");
     bubble.setAttribute("stroke-linecap", "round");
     bubble.setAttribute("stroke-linejoin", "round");
-    g.appendChild(bubble);
+    iconGroup.appendChild(bubble);
 
     const line1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
     line1.setAttribute("d", "M5.5 8h7");
     line1.setAttribute("fill", "none");
     line1.setAttribute("stroke", "currentColor");
-    line1.setAttribute("stroke-width", "1.4");
+    line1.setAttribute("stroke-width", "1.1");
     line1.setAttribute("stroke-linecap", "round");
-    g.appendChild(line1);
+    iconGroup.appendChild(line1);
 
     const line2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
     line2.setAttribute("d", "M5.5 10.5h5.5");
     line2.setAttribute("fill", "none");
     line2.setAttribute("stroke", "currentColor");
-    line2.setAttribute("stroke-width", "1.4");
+    line2.setAttribute("stroke-width", "1.1");
     line2.setAttribute("stroke-linecap", "round");
-    g.appendChild(line2);
+    iconGroup.appendChild(line2);
+
+    g.appendChild(iconGroup);
 
     svg.appendChild(g);
   });
