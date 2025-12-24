@@ -11,10 +11,7 @@ import {
   loadSelectedWorkout,
   loadActiveState,
   saveActiveState,
-  clearActiveState,
   loadWorkoutDirHandle,
-  loadFreeRideSettings,
-  saveFreeRideSettings,
 } from "./storage.js";
 
 let instance = null;
@@ -199,6 +196,22 @@ function createWorkoutEngine() {
       totalPausedMs,
       lastTickWallMs,
       workoutStartedAt: workoutStartedAt ? workoutStartedAt.toISOString() : null,
+    });
+  }
+
+  function persistIdleState() {
+    saveActiveState({
+      currentFtp,
+      mode: "workout",
+      freeRideMode,
+      manualErgTarget,
+      manualResistance,
+      workoutRunning: false,
+      workoutPaused: false,
+      workoutStarting: false,
+      elapsedSec: 0,
+      currentIntervalIndex: 0,
+      liveSamples: [],
     });
   }
 
@@ -512,7 +525,7 @@ function createWorkoutEngine() {
     autoPauseDisabledUntilSec = 0;
     manualPauseAutoResumeBlockedUntilMs = 0;
     stopTicker();
-    clearActiveState();
+    persistIdleState();
     emitStateChanged();
     onWorkoutEnded(savedInfo);
   }
@@ -585,41 +598,26 @@ function createWorkoutEngine() {
       recomputeWorkoutTotalSec();
     }
 
-    try {
-      const storedFreeRide = await loadFreeRideSettings();
-      if (storedFreeRide && typeof storedFreeRide === "object") {
-        if (
-          storedFreeRide.freeRideMode === "erg" ||
-          storedFreeRide.freeRideMode === "resistance"
-        ) {
-          freeRideMode = storedFreeRide.freeRideMode;
-        }
-        if (Number.isFinite(storedFreeRide.manualErgTarget)) {
-          manualErgTarget = storedFreeRide.manualErgTarget;
-        }
-        if (Number.isFinite(storedFreeRide.manualResistance)) {
-          manualResistance = storedFreeRide.manualResistance;
-        }
-      }
-    } catch (_err) {
-      // ignore load failures
-    }
-
     const active = await loadActiveState();
     if (active) {
       log("Restoring previous active workout state.");
 
       canonicalWorkout = active.canonicalWorkout || canonicalWorkout;
-      currentFtp = active.currentFtp || currentFtp;
-      const restoredMode = active.mode || mode;
-      freeRideMode =
-        active.freeRideMode ||
-        (restoredMode === "erg" || restoredMode === "resistance"
-          ? restoredMode
-          : freeRideMode);
+      currentFtp = Number.isFinite(active.currentFtp)
+        ? active.currentFtp
+        : currentFtp;
+      if (active.freeRideMode === "erg" || active.freeRideMode === "resistance") {
+        freeRideMode = active.freeRideMode;
+      } else if (active.mode === "erg" || active.mode === "resistance") {
+        freeRideMode = active.mode;
+      }
       mode = "workout";
-      manualErgTarget = active.manualErgTarget || manualErgTarget;
-      manualResistance = active.manualResistance || manualResistance;
+      manualErgTarget = Number.isFinite(active.manualErgTarget)
+        ? active.manualErgTarget
+        : manualErgTarget;
+      manualResistance = Number.isFinite(active.manualResistance)
+        ? active.manualResistance
+        : manualResistance;
       workoutRunning = !!active.workoutRunning;
       // If we were mid-workout, resume in a paused state for safety.
       // Otherwise, respect the persisted paused flag to avoid blocking
@@ -672,11 +670,6 @@ function createWorkoutEngine() {
       if (newMode !== "erg" && newMode !== "resistance") return;
       if (newMode === freeRideMode || workoutStarting) return;
       freeRideMode = newMode;
-      saveFreeRideSettings({
-        freeRideMode,
-        manualErgTarget,
-        manualResistance,
-      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
         log("Trainer state send on free ride mode change failed: " + err)
@@ -695,11 +688,6 @@ function createWorkoutEngine() {
 
     adjustManualErg(delta) {
       manualErgTarget = Math.max(50, Math.min(1500, manualErgTarget + delta));
-      saveFreeRideSettings({
-        freeRideMode,
-        manualErgTarget,
-        manualResistance,
-      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
@@ -707,11 +695,6 @@ function createWorkoutEngine() {
 
     adjustManualResistance(delta) {
       manualResistance = Math.max(0, Math.min(100, manualResistance + delta));
-      saveFreeRideSettings({
-        freeRideMode,
-        manualErgTarget,
-        manualResistance,
-      }).catch(() => {});
       scheduleSaveActiveState();
       sendTrainerState(true).catch(() => {});
       emitStateChanged();
@@ -746,7 +729,7 @@ function createWorkoutEngine() {
 
       recomputeWorkoutTotalSec();
 
-      clearActiveState();
+      persistIdleState();
       emitStateChanged();
     },
 
