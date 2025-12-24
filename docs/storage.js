@@ -30,7 +30,6 @@ export const STORAGE_LAST_HR_DEVICE_ID = "lastHrDeviceId";
 export const STORAGE_THEME_MODE = "themeMode";
 export const STORAGE_WORKOUT_STATS_CACHE = "workoutStatsCache";
 export const STORAGE_SCHEDULE_FILE = "schedule.json";
-export const STORAGE_FREE_RIDE_SETTINGS = "freeRideSettings";
 
 const FTP_KEY = "ftp";
 const DEFAULT_WORKOUT_FILES = [
@@ -380,13 +379,6 @@ export function clearActiveState() {
   return removeSetting(STORAGE_ACTIVE_STATE);
 }
 
-export async function loadFreeRideSettings() {
-  return getSetting(STORAGE_FREE_RIDE_SETTINGS, null);
-}
-
-export function saveFreeRideSettings(settings) {
-  return setSetting(STORAGE_FREE_RIDE_SETTINGS, settings);
-}
 
 export async function loadPickerState() {
   return getSetting(STORAGE_PICKER_STATE, null);
