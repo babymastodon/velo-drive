@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Pillow Pops</name>
+  <description><![CDATA[Settle into a smooth recovery flow where quiet stretches do the healing and tiny flashes keep the legs feeling alive. You’ll cruise comfortably, then sprinkle in 3×1-min wake-ups and 2×90-sec gentle lifts—just enough to add color without tipping into work. A final 3×30-sec sparkle clears the cobwebs, then you drift down into an easy cooldown, lighter than you started.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" />
+    <SteadyState Duration="480" Power="0.55" />
+    <IntervalsT Repeat="3" OnDuration="60" OffDuration="30" OnPower="0.72" OffPower="0.55" />
+    <SteadyState Duration="300" Power="0.55" />
+    <IntervalsT Repeat="2" OnDuration="90" OffDuration="60" OnPower="0.80" OffPower="0.55" />
+    <SteadyState Duration="180" Power="0.55" />
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" />
+    <SteadyState Duration="300" Power="0.50" />
+    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" />
+  </workout>
+</workout_file>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Endurance Drift</name>
+  <description><![CDATA[Cruise steady in the upper endurance lane (~65–75% FTP) with a few rolling changes to keep it interesting. One quick crest to ~105%, another to ~90%, then back to smooth pressure and a clean, easy cooldown.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="210" PowerLow="0.50" PowerHigh="0.65" />
+    <SteadyState Duration="120" Power="0.65" />
+    <SteadyState Duration="120" Power="0.75" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="120" Power="0.72" />
+    <SteadyState Duration="60" Power="1.05" />
+    <SteadyState Duration="120" Power="0.65" />
+    <SteadyState Duration="180" Power="0.75" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="60" Power="0.90" />
+    <SteadyState Duration="180" Power="0.70" />
+    <SteadyState Duration="120" Power="0.75" />
+    <SteadyState Duration="90" Power="0.59" />
+    <SteadyState Duration="60" Power="0.73" />
+    <Cooldown Duration="120" PowerLow="0.65" PowerHigh="0.45" />
+  </workout>
+</workout_file>

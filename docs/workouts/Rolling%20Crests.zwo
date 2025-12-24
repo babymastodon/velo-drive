@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Rolling Crests</name>
+  <description><![CDATA[A long endurance ride that rolls between steady base (~55–75% FTP) and frequent little crests (~85–95%), with one quick flash to ~110% to wake everything up. It’s less “intervals” and more “terrain”—smooth pressure, repeating rises, and durable miles that stack up quietly.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" />
+    <SteadyState Duration="120" Power="0.60" />
+    <SteadyState Duration="120" Power="0.68" />
+    <SteadyState Duration="120" Power="0.58" />
+    <SteadyState Duration="120" Power="0.72" />
+    <SteadyState Duration="60" Power="0.90" />
+    <SteadyState Duration="120" Power="0.65" />
+    <SteadyState Duration="180" Power="0.55" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="60" Power="0.80" />
+    <SteadyState Duration="240" Power="0.62" />
+    <SteadyState Duration="120" Power="0.74" />
+    <SteadyState Duration="90" Power="0.59" />
+    <SteadyState Duration="180" Power="0.75" />
+    <SteadyState Duration="60" Power="1.10" />
+    <SteadyState Duration="120" Power="0.63" />
+    <SteadyState Duration="120" Power="0.71" />
+    <SteadyState Duration="120" Power="0.57" />
+    <SteadyState Duration="90" Power="0.73" />
+    <SteadyState Duration="180" Power="0.66" />
+    <SteadyState Duration="180" Power="0.60" />
+    <SteadyState Duration="120" Power="0.75" />
+    <SteadyState Duration="120" Power="0.90" />
+    <SteadyState Duration="120" Power="0.75" />
+    <SteadyState Duration="90" Power="0.90" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="60" Power="0.95" />
+    <SteadyState Duration="150" Power="0.60" />
+    <SteadyState Duration="180" Power="0.75" />
+    <SteadyState Duration="120" Power="0.75" />
+    <SteadyState Duration="120" Power="0.58" />
+    <SteadyState Duration="90" Power="0.75" />
+    <SteadyState Duration="90" Power="0.50" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="60" Power="0.85" />
+    <SteadyState Duration="180" Power="0.60" />
+    <SteadyState Duration="120" Power="0.70" />
+    <SteadyState Duration="60" Power="0.75" />
+    <SteadyState Duration="180" Power="0.60" />
+    <SteadyState Duration="60" Power="0.80" />
+    <SteadyState Duration="120" Power="0.63" />
+    <Cooldown Duration="240" PowerLow="0.63" PowerHigh="0.45" />
+  </workout>
+</workout_file>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Lullaby Legs</name>
+  <description><![CDATA[Settle into easy cruising, then drop in 5×1-min wake-ups to loosen the legs and find a smooth rhythm. A steady middle keeps things calm, before 5×1-min brighter surges (with plenty of soft coasting) add a little sparkle. Finish with 3×20-sec tiny pops and a relaxed glide into the cooldown.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="180" PowerLow="0.40" PowerHigh="0.55" />
+    <SteadyState Duration="480" Power="0.55" />
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" />
+    <SteadyState Duration="360" Power="0.55" />
+    <SteadyState Duration="600" Power="0.65" />
+    <SteadyState Duration="360" Power="0.55" />
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="90" OnPower="0.80" OffPower="0.40" />
+    <SteadyState Duration="330" Power="0.55" />
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="120" OnPower="1.10" OffPower="0.55" />
+    <Cooldown Duration="420" PowerLow="0.55" PowerHigh="0.40" />
+  </workout>
+</workout_file>
