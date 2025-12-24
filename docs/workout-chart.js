@@ -45,6 +45,16 @@ function isFreeRideSegment(seg) {
   return Array.isArray(seg) && seg[3] === "freeride";
 }
 
+function getRawCadence(seg) {
+  if (!Array.isArray(seg)) return null;
+  if (seg[3] === "freeride") return null;
+  if (Number.isFinite(seg[4])) return Number(seg[4]);
+  if (typeof seg[3] === "number" && Number.isFinite(seg[3])) {
+    return Number(seg[3]);
+  }
+  return null;
+}
+
 function ensureFreeridePatterns(svg) {
   if (!svg) return null;
   if (svg._freeridePatternIds) return svg._freeridePatternIds;
@@ -162,6 +172,7 @@ function renderSegmentPolygon({
   pStartRel,
   pEndRel,
   isFreeride = false,
+  cadenceRpm = null,
 }) {
   if (!svg || totalSec <= 0) return;
 
@@ -219,6 +230,9 @@ function renderSegmentPolygon({
   poly.dataset.p1 = p1Pct.toFixed(0);
   poly.dataset.durMin = durMin.toFixed(1);
   poly.dataset.durSec = String(durSec);
+  if (Number.isFinite(cadenceRpm)) {
+    poly.dataset.cadence = String(Math.round(cadenceRpm));
+  }
 
   svg.appendChild(poly);
 
@@ -861,6 +875,25 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
       lastHoveredSegment = null;
     }
 
+    const dragTextEventIndex = containerEl.dataset.dragTextEventIndex;
+    if (dragTextEventIndex != null) {
+      const textEventEl = svg.querySelector(
+        `[data-text-event-index="${dragTextEventIndex}"]`,
+      );
+      const tip = textEventEl?.dataset?.textEventTooltip;
+      if (tip) {
+        clearSegmentHover();
+        hideLineDots();
+        tooltipEl.textContent = tip;
+        tooltipEl.style.display = "block";
+        updateTooltipPosition(clientX, clientY);
+        if (remember) {
+          lastHoverPosByContainer.set(containerEl, {clientX, clientY});
+        }
+        return;
+      }
+    }
+
     const lineHover = getLineHover(clientX, clientY);
     if (lineHover) {
       clearSegmentHover();
@@ -895,6 +928,18 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
     }
     if (!segment) {
       const hitEl = document.elementFromPoint(clientX, clientY);
+      const textEventEl =
+        hitEl && hitEl.closest ? hitEl.closest("[data-text-event-tooltip]") : null;
+      if (textEventEl && svg.contains(textEventEl)) {
+        clearSegmentHover();
+        tooltipEl.textContent = textEventEl.dataset.textEventTooltip || "";
+        tooltipEl.style.display = "block";
+        updateTooltipPosition(clientX, clientY);
+        if (remember) {
+          lastHoverPosByContainer.set(containerEl, {clientX, clientY});
+        }
+        return;
+      }
       segment = hitEl && hitEl.closest ? hitEl.closest(".chart-segment") : null;
       if (!segment && hitEl && hitEl.closest) {
         const handleEl = hitEl.closest("[data-block-index][data-seg-index]");
@@ -926,14 +971,16 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
       durSec >= 60 ? `${durMin.toFixed(1)} min` : `${durSec} sec`;
     const w0 = Math.round((p0 * ftp) / 100);
     const w1 = Math.round((p1 * ftp) / 100);
+    const cadence = segment.dataset.cadence;
+    const cadenceSuffix = cadence ? `, ${cadence} rpm` : "";
 
     if (segment.dataset.freeRide === "true") {
-      tooltipEl.textContent = `Free ride: ${dur}`;
+      tooltipEl.textContent = `Free ride: ${dur}${cadenceSuffix}`;
     } else {
       tooltipEl.textContent =
         p0 === p1
-          ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}`
-          : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}`;
+          ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}${cadenceSuffix}`
+          : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}${cadenceSuffix}`;
     }
     tooltipEl.style.display = "block";
 
@@ -1024,6 +1071,7 @@ function renderSegmentsFromRaw({
     const [minutes, startPct, endPct] = seg;
     const durSec = Math.max(1, Math.round((minutes || 0) * 60));
     const isFreeride = isFreeRideSegment(seg);
+    const cadenceRpm = getRawCadence(seg);
     const pStartRel = isFreeride
       ? FREERIDE_POWER_REL
       : (startPct || 0) / 100;
@@ -1043,6 +1091,7 @@ function renderSegmentsFromRaw({
       pStartRel,
       pEndRel,
       isFreeride,
+      cadenceRpm,
     });
 
     t += durSec;
@@ -1156,6 +1205,76 @@ function computeBlockTimings(blocks) {
   return {timings, totalSec};
 }
 
+function renderTextEventMarkers({
+  svg,
+  textEvents,
+  totalSec,
+  width,
+  height,
+  activeIndex = null,
+}) {
+  if (!svg || !Array.isArray(textEvents) || !textEvents.length) return;
+  const iconSize = 16;
+  const tickHeight = 8;
+  const topOffset = 6;
+  const iconY = Math.max(
+    0,
+    Math.min(height - iconSize - 2, topOffset + tickHeight),
+  );
+  const bg = getCssVar("--surface-elevated") || "#f4f4f4";
+  const border = getCssVar("--border-subtle") || "#bdbdbd";
+  const textColor = getCssVar("--text-main") || "#1f1f1f";
+  const activeBg = getCssVar("--hover-medium") || "#e2e2e2";
+
+  textEvents.forEach((evt, idx) => {
+    const offsetSec = Math.max(0, Number(evt?.offsetSec) || 0);
+    const durationSec = Math.max(1, Math.round(Number(evt?.durationSec) || 10));
+    const x = (offsetSec / Math.max(1, totalSec)) * width;
+    const clampedX = Math.max(0, Math.min(width, x));
+
+    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    tick.setAttribute("x1", String(clampedX));
+    tick.setAttribute("x2", String(clampedX));
+    tick.setAttribute("y1", "0");
+    tick.setAttribute("y2", String(tickHeight));
+    tick.setAttribute("stroke", border);
+    tick.setAttribute("stroke-width", "1.4");
+    tick.setAttribute("pointer-events", "none");
+    svg.appendChild(tick);
+
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.classList.add("wb-text-event");
+    if (activeIndex === idx) g.classList.add("is-active");
+    g.setAttribute(
+      "transform",
+      `translate(${clampedX - iconSize / 2}, ${iconY})`,
+    );
+    g.dataset.textEventIndex = String(idx);
+    g.dataset.dragHandle = "text-event";
+    g.dataset.textEventTooltip = `${durationSec}s: ${evt?.text || "Text event"}`;
+    g.style.color = textColor;
+    g.setAttribute("pointer-events", "all");
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "0");
+    rect.setAttribute("y", "0");
+    rect.setAttribute("width", String(iconSize));
+    rect.setAttribute("height", String(iconSize));
+    rect.setAttribute("rx", "4");
+    rect.setAttribute("fill", activeIndex === idx ? activeBg : bg);
+    rect.setAttribute("stroke", border);
+    rect.setAttribute("stroke-width", "1.2");
+    g.appendChild(rect);
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M4 4h8v2H9v7H7V6H4z");
+    path.setAttribute("fill", "currentColor");
+    g.appendChild(path);
+
+    svg.appendChild(g);
+  });
+}
+
 /**
  * Renders the builder workout chart that operates on parsed blocks (not just flattened rawSegments).
  * Adds block-level highlighting + click handling to select/deselect blocks.
@@ -1165,6 +1284,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
     selectedBlockIndex = null,
     selectedBlockIndices = null,
     insertAfterBlockIndex = null,
+    textEvents = [],
+    activeTextEventIndex = null,
     onSelectBlock,
     onSetInsertAfter,
     onSetInsertAfterFromSegment,
@@ -1326,6 +1447,8 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
       const durSec = Math.max(1, Math.round((seg?.durationSec || 0)));
       const pStartRel = seg?.pStartRel || 0;
       const pEndRel = seg?.pEndRel != null ? seg.pEndRel : pStartRel;
+      const cadenceRpm =
+        Number.isFinite(seg?.cadence) ? Number(seg.cadence) : null;
 
       const x1 = (cursor / timelineSec) * width;
       const x2 = ((cursor + durSec) / timelineSec) * width;
@@ -1348,6 +1471,7 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
         pStartRel,
         pEndRel,
         isFreeride: block?.kind === "freeride" || seg?.isFreeRide,
+        cadenceRpm,
       });
 
       if (poly) {
@@ -1434,6 +1558,15 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
 
   rightHandles.forEach((handle) => svg.appendChild(handle));
   topHandles.forEach((handle) => svg.appendChild(handle));
+
+  renderTextEventMarkers({
+    svg,
+    textEvents,
+    totalSec: timelineSec,
+    width,
+    height,
+    activeIndex: activeTextEventIndex,
+  });
 
   const ftpLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   ftpLine.setAttribute("x1", "0");
@@ -1655,6 +1788,7 @@ export function drawWorkoutChart({
   mode,
   ftp,
   rawSegments,     // CanonicalWorkout.rawSegments
+  textEvents = [],
   elapsedSec,
   liveSamples,
   manualErgTarget,
@@ -1808,6 +1942,34 @@ export function drawWorkoutChart({
     posLine.setAttribute("stroke-width", "1.5");
     posLine.setAttribute("pointer-events", "none");
     svg.appendChild(posLine);
+  }
+
+  if (Array.isArray(textEvents) && textEvents.length && elapsedSec != null) {
+    const activeTextEvents = textEvents
+      .map((evt) => ({
+        offsetSec: Math.max(0, Number(evt?.offsetSec) || 0),
+        durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+        text: evt?.text || "",
+      }))
+      .filter(
+        (evt) => elapsedClamped >= evt.offsetSec &&
+          elapsedClamped <= evt.offsetSec + evt.durationSec,
+      );
+    if (activeTextEvents.length) {
+      const active = activeTextEvents[activeTextEvents.length - 1];
+      if (!active.text) return;
+      const fontSize = Math.max(16, Math.round(Math.min(w, h) / 5));
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", String(w / 2));
+      text.setAttribute("y", String(h * 0.35));
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("font-size", String(fontSize));
+      text.setAttribute("font-weight", "600");
+      text.setAttribute("fill", getCssVar("--text-main"));
+      text.setAttribute("pointer-events", "none");
+      text.textContent = active.text || "";
+      svg.appendChild(text);
+    }
   }
 
   // live sample lines

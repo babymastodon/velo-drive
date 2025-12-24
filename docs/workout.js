@@ -87,6 +87,7 @@ let bikeConnected = false;
 const logLines = [];
 let chartWidth = 1000;
 let chartHeight = 400;
+let lastTextEventKey = null;
 
 // Ensure we only ever run handleLastScrapedWorkout once at a time
 let isHandlingLastScrapedWorkout = false;
@@ -318,6 +319,112 @@ function buildWorkoutTooltip(vm) {
   return parts.join("\n");
 }
 
+function getRawCadence(seg) {
+  if (!Array.isArray(seg)) return null;
+  if (seg[3] === "freeride") return null;
+  if (Number.isFinite(seg[4])) return Number(seg[4]);
+  if (typeof seg[3] === "number" && Number.isFinite(seg[3])) {
+    return Number(seg[3]);
+  }
+  return null;
+}
+
+function getSegmentAtTime(rawSegments, tSec) {
+  if (!Array.isArray(rawSegments) || !rawSegments.length) return null;
+  let acc = 0;
+  for (let i = 0; i < rawSegments.length; i += 1) {
+    const seg = rawSegments[i];
+    const minutes = Number(seg?.[0]) || 0;
+    const dur = Math.max(1, Math.round(minutes * 60));
+    const start = acc;
+    const end = acc + dur;
+    if (tSec < end) {
+      const startPct = Number(seg?.[1]) || 0;
+      const endPct = seg?.[2] != null ? Number(seg?.[2]) : startPct;
+      return {
+        index: i,
+        startTimeSec: start,
+        endTimeSec: end,
+        durationSec: dur,
+        pStartRel: startPct / 100,
+        pEndRel: endPct / 100,
+        cadenceRpm: getRawCadence(seg),
+        isFreeRide: Array.isArray(seg) && seg[3] === "freeride",
+      };
+    }
+    acc = end;
+  }
+  return null;
+}
+
+function buildSegmentDescriptionParts(vm, segInfo, { prefix = "" } = {}) {
+  if (!segInfo) return [{ text: vm.canonicalWorkout?.workoutTitle || "Workout" }];
+  const ftp = vm.currentFtp || DEFAULT_FTP;
+  const cadence = Number.isFinite(segInfo.cadenceRpm)
+    ? Math.round(segInfo.cadenceRpm)
+    : null;
+  const pStart = segInfo.pStartRel || 0;
+  const pEnd = segInfo.pEndRel != null ? segInfo.pEndRel : pStart;
+  const ramping = Math.abs(pEnd - pStart) > 1e-6;
+  const endW = Math.round(pEnd * ftp);
+  const parts = [];
+
+  if (prefix) parts.push({ text: prefix });
+
+  if (segInfo.isFreeRide) {
+    if (vm.freeRideMode === "erg") {
+      const watts = Math.round(vm.manualErgTarget || ftp * 0.6);
+      parts.push({ text: "Free ride at " });
+      parts.push({ text: watts, strong: true });
+      parts.push({ text: " watts" });
+    } else {
+      const resistance = Math.round(vm.manualResistance || 0);
+      parts.push({ text: "Free ride at " });
+      parts.push({ text: resistance, strong: true });
+      parts.push({ text: " resistance" });
+    }
+    return parts;
+  }
+
+  if (ramping) {
+    const rampDir = pEnd >= pStart ? "Ramp up to " : "Ramp down to ";
+    parts.push({ text: rampDir });
+    parts.push({ text: endW, strong: true });
+    parts.push({ text: " watts" });
+  } else {
+    const watts = Math.round(pStart * ftp);
+    parts.push({ text: "Maintain " });
+    parts.push({ text: watts, strong: true });
+    parts.push({ text: " watts" });
+  }
+
+  if (cadence != null) {
+    parts.push({ text: " at " });
+    parts.push({ text: cadence, strong: true });
+    parts.push({ text: " RPM" });
+  }
+
+  return parts;
+}
+
+function renderTitleParts(el, parts) {
+  if (!el) return;
+  el.innerHTML = "";
+  parts.forEach((part) => {
+    if (part == null) return;
+    const text = typeof part === "string" ? part : part.text;
+    const strong = typeof part === "object" && part.strong;
+    if (text == null || text === "") return;
+    if (strong) {
+      const node = document.createElement("strong");
+      node.textContent = String(text);
+      el.appendChild(node);
+    } else {
+      el.appendChild(document.createTextNode(String(text)));
+    }
+  });
+}
+
 function updateWorkoutTitleUI(vm) {
   const cw = vm.canonicalWorkout;
 
@@ -336,8 +443,30 @@ function updateWorkoutTitleUI(vm) {
     if (vm.workoutRunning || vm.workoutStarting) {
       workoutTitleCenter.style.display = "block";
 
-      const name = cw?.workoutTitle || cw?.name || "Workout running";
-      workoutTitleCenter.textContent = name;
+      if (vm.workoutRunning && !vm.workoutPaused && cw?.rawSegments?.length) {
+        const elapsed = Math.max(0, vm.elapsedSec || 0);
+        const currentSeg = getSegmentAtTime(cw.rawSegments, elapsed);
+        let targetSeg = currentSeg;
+        let prefix = "";
+        if (currentSeg) {
+          const remaining = currentSeg.endTimeSec - elapsed;
+          if (currentSeg.durationSec >= 20 && remaining <= 10) {
+            const nextSeg = getSegmentAtTime(
+              cw.rawSegments,
+              currentSeg.endTimeSec + 0.1,
+            );
+            if (nextSeg) {
+              targetSeg = nextSeg;
+              prefix = "Up Next: ";
+            }
+          }
+        }
+        const parts = buildSegmentDescriptionParts(vm, targetSeg, { prefix });
+        renderTitleParts(workoutTitleCenter, parts);
+      } else {
+        const name = cw?.workoutTitle || cw?.name || "Workout running";
+        workoutTitleCenter.textContent = name;
+      }
       workoutTitleCenter.title = buildWorkoutTooltip(vm);
 
       if (workoutNameLabel) {
@@ -676,6 +805,7 @@ function drawChart(vm) {
     mode: "workout",
     ftp: vm.currentFtp || DEFAULT_FTP,
     rawSegments: vm.canonicalWorkout?.rawSegments || [],
+    textEvents: vm.canonicalWorkout?.textEvents || [],
     elapsedSec: vm.elapsedSec,
     liveSamples: vm.liveSamples,
     manualErgTarget: vm.manualErgTarget,
@@ -807,6 +937,43 @@ function updateStatusOverlay(_vm) {
   void _vm; // currently driven via Beeper overlays
 }
 
+function getActiveTextEvent(textEvents, elapsedSec) {
+  if (!Array.isArray(textEvents) || elapsedSec == null) return null;
+  const t = Math.max(0, elapsedSec || 0);
+  let active = null;
+  textEvents.forEach((evt, idx) => {
+    const offsetSec = Math.max(0, Number(evt?.offsetSec) || 0);
+    const durationSec = Math.max(1, Math.round(Number(evt?.durationSec) || 10));
+    if (t >= offsetSec && t <= offsetSec + durationSec) {
+      active = { idx, offsetSec, durationSec, text: evt?.text || "" };
+    }
+  });
+  return active;
+}
+
+function maybePlayTextEvent(vm) {
+  const shouldPlay =
+    vm &&
+    vm.workoutRunning &&
+    !vm.workoutPaused &&
+    vm.canonicalWorkout?.textEvents?.length;
+  if (!shouldPlay) {
+    lastTextEventKey = null;
+    return;
+  }
+  const active = getActiveTextEvent(vm.canonicalWorkout.textEvents, vm.elapsedSec);
+  if (!active || !active.text) {
+    lastTextEventKey = null;
+    return;
+  }
+  const key = `${active.idx}:${active.offsetSec}:${active.text}`;
+  if (key === lastTextEventKey) return;
+  lastTextEventKey = key;
+  if (Beeper && typeof Beeper.playTextEventTaps === "function") {
+    Beeper.playTextEventTaps(0.5);
+  }
+}
+
 // --------------------------- Render from engine state ---------------------------
 
 function renderFromEngine(vm) {
@@ -825,6 +992,7 @@ function renderFromEngine(vm) {
   }
   drawChart(vm);
   updateStatusOverlay(vm);
+  maybePlayTextEvent(vm);
 }
 
 // --------------------------- Theme re-render ---------------------------

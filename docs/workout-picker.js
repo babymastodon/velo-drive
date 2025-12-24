@@ -813,12 +813,21 @@ function createWorkoutPicker(config) {
       source: cw.source || "",
       sourceURL: cw.sourceURL || "",
       description: cw.description || "",
+      textEvents: Array.isArray(cw.textEvents)
+        ? cw.textEvents.map((evt) => ({
+          offsetSec: Number(evt?.offsetSec) || 0,
+          durationSec: Number(evt?.durationSec) || 0,
+          text: evt?.text || "",
+        }))
+        : [],
       rawSegments: Array.isArray(cw.rawSegments)
         ? cw.rawSegments.map((seg) =>
             Array.isArray(seg)
-              ? seg[3] != null
-                ? [seg[0], seg[1], seg[2], seg[3]]
-                : [seg[0], seg[1], seg[2]]
+              ? seg[4] != null
+                ? [seg[0], seg[1], seg[2], seg[3] ?? null, seg[4]]
+                : seg[3] != null
+                  ? [seg[0], seg[1], seg[2], seg[3]]
+                  : [seg[0], seg[1], seg[2]]
               : seg,
           )
         : [],
@@ -866,6 +875,16 @@ function createWorkoutPicker(config) {
           return false;
         }
       }
+    }
+    const eventsA = Array.isArray(a.textEvents) ? a.textEvents : [];
+    const eventsB = Array.isArray(b.textEvents) ? b.textEvents : [];
+    if (eventsA.length !== eventsB.length) return false;
+    for (let i = 0; i < eventsA.length; i += 1) {
+      const aEvt = eventsA[i] || {};
+      const bEvt = eventsB[i] || {};
+      if (Number(aEvt.offsetSec) !== Number(bEvt.offsetSec)) return false;
+      if (Number(aEvt.durationSec) !== Number(bEvt.durationSec)) return false;
+      if (String(aEvt.text || "") !== String(bEvt.text || "")) return false;
     }
     return true;
   }
@@ -925,7 +944,7 @@ function createWorkoutPicker(config) {
         "<strong>h l</strong> <strong>← →</strong> to move &bull; " +
         "<strong>Enter</strong> to select &bull; " +
         "<strong>Backspace</strong> delete &bull; " +
-        "<strong>R E T S V A W C I</strong> insert block";
+        "<strong>R E T S V A W C I X</strong> insert block";
       return;
     }
 

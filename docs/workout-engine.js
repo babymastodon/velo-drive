@@ -76,6 +76,16 @@ function createWorkoutEngine() {
     return Array.isArray(seg) && seg[3] === "freeride";
   }
 
+  function getRawCadence(seg) {
+    if (!Array.isArray(seg)) return null;
+    if (seg[3] === "freeride") return null;
+    if (Number.isFinite(seg[4])) return Number(seg[4]);
+    if (typeof seg[3] === "number" && Number.isFinite(seg[3])) {
+      return Number(seg[3]);
+    }
+    return null;
+  }
+
   function recomputeWorkoutTotalSec() {
     if (!canonicalWorkout) {
       workoutTotalSec = 0;
@@ -107,6 +117,7 @@ function createWorkoutEngine() {
       const start = acc;
       const end = acc + dur;
       const isFreeRide = isFreeRideSegment(raws[i]);
+      const cadenceRpm = getRawCadence(raws[i]);
 
       if (t < end) {
         const pStartRel = (startPct || 0) / 100;
@@ -129,6 +140,7 @@ function createWorkoutEngine() {
           pStartRel,
           pEndRel,
           isFreeRide,
+          cadenceRpm,
         };
 
         currentIntervalIndex = i;

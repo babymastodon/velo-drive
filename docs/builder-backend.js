@@ -20,6 +20,7 @@ export function createBuilderBackend() {
     currentMetrics: null,
     currentZone: null,
     persistedState: null,
+    textEvents: [],
     selectedBlockIndex: null,
     selectedBlockIndices: [],
     selectionAnchorIndex: null,
@@ -50,6 +51,7 @@ export function createBuilderBackend() {
       workoutTitle: state.meta.workoutTitle,
       rawSegments: state.currentRawSegments.slice(),
       description: state.meta.description,
+      textEvents: cloneTextEvents(state.textEvents),
     };
   }
 
@@ -79,6 +81,39 @@ export function createBuilderBackend() {
 
   function getCurrentErrors() {
     return state.currentErrors;
+  }
+
+  function getTextEvents() {
+    return cloneTextEvents(state.textEvents);
+  }
+
+  function setTextEvents(events) {
+    state.textEvents = normalizeTextEvents(events);
+  }
+
+  function addTextEvent(event) {
+    const next = normalizeTextEvent(event);
+    recordHistorySnapshot();
+    state.textEvents = normalizeTextEvents([...(state.textEvents || []), next]);
+    return state.textEvents.length - 1;
+  }
+
+  function updateTextEvent(index, updates) {
+    if (!Number.isFinite(index) || index < 0) return;
+    if (!Array.isArray(state.textEvents) || !state.textEvents[index]) return;
+    recordHistorySnapshot();
+    const current = state.textEvents[index];
+    const next = normalizeTextEvent({ ...current, ...(updates || {}) });
+    const updated = state.textEvents.slice();
+    updated[index] = next;
+    state.textEvents = normalizeTextEvents(updated);
+  }
+
+  function deleteTextEvent(index) {
+    if (!Number.isFinite(index) || index < 0) return;
+    if (!Array.isArray(state.textEvents) || !state.textEvents[index]) return;
+    recordHistorySnapshot();
+    state.textEvents = state.textEvents.filter((_, idx) => idx !== index);
   }
 
   function getSelectionSnapshot() {
@@ -135,6 +170,7 @@ export function createBuilderBackend() {
     state.currentBlocks = [warmup, steady, intervals, cooldown];
     state.currentRawSegments = buildRawSegmentsFromBlocks(state.currentBlocks);
     state.currentErrors = [];
+    state.textEvents = [];
   }
 
   function recomputeDerived(ftp) {
@@ -375,6 +411,7 @@ export function createBuilderBackend() {
     return {
       meta: { ...state.meta },
       blocks: cloneBlocks(state.currentBlocks || []),
+      textEvents: cloneTextEvents(state.textEvents),
       selectedBlockIndex: state.selectedBlockIndex,
       insertAfterOverrideIndex: state.insertAfterOverrideIndex,
     };
@@ -385,6 +422,7 @@ export function createBuilderBackend() {
     state.isHistoryRestoring = true;
     state.meta = { ...snapshot.meta };
     state.currentBlocks = cloneBlocks(snapshot.blocks || []);
+    state.textEvents = cloneTextEvents(snapshot.textEvents);
     state.selectedBlockIndex =
       snapshot.selectedBlockIndex != null ? snapshot.selectedBlockIndex : null;
     state.selectedBlockIndices =
@@ -407,6 +445,16 @@ export function createBuilderBackend() {
         ? block.segments.map((seg) => ({ ...seg }))
         : [],
     }));
+  }
+
+  function cloneTextEvents(events) {
+    return Array.isArray(events)
+      ? events.map((evt) => ({
+        offsetSec: Number(evt?.offsetSec) || 0,
+        durationSec: Number(evt?.durationSec) || 0,
+        text: evt?.text || "",
+      }))
+      : [];
   }
 
   function recordHistorySnapshot() {
@@ -491,24 +539,29 @@ export function createBuilderBackend() {
     (blocks || []).forEach((block) => {
       const segs = Array.isArray(block?.segments) ? block.segments : [];
       segs.forEach((seg) => {
-        const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
-        const isFreeRide = block?.kind === "freeride" || seg?.isFreeRide;
-        const pStartRel = Number(seg?.pStartRel) || 0;
-        const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
-        if (isFreeRide) {
-          raw.push([
-            durSec / 60,
-            FREERIDE_POWER_REL * 100,
-            FREERIDE_POWER_REL * 100,
-            "freeride",
-          ]);
-          return;
-        }
+      const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+      const isFreeRide = block?.kind === "freeride" || seg?.isFreeRide;
+      const pStartRel = Number(seg?.pStartRel) || 0;
+      const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+      const cadence = normalizeCadence(seg?.cadence);
+      if (isFreeRide) {
+        raw.push([
+          durSec / 60,
+          FREERIDE_POWER_REL * 100,
+          FREERIDE_POWER_REL * 100,
+          "freeride",
+        ]);
+        return;
+      }
+      if (cadence != null) {
+        raw.push([durSec / 60, pStartRel * 100, pEndRel * 100, null, cadence]);
+      } else {
         raw.push([durSec / 60, pStartRel * 100, pEndRel * 100]);
-      });
+      }
     });
-    return raw;
-  }
+  });
+  return raw;
+}
 
   function segmentsToBlocks(segments) {
     if (!Array.isArray(segments) || !segments.length) return [];
@@ -520,6 +573,7 @@ export function createBuilderBackend() {
       let startVal = Number(seg[1]);
       let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
       const isFreeRide = seg[3] === "freeride";
+      const cadence = getRawCadence(seg);
 
       if (
         !Number.isFinite(minutes) ||
@@ -547,6 +601,7 @@ export function createBuilderBackend() {
           kind: "steady",
           durationSec,
           powerRel: pStartRel,
+          cadenceRpm: cadence,
         });
       } else if (pEndRel > pStartRel) {
         normalized.push({
@@ -554,6 +609,7 @@ export function createBuilderBackend() {
           durationSec,
           powerLowRel: pStartRel,
           powerHighRel: pEndRel,
+          cadenceRpm: cadence,
         });
       } else {
         normalized.push({
@@ -561,6 +617,7 @@ export function createBuilderBackend() {
           durationSec,
           powerLowRel: pStartRel,
           powerHighRel: pEndRel,
+          cadenceRpm: cadence,
         });
       }
     }
@@ -611,6 +668,8 @@ export function createBuilderBackend() {
                 offDurationSec,
                 onPowerRel,
                 offPowerRel,
+                onCadenceRpm: normalizeCadence(firstA.cadenceRpm),
+                offCadenceRpm: normalizeCadence(firstB.cadenceRpm),
               }),
             );
             i += repeat * 2;
@@ -625,6 +684,7 @@ export function createBuilderBackend() {
           createBlock("steady", {
             durationSec: clampDuration(b.durationSec),
             powerRel: clampRel(b.powerRel),
+            cadenceRpm: normalizeCadence(b.cadenceRpm),
           }),
         );
       } else if (b.kind === "freeride") {
@@ -639,6 +699,7 @@ export function createBuilderBackend() {
             durationSec: clampDuration(b.durationSec),
             powerLowRel: clampRel(b.powerLowRel),
             powerHighRel: clampRel(b.powerHighRel),
+            cadenceRpm: normalizeCadence(b.cadenceRpm),
           }),
         );
       } else if (b.kind === "rampDown") {
@@ -647,6 +708,7 @@ export function createBuilderBackend() {
             durationSec: clampDuration(b.durationSec),
             powerLowRel: clampRel(b.powerLowRel),
             powerHighRel: clampRel(b.powerHighRel),
+            cadenceRpm: normalizeCadence(b.cadenceRpm),
           }),
         );
       }
@@ -657,11 +719,24 @@ export function createBuilderBackend() {
     return blocks;
   }
 
+  function getRawCadence(seg) {
+    if (!Array.isArray(seg)) return null;
+    if (seg[3] === "freeride") return null;
+    if (Number.isFinite(seg[4])) return normalizeCadence(seg[4]);
+    if (typeof seg[3] === "number" && Number.isFinite(seg[3])) {
+      return normalizeCadence(seg[3]);
+    }
+    return null;
+  }
+
   function blocksSimilarSteady(a, b, durTolSec, pwrTol) {
     if (a.kind !== "steady" || b.kind !== "steady") return false;
     const durDiff = Math.abs(a.durationSec - b.durationSec);
     const pDiff = Math.abs(a.powerRel - b.powerRel);
-    return durDiff <= durTolSec && pDiff <= pwrTol;
+    const cadA = normalizeCadence(a.cadenceRpm);
+    const cadB = normalizeCadence(b.cadenceRpm);
+    const cadenceMatch = cadA == null && cadB == null ? true : cadA === cadB;
+    return durDiff <= durTolSec && pDiff <= pwrTol && cadenceMatch;
   }
 
   function snapPowerRel(rel) {
@@ -858,6 +933,12 @@ export function createBuilderBackend() {
     return Number.isFinite(power) ? power : 0;
   }
 
+  function getBlockCadence(block) {
+    if (!block) return null;
+    const cadence = block.attrs?.cadenceRpm;
+    return normalizeCadence(cadence);
+  }
+
   function getRampLow(block) {
     if (!block) return 0;
     const low = block.attrs?.powerLowRel;
@@ -878,6 +959,8 @@ export function createBuilderBackend() {
       offDurationSec: clampDuration(attrs.offDurationSec),
       onPowerRel: clampRel(attrs.onPowerRel),
       offPowerRel: clampRel(attrs.offPowerRel),
+      onCadenceRpm: normalizeCadence(attrs.onCadenceRpm),
+      offCadenceRpm: normalizeCadence(attrs.offCadenceRpm),
     };
   }
 
@@ -898,7 +981,15 @@ export function createBuilderBackend() {
     if (block.kind === "steady") {
       const duration = clampDuration(block.attrs?.durationSec);
       const powerRel = clampRel(block.attrs?.powerRel);
-      return [{ durationSec: duration, pStartRel: powerRel, pEndRel: powerRel }];
+      const cadence = normalizeCadence(block.attrs?.cadenceRpm);
+      return [
+        {
+          durationSec: duration,
+          pStartRel: powerRel,
+          pEndRel: powerRel,
+          cadence,
+        },
+      ];
     }
 
     if (block.kind === "freeride") {
@@ -917,23 +1008,40 @@ export function createBuilderBackend() {
       const duration = clampDuration(block.attrs?.durationSec);
       const low = clampRel(block.attrs?.powerLowRel);
       const high = clampRel(block.attrs?.powerHighRel);
-      return [{ durationSec: duration, pStartRel: low, pEndRel: high }];
+      const cadence = normalizeCadence(block.attrs?.cadenceRpm);
+      return [
+        {
+          durationSec: duration,
+          pStartRel: low,
+          pEndRel: high,
+          cadence,
+        },
+      ];
     }
 
     if (block.kind === "intervals") {
-      const { repeat, onDurationSec, offDurationSec, onPowerRel, offPowerRel } =
-        getIntervalParts(block);
+      const {
+        repeat,
+        onDurationSec,
+        offDurationSec,
+        onPowerRel,
+        offPowerRel,
+        onCadenceRpm,
+        offCadenceRpm,
+      } = getIntervalParts(block);
       const segments = [];
       for (let i = 0; i < repeat; i += 1) {
         segments.push({
           durationSec: onDurationSec,
           pStartRel: onPowerRel,
           pEndRel: onPowerRel,
+          cadence: onCadenceRpm,
         });
         segments.push({
           durationSec: offDurationSec,
           pStartRel: offPowerRel,
           pEndRel: offPowerRel,
+          cadence: offCadenceRpm,
         });
       }
       return segments;
@@ -955,6 +1063,26 @@ export function createBuilderBackend() {
   function clampPowerPercent(val) {
     const n = Number(val);
     return Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+  }
+
+  function normalizeCadence(val) {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(30, Math.min(200, Math.round(n)));
+  }
+
+  function normalizeTextEvent(evt) {
+    if (!evt || typeof evt !== "object") {
+      return { offsetSec: 0, durationSec: 10, text: "" };
+    }
+    const offsetSec = Math.max(0, Math.round(Number(evt.offsetSec) || 0));
+    const durationSec = Math.max(1, Math.round(Number(evt.durationSec) || 10));
+    const text = String(evt.text || "");
+    return { offsetSec, durationSec, text };
+  }
+
+  function normalizeTextEvents(events) {
+    return Array.isArray(events) ? events.map(normalizeTextEvent) : [];
   }
 
   function getInsertAfterIndex() {
@@ -1280,6 +1408,11 @@ export function createBuilderBackend() {
     getCurrentMetrics,
     getCurrentZone,
     getCurrentErrors,
+    getTextEvents,
+    setTextEvents,
+    addTextEvent,
+    updateTextEvent,
+    deleteTextEvent,
     getSelectionSnapshot,
     getSelectedBlockIndex,
     getSelectedBlockIndices,
@@ -1318,6 +1451,7 @@ export function createBuilderBackend() {
     moveSelectedBlock,
     getBlockDurationSec,
     getBlockSteadyPower,
+    getBlockCadence,
     getRampLow,
     getRampHigh,
     getIntervalParts,
