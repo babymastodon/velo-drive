@@ -656,6 +656,7 @@ export function createBuilderBackend() {
 
   function getDurationStep(sec) {
     const s = Math.max(1, Math.round(sec || 0));
+    if (s < 30) return 5;
     if (s < 60) return 10;
     if (s < 300) return 30;
     return 60;
