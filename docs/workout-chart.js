@@ -2023,17 +2023,33 @@ export function drawWorkoutChart({
     if (activeTextEvents.length) {
       const active = activeTextEvents[activeTextEvents.length - 1];
       if (!active.text) return;
-      const fontSize = Math.max(16, Math.round(Math.min(w, h) / 5));
-      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      text.setAttribute("x", String(w / 2));
-      text.setAttribute("y", String(h * 0.35));
-      text.setAttribute("text-anchor", "middle");
-      text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("font-weight", "600");
-      text.setAttribute("fill", getCssVar("--text-main"));
-      text.setAttribute("pointer-events", "none");
-      text.textContent = active.text || "";
-      svg.appendChild(text);
+      const fontSize = Math.max(14, Math.round(Math.min(w, h) / 7));
+      const maxWidth = Math.max(120, Math.round(w * 0.88));
+      const x = Math.round((w - maxWidth) / 2);
+      const y = Math.round(h * 0.22);
+
+      const foreign = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "foreignObject",
+      );
+      foreign.setAttribute("x", String(x));
+      foreign.setAttribute("y", String(y));
+      foreign.setAttribute("width", String(maxWidth));
+      foreign.setAttribute("height", String(Math.round(h * 0.5)));
+      foreign.setAttribute("pointer-events", "none");
+
+      const div = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      div.textContent = active.text || "";
+      div.style.color = getCssVar("--text-main");
+      div.style.fontSize = `${fontSize}px`;
+      div.style.fontWeight = "600";
+      div.style.lineHeight = "1.2";
+      div.style.textAlign = "center";
+      div.style.whiteSpace = "normal";
+      div.style.wordBreak = "break-word";
+
+      foreign.appendChild(div);
+      svg.appendChild(foreign);
     }
   }
 

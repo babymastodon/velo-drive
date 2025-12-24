@@ -384,34 +384,41 @@ export const Beeper = (() => {
     }, longOffsetMs);
   }
 
-  function playTextEventTaps(gain = 0.5) {
+  function playTextEventTaps(gain = 0.6) {
     if (!enabled) return;
     const ctx = ensureAudioContext();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const tapSpacing = 0.18;
-    const tapDuration = 0.12;
+    const tapSpacing = 0.12;
+    const tapDuration = 0.09;
 
     const scheduleTap = (startTime) => {
       const master = track(ctx.createGain());
       master.gain.value = 0.0001;
-      master.connect(ctx.destination);
+
+      const filter = track(ctx.createBiquadFilter());
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(1200, startTime);
+      filter.Q.setValueAtTime(0.7, startTime);
+      filter.connect(ctx.destination);
+
+      master.connect(filter);
 
       const osc1 = track(ctx.createOscillator());
       const osc2 = track(ctx.createOscillator());
       osc1.type = "triangle";
       osc2.type = "sine";
 
-      const base1 = 220;
-      const base2 = 330;
-      osc1.frequency.setValueAtTime(base1 * 1.04, startTime);
-      osc1.frequency.linearRampToValueAtTime(base1, startTime + 0.04);
-      osc2.frequency.setValueAtTime(base2 * 0.98, startTime);
-      osc2.frequency.linearRampToValueAtTime(base2 * 1.01, startTime + 0.03);
+      const base1 = 250;
+      const base2 = 370;
+      osc1.frequency.setValueAtTime(base1 * 1.06, startTime);
+      osc1.frequency.linearRampToValueAtTime(base1, startTime + 0.035);
+      osc2.frequency.setValueAtTime(base2 * 1.02, startTime);
+      osc2.frequency.linearRampToValueAtTime(base2, startTime + 0.03);
 
-      osc1.detune.value = -6;
-      osc2.detune.value = 5;
+      osc1.detune.value = -8;
+      osc2.detune.value = 6;
 
       osc1.connect(master);
       osc2.connect(master);

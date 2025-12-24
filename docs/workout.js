@@ -22,7 +22,11 @@ import {
   drawWorkoutChart,
 } from "./workout-chart.js";
 
-import { DEFAULT_FTP, getAdjustedKjForPicker } from "./workout-metrics.js";
+import {
+  DEFAULT_FTP,
+  getAdjustedKjForPicker,
+  formatDurationMinSec,
+} from "./workout-metrics.js";
 import {
   initSettings,
   addLogLineToSettings,
@@ -367,6 +371,9 @@ function buildSegmentDescriptionParts(vm, segInfo, { prefix = "" } = {}) {
   const pEnd = segInfo.pEndRel != null ? segInfo.pEndRel : pStart;
   const ramping = Math.abs(pEnd - pStart) > 1e-6;
   const endW = Math.round(pEnd * ftp);
+  const durationLabel = Number.isFinite(segInfo.durationSec)
+    ? formatDurationMinSec(segInfo.durationSec)
+    : null;
   const parts = [];
 
   if (prefix) parts.push({ text: prefix });
@@ -383,6 +390,10 @@ function buildSegmentDescriptionParts(vm, segInfo, { prefix = "" } = {}) {
       parts.push({ text: resistance, strong: true });
       parts.push({ text: " resistance" });
     }
+    if (durationLabel) {
+      parts.push({ text: " for " });
+      parts.push({ text: durationLabel, strong: true });
+    }
     return parts;
   }
 
@@ -396,6 +407,11 @@ function buildSegmentDescriptionParts(vm, segInfo, { prefix = "" } = {}) {
     parts.push({ text: "Maintain " });
     parts.push({ text: watts, strong: true });
     parts.push({ text: " watts" });
+  }
+
+  if (durationLabel) {
+    parts.push({ text: " for " });
+    parts.push({ text: durationLabel, strong: true });
   }
 
   if (cadence != null) {
