@@ -218,6 +218,7 @@ export function renderDetailChart(detailChartSvg, detailChartPanel, detailChartT
     elapsedSec: detail.durationSec || 0,
     liveSamples: detail.samples || [],
     manualErgTarget: 0,
+    showProgress: false,
   });
 }
 
