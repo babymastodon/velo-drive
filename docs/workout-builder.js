@@ -224,6 +224,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "recovery",
       label: "Recovery",
+      shortLabel: "Z1",
       icon: "steady",
       zoneClass: "wb-zone-recovery",
       shortcut: "R",
@@ -234,6 +235,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "endurance",
       label: "Endurance",
+      shortLabel: "Z2",
       icon: "steady",
       zoneClass: "wb-zone-endurance",
       shortcut: "E",
@@ -244,6 +246,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "tempo",
       label: "Tempo",
+      shortLabel: "Z3",
       icon: "steady",
       zoneClass: "wb-zone-tempo",
       shortcut: "T",
@@ -254,6 +257,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "threshold",
       label: "Threshold",
+      shortLabel: "Z4",
       icon: "steady",
       zoneClass: "wb-zone-threshold",
       shortcut: "S",
@@ -264,6 +268,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "vo2max",
       label: "VO2Max",
+      shortLabel: "Z5",
       icon: "steady",
       zoneClass: "wb-zone-vo2",
       shortcut: "V",
@@ -274,6 +279,7 @@ export function createWorkoutBuilder(options) {
     {
       key: "anaerobic",
       label: "Anaerobic",
+      shortLabel: "Z6",
       icon: "steady",
       zoneClass: "wb-zone-anaerobic",
       shortcut: "A",
@@ -348,6 +354,10 @@ export function createWorkoutBuilder(options) {
 
     const labelSpan = document.createElement("span");
     labelSpan.textContent = spec.label;
+    labelSpan.dataset.labelFull = spec.label;
+    if (spec.shortLabel) {
+      labelSpan.dataset.labelShort = spec.shortLabel;
+    }
     btn.appendChild(labelSpan);
 
     btn.addEventListener("click", () => {
@@ -360,6 +370,40 @@ export function createWorkoutBuilder(options) {
   toolbar.appendChild(toolbarButtons);
   toolbar.appendChild(blockEditor);
   toolbarCard.appendChild(toolbar);
+
+  const updateSteadyLabels = () => {
+    if (!toolbarCard) return;
+    const width = toolbarCard.clientWidth || 0;
+    const hideLabels = width > 0 && width < 950;
+    const compact = !hideLabels && width > 0 && width < 1260;
+    const buttons = toolbarButtons.querySelectorAll(".wb-code-insert-btn");
+    buttons.forEach((btn) => {
+      const labelSpan = btn.querySelector("span");
+      if (!labelSpan) return;
+      if (hideLabels) {
+        labelSpan.textContent = "";
+        labelSpan.style.display = "none";
+        btn.classList.add("wb-code-insert-btn--icon-only");
+        return;
+      }
+      btn.classList.remove("wb-code-insert-btn--icon-only");
+      labelSpan.style.display = "";
+      const shortLabel = labelSpan.dataset.labelShort;
+      if (!shortLabel) {
+        labelSpan.textContent = labelSpan.dataset.labelFull || labelSpan.textContent;
+        return;
+      }
+      labelSpan.textContent = compact ? shortLabel : labelSpan.dataset.labelFull;
+    });
+  };
+
+  updateSteadyLabels();
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => updateSteadyLabels());
+    ro.observe(toolbarCard);
+  } else {
+    window.addEventListener("resize", updateSteadyLabels);
+  }
 
   // Chart
   const chartCard = document.createElement("div");
