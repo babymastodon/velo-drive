@@ -440,18 +440,18 @@ export function createWorkoutBuilder(options) {
   const textEventOffsetField = createStepperField(
     {
       key: "textEventOffsetSec",
-      label: "Time",
+      label: "Starts at",
       tooltip: "When this text event appears (seconds from start).",
       value: 0,
       unit: "s",
       kind: "timestamp",
-      step: 30,
+      step: 15,
     },
     (val) => updateSelectedTextEvent({ offsetSec: val })
   );
 
   const textEventField = document.createElement("div");
-  textEventField.className = "wb-block-field";
+  textEventField.className = "wb-block-field wb-text-event-field";
 
   const textEventLabel = document.createElement("label");
   textEventLabel.className = "wb-block-field-label";
