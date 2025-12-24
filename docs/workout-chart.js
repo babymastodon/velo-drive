@@ -2047,6 +2047,7 @@ export function drawWorkoutChart({
       div.style.textAlign = "center";
       div.style.whiteSpace = "normal";
       div.style.wordBreak = "break-word";
+      div.style.textShadow = "0 0 12px var(--chart-empty-shadow)";
 
       foreign.appendChild(div);
       svg.appendChild(foreign);
