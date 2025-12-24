@@ -61,6 +61,8 @@
   --shade-bg: #000000;
   --wb-block-active-filter: brightness(0.7) saturate(1);
   --wb-insert-line: #3a7bff;
+  --freeride-fill: #d8d8d8;
+  --freeride-stripe: #b0b0b0;
   --radius: 8px;
   --modal-radius: calc(var(--radius) * 2);
   --nav-control-height: 32px;
@@ -145,9 +147,13 @@
     --ftp-line: #5c7ea6;
     --power-line: #ffb300;
     --hr-line: #e82210;
-    --cad-line: #6ad60b;
-    --shade-bg: #ffffff;
-    --wb-block-active-filter: brightness(1.4) saturate(0.8);
+  --cad-line: #6ad60b;
+  --shade-bg: #ffffff;
+  --freeride-fill: #3a3a3a;
+  --freeride-stripe: #4a4a4a;
+  --wb-block-active-filter: brightness(1.4) saturate(0.8);
+    --freeride-fill: #3a3a3a;
+    --freeride-stripe: #4a4a4a;
 
     /* slightly darkened versions of the light colors */
     --zone-recovery: #cccccc;
@@ -226,6 +232,8 @@
   --hr-line: #c90f02;
   --cad-line: #2d8201;
   --shade-bg: #000000;
+  --freeride-fill: #d8d8d8;
+  --freeride-stripe: #b0b0b0;
   --zone-recovery: #c9c9c9;
   --zone-endurance: #489fff;
   --zone-tempo: #5dd987;
@@ -491,7 +499,7 @@ a:hover {
   color: var(--text-main);
 }
 
-.mode-toggle-wrapper {
+.workout-title-wrapper {
   position: absolute;
   left: 50%;
   top: 0;
@@ -500,13 +508,6 @@ a:hover {
   display: flex;
   align-items: center;
   pointer-events: none;
-}
-
-.mode-toggle-inner {
-  display: flex;
-  align-items: center;
-  pointer-events: auto;
-  gap: 6px;
 }
 
 .workout-title-center {
@@ -754,6 +755,11 @@ a:hover {
   gap: 6px;
   color: var(--text-main);
   flex: 1;
+  flex-wrap: wrap;
+}
+
+.workout-controls #modeToggle {
+  display: none;
 }
 
 .playback-button {

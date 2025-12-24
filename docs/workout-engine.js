@@ -28,7 +28,8 @@ function createWorkoutEngine() {
   let workoutTotalSec = 0;
 
   let currentFtp = DEFAULT_FTP;
-  let mode = "workout"; // "workout" | "erg" | "resistance"
+  let mode = "workout";
+  let freeRideMode = "erg"; // "erg" | "resistance"
   let manualErgTarget = 200;
   let manualResistance = 30;
 
@@ -72,6 +73,10 @@ function createWorkoutEngine() {
 
   // --------- helpers for rawSegments ---------
 
+  function isFreeRideSegment(seg) {
+    return Array.isArray(seg) && seg[3] === "freeride";
+  }
+
   function recomputeWorkoutTotalSec() {
     if (!canonicalWorkout) {
       workoutTotalSec = 0;
@@ -102,6 +107,7 @@ function createWorkoutEngine() {
       const dur = Math.max(1, Math.round((minutes || 0) * 60));
       const start = acc;
       const end = acc + dur;
+      const isFreeRide = isFreeRideSegment(raws[i]);
 
       if (t < end) {
         const pStartRel = (startPct || 0) / 100;
@@ -109,9 +115,13 @@ function createWorkoutEngine() {
         const rel = (t - start) / dur;
         const startW = pStartRel * ftp;
         const endW = pEndRel * ftp;
-        const target = Math.round(
-          startW + (endW - startW) * Math.min(1, Math.max(0, rel))
-        );
+        const target = isFreeRide
+          ? freeRideMode === "erg"
+            ? manualErgTarget
+            : null
+          : Math.round(
+              startW + (endW - startW) * Math.min(1, Math.max(0, rel))
+            );
 
         const segment = {
           durationSec: dur,
@@ -119,6 +129,7 @@ function createWorkoutEngine() {
           endTimeSec: end,
           pStartRel,
           pEndRel,
+          isFreeRide,
         };
 
         currentIntervalIndex = i;
@@ -132,8 +143,6 @@ function createWorkoutEngine() {
   }
 
   function getCurrentTargetPower() {
-    if (mode === "erg") return manualErgTarget;
-    if (mode === "resistance") return null;
     if (!canonicalWorkout) return null;
     const t = workoutRunning || elapsedSec > 0 ? elapsedSec : 0;
     const {target} = getCurrentSegmentAtTime(t);
@@ -141,13 +150,14 @@ function createWorkoutEngine() {
   }
 
   function desiredTrainerState() {
-    if (mode === "workout") {
-      const value = getCurrentTargetPower();
-      return value == null ? null : {kind: "erg", value};
+    const t = workoutRunning || elapsedSec > 0 ? elapsedSec : 0;
+    const {segment, target} = getCurrentSegmentAtTime(t);
+    if (segment?.isFreeRide) {
+      return freeRideMode === "erg"
+        ? {kind: "erg", value: manualErgTarget}
+        : {kind: "resistance", value: manualResistance};
     }
-    if (mode === "erg") return {kind: "erg", value: manualErgTarget};
-    if (mode === "resistance") return {kind: "resistance", value: manualResistance};
-    return null;
+    return target == null ? null : {kind: "erg", value: target};
   }
 
   async function sendTrainerState(force = false) {
@@ -171,6 +181,7 @@ function createWorkoutEngine() {
       canonicalWorkout,
       currentFtp,
       mode,
+      freeRideMode,
       manualErgTarget,
       manualResistance,
       workoutRunning,
@@ -243,7 +254,6 @@ function createWorkoutEngine() {
 
   function maybeAutoStartFromPower(power) {
     if (!power || power <= 0) return;
-    if (mode !== "workout") return;
     if (workoutRunning || workoutStarting) return;
     if (elapsedSec > 0 || liveSamples.length) return;
     if (!canonicalWorkout) return;
@@ -269,11 +279,13 @@ function createWorkoutEngine() {
 
     const {segment, index} = getCurrentSegmentAtTime(currentT);
     if (!segment || index < 0) return;
+    if (segment.isFreeRide) return;
 
     const ftp = currentFtp || DEFAULT_FTP;
     const raws = canonicalWorkout.rawSegments;
     const nextRaw = raws[index + 1];
     if (!nextRaw) return;
+    if (isFreeRideSegment(nextRaw)) return;
 
     const currEnd = segment.pEndRel * ftp;
     const nextStartPct = nextRaw[1];
@@ -315,7 +327,7 @@ function createWorkoutEngine() {
 
         const currentTarget = target;
 
-        if (mode === "workout") {
+        {
           const inGrace = elapsedSec < autoPauseDisabledUntilSec;
 
           if (!lastSamplePower || lastSamplePower <= 0) {
@@ -341,24 +353,19 @@ function createWorkoutEngine() {
           targetPower: currentTarget || null,
         });
 
-        if (
-          mode === "workout" &&
-          workoutRunning &&
-          workoutTotalSec > 0 &&
-          elapsedSec >= workoutTotalSec
-        ) {
+        if (workoutRunning && workoutTotalSec > 0 && elapsedSec >= workoutTotalSec) {
           await endWorkout();
           return;
         }
 
-        if (mode === "workout" && workoutRunning && !workoutPaused) {
+        if (workoutRunning && !workoutPaused) {
           handleIntervalBeep(elapsedSec);
         }
 
         scheduleSaveActiveState();
       }
 
-      if (mode === "workout" && workoutRunning && workoutPaused) {
+      if (workoutRunning && workoutPaused) {
         const now = Date.now();
         const autoResumeBlocked = now < manualPauseAutoResumeBlockedUntilMs;
 
@@ -422,10 +429,6 @@ function createWorkoutEngine() {
   function startWorkout() {
     if (!canonicalWorkout) {
       alert("No workout selected. Choose a workout first.");
-      return;
-    }
-    if (mode !== "workout") {
-      alert("Must be in workout mode to begin workout.");
       return;
     }
 
@@ -532,11 +535,15 @@ function createWorkoutEngine() {
   // --------- view model ---------
 
   function getViewModel() {
+    const t = workoutRunning || elapsedSec > 0 ? elapsedSec : 0;
+    const segInfo = getCurrentSegmentAtTime(t);
     return {
       canonicalWorkout,
       workoutTotalSec,
       currentFtp,
       mode,
+      freeRideMode,
+      isFreeRideActive: !!segInfo.segment?.isFreeRide,
       manualErgTarget,
       manualResistance,
       workoutRunning,
@@ -582,7 +589,13 @@ function createWorkoutEngine() {
 
       canonicalWorkout = active.canonicalWorkout || canonicalWorkout;
       currentFtp = active.currentFtp || currentFtp;
-      mode = active.mode || mode;
+      const restoredMode = active.mode || mode;
+      freeRideMode =
+        active.freeRideMode ||
+        (restoredMode === "erg" || restoredMode === "resistance"
+          ? restoredMode
+          : freeRideMode);
+      mode = "workout";
       manualErgTarget = active.manualErgTarget || manualErgTarget;
       manualResistance = active.manualResistance || manualResistance;
       workoutRunning = !!active.workoutRunning;
@@ -624,11 +637,22 @@ function createWorkoutEngine() {
     getViewModel,
 
     setMode(newMode) {
-      if (newMode === mode || workoutStarting) return;
-      mode = newMode;
+      if (newMode !== "workout" || workoutStarting) return;
+      mode = "workout";
       scheduleSaveActiveState();
       sendTrainerState(true).catch((err) =>
         log("Trainer state send on mode change failed: " + err)
+      );
+      emitStateChanged();
+    },
+
+    setFreeRideMode(newMode) {
+      if (newMode !== "erg" && newMode !== "resistance") return;
+      if (newMode === freeRideMode || workoutStarting) return;
+      freeRideMode = newMode;
+      scheduleSaveActiveState();
+      sendTrainerState(true).catch((err) =>
+        log("Trainer state send on free ride mode change failed: " + err)
       );
       emitStateChanged();
     },

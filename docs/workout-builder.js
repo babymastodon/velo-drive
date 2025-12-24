@@ -217,6 +217,8 @@ export function createWorkoutBuilder(options) {
   toolbarActions.appendChild(copyBtn);
   toolbarActions.appendChild(pasteBtn);
 
+  statsRow.appendChild(toolbarActions);
+
   const buttonSpecs = [
     {
       key: "recovery",
@@ -308,6 +310,14 @@ export function createWorkoutBuilder(options) {
       onPowerRel: 1.1,
       offPowerRel: 0.55,
     },
+    {
+      key: "freeride",
+      label: "Free ride",
+      icon: "freeride",
+      shortcut: "F",
+      kind: "freeride",
+      durationSec: 300,
+    },
   ];
   const buttonSpecByKey = new Map(buttonSpecs.map((spec) => [spec.key, spec]));
 
@@ -341,7 +351,6 @@ export function createWorkoutBuilder(options) {
 
   toolbar.appendChild(toolbarButtons);
   toolbar.appendChild(blockEditor);
-  toolbar.appendChild(toolbarActions);
   toolbarCard.appendChild(toolbar);
 
   // Chart
@@ -549,6 +558,10 @@ export function createWorkoutBuilder(options) {
       if (insertByKey("intervals")) e.preventDefault();
       return;
     }
+    if (lower === "f") {
+      if (insertByKey("freeride")) e.preventDefault();
+      return;
+    }
 
     if (lower === "d" || key === "Delete" || key === "Backspace") {
       if (hasSelection) {
@@ -753,6 +766,9 @@ export function createWorkoutBuilder(options) {
 
     const handlePowerChange = (delta) => {
       if (!block) return;
+      if (block.kind === "freeride") {
+        return;
+      }
       if (block.kind === "steady") {
         const current = backend.getBlockSteadyPower(block);
         applyBlockAttrUpdate(selectedBlockIndex, {
@@ -1533,6 +1549,16 @@ export function createWorkoutBuilder(options) {
             powerHighRel: backend.clampPowerPercent(val) / 100,
           }),
       });
+    } else if (block.kind === "freeride") {
+      list.push({
+        key: "durationSec",
+        label: "Duration",
+        tooltip: "Length of this free ride block (seconds).",
+        value: durationSec,
+        unit: "s",
+        kind: "duration",
+        onCommit: commitDuration,
+      });
     } else if (block.kind === "intervals") {
       const intervals = backend.getIntervalParts(block);
       list.push({
@@ -1726,6 +1752,12 @@ export function createWorkoutBuilder(options) {
     switch (kind) {
       case "steady":
         path.setAttribute("d", "M6 6h12v12H6z");
+        break;
+      case "freeride":
+        path.setAttribute(
+          "d",
+          "M3 8c2-2 4-2 6 0s4 2 6 0 4-2 6 0v8H3z",
+        );
         break;
       case "rampUp":
         path.setAttribute("d", "M4 20 L20 20 20 8 4 16 Z");
@@ -2177,6 +2209,7 @@ export function createWorkoutBuilder(options) {
 
       if (
         blockKind === "steady" ||
+        blockKind === "freeride" ||
         blockKind === "warmup" ||
         blockKind === "cooldown"
       ) {

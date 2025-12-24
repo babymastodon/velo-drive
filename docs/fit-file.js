@@ -9,6 +9,8 @@ const PRODUCT_ID_VELODRIVE = 1;
 const SPORT_CYCLING = 2;
 const DEV_DATA_INDEX = 0;
 const CANON_CHUNK_SIZE = 200;
+const FIT_TARGET_TYPE_OPEN = 2;
+const FIT_TARGET_TYPE_POWER = 4;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -36,6 +38,10 @@ function dateToFitTimestamp(date) {
 
 function fitTimestampToDate(ts) {
   return new Date((ts + FIT_EPOCH_S) * 1000);
+}
+
+function isFreeRideSegment(seg) {
+  return Array.isArray(seg) && seg[3] === "freeride";
 }
 
 function crc16(bytes) {
@@ -562,11 +568,12 @@ export function buildFitFile({
   (cw.rawSegments || []).forEach((seg, idx) => {
     const [minutes, startPct, endPct] = seg;
     const durationSec = Math.max(1, Math.round((minutes || 0) * 60));
+    const isFreeRide = isFreeRideSegment(seg);
     const ftpVal = ftp || 0;
-    const startW = Math.round(((startPct || 0) / 100) * ftpVal);
-    const endW = Math.round(
-      ((endPct != null ? endPct : startPct || 0) / 100) * ftpVal
-    );
+    const startPctVal = isFreeRide ? 50 : startPct || 0;
+    const endPctVal = isFreeRide ? 50 : (endPct != null ? endPct : startPct || 0);
+    const startW = Math.round((startPctVal / 100) * ftpVal);
+    const endW = Math.round((endPctVal / 100) * ftpVal);
 
     bytes.push(
       ...createDataMessage(
@@ -576,16 +583,18 @@ export function buildFitFile({
           0: `Step ${idx + 1}`,
           1: 0, // duration_time
           2: durationSec * 1000, // milliseconds
-          3: 4, // target_type: power
+          3: isFreeRide ? FIT_TARGET_TYPE_OPEN : FIT_TARGET_TYPE_POWER,
           4: 0xffffffff, // invalid target_value
-          5: startW,
-          6: endW,
+          5: isFreeRide ? null : startW,
+          6: isFreeRide ? null : endW,
           7: 2, // intensity: interval
         },
-        {
-          1: Math.round((startPct || 0) * 100),
-          2: Math.round((endPct != null ? endPct : startPct || 0) * 100),
-        }
+        isFreeRide
+          ? {}
+          : {
+              1: Math.round(startPctVal * 100),
+              2: Math.round(endPctVal * 100),
+            }
       )
     );
   });
@@ -909,6 +918,7 @@ export function parseFitFile(arrayBuffer) {
       case 27: {
         const msgIdx = values[254] || 0;
         const durMs = values[2] || 0;
+        const targetType = values[3];
         const startPct =
           devValues[`${DEV_DATA_INDEX}:1`] != null
             ? devValues[`${DEV_DATA_INDEX}:1`] / 100
@@ -923,6 +933,7 @@ export function parseFitFile(arrayBuffer) {
           endPct,
           customLow: values[5],
           customHigh: values[6],
+          targetType,
         };
         break;
       }
@@ -1009,6 +1020,11 @@ export function parseFitFile(arrayBuffer) {
     workoutSteps.forEach((s) => {
       if (!s) return;
       const minutes = (s.durationSec || 0) / 60;
+      const isFreeRide = s.targetType === FIT_TARGET_TYPE_OPEN;
+      if (isFreeRide) {
+        rawSegments.push([minutes, 50, 50, "freeride"]);
+        return;
+      }
       const ftpSafe = ftp || 1;
       const startPct =
         s.startPct != null ? s.startPct : ((s.customLow || 0) / ftpSafe) * 100;

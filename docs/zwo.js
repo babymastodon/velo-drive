@@ -15,11 +15,12 @@
  *   Original workout page URL
  * @property {string} workoutTitle
  *   Human-readable workout title
- * @property {Array<[number, number, number]>} rawSegments
- *   Canonical segments: [minutes, startPower, endPower]
+ * @property {Array<[number, number, number, (string?)]>} rawSegments
+ *   Canonical segments: [minutes, startPower, endPower, type?]
  *   - minutes: duration in minutes (float allowed)
  *   - startPower: % FTP or equivalent "start power" (0–100 usually)
  *   - endPower: % FTP or equivalent "end power" (0–100 usually)
+ *   - type: optional string (e.g. "freeride")
  * @property {string} description
  *   Human-readable description/notes
  */
@@ -29,6 +30,8 @@
 const ZWO_MAX_SEGMENT_DURATION_SEC = 12 * 3600; // 12 hours per segment
 const ZWO_MAX_WORKOUT_DURATION_SEC = 24 * 3600; // 24 hours total workout
 const ZWO_MAX_INTERVAL_REPEATS = 500; // sanity cap on repeats
+const FREERIDE_SEGMENT_FLAG = "freeride";
+const FREERIDE_POWER_REL = 0.5;
 
 // ---------------- Small helpers ----------------
 
@@ -82,7 +85,7 @@ function cdataUnwrap(text) {
  *   rawSegments:Array<[number,number,number]>,
  *   errors:Array<{start:number,end:number,message:string}>,
  *   blocks:Array<{
- *     kind:"steady"|"warmup"|"cooldown"|"intervals",
+ *     kind:"steady"|"warmup"|"cooldown"|"intervals"|"freeride",
  *     start:number,
  *     end:number,
  *     lineStart:number,
@@ -165,6 +168,10 @@ export function parseZwoSnippet(text) {
       case "Cooldown":
         blockResult = handleZwoRamp(tagName, attrs, segments, errors, startIdx, endIdx);
         break;
+      case "FreeRide":
+      case "Freeride":
+        blockResult = handleZwoFreeRide(attrs, segments, errors, startIdx, endIdx);
+        break;
       case "IntervalsT":
         blockResult = handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
         break;
@@ -203,11 +210,21 @@ export function parseZwoSnippet(text) {
     });
   }
 
-  const rawSegments = segments.map((seg) => ([
-    seg.durationSec / 60,   // minutes
-    seg.pStartRel * 100,    // startPct
-    seg.pEndRel * 100       // endPct
-  ]));
+  const rawSegments = segments.map((seg) => {
+    if (seg.isFreeRide) {
+      return [
+        seg.durationSec / 60,
+        FREERIDE_POWER_REL * 100,
+        FREERIDE_POWER_REL * 100,
+        FREERIDE_SEGMENT_FLAG,
+      ];
+    }
+    return [
+      seg.durationSec / 60,   // minutes
+      seg.pStartRel * 100,    // startPct
+      seg.pEndRel * 100       // endPct
+    ];
+  });
 
   return {rawSegments, errors, blocks, sourceText: working};
 }
@@ -300,6 +317,29 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
       durationSec: duration,
       powerLowRel: pLow,
       powerHighRel: pHigh,
+    },
+  };
+}
+
+function handleZwoFreeRide(attrs, segments, errors, start, end) {
+  const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
+
+  if (!validateZwoDuration(duration, "FreeRide", start, end, errors)) return;
+
+  const seg = {
+    durationSec: duration,
+    pStartRel: FREERIDE_POWER_REL,
+    pEndRel: FREERIDE_POWER_REL,
+    isFreeRide: true,
+  };
+
+  segments.push(seg);
+
+  return {
+    kind: "freeride",
+    segments: [seg],
+    attrs: {
+      durationSec: duration,
     },
   };
 }
@@ -398,7 +438,7 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
 // ---------------- Canonical segments -> ZWO body ----------------
 
 /**
- * segments: [minutes, startPower, endPower]
+ * segments: [minutes, startPower, endPower, type?]
  *
  * @param {Array<[number, number, number]>} segments
  * @returns {string} ZWO <workout> body lines joined by "\n"
@@ -415,12 +455,12 @@ export function segmentsToZwoSnippet(segments) {
     const minutes = Number(seg[0]);
     let startVal = Number(seg[1]);
     let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
+    const isFreeRide = seg[3] === FREERIDE_SEGMENT_FLAG;
 
     if (
       !Number.isFinite(minutes) ||
       minutes <= 0 ||
-      !Number.isFinite(startVal) ||
-      !Number.isFinite(endVal)
+      (!isFreeRide && (!Number.isFinite(startVal) || !Number.isFinite(endVal)))
     ) {
       continue;
     }
@@ -428,6 +468,10 @@ export function segmentsToZwoSnippet(segments) {
     const toRel = (v) => (v <= 5 ? v : v / 100);
 
     const durationSec = minutes * 60;
+    if (isFreeRide) {
+      blocks.push({kind: "freeride", durationSec});
+      continue;
+    }
     const pStartRel = toRel(startVal);
     const pEndRel = toRel(endVal);
 
@@ -511,6 +555,10 @@ export function segmentsToZwoSnippet(segments) {
         `<SteadyState Duration="${Math.round(
           b.durationSec
         )}" Power="${b.powerRel.toFixed(2)}" />`
+      );
+    } else if (b.kind === "freeride") {
+      lines.push(
+        `<FreeRide Duration="${Math.round(b.durationSec)}" />`
       );
     } else if (b.kind === "rampUp") {
       lines.push(

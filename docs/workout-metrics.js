@@ -2,6 +2,7 @@
 // Pure workout metrics + ZWO parsing helpers shared across the app.
 
 export const DEFAULT_FTP = 250;
+const FREERIDE_SEGMENT_FLAG = "freeride";
 
 export function formatDurationMinSec(totalSec) {
   const s = Math.max(0, Math.round(totalSec || 0));
@@ -36,11 +37,21 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
   }
 
   let totalSec = 0;
+  let powerSec = 0;
   let sumFrac = 0;   // sum of relative power samples
   let sumFrac4 = 0;  // sum of (relative power^4)
 
-  for (const [minutes, startPct, endPct] of rawSegments) {
+  for (const seg of rawSegments) {
+    const [minutes, startPct, endPct] = seg;
     const dur = Math.max(1, Math.round(minutes * 60));
+    const isFreeRide =
+      Array.isArray(seg) && seg[3] === FREERIDE_SEGMENT_FLAG;
+    totalSec += dur;
+
+    if (isFreeRide) {
+      continue;
+    }
+
     const p0 = startPct / 100;       // relative FTP 0–1
     const dp = (endPct - startPct) / 100;  // delta relative FTP
 
@@ -48,13 +59,24 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
       const rel = p0 + dp * ((i + 0.5) / dur); // mid-point power
       sumFrac += rel;
       sumFrac4 += rel ** 4;
-      totalSec++;
+      powerSec++;
     }
   }
 
+  if (!powerSec) {
+    return {
+      totalSec,
+      durationMin: totalSec / 60,
+      ifValue: null,
+      tss: null,
+      kj: null,
+      ftp: ftpVal,
+    };
+  }
+
   const durationMin = totalSec / 60;
-  const IF = Math.pow(sumFrac4 / totalSec, 0.25);
-  const tss = (totalSec * IF * IF) / 36;
+  const IF = Math.pow(sumFrac4 / powerSec, 0.25);
+  const tss = (powerSec * IF * IF) / 36;
   const kj = ftpVal * sumFrac / 1000;
 
   return {
@@ -223,6 +245,7 @@ export function inferZoneFromSegments(rawSegments) {
     const startPct = Number(seg[1]);
     const endPct =
       seg.length > 2 && seg[2] != null ? Number(seg[2]) : startPct;
+    const isFreeRide = seg[3] === FREERIDE_SEGMENT_FLAG;
 
     if (
       !Number.isFinite(minutes) ||
@@ -236,6 +259,10 @@ export function inferZoneFromSegments(rawSegments) {
     if (durSec <= 0) continue;
 
     const avgPct = (startPct + endPct) / 2;
+    if (isFreeRide) {
+      continue;
+    }
+
     totalSec += durSec;
 
     let zoneKey;

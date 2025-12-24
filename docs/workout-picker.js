@@ -46,7 +46,7 @@ let instance = null;
  * @property {string} source
  * @property {string} sourceURL
  * @property {string} workoutTitle
- * @property {Array<[number, number, number]>} rawSegments
+ * @property {Array<[number, number, number, (string?)]>} rawSegments
  * @property {string} description
  */
 
@@ -813,7 +813,11 @@ function createWorkoutPicker(config) {
       description: cw.description || "",
       rawSegments: Array.isArray(cw.rawSegments)
         ? cw.rawSegments.map((seg) =>
-            Array.isArray(seg) ? [seg[0], seg[1], seg[2]] : seg,
+            Array.isArray(seg)
+              ? seg[3] != null
+                ? [seg[0], seg[1], seg[2], seg[3]]
+                : [seg[0], seg[1], seg[2]]
+              : seg,
           )
         : [],
     };
@@ -852,7 +856,13 @@ function createWorkoutPicker(config) {
       const segB = arrB[i] || [];
       if (segA.length !== segB.length) return false;
       for (let j = 0; j < segA.length; j += 1) {
-        if (Number(segA[j]) !== Number(segB[j])) return false;
+        const aVal = segA[j];
+        const bVal = segB[j];
+        if (typeof aVal === "string" || typeof bVal === "string") {
+          if (String(aVal) !== String(bVal)) return false;
+        } else if (Number(aVal) !== Number(bVal)) {
+          return false;
+        }
       }
     }
     return true;

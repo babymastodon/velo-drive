@@ -6,6 +6,7 @@ import {
 } from "./workout-metrics.js";
 
 export function createBuilderBackend() {
+  const FREERIDE_POWER_REL = 0.5;
   const state = {
     meta: {
       workoutTitle: "",
@@ -491,8 +492,18 @@ export function createBuilderBackend() {
       const segs = Array.isArray(block?.segments) ? block.segments : [];
       segs.forEach((seg) => {
         const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+        const isFreeRide = block?.kind === "freeride" || seg?.isFreeRide;
         const pStartRel = Number(seg?.pStartRel) || 0;
         const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+        if (isFreeRide) {
+          raw.push([
+            durSec / 60,
+            FREERIDE_POWER_REL * 100,
+            FREERIDE_POWER_REL * 100,
+            "freeride",
+          ]);
+          return;
+        }
         raw.push([durSec / 60, pStartRel * 100, pEndRel * 100]);
       });
     });
@@ -508,13 +519,21 @@ export function createBuilderBackend() {
       const minutes = Number(seg[0]);
       let startVal = Number(seg[1]);
       let endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
+      const isFreeRide = seg[3] === "freeride";
 
       if (
         !Number.isFinite(minutes) ||
         minutes <= 0 ||
-        !Number.isFinite(startVal) ||
-        !Number.isFinite(endVal)
+        (!isFreeRide && (!Number.isFinite(startVal) || !Number.isFinite(endVal)))
       ) {
+        continue;
+      }
+
+      if (isFreeRide) {
+        normalized.push({
+          kind: "freeride",
+          durationSec: clampDuration(minutes * 60),
+        });
         continue;
       }
 
@@ -606,6 +625,12 @@ export function createBuilderBackend() {
           createBlock("steady", {
             durationSec: clampDuration(b.durationSec),
             powerRel: clampRel(b.powerRel),
+          }),
+        );
+      } else if (b.kind === "freeride") {
+        blocks.push(
+          createBlock("freeride", {
+            durationSec: clampDuration(b.durationSec),
           }),
         );
       } else if (b.kind === "rampUp") {
@@ -816,6 +841,10 @@ export function createBuilderBackend() {
       const dur = block.attrs?.durationSec;
       return Math.max(1, Math.round(Number(dur) || 0));
     }
+    if (block.kind === "freeride") {
+      const dur = block.attrs?.durationSec;
+      return Math.max(1, Math.round(Number(dur) || 0));
+    }
     if (block.kind === "warmup" || block.kind === "cooldown") {
       const dur = block.attrs?.durationSec;
       return Math.max(1, Math.round(Number(dur) || 0));
@@ -870,6 +899,18 @@ export function createBuilderBackend() {
       const duration = clampDuration(block.attrs?.durationSec);
       const powerRel = clampRel(block.attrs?.powerRel);
       return [{ durationSec: duration, pStartRel: powerRel, pEndRel: powerRel }];
+    }
+
+    if (block.kind === "freeride") {
+      const duration = clampDuration(block.attrs?.durationSec);
+      return [
+        {
+          durationSec: duration,
+          pStartRel: FREERIDE_POWER_REL,
+          pEndRel: FREERIDE_POWER_REL,
+          isFreeRide: true,
+        },
+      ];
     }
 
     if (block.kind === "warmup" || block.kind === "cooldown") {
@@ -983,6 +1024,11 @@ export function createBuilderBackend() {
         durationSec: clampDuration(spec.durationSec || 300),
         powerLowRel: clampRel(spec.powerLowRel || 0.5),
         powerHighRel: clampRel(spec.powerHighRel || 0.8),
+      });
+    }
+    if (kind === "freeride") {
+      return createBlock("freeride", {
+        durationSec: clampDuration(spec.durationSec || 300),
       });
     }
     return createBlock("steady", {
@@ -1103,6 +1149,8 @@ export function createBuilderBackend() {
     if (block.kind === "steady") {
       const power = attrs.powerRel;
       if (Number.isFinite(power)) return { start: power, end: power };
+    } else if (block.kind === "freeride") {
+      return { start: FREERIDE_POWER_REL, end: FREERIDE_POWER_REL };
     } else if (block.kind === "warmup" || block.kind === "cooldown") {
       const low = attrs.powerLowRel;
       const high = attrs.powerHighRel;

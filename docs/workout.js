@@ -117,6 +117,10 @@ function logDebug(msg) {
   }
 }
 
+function isFreeRideSegment(seg) {
+  return Array.isArray(seg) && seg[3] === "freeride";
+}
+
 function setWelcomeActive(active) {
   isWelcomeActive = !!active;
   if (document && document.body) {
@@ -328,9 +332,8 @@ function updateWorkoutTitleUI(vm) {
     }
   }
 
-  if (workoutTitleCenter && modeToggle) {
+  if (workoutTitleCenter) {
     if (vm.workoutRunning || vm.workoutStarting) {
-      modeToggle.style.display = "none";
       workoutTitleCenter.style.display = "block";
 
       const name = cw?.workoutTitle || cw?.name || "Workout running";
@@ -341,7 +344,6 @@ function updateWorkoutTitleUI(vm) {
         workoutNameLabel.style.display = "none";
       }
     } else {
-      modeToggle.style.display = "inline-flex";
       workoutTitleCenter.style.display = "none";
       workoutTitleCenter.title = "";
     }
@@ -481,11 +483,15 @@ function getWorkoutTargetAtTime(vm, tSec) {
   const t = Math.min(Math.max(0, tSec), totalSec || 1);
 
   let acc = 0;
-  for (const [minutes, startPct, endPct] of raws) {
+  for (const seg of raws) {
+    const [minutes, startPct, endPct] = seg;
     const dur = Math.max(1, Math.round((minutes || 0) * 60));
     const start = acc;
     const end = acc + dur;
     if (t < end) {
+      if (isFreeRideSegment(seg)) {
+        return null;
+      }
       const pStartRel = (startPct || 0) / 100;
       const pEndRel = (endPct != null ? endPct : startPct || 0) / 100;
       const rel = (t - start) / dur;
@@ -506,14 +512,16 @@ function getCurrentZoneColor(vm) {
   const ftp = vm.currentFtp || DEFAULT_FTP;
   let refPower;
 
-  if (vm.mode === "workout") {
+  if (vm.isFreeRideActive) {
+    if (vm.freeRideMode === "erg") {
+      refPower = vm.manualErgTarget || ftp * 0.6;
+    } else {
+      refPower = (vm.manualResistance / 100) * ftp || ftp * 0.5;
+    }
+  } else {
     const t = vm.elapsedSec > 0 ? vm.elapsedSec : 0;
     const target = getWorkoutTargetAtTime(vm, t);
     refPower = target || vm.lastSamplePower || ftp * 0.6;
-  } else if (vm.mode === "erg") {
-    refPower = vm.manualErgTarget || ftp * 0.6;
-  } else {
-    refPower = (vm.manualResistance / 100) * ftp || ftp * 0.5;
   }
 
   const rel = refPower / ftp;
@@ -532,12 +540,9 @@ function updateStatsDisplay(vm) {
   }
 
   let target = null;
-  if (vm.mode === "erg") {
+  if (vm.isFreeRideActive && vm.freeRideMode === "erg") {
     target = vm.manualErgTarget;
-  } else if (
-    vm.mode === "workout" &&
-    vm.canonicalWorkout?.rawSegments?.length
-  ) {
+  } else if (vm.canonicalWorkout?.rawSegments?.length) {
     const t = vm.workoutRunning || vm.elapsedSec > 0 ? vm.elapsedSec : 0;
     target = getWorkoutTargetAtTime(vm, t);
   }
@@ -613,7 +618,6 @@ function drawChart(vm) {
   const showReadyToStart =
     bikeConnected &&
     vm &&
-    vm.mode === "workout" &&
     vm.canonicalWorkout &&
     !vm.workoutStarting &&
     !vm.workoutRunning &&
@@ -622,12 +626,10 @@ function drawChart(vm) {
   const showResume =
     bikeConnected &&
     vm &&
-    vm.mode === "workout" &&
     vm.workoutPaused === true &&
     vm.workoutRunning;
 
-  const showNoWorkout =
-    vm && vm.mode === "workout" && !vm.canonicalWorkout && !vm.workoutRunning;
+  const showNoWorkout = vm && !vm.canonicalWorkout && !vm.workoutRunning;
 
   const showNoBike = !bikeConnected;
 
@@ -651,7 +653,7 @@ function drawChart(vm) {
     tooltipEl: chartTooltip,
     width: chartWidth,
     height: chartHeight,
-    mode: vm.mode,
+    mode: "workout",
     ftp: vm.currentFtp || DEFAULT_FTP,
     rawSegments: vm.canonicalWorkout?.rawSegments || [],
     elapsedSec: vm.elapsedSec,
@@ -673,12 +675,8 @@ function updatePlaybackButtons(vm) {
     calendarBtn.classList.toggle("visible", !workoutActive);
   }
 
-  if (vm.mode === "workout" && !vm.canonicalWorkout) {
-    return;
-  }
-
   if (!vm.workoutRunning) {
-    if (vm.mode === "workout" && vm.canonicalWorkout && startBtn) {
+    if (vm.canonicalWorkout && startBtn) {
       startBtn.classList.add("visible");
     }
     return;
@@ -697,31 +695,33 @@ function updatePlaybackButtons(vm) {
 
 function applyModeUI(vm) {
   modeButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === vm.mode);
+    btn.classList.toggle("active", btn.dataset.mode === vm.freeRideMode);
   });
+
+  if (modeToggle) {
+    modeToggle.style.display = vm.isFreeRideActive ? "inline-flex" : "none";
+  }
 
   if (!manualControls || !workoutNameLabel) return;
 
   const inputIsFocused =
     manualInputEl && document.activeElement === manualInputEl;
 
-  if (vm.mode === "erg") {
+  if (vm.isFreeRideActive) {
     manualControls.style.display = "inline-flex";
 
-    if (manualInputEl && !inputIsFocused) {
-      manualInputEl.value = String(vm.manualErgTarget || 0);
+    if (vm.freeRideMode === "erg") {
+      if (manualInputEl && !inputIsFocused) {
+        manualInputEl.value = String(vm.manualErgTarget || 0);
+      }
+      if (manualUnitEl) manualUnitEl.textContent = "W";
+    } else {
+      if (manualInputEl && !inputIsFocused) {
+        manualInputEl.value = String(vm.manualResistance || 0);
+      }
+      if (manualUnitEl) manualUnitEl.textContent = "%";
     }
 
-    if (manualUnitEl) manualUnitEl.textContent = "W";
-    workoutNameLabel.style.display = "none";
-  } else if (vm.mode === "resistance") {
-    manualControls.style.display = "inline-flex";
-
-    if (manualInputEl && !inputIsFocused) {
-      manualInputEl.value = String(vm.manualResistance || 0);
-    }
-
-    if (manualUnitEl) manualUnitEl.textContent = "%";
     workoutNameLabel.style.display = "none";
   } else {
     manualControls.style.display = "none";
@@ -751,7 +751,11 @@ function handleManualInputSave() {
   const vm = engine.getViewModel();
   const raw = manualInputEl.value.trim();
 
-  if (vm.mode === "erg") {
+  if (!vm.isFreeRideActive) {
+    return;
+  }
+
+  if (vm.freeRideMode === "erg") {
     const next = normaliseManualErgValue(raw, vm, vm.currentFtp);
     const current = vm.manualErgTarget || 0;
     const delta = next - current;
@@ -760,7 +764,7 @@ function handleManualInputSave() {
     } else {
       manualInputEl.value = String(current);
     }
-  } else if (vm.mode === "resistance") {
+  } else if (vm.freeRideMode === "resistance") {
     const next = normaliseManualResistanceValue(raw, vm);
     const current = vm.manualResistance || 0;
     const delta = next - current;
@@ -881,9 +885,6 @@ async function handleLastScrapedWorkout() {
           vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
 
         if (!hasActive) {
-          if (vm.mode !== "workout") {
-            engine.setMode("workout");
-          }
           engine.setWorkoutFromPicker(last);
         }
       } catch (err) {
@@ -1266,9 +1267,11 @@ async function initPage() {
       const newMode = btn.dataset.mode;
       if (!newMode) return;
       const vm = engine.getViewModel();
-      if (newMode === vm.mode) return;
-      logDebug(`Mode changed: ${vm.mode} -> ${newMode}`);
-      engine.setMode(newMode);
+      if (newMode === vm.freeRideMode) return;
+      logDebug(`Free ride mode changed: ${vm.freeRideMode} -> ${newMode}`);
+      if (typeof engine.setFreeRideMode === "function") {
+        engine.setFreeRideMode(newMode);
+      }
     });
   }
 
@@ -1278,9 +1281,12 @@ async function initPage() {
       if (!btn) return;
       const delta = Number(btn.dataset.delta) || 0;
       const vm = engine.getViewModel();
-      if (vm.mode === "erg") {
+      if (!vm.isFreeRideActive) {
+        return;
+      }
+      if (vm.freeRideMode === "erg") {
         engine.adjustManualErg(delta);
-      } else if (vm.mode === "resistance") {
+      } else if (vm.freeRideMode === "resistance") {
         engine.adjustManualResistance(delta);
       }
     });
@@ -1351,7 +1357,7 @@ async function initPage() {
     if (e.code === "Space") {
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (modalOpen) return;
-      const canToggle = vm.mode === "workout" && !!vm.canonicalWorkout;
+      const canToggle = !!vm.canonicalWorkout;
       if (!canToggle) return;
       e.preventDefault();
       engine.startWorkout();
@@ -1364,14 +1370,14 @@ async function initPage() {
       tag !== "TEXTAREA" &&
       tag !== "SELECT"
     ) {
-      const manualMode = vm.mode === "erg" || vm.mode === "resistance";
+      const manualMode = vm.isFreeRideActive;
       if (
         manualMode &&
         (key === "arrowup" || key === "k" || key === "arrowdown" || key === "j")
       ) {
         const delta = key === "arrowup" || key === "k" ? 10 : -10;
         e.preventDefault();
-        if (vm.mode === "erg") {
+        if (vm.freeRideMode === "erg") {
           engine.adjustManualErg(delta);
         } else {
           engine.adjustManualResistance(delta);
@@ -1381,10 +1387,6 @@ async function initPage() {
 
       if (key === "w") {
         e.preventDefault();
-        if (vm.mode !== "workout") {
-          engine.setMode("workout");
-          return;
-        }
         if (!hasActiveWorkout) {
           const name = vm.canonicalWorkout?.workoutTitle;
           openPickerWithGuard(name);
@@ -1393,16 +1395,18 @@ async function initPage() {
       }
 
       if (key === "e") {
-        if (hasActiveWorkout) return;
         e.preventDefault();
-        engine.setMode("erg");
+        if (vm.isFreeRideActive && typeof engine.setFreeRideMode === "function") {
+          engine.setFreeRideMode("erg");
+        }
         return;
       }
 
       if (key === "r") {
-        if (hasActiveWorkout) return;
         e.preventDefault();
-        engine.setMode("resistance");
+        if (vm.isFreeRideActive && typeof engine.setFreeRideMode === "function") {
+          engine.setFreeRideMode("resistance");
+        }
         return;
       }
 
