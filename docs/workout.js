@@ -511,12 +511,20 @@ function getWorkoutTargetAtTime(vm, tSec) {
 function getCurrentZoneColor(vm) {
   const ftp = vm.currentFtp || DEFAULT_FTP;
   let refPower;
+  let zoneOverride = null;
 
   if (vm.isFreeRideActive) {
     if (vm.freeRideMode === "erg") {
       refPower = vm.manualErgTarget || ftp * 0.6;
     } else {
-      refPower = (vm.manualResistance / 100) * ftp || ftp * 0.5;
+      const resistance = Math.max(0, Math.min(100, vm.manualResistance || 0));
+      if (resistance < 25) zoneOverride = "Recovery";
+      else if (resistance < 45) zoneOverride = "Endurance";
+      else if (resistance < 60) zoneOverride = "Tempo";
+      else if (resistance < 75) zoneOverride = "Threshold";
+      else if (resistance < 90) zoneOverride = "VO2Max";
+      else zoneOverride = "Anaerobic";
+      refPower = (resistance / 100) * ftp || ftp * 0.5;
     }
   } else {
     const t = vm.elapsedSec > 0 ? vm.elapsedSec : 0;
@@ -525,7 +533,19 @@ function getCurrentZoneColor(vm) {
   }
 
   const rel = refPower / ftp;
-  const zone = zoneInfoFromRel(rel);
+  const zone =
+    zoneOverride != null
+      ? zoneInfoFromRel(
+          {
+            Recovery: 0.5,
+            Endurance: 0.7,
+            Tempo: 0.85,
+            Threshold: 0.98,
+            VO2Max: 1.1,
+            Anaerobic: 1.25,
+          }[zoneOverride],
+        )
+      : zoneInfoFromRel(rel);
   return zone.color || getCssVar("--text-main");
 }
 
@@ -694,12 +714,15 @@ function updatePlaybackButtons(vm) {
 // --------------------------- Mode UI ---------------------------
 
 function applyModeUI(vm) {
+  const workoutActive =
+    vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+  const freeRideUiActive = workoutActive && vm.isFreeRideActive;
   modeButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === vm.freeRideMode);
   });
 
   if (modeToggle) {
-    modeToggle.style.display = vm.isFreeRideActive ? "inline-flex" : "none";
+    modeToggle.style.display = freeRideUiActive ? "inline-flex" : "none";
   }
 
   if (!manualControls || !workoutNameLabel) return;
@@ -707,7 +730,7 @@ function applyModeUI(vm) {
   const inputIsFocused =
     manualInputEl && document.activeElement === manualInputEl;
 
-  if (vm.isFreeRideActive) {
+  if (freeRideUiActive) {
     manualControls.style.display = "inline-flex";
 
     if (vm.freeRideMode === "erg") {
@@ -751,7 +774,9 @@ function handleManualInputSave() {
   const vm = engine.getViewModel();
   const raw = manualInputEl.value.trim();
 
-  if (!vm.isFreeRideActive) {
+  const workoutActive =
+    vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+  if (!workoutActive || !vm.isFreeRideActive) {
     return;
   }
 
@@ -1281,7 +1306,9 @@ async function initPage() {
       if (!btn) return;
       const delta = Number(btn.dataset.delta) || 0;
       const vm = engine.getViewModel();
-      if (!vm.isFreeRideActive) {
+      const workoutActive =
+        vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+      if (!workoutActive || !vm.isFreeRideActive) {
         return;
       }
       if (vm.freeRideMode === "erg") {
@@ -1396,7 +1423,13 @@ async function initPage() {
 
       if (key === "e") {
         e.preventDefault();
-        if (vm.isFreeRideActive && typeof engine.setFreeRideMode === "function") {
+        const workoutActive =
+          vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+        if (
+          workoutActive &&
+          vm.isFreeRideActive &&
+          typeof engine.setFreeRideMode === "function"
+        ) {
           engine.setFreeRideMode("erg");
         }
         return;
@@ -1404,7 +1437,13 @@ async function initPage() {
 
       if (key === "r") {
         e.preventDefault();
-        if (vm.isFreeRideActive && typeof engine.setFreeRideMode === "function") {
+        const workoutActive =
+          vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+        if (
+          workoutActive &&
+          vm.isFreeRideActive &&
+          typeof engine.setFreeRideMode === "function"
+        ) {
           engine.setFreeRideMode("resistance");
         }
         return;
