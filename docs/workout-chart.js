@@ -661,7 +661,7 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
     tooltipEl.style.top = `${ty}px`;
   };
 
-  const findSamplesAround = (targetT) => {
+  const findSamplesAroundForKey = (targetT, key) => {
     if (!liveSamples || !liveSamples.length) return {prev: null, next: null};
     let lo = 0;
     let hi = liveSamples.length - 1;
@@ -674,8 +674,23 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
         hi = mid;
       }
     }
-    const next = liveSamples[lo] || null;
-    const prev = lo > 0 ? liveSamples[lo - 1] : null;
+
+    let prevIdx = lo;
+    while (prevIdx >= 0) {
+      const s = liveSamples[prevIdx];
+      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key])) break;
+      prevIdx -= 1;
+    }
+
+    let nextIdx = lo;
+    while (nextIdx < liveSamples.length) {
+      const s = liveSamples[nextIdx];
+      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key])) break;
+      nextIdx += 1;
+    }
+
+    const prev = prevIdx >= 0 ? liveSamples[prevIdx] : null;
+    const next = nextIdx < liveSamples.length ? liveSamples[nextIdx] : null;
     return {prev, next};
   };
 
@@ -691,9 +706,6 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
     const svgX = (relX / rect.width) * width;
     const svgY = (relY / rect.height) * height;
     const targetT = (svgX / width) * totalSec;
-    const {prev, next} = findSamplesAround(targetT);
-    if (!prev && !next) return null;
-
     const keys = [
       {key: "power", label: "Power", unit: "W"},
       {key: "hr", label: "Heart Rate", unit: "bpm"},
@@ -703,6 +715,8 @@ function attachSegmentHover(svg, tooltipEl, containerEl, ftp, options = {}) {
     const HIT_PX = 16;
     let best = null;
     keys.forEach(({key, label, unit}) => {
+      const {prev, next} = findSamplesAroundForKey(targetT, key);
+      if (!prev && !next) return;
       const prevT = Number(prev?.t);
       const nextT = Number(next?.t);
       const prevVal = prev ? Number(prev[key]) : null;
