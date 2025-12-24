@@ -1214,8 +1214,8 @@ function renderTextEventMarkers({
   activeIndex = null,
 }) {
   if (!svg || !Array.isArray(textEvents) || !textEvents.length) return;
-  const iconSize = 16;
-  const tickHeight = 8;
+  const iconSize = 18;
+  const tickHeight = 10;
   const topOffset = 6;
   const iconY = Math.max(
     0,
@@ -1266,10 +1266,30 @@ function renderTextEventMarkers({
     rect.setAttribute("stroke-width", "1.2");
     g.appendChild(rect);
 
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M4 4h8v2H9v7H7V6H4z");
-    path.setAttribute("fill", "currentColor");
-    g.appendChild(path);
+    const bubble = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    bubble.setAttribute("d", "M3.5 5.5h11v6.5H7l-3 2v-2H3.5z");
+    bubble.setAttribute("fill", "none");
+    bubble.setAttribute("stroke", "currentColor");
+    bubble.setAttribute("stroke-width", "1.4");
+    bubble.setAttribute("stroke-linecap", "round");
+    bubble.setAttribute("stroke-linejoin", "round");
+    g.appendChild(bubble);
+
+    const line1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line1.setAttribute("d", "M5.5 8h7");
+    line1.setAttribute("fill", "none");
+    line1.setAttribute("stroke", "currentColor");
+    line1.setAttribute("stroke-width", "1.4");
+    line1.setAttribute("stroke-linecap", "round");
+    g.appendChild(line1);
+
+    const line2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line2.setAttribute("d", "M5.5 10.5h5.5");
+    line2.setAttribute("fill", "none");
+    line2.setAttribute("stroke", "currentColor");
+    line2.setAttribute("stroke-width", "1.4");
+    line2.setAttribute("stroke-linecap", "round");
+    g.appendChild(line2);
 
     svg.appendChild(g);
   });

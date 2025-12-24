@@ -1066,6 +1066,7 @@ export function createBuilderBackend() {
   }
 
   function normalizeCadence(val) {
+    if (val == null || val === "") return null;
     const n = Number(val);
     if (!Number.isFinite(n)) return null;
     return Math.max(30, Math.min(200, Math.round(n)));
