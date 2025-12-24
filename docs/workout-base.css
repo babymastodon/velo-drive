@@ -752,7 +752,7 @@ a:hover {
 .workout-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-main);
   flex: 1;
   flex-wrap: wrap;
