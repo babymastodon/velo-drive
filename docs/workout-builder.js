@@ -1399,7 +1399,31 @@ export function createWorkoutBuilder(options) {
   }
 
   async function copySelectionToClipboard() {
-    if (!backend.hasSelection()) {
+    if (!backend.hasSelection() && selectedTextEventIndex == null) {
+      return;
+    }
+    if (!backend.hasSelection() && selectedTextEventIndex != null) {
+      const events = backend.getTextEvents();
+      const evt = events[selectedTextEventIndex];
+      if (!evt) return;
+      const payload = {
+        textEvents: [
+          {
+            offsetSec: 0,
+            durationSec: evt.durationSec,
+            text: evt.text || "",
+          },
+        ],
+      };
+      const text = `VELO_TEXT_EVENTS:${JSON.stringify(payload)}`;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+      } catch (err) {
+        console.warn("[WorkoutBuilder] Clipboard write failed:", err);
+      }
       return;
     }
     const indices = getSelectedIndicesSorted();
@@ -1410,12 +1434,14 @@ export function createWorkoutBuilder(options) {
     if (!rawSegments.length) {
       return;
     }
+    const textEvents = backend.getTextEventsForSelection();
     const canonical = {
       source: "Me",
       sourceURL: "",
       workoutTitle: "Clipboard",
       rawSegments,
       description: "",
+      textEvents,
     };
     try {
       const xml = canonicalWorkoutToZwoXml(canonical);
@@ -1444,11 +1470,29 @@ export function createWorkoutBuilder(options) {
       return;
     }
     if (!text) return;
+    if (text.startsWith("VELO_TEXT_EVENTS:")) {
+      try {
+        const payload = JSON.parse(text.slice("VELO_TEXT_EVENTS:".length));
+        const events = Array.isArray(payload?.textEvents)
+          ? payload.textEvents
+          : [];
+        if (events.length) {
+          backend.insertTextEventsAtInsertionPoint(events);
+          handleAnyChange();
+        }
+      } catch (err) {
+        console.warn("[WorkoutBuilder] Clipboard parse failed:", err);
+      }
+      return;
+    }
     const canonical = parseZwoXmlToCanonicalWorkout(text);
     if (!canonical || !Array.isArray(canonical.rawSegments)) return;
     const blocks = backend.segmentsToBlocks(canonical.rawSegments);
     if (!blocks.length) return;
-    backend.insertBlocksAtInsertionPoint(blocks, { selectOnInsert: false });
+    backend.insertBlocksAtInsertionPoint(blocks, {
+      selectOnInsert: false,
+      textEvents: canonical.textEvents || [],
+    });
     handleAnyChange();
   }
 
@@ -2336,11 +2380,10 @@ export function createWorkoutBuilder(options) {
     if (!chartMiniHost) return;
     const currentBlocks = backend.getCurrentBlocks();
     if (!currentBlocks || !currentBlocks.length) return;
-    const activeEl = document.elementFromPoint(e.clientX, e.clientY);
-    const textEventEl =
-      activeEl && activeEl.closest
-        ? activeEl.closest("[data-text-event-index]")
-        : null;
+    const hitEls = document.elementsFromPoint(e.clientX, e.clientY);
+    const textEventEl = hitEls.find(
+      (el) => el && el.closest && el.closest("[data-text-event-index]"),
+    )?.closest("[data-text-event-index]");
     if (textEventEl && chartMiniHost.contains(textEventEl)) {
       const textEventIndex = Number(textEventEl.dataset.textEventIndex);
       if (!Number.isFinite(textEventIndex)) return;
@@ -2380,6 +2423,7 @@ export function createWorkoutBuilder(options) {
       window.addEventListener("pointercancel", handleChartPointerUp);
       return;
     }
+    const activeEl = hitEls[0];
     const handleEl =
       activeEl && activeEl.closest
         ? activeEl.closest("[data-drag-handle]")

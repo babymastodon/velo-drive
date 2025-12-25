@@ -1236,9 +1236,10 @@ function renderTextEventMarkers({
     const marker = document.createElementNS("http://www.w3.org/2000/svg", "g");
     marker.classList.add("wb-text-event");
     if (activeIndex === idx) marker.classList.add("is-active");
+    const tooltipText = `${durationSec}s: ${evt?.text || "Text event"}`;
     marker.dataset.textEventIndex = String(idx);
     marker.dataset.dragHandle = "text-event";
-    marker.dataset.textEventTooltip = `${durationSec}s: ${evt?.text || "Text event"}`;
+    marker.dataset.textEventTooltip = tooltipText;
 
     const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
     tick.classList.add("wb-text-event-tick");
@@ -1258,6 +1259,9 @@ function renderTextEventMarkers({
     );
     g.style.color = textColor;
     g.setAttribute("pointer-events", "all");
+    g.dataset.textEventIndex = String(idx);
+    g.dataset.dragHandle = "text-event";
+    g.dataset.textEventTooltip = tooltipText;
 
     const rectStrokeWidth = activeIndex === idx ? 2 : 1;
     const rectInset = rectStrokeWidth / 2;
@@ -1336,8 +1340,22 @@ function renderTextEventMarkers({
     g.appendChild(iconGroup);
 
     marker.appendChild(g);
+    marker.addEventListener("pointerenter", () => {
+      if (svg.contains(marker)) {
+        svg.appendChild(marker);
+      }
+    });
     svg.appendChild(marker);
   });
+
+  if (activeIndex != null) {
+    const active = svg.querySelector(
+      `[data-text-event-index="${activeIndex}"]`,
+    );
+    if (active) {
+      svg.appendChild(active);
+    }
+  }
 }
 
 /**
