@@ -32,6 +32,8 @@ function createWorkoutEngine() {
   let manualErgTarget = 200;
   let manualResistance = 30;
 
+  // Prevents an immediate auto-start after finishing a workout.
+  let autoStartSuppressed = false;
   let workoutRunning = false;
   let workoutPaused = false;
   let workoutStarting = false;
@@ -281,6 +283,7 @@ function createWorkoutEngine() {
 
   function maybeAutoStartFromPower(power) {
     if (!power || power <= 0) return;
+    if (autoStartSuppressed) return;
     if (workoutRunning || workoutStarting) return;
     if (elapsedSec > 0 || liveSamples.length) return;
     if (!canonicalWorkout) return;
@@ -459,6 +462,9 @@ function createWorkoutEngine() {
       return;
     }
 
+    // User explicitly started a workout; allow auto-start again later.
+    autoStartSuppressed = false;
+
     if (!workoutRunning && !workoutStarting) {
       workoutStarting = true;
       log("Starting workout (countdown)...");
@@ -507,6 +513,10 @@ function createWorkoutEngine() {
 
   async function endWorkout() {
     log("Ending workout, stopping ticker, then writing FIT if samples exist.");
+
+    // Block auto-starts until the user intentionally starts another workout.
+    autoStartSuppressed = true;
+
     const endWallMs = Date.now();
     if (pauseStartedAtMs != null) {
       totalPausedMs += endWallMs - pauseStartedAtMs;
