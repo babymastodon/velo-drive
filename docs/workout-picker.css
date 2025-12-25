@@ -128,10 +128,41 @@
   border-bottom-left-radius: 0;
 }
 
+.picker-search-wrap input[type="search"]::-webkit-search-cancel-button {
+  height: 24px;
+  width: 24px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
 .picker-search-wrap:focus-within .picker-search-icon,
 .picker-search-wrap:focus-within input[type="search"] {
   box-shadow: 0 0 0 2px var(--focus-ring);
   z-index: 1;
+}
+
+.picker-search-wrap.picker-search-active .picker-search-icon,
+.picker-search-wrap.picker-search-active input[type="search"] {
+  background-color: var(--cta-bg);
+  color: var(--cta-text);
+  border-color: var(--cta-bg);
+}
+
+.picker-search-wrap.picker-search-active input[type="search"]::placeholder {
+  color: var(--cta-text);
+  opacity: 0.7;
+}
+
+.picker-search-wrap.picker-search-active input[type="search"]:-webkit-autofill,
+.picker-search-wrap.picker-search-active
+  input[type="search"]:-webkit-autofill:hover,
+.picker-search-wrap.picker-search-active
+  input[type="search"]:-webkit-autofill:focus,
+.picker-search-wrap.picker-search-active input[type="search"]:-webkit-autofill {
+  background-color: var(--cta-bg);
+  -webkit-text-fill-color: var(--cta-text);
+  caret-color: var(--cta-text);
+  box-shadow: 0 0 0 1000px var(--cta-bg) inset;
 }
 
 .builder-status {
@@ -209,6 +240,16 @@
   background-size: 9px 5px;
 }
 
+.workout-picker-controls select.picker-filter-active {
+  background-color: var(--cta-bg);
+  color: var(--cta-text);
+  border-color: var(--cta-bg);
+  background-image: url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5' fill='none'>\
+      <path d='M1 1l3.5 3L8 1' stroke='%23fff' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round'/>\
+    </svg>");
+}
+
 .workout-picker-controls select option {
   background: var(--surface);
   color: var(--text-main);
@@ -224,6 +265,22 @@
   border-color: var(--border);
   box-shadow: none;
   outline: none;
+}
+
+.workout-picker-controls select.picker-filter-active:focus {
+  background-color: var(--cta-bg);
+  border-color: var(--cta-bg);
+}
+
+.workout-picker-controls select.picker-filter-active:hover {
+  background-color: var(--cta-bg-hover);
+  border-color: var(--cta-bg-hover);
+}
+
+.picker-search-wrap.picker-search-active:focus-within .picker-search-icon,
+.picker-search-wrap.picker-search-active:focus-within input[type="search"] {
+  background-color: var(--cta-bg);
+  border-color: var(--cta-bg);
 }
 
 .workout-picker-summary {
