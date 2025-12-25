@@ -7,62 +7,80 @@
   <tags>
   </tags>
   <workout>
-    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" />
-    <SteadyState Duration="120" Power="0.60" />
-    <SteadyState Duration="120" Power="0.68" />
-    <SteadyState Duration="120" Power="0.58" />
-    <SteadyState Duration="120" Power="0.72" />
-    <SteadyState Duration="60" Power="0.90" />
-    <SteadyState Duration="120" Power="0.65" />
-    <SteadyState Duration="180" Power="0.55" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="60" Power="0.80" />
-    <SteadyState Duration="120" Power="0.62" />
-    <SteadyState Duration="120" Power="0.74" />
-    <SteadyState Duration="90" Power="0.59" />
-    <SteadyState Duration="180" Power="0.75" />
-    <SteadyState Duration="60" Power="1.10" />
-    <SteadyState Duration="120" Power="0.63" />
-    <SteadyState Duration="120" Power="0.71" />
-    <SteadyState Duration="120" Power="0.57" />
-    <SteadyState Duration="90" Power="0.73" />
-    <SteadyState Duration="240" Power="0.62" />
-    <SteadyState Duration="180" Power="0.60" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="120" Power="0.90" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="60" Power="1.05" />
-    <SteadyState Duration="120" Power="0.74" />
-    <SteadyState Duration="90" Power="0.59" />
-    <SteadyState Duration="180" Power="0.75" />
-    <SteadyState Duration="60" Power="1.05" />
-    <SteadyState Duration="120" Power="0.63" />
-    <SteadyState Duration="120" Power="0.71" />
-    <SteadyState Duration="120" Power="0.57" />
-    <SteadyState Duration="90" Power="0.73" />
-    <SteadyState Duration="180" Power="0.66" />
-    <SteadyState Duration="180" Power="0.66" />
-    <SteadyState Duration="180" Power="0.60" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="120" Power="0.90" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="90" Power="0.90" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="60" Power="0.95" />
-    <SteadyState Duration="150" Power="0.60" />
-    <SteadyState Duration="180" Power="0.75" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="120" Power="0.58" />
-    <SteadyState Duration="90" Power="0.75" />
-    <SteadyState Duration="90" Power="0.50" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="60" Power="0.85" />
-    <SteadyState Duration="180" Power="0.60" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="60" Power="0.75" />
-    <SteadyState Duration="180" Power="0.60" />
-    <SteadyState Duration="60" Power="0.80" />
-    <SteadyState Duration="120" Power="0.63" />
-    <Cooldown Duration="240" PowerLow="0.63" PowerHigh="0.45" />
+    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" Cadence="90">
+      <textevent timeoffset="180" message="Roll onto the ridge—50-60% FTP, easy 90 rpm, morning light on the line." />
+    </Warmup>
+    <SteadyState Duration="120" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.68" Cadence="92" />
+    <SteadyState Duration="120" Power="0.58" Cadence="86">
+      <textevent timeoffset="705" message="First crest—brush low-70s, keep it tidy at 90 rpm." />
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.72" Cadence="94" />
+    <SteadyState Duration="60" Power="0.90" Cadence="96" />
+    <SteadyState Duration="120" Power="0.65" Cadence="88" />
+    <SteadyState Duration="180" Power="0.55" Cadence="85" />
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="60" Power="0.80" Cadence="95" />
+    <SteadyState Duration="120" Power="0.62" Cadence="88" />
+    <SteadyState Duration="120" Power="0.74" Cadence="94">
+      <textevent timeoffset="1560" message="Settle on the ridgeline—upper tempo, steady breath, rolling horizon." />
+    </SteadyState>
+    <SteadyState Duration="90" Power="0.59" Cadence="86" />
+    <SteadyState Duration="180" Power="0.75" Cadence="95" />
+    <SteadyState Duration="60" Power="1.10" Cadence="100" />
+    <SteadyState Duration="120" Power="0.63" Cadence="88" />
+    <SteadyState Duration="120" Power="0.71" Cadence="92" />
+    <SteadyState Duration="120" Power="0.57" Cadence="86" />
+    <SteadyState Duration="90" Power="0.73" Cadence="94" />
+    <SteadyState Duration="240" Power="0.62" Cadence="88">
+      <textevent timeoffset="2460" message="Long shelf—hover mid-60s FTP, 88-90 rpm, eyes on the skyline." />
+    </SteadyState>
+    <SteadyState Duration="180" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="120" Power="0.90" Cadence="96">
+      <textevent timeoffset="3000" message="Sharp crest—touch 90%, quick feet, then ride the backside easy." />
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="60" Power="1.05" Cadence="100" />
+    <SteadyState Duration="120" Power="0.74" Cadence="94" />
+    <SteadyState Duration="90" Power="0.59" Cadence="86" />
+    <SteadyState Duration="180" Power="0.75" Cadence="95">
+      <textevent timeoffset="3510" message="Mid-ride grind—hold mid-70s, breathe like steady wind." />
+    </SteadyState>
+    <SteadyState Duration="60" Power="1.05" Cadence="100" />
+    <SteadyState Duration="120" Power="0.63" Cadence="88" />
+    <SteadyState Duration="120" Power="0.71" Cadence="92" />
+    <SteadyState Duration="120" Power="0.57" Cadence="86" />
+    <SteadyState Duration="90" Power="0.73" Cadence="94" />
+    <SteadyState Duration="180" Power="0.66" Cadence="90" />
+    <SteadyState Duration="180" Power="0.66" Cadence="90" />
+    <SteadyState Duration="180" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="120" Power="0.90" Cadence="96" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="90" Power="0.90" Cadence="96">
+      <textevent timeoffset="5080" message="High point—another crest near 90%, light hands, smooth roll." />
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="60" Power="0.95" Cadence="98" />
+    <SteadyState Duration="150" Power="0.60" Cadence="88" />
+    <SteadyState Duration="180" Power="0.75" Cadence="94" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="120" Power="0.58" Cadence="86" />
+    <SteadyState Duration="90" Power="0.75" Cadence="94" />
+    <SteadyState Duration="90" Power="0.50" Cadence="85" />
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="60" Power="0.85" Cadence="95" />
+    <SteadyState Duration="180" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="60" Power="0.75" Cadence="94" />
+    <SteadyState Duration="180" Power="0.60" Cadence="88" />
+    <SteadyState Duration="60" Power="0.80" Cadence="95" />
+    <SteadyState Duration="120" Power="0.63" Cadence="88">
+      <textevent timeoffset="6900" message="Last ridgeline—cruising mid-60s, cadence whispering, horizon stretched out." />
+    </SteadyState>
+    <Cooldown Duration="240" PowerLow="0.63" PowerHigh="0.45" Cadence="82">
+      <textevent timeoffset="7050" message="Drop off the ridge—fade from mid-60s toward 45% FTP, night-soft spin home." />
+    </Cooldown>
   </workout>
 </workout_file>

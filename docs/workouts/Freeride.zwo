@@ -7,6 +7,12 @@
   <tags>
   </tags>
   <workout>
-    <FreeRide Duration="3600" />
+    <FreeRide Duration="3600">
+      <textevent timeoffset="300" message="Roll-out: soft spins, find your rhythm before the road invites more." />
+      <textevent timeoffset="1200" message="Let curiosity steer—nudge cadence toward 95 and see how it feels." />
+      <textevent timeoffset="2100" message="Middle miles: build a gentle wave, maybe a minute of zip, then float." />
+      <textevent timeoffset="3000" message="If it feels right, wake the legs for a few high-cadence ripples, then exhale." />
+      <textevent timeoffset="3420" message="Home stretch—smoothest pedals of the day, finish lighter than you started." />
+    </FreeRide>
   </workout>
 </workout_file>
