@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v49";
+const CACHE_VERSION = "v50";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -81,7 +81,11 @@ const OFFLINE_FALLBACK_PAGE = "./index.html";
 // Install: pre-cache everything in PRECACHE_URLS
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)),
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(
+        PRECACHE_URLS.map((url) => new Request(url, { cache: "reload" })),
+      ),
+    ),
   );
   // Activate this SW immediately
   self.skipWaiting();
@@ -90,19 +94,18 @@ self.addEventListener("install", (event) => {
 // Activate: delete old caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter(
-              (key) => key.startsWith("velodrive-cache-") && key !== CACHE_NAME,
-            )
-            .map((key) => caches.delete(key)),
-        ),
-      ),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter(
+            (key) => key.startsWith("velodrive-cache-") && key !== CACHE_NAME,
+          )
+          .map((key) => caches.delete(key)),
+      );
+      await self.clients.claim();
+    })(),
   );
-  self.clients.claim();
 });
 
 // Fetch:
@@ -136,13 +139,49 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Other same-origin GET requests: cache-first
+  // Other same-origin GET requests:
+  // - scripts/styles/workers: network-first to ensure updates on refresh
+  // - other assets: cache-first with background refresh
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
+    (async () => {
+      const destination = request.destination || "";
+      const isCodeAsset =
+        destination === "script" ||
+        destination === "style" ||
+        destination === "worker";
+      if (isCodeAsset) {
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch (err) {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          throw err;
+        }
+      }
 
-      // Not in cache → go to network
+      const cached = await caches.match(request);
+      if (cached) {
+        event.waitUntil(
+          fetch(request)
+            .then((response) => {
+              if (response && response.ok) {
+                return caches
+                  .open(CACHE_NAME)
+                  .then((cache) => cache.put(request, response.clone()));
+              }
+              return null;
+            })
+            .catch(() => null),
+        );
+        return cached;
+      }
+
       return fetch(request);
-    }),
+    })(),
   );
 });
