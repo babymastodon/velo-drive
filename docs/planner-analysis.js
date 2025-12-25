@@ -250,6 +250,8 @@ export function renderPowerCurveDetail(powerCurveSvg, detail) {
 export function renderDetailChart(detailChartSvg, detailChartPanel, detailChartTooltip, detail) {
   if (!detailChartSvg || !detailChartPanel) return;
   const rect = detailChartPanel.getBoundingClientRect();
+  const elapsedSec =
+    detail.activeDurationSec || detail.durationSec || detail.elapsedSec || 0;
   drawWorkoutChart({
     svg: detailChartSvg,
     panel: detailChartPanel,
@@ -259,7 +261,7 @@ export function renderDetailChart(detailChartSvg, detailChartPanel, detailChartT
     mode: "workout",
     ftp: detail.ftp || 0,
     rawSegments: detail.rawSegments || [],
-    elapsedSec: detail.durationSec || 0,
+    elapsedSec,
     liveSamples: detail.samples || [],
     manualErgTarget: 0,
     showProgress: false,
