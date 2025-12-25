@@ -603,7 +603,7 @@ function createWorkoutPicker(config) {
     if (z.startsWith("tempo")) return "picker-zone-dot-tempo";
     if (z.startsWith("threshold")) return "picker-zone-dot-threshold";
     if (z.startsWith("vo2")) return "picker-zone-dot-vo2";
-    if (z.startsWith("anaerobic") || z.startsWith("hiit")) {
+    if (z.startsWith("anaerobic")) {
       return "picker-zone-dot-anaerobic";
     }
     return "";

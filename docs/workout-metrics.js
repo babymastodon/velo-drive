@@ -306,7 +306,7 @@ export function inferZoneFromSegments(rawSegments) {
   if (fracWork.hi >= 0.2) {
     const anaerFrac = z.anaerobic / safeDiv;
     if (anaerFrac >= 0.1) {
-      return "HIIT";
+      return "Anaerobic";
     }
     return "VO2Max";
   }
