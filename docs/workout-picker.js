@@ -571,6 +571,15 @@ function createWorkoutPicker(config) {
   }
 
   // --------------------------- rendering ---------------------------
+  const STAT_TOOLTIPS = {
+    IF:
+      "Intensity Factor: normalized power divided by FTP; 1.0 means riding steadily at FTP.",
+    TSS:
+      "Training Stress Score: 100 equals 1 hour at FTP; typical weekly totals: ~300–500 for maintenance, 500–700 for building, 700+ for heavy training.",
+    kJ:
+      "Estimated work (kJ) at your configured FTP; roughly equals Calories if power is accurate.",
+  };
+
   function createStatChip(label) {
     const el = document.createElement("div");
     el.className = "wb-stat-chip";
@@ -580,6 +589,9 @@ function createWorkoutPicker(config) {
     const valueEl = document.createElement("div");
     valueEl.className = "wb-stat-value";
     valueEl.textContent = "--";
+    if (STAT_TOOLTIPS[label]) {
+      el.title = STAT_TOOLTIPS[label];
+    }
     el.appendChild(labelEl);
     el.appendChild(valueEl);
     return { el, value: valueEl };
