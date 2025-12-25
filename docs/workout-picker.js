@@ -1487,6 +1487,7 @@ function createWorkoutPicker(config) {
     if (saved.sortDir === "asc" || saved.sortDir === "desc") {
       pickerSortDir = saved.sortDir;
     }
+    updateFilterHighlights();
   }
 
   function persistPickerState() {
@@ -1498,6 +1499,22 @@ function createWorkoutPicker(config) {
       sortDir: pickerSortDir,
     };
     savePickerState(state);
+  }
+
+  function updateFilterHighlights() {
+    if (searchWrap && searchInput) {
+      const active = !!searchInput.value.trim();
+      searchWrap.classList.toggle("picker-search-active", active);
+    }
+    if (zoneFilter) {
+      zoneFilter.classList.toggle("picker-filter-active", !!zoneFilter.value);
+    }
+    if (durationFilter) {
+      durationFilter.classList.toggle(
+        "picker-filter-active",
+        !!durationFilter.value,
+      );
+    }
   }
 
   // --------------------------- rescan & selection ---------------------------
@@ -1540,6 +1557,7 @@ function createWorkoutPicker(config) {
     if (searchInput) searchInput.value = "";
     if (zoneFilter) zoneFilter.value = "";
     if (durationFilter) durationFilter.value = "";
+    updateFilterHighlights();
     persistPickerState();
   }
 
@@ -2009,6 +2027,17 @@ function createWorkoutPicker(config) {
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       renderWorkoutPickerTable();
+      updateFilterHighlights();
+      persistPickerState();
+    });
+    searchInput.addEventListener("change", () => {
+      renderWorkoutPickerTable();
+      updateFilterHighlights();
+      persistPickerState();
+    });
+    searchInput.addEventListener("search", () => {
+      renderWorkoutPickerTable();
+      updateFilterHighlights();
       persistPickerState();
     });
   }
@@ -2016,6 +2045,7 @@ function createWorkoutPicker(config) {
   if (zoneFilter) {
     zoneFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
+      updateFilterHighlights();
       persistPickerState();
     });
   }
@@ -2023,6 +2053,7 @@ function createWorkoutPicker(config) {
   if (durationFilter) {
     durationFilter.addEventListener("change", () => {
       renderWorkoutPickerTable();
+      updateFilterHighlights();
       persistPickerState();
     });
   }
