@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v52";
+const CACHE_VERSION = "v53";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -81,11 +81,13 @@ const OFFLINE_FALLBACK_PAGE = "./index.html";
 // Install: pre-cache everything in PRECACHE_URLS
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(
-        PRECACHE_URLS.map((url) => new Request(url, { cache: "reload" })),
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        cache.addAll(
+          PRECACHE_URLS.map((url) => new Request(url, { cache: "reload" })),
+        ),
       ),
-    ),
   );
   // Activate this SW immediately
   self.skipWaiting();
