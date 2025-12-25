@@ -138,8 +138,11 @@ export function parseZwoSnippet(text) {
     return " ".repeat(full.length);
   });
 
+  const ignoredInlineRegex = /<\s*(TextNotification|gameplayevent)\b[^>]*\/\s*>/gi;
+  working = working.replace(ignoredInlineRegex, (full) => " ".repeat(full.length));
+
   const blockRegex =
-    /<\s*(SteadyState|Warmup|Cooldown|IntervalsT|FreeRide|Freeride)\b([^>]*?)(\/?)\s*>/gi;
+    /<\s*(SteadyState|SolidState|Warmup|Cooldown|Ramp|IntervalsT|FreeRide|Freeride|MaxEffort|RestDay)\b([^>]*?)(\/?)\s*>/gi;
   let lastIndex = 0;
   let match;
 
@@ -219,15 +222,23 @@ export function parseZwoSnippet(text) {
 
     switch (tagName) {
       case "SteadyState":
-        blockResult = handleZwoSteady(attrs, segments, errors, startIdx, endIdx);
+      case "SolidState":
+        blockResult = handleZwoSteady(tagName, attrs, segments, errors, startIdx, endIdx);
         break;
       case "Warmup":
       case "Cooldown":
+      case "Ramp":
         blockResult = handleZwoRamp(tagName, attrs, segments, errors, startIdx, endIdx);
         break;
       case "FreeRide":
       case "Freeride":
         blockResult = handleZwoFreeRide(attrs, segments, errors, startIdx, endIdx);
+        break;
+      case "MaxEffort":
+        blockResult = handleZwoMaxEffort(attrs, segments, errors, startIdx, endIdx);
+        break;
+      case "RestDay":
+        blockResult = null;
         break;
       case "IntervalsT":
         blockResult = handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
@@ -332,18 +343,26 @@ function getAttrNumber(attrs, name) {
   return raw != null ? Number(raw) : NaN;
 }
 
-function handleZwoSteady(attrs, segments, errors, start, end) {
-  const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
-  const power = attrs.Power != null ? Number(attrs.Power) : NaN;
-  const cadence = getAttrNumber(attrs, "Cadence");
+function getFirstNumber(attrs, names) {
+  for (const name of names) {
+    const val = getAttrNumber(attrs, name);
+    if (Number.isFinite(val)) return val;
+  }
+  return NaN;
+}
 
-  if (!validateZwoDuration(duration, "SteadyState", start, end, errors)) return;
+function handleZwoSteady(tagName, attrs, segments, errors, start, end) {
+  const duration = getAttrNumber(attrs, "Duration");
+  const power = getFirstNumber(attrs, ["Power", "Target", "OffPower"]);
+  const cadence = getFirstNumber(attrs, ["Cadence", "CadenceLow", "CadenceHigh"]);
+
+  if (!validateZwoDuration(duration, tagName, start, end, errors)) return;
   if (!Number.isFinite(power) || power <= 0) {
     errors.push({
       start,
       end,
       message:
-        "SteadyState must have a positive numeric Power (relative FTP, e.g. 0.75).",
+        `${tagName} must have a positive numeric Power (relative FTP, e.g. 0.75).`,
     });
     return;
   }
@@ -368,10 +387,10 @@ function handleZwoSteady(attrs, segments, errors, start, end) {
 }
 
 function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
-  const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
-  const pLow = attrs.PowerLow != null ? Number(attrs.PowerLow) : NaN;
-  const pHigh = attrs.PowerHigh != null ? Number(attrs.PowerHigh) : NaN;
-  const cadence = getAttrNumber(attrs, "Cadence");
+  const duration = getAttrNumber(attrs, "Duration");
+  const pLow = getAttrNumber(attrs, "PowerLow");
+  const pHigh = getAttrNumber(attrs, "PowerHigh");
+  const cadence = getFirstNumber(attrs, ["Cadence", "CadenceLow", "CadenceHigh"]);
 
   if (!validateZwoDuration(duration, tagName, start, end, errors)) return;
   if (!Number.isFinite(pLow) || !Number.isFinite(pHigh)) {
@@ -392,8 +411,16 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
 
   segments.push(seg);
 
+  const rampKind =
+    tagName === "Warmup"
+      ? "warmup"
+      : tagName === "Cooldown"
+        ? "cooldown"
+        : pHigh >= pLow
+          ? "warmup"
+          : "cooldown";
   return {
-    kind: tagName === "Warmup" ? "warmup" : "cooldown",
+    kind: rampKind,
     segments: [seg],
     attrs: {
       durationSec: duration,
@@ -405,7 +432,7 @@ function handleZwoRamp(tagName, attrs, segments, errors, start, end) {
 }
 
 function handleZwoFreeRide(attrs, segments, errors, start, end) {
-  const duration = attrs.Duration != null ? Number(attrs.Duration) : NaN;
+  const duration = getAttrNumber(attrs, "Duration");
 
   if (!validateZwoDuration(duration, "FreeRide", start, end, errors)) return;
 
@@ -428,9 +455,12 @@ function handleZwoFreeRide(attrs, segments, errors, start, end) {
 }
 
 function handleZwoTextEvent(attrs, textEvents, errors, start, end) {
-  const offset = getAttrNumber(attrs, "timeoffset");
-  const durationRaw = getAttrNumber(attrs, "duration");
-  const message = getAttrValue(attrs, "message");
+  const offset = getFirstNumber(attrs, ["timeoffset", "TimeOffset"]);
+  const durationRaw = getFirstNumber(attrs, ["duration", "Duration"]);
+  const message =
+    getAttrValue(attrs, "message") ??
+    getAttrValue(attrs, "mssage") ??
+    getAttrValue(attrs, "text");
 
   if (!Number.isFinite(offset) || offset < 0) {
     errors.push({
@@ -469,13 +499,35 @@ function validateZwoDuration(duration, tagName, start, end, errors) {
 }
 
 function handleZwoIntervals(attrs, segments, errors, start, end) {
-  const repeat = attrs.Repeat != null ? Number(attrs.Repeat) : NaN;
-  const onDur = attrs.OnDuration != null ? Number(attrs.OnDuration) : NaN;
-  const offDur = attrs.OffDuration != null ? Number(attrs.OffDuration) : NaN;
-  const onPow = attrs.OnPower != null ? Number(attrs.OnPower) : NaN;
-  const offPow = attrs.OffPower != null ? Number(attrs.OffPower) : NaN;
-  const onCad = getAttrNumber(attrs, "Cadence");
-  const offCad = getAttrNumber(attrs, "CadenceResting");
+  const repeat = getAttrNumber(attrs, "Repeat");
+  const onDur = getAttrNumber(attrs, "OnDuration");
+  const offDur = getAttrNumber(attrs, "OffDuration");
+  let onPow = getAttrNumber(attrs, "OnPower");
+  let offPow = getAttrNumber(attrs, "OffPower");
+  if (!Number.isFinite(onPow)) {
+    const onHigh = getAttrNumber(attrs, "PowerOnHigh");
+    const onLow = getAttrNumber(attrs, "PowerOnLow");
+    if (Number.isFinite(onHigh) && Number.isFinite(onLow)) {
+      onPow = (onHigh + onLow) / 2;
+    } else if (Number.isFinite(onHigh)) {
+      onPow = onHigh;
+    } else if (Number.isFinite(onLow)) {
+      onPow = onLow;
+    }
+  }
+  if (!Number.isFinite(offPow)) {
+    const offHigh = getAttrNumber(attrs, "PowerOffHigh");
+    const offLow = getAttrNumber(attrs, "PowerOffLow");
+    if (Number.isFinite(offHigh) && Number.isFinite(offLow)) {
+      offPow = (offHigh + offLow) / 2;
+    } else if (Number.isFinite(offHigh)) {
+      offPow = offHigh;
+    } else if (Number.isFinite(offLow)) {
+      offPow = offLow;
+    }
+  }
+  const onCad = getFirstNumber(attrs, ["Cadence", "CadenceLow"]);
+  const offCad = getFirstNumber(attrs, ["CadenceResting", "CadenceHigh"]);
 
   if (!Number.isFinite(repeat) || repeat <= 0 || repeat > ZWO_MAX_INTERVAL_REPEATS) {
     errors.push({
@@ -541,6 +593,25 @@ function handleZwoIntervals(attrs, segments, errors, start, end) {
       offPowerRel: offPow,
       onCadenceRpm: Number.isFinite(onCad) ? onCad : null,
       offCadenceRpm: Number.isFinite(offCad) ? offCad : null,
+    },
+  };
+}
+
+function handleZwoMaxEffort(attrs, segments, errors, start, end) {
+  const duration = getAttrNumber(attrs, "Duration");
+  if (!validateZwoDuration(duration, "MaxEffort", start, end, errors)) return;
+  const seg = {
+    durationSec: duration,
+    pStartRel: FREERIDE_POWER_REL,
+    pEndRel: FREERIDE_POWER_REL,
+    isFreeRide: true,
+  };
+  segments.push(seg);
+  return {
+    kind: "freeride",
+    segments: [seg],
+    attrs: {
+      durationSec: duration,
     },
   };
 }
