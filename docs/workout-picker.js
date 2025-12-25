@@ -691,6 +691,17 @@ function createWorkoutPicker(config) {
         const container = document.createElement("div");
         container.className = "picker-expanded picker-expanded-layout";
 
+        // Clickable top band (invisible overlay) to collapse without affecting layout.
+        const collapseHit = document.createElement("div");
+        collapseHit.className = "picker-expanded-collapse-hit";
+        collapseHit.title = "Collapse details";
+        collapseHit.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          pickerExpandedTitle = null;
+          renderWorkoutPickerTable();
+        });
+        container.appendChild(collapseHit);
+
         /* =========================
            HEADER: title left, buttons right (2-row layout)
            ========================= */
