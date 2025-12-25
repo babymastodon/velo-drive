@@ -275,7 +275,9 @@ function createWorkoutPicker(config) {
     builderTrainerDayBtn.addEventListener("click", async (evt) => {
       evt.preventDefault();
       if (!workoutBuilder) return;
-      const url = window.prompt("Paste TrainerDay workout URL");
+      const url = window.prompt(
+        "Paste TrainerDay workout URL.\nExample: https://app.trainerday.com/workouts/vo2-max-1-8x4min-120"
+      );
       if (!url) return;
       const [canonical, error] = await parseTrainerDayUrl(url.trim());
       if (!canonical) {
