@@ -64,11 +64,12 @@ To install:
 ## Features
 
 * Import `.zwo` workouts from TrainerRoad, TrainerDay, and WhatsOnZwift
+* Built-in workout builder with `.zwo`/`.fit` upload
 * Compute IF, TSS, kJ, and structured interval summaries
 * Local workout library via the File System Access API
 * Bluetooth FTMS trainer control + heart-rate support
 * Real-time workout view with ERG/resistance modes
-* Local JSON workout history
+* Local FIT workout history + calendar planner
 * Works fully offline as a PWA
 
 <picture>
@@ -108,9 +109,9 @@ Reload the extension via `chrome://extensions` to see any changes.
 
 ## Contributing
 
-Contributions are welcome — especially those aimed at **refactoring the AI-slop** into something more maintainable and pleasant to work with.
+Contributions are welcome — especially from people building a bank of **ZWO workouts and training plans**.
 
-Improving readability, organization, device support, or the UX would all be meaningful contributions.
+Refactors, device support, and UX improvements are also meaningful contributions.
 
 ## License
 
