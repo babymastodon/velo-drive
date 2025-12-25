@@ -1,39 +1,56 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" ?>
 <workout_file>
   <author>VeloDrive</author>
   <name>Basefire Waves</name>
-  <description><![CDATA[Settle into an hour of shifting energy, where calm valleys meet brief sparks of momentum. This ride invites you to explore your endurance like a landscape—steady, colorful, and always changing. Let the gentle sections ground you, let the short surges wake something bright inside you, and let the whole flow reshape what “base” can feel like.]]></description>
+  <description>Settle into an hour of shifting energy, where calm valleys meet brief sparks of momentum. This ride invites you to explore your endurance like a landscape—steady, colorful, and always changing. Let the gentle sections ground you, let the short surges wake something bright inside you, and let the whole flow reshape what “base” can feel like.</description>
   <sportType>bike</sportType>
   <tags>
   </tags>
   <workout>
     <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" Cadence="90">
-      <textevent timeoffset="90" message="Ease into the first glow—50-60% FTP, soft 88-90 rpm, shoulders unruffled." />
+      <textevent timeoffset="75" message="Ease into the first glow—50-60% FTP, soft 88-90 rpm, shoulders unruffled."/>
     </Warmup>
-    <SteadyState Duration="120" Power="0.60" Cadence="88" />
-    <SteadyState Duration="120" Power="0.68" Cadence="92" />
-    <SteadyState Duration="120" Power="0.58" Cadence="86" />
-    <SteadyState Duration="120" Power="0.72" Cadence="94" />
-    <SteadyState Duration="60" Power="0.90" Cadence="95" />
-    <SteadyState Duration="120" Power="0.65" Cadence="88" />
-    <SteadyState Duration="180" Power="0.55" Cadence="85" />
-    <SteadyState Duration="120" Power="0.70" Cadence="90" />
-    <SteadyState Duration="60" Power="0.80" Cadence="95" />
-    <SteadyState Duration="180" Power="0.62" Cadence="88" />
-    <SteadyState Duration="120" Power="0.74" Cadence="94" />
-    <SteadyState Duration="60" Power="0.59" Cadence="86" />
-    <SteadyState Duration="180" Power="0.68" Cadence="92" />
-    <SteadyState Duration="60" Power="0.95" Cadence="98" />
-    <SteadyState Duration="120" Power="0.63" Cadence="88" />
-    <SteadyState Duration="120" Power="0.71" Cadence="92" />
-    <SteadyState Duration="120" Power="0.57" Cadence="86" />
-    <SteadyState Duration="60" Power="0.73" Cadence="92" />
-    <SteadyState Duration="180" Power="0.66" Cadence="90" />
-    <SteadyState Duration="180" Power="0.60" Cadence="88" />
-    <SteadyState Duration="120" Power="0.75" Cadence="94" />
-    <SteadyState Duration="120" Power="0.58" Cadence="86" />
-    <SteadyState Duration="120" Power="0.70" Cadence="90" />
-    <SteadyState Duration="240" Power="0.65" Cadence="88" />
-    <Cooldown Duration="240" PowerLow="0.65" PowerHigh="0.45" Cadence="82" />
+    <SteadyState Duration="120" Power="0.60" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.68" Cadence="92"/>
+    <SteadyState Duration="120" Power="0.58" Cadence="86">
+      <textevent timeoffset="690" message="First wave rising—brush low-70s FTP, smooth hands, 90 rpm hum."/>
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.72" Cadence="94">
+      <textevent timeoffset="810" message="Tap the crest—brief lift, then keep the cadence floating."/>
+    </SteadyState>
+    <SteadyState Duration="60" Power="0.90" Cadence="95"/>
+    <SteadyState Duration="120" Power="0.65" Cadence="88"/>
+    <SteadyState Duration="180" Power="0.55" Cadence="85">
+      <textevent timeoffset="1155" message="Waves stack soon—slide toward tempo, keep the spin light."/>
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.70" Cadence="90"/>
+    <SteadyState Duration="60" Power="0.80" Cadence="95"/>
+    <SteadyState Duration="180" Power="0.62" Cadence="88">
+      <textevent timeoffset="1485" message="Mid-ride set coming—steady as a shoreline tide, smooth breaths."/>
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.74" Cadence="94"/>
+    <SteadyState Duration="60" Power="0.59" Cadence="86"/>
+    <SteadyState Duration="180" Power="0.68" Cadence="92"/>
+    <SteadyState Duration="60" Power="0.95" Cadence="98"/>
+    <SteadyState Duration="120" Power="0.63" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.71" Cadence="92">
+      <textevent timeoffset="2170" message="Next crest lining up—tempo nudge, 92-94 rpm, calm grip."/>
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.57" Cadence="86"/>
+    <SteadyState Duration="60" Power="0.73" Cadence="92"/>
+    <SteadyState Duration="180" Power="0.66" Cadence="90">
+      <textevent timeoffset="2445" message="Mid-ride flame—hold mid-60s, smooth circles, steady breath."/>
+    </SteadyState>
+    <SteadyState Duration="180" Power="0.60" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.75" Cadence="94"/>
+    <SteadyState Duration="120" Power="0.58" Cadence="86"/>
+    <SteadyState Duration="120" Power="0.70" Cadence="90"/>
+    <SteadyState Duration="240" Power="0.65" Cadence="88">
+      <textevent timeoffset="3185" message="Tiny kick ahead—short bright lick, then drift back to base."/>
+      <textevent timeoffset="3330" message="Last wave set—mid-60s FTP, 88-90 rpm, finish smooth and warm."/>
+    </SteadyState>
+    <Cooldown Duration="240" PowerLow="0.65" PowerHigh="0.45" Cadence="82">
+      <textevent timeoffset="3420" message="Fade the embers—glide from mid-60s toward mid-40s FTP, night-soft spin."/>
+    </Cooldown>
   </workout>
 </workout_file>
