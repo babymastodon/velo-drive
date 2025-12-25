@@ -674,6 +674,9 @@ export function createWorkoutPlanner({
       const hrStats = computeHrCadStats(parsed.samples || []);
       const perSec = metrics.perSecondPower || [];
       const curvePoints = buildPowerCurve(perSec, POWER_CURVE_DURS);
+      const activeDurationSec =
+        totalTimerSec ||
+        Math.max(0, (metrics.durationSec || durationSecHint || 0) - pausedSec);
       const vi =
         metrics.avgPower && metrics.avgPower > 0 && metrics.normalizedPower
           ? metrics.normalizedPower / metrics.avgPower
@@ -689,6 +692,7 @@ export function createWorkoutPlanner({
         fileName: entry.name,
         workoutTitle: cw.workoutTitle || preview.workoutTitle,
         durationSec: metrics.durationSec || durationSecHint || 0,
+        activeDurationSec,
         kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
         ifValue: metrics.ifValue,
         tss: metrics.tss,
