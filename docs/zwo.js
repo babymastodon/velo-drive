@@ -693,26 +693,44 @@ export function segmentsToZwoSnippet(segments, textEvents = []) {
 
   if (Array.isArray(textEvents) && textEvents.length) {
     const withEvents = [];
-    const normalizedEvents = textEvents.map((evt) => ({
-      offsetSec: Math.max(0, Math.round(Number(evt?.offsetSec) || 0)),
-      durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
-      text: evt?.text || "",
-    })).sort((a, b) => a.offsetSec - b.offsetSec);
+    const normalizedEvents = textEvents
+      .map((evt) => ({
+        offsetSec: Math.max(0, Math.round(Number(evt?.offsetSec) || 0)),
+        durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+        text: evt?.text || "",
+      }))
+      .sort((a, b) => a.offsetSec - b.offsetSec);
 
     lines.forEach((line, idx) => {
-      withEvents.push(line);
       const block = lineBlocks[idx];
-      if (!block) return;
+      if (!block) {
+        withEvents.push(line);
+        return;
+      }
       const eventsInBlock = normalizedEvents.filter(
         (evt) => evt.offsetSec >= block.start && evt.offsetSec < block.end,
       );
+      if (!eventsInBlock.length) {
+        withEvents.push(line);
+        return;
+      }
+
+      const selfCloseMatch = line.match(/^<([A-Za-z0-9]+)([^>]*)\/>$/);
+      if (!selfCloseMatch) {
+        withEvents.push(line);
+        return;
+      }
+      const tagName = selfCloseMatch[1];
+      const attrs = selfCloseMatch[2] || "";
+      withEvents.push(`<${tagName}${attrs}>`);
       eventsInBlock.forEach((evt) => {
         const durationAttr =
           evt.durationSec ? ` duration="${evt.durationSec}"` : "";
         withEvents.push(
-          `<textevent timeoffset="${evt.offsetSec}"${durationAttr} message="${escapeXml(evt.text)}" />`,
+          `  <textevent timeoffset="${evt.offsetSec}"${durationAttr} message="${escapeXml(evt.text)}" />`,
         );
       });
+      withEvents.push(`</${tagName}>`);
     });
 
     const totalSec = lineBlocks.length
