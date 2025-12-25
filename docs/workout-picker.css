@@ -314,6 +314,49 @@
   transform: scale(0.998);
 }
 
+.picker-zone-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-zone-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.picker-zone-dot-recovery {
+  background: var(--zone-recovery);
+}
+
+.picker-zone-dot-endurance {
+  background: var(--zone-endurance);
+}
+
+.picker-zone-dot-tempo {
+  background: var(--zone-tempo);
+}
+
+.picker-zone-dot-threshold {
+  background: var(--zone-threshold);
+}
+
+.picker-zone-dot-vo2 {
+  background: var(--zone-vo2);
+}
+
+.picker-zone-dot-anaerobic {
+  background: var(--zone-anaerobic);
+}
+
+.picker-zone-dot-unknown {
+  background: transparent;
+}
+
 .picker-expanded-row td {
   background: var(--expanded-bg);
   white-space: normal;
