@@ -81,13 +81,26 @@ const OFFLINE_FALLBACK_PAGE = "./index.html";
 // Install: pre-cache everything in PRECACHE_URLS
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) =>
-        cache.addAll(
-          PRECACHE_URLS.map((url) => new Request(url, { cache: "reload" })),
-        ),
-      ),
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const results = await Promise.allSettled(
+        PRECACHE_URLS.map(async (url) => {
+          const request = new Request(url, { cache: "reload" });
+          const response = await fetch(request);
+          if (!response || !response.ok) {
+            throw new Error(`Precache failed: ${url}`);
+          }
+          await cache.put(request, response);
+        }),
+      );
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length) {
+        console.warn(
+          "[ServiceWorker] Precache skipped some assets:",
+          failures.map((entry) => entry.reason?.message || entry.reason),
+        );
+      }
+    })(),
   );
   // Activate this SW immediately
   self.skipWaiting();
@@ -122,21 +135,24 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Handle navigations (address bar, links, etc.)
-  if (request.mode === "navigate") {
+  if (request.mode === "navigate" || request.destination === "document") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // On successful navigation, update the cached shell
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(OFFLINE_FALLBACK_PAGE, copy);
-          });
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const cached = await cache.match(OFFLINE_FALLBACK_PAGE);
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) {
+            cache.put(OFFLINE_FALLBACK_PAGE, response.clone());
+            return response;
+          }
+          if (cached) return cached;
           return response;
-        })
-        .catch(() => {
-          // Offline → fallback to cached app shell
-          return caches.match(OFFLINE_FALLBACK_PAGE);
-        }),
+        } catch (err) {
+          if (cached) return cached;
+          throw err;
+        }
+      })(),
     );
     return;
   }
