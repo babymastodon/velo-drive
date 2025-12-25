@@ -595,6 +595,40 @@ function createWorkoutPicker(config) {
     return "";
   }
 
+  function zoneClassFromLabel(zoneLabel) {
+    const z = (zoneLabel || "").toLowerCase();
+    if (z.startsWith("recovery")) return "picker-zone-dot-recovery";
+    if (z.startsWith("endurance")) return "picker-zone-dot-endurance";
+    if (z.startsWith("tempo")) return "picker-zone-dot-tempo";
+    if (z.startsWith("threshold")) return "picker-zone-dot-threshold";
+    if (z.startsWith("vo2")) return "picker-zone-dot-vo2";
+    if (z.startsWith("anaerobic") || z.startsWith("hiit")) {
+      return "picker-zone-dot-anaerobic";
+    }
+    return "";
+  }
+
+  function createZoneCell(zoneLabel) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "picker-zone-cell";
+
+    const dot = document.createElement("span");
+    dot.className = "picker-zone-dot";
+    const cls = zoneClassFromLabel(zoneLabel);
+    if (cls) {
+      dot.classList.add(cls);
+    } else {
+      dot.classList.add("picker-zone-dot-unknown");
+    }
+
+    const text = document.createElement("span");
+    text.textContent = zoneLabel || "Uncategorized";
+
+    wrapper.appendChild(dot);
+    wrapper.appendChild(text);
+    return wrapper;
+  }
+
   function renderWorkoutPickerTable() {
     if (!tbody) return;
 
@@ -646,7 +680,7 @@ function createWorkoutPicker(config) {
         tr.appendChild(tdName);
 
         const tdCat = document.createElement("td");
-        tdCat.textContent = zone || "Uncategorized";
+        tdCat.appendChild(createZoneCell(zone));
         tr.appendChild(tdCat);
 
         const tdSource = document.createElement("td");
