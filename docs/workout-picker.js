@@ -220,6 +220,7 @@ function createWorkoutPicker(config) {
   const pickerBackToPlannerBtn = modal.querySelector("#pickerBackToPlannerBtn");
   const controlsEl = modal.querySelector(".workout-picker-controls");
   const searchWrap = searchInput?.closest(".picker-search-wrap") || null;
+  const searchClearBtn = searchWrap?.querySelector(".picker-search-clear") || null;
   const scheduleUnscheduleBtn = document.createElement("button");
   scheduleUnscheduleBtn.className = "picker-add-btn delete-workout-btn";
   scheduleUnscheduleBtn.type = "button";
@@ -1505,6 +1506,9 @@ function createWorkoutPicker(config) {
     if (searchWrap && searchInput) {
       const active = !!searchInput.value.trim();
       searchWrap.classList.toggle("picker-search-active", active);
+      if (searchClearBtn) {
+        searchClearBtn.classList.toggle("visible", active);
+      }
     }
     if (zoneFilter) {
       zoneFilter.classList.toggle("picker-filter-active", !!zoneFilter.value);
@@ -1543,6 +1547,7 @@ function createWorkoutPicker(config) {
     }
 
     renderWorkoutPickerTable();
+    updateFilterHighlights();
   }
 
   function doSelectWorkout(canonicalWorkout) {
@@ -2036,6 +2041,15 @@ function createWorkoutPicker(config) {
       persistPickerState();
     });
     searchInput.addEventListener("search", () => {
+      renderWorkoutPickerTable();
+      updateFilterHighlights();
+      persistPickerState();
+    });
+  }
+  if (searchClearBtn && searchInput) {
+    searchClearBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      searchInput.focus();
       renderWorkoutPickerTable();
       updateFilterHighlights();
       persistPickerState();
