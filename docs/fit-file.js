@@ -86,8 +86,11 @@ function normalizeBaseType(type) {
 }
 
 function baseTypeFromId(id) {
+  if (id == null) return BASE_TYPES.byte;
+  const baseNum = id & 0x1f;
   return (
-    Object.values(BASE_TYPES).find((t) => t.id === id) || BASE_TYPES.byte
+    Object.values(BASE_TYPES).find((t) => (t.id & 0x1f) === baseNum) ||
+    BASE_TYPES.byte
   );
 }
 
@@ -334,19 +337,19 @@ export function buildFitFile({
   });
 
   const developerDataIdDef = createDefinition(2, 207, [
-    {num: 0, type: "uint8"}, // developer_data_index
     {num: 1, type: "byte", size: 16}, // application_id
-    {num: 2, type: "uint32"}, // application_version
+    {num: 3, type: "uint8"}, // developer_data_index
+    {num: 4, type: "uint32"}, // application_version
   ]);
 
   const fieldDescriptionDef = createDefinition(3, 206, [
     {num: 0, type: "uint8"}, // developer_data_index
     {num: 1, type: "uint8"}, // field_definition_number
     {num: 2, type: "uint8"}, // fit_base_type_id
-    {num: 3, type: "string", size: 16}, // field_name
-    {num: 4, type: "string", size: 16}, // units
-    {num: 5, type: "uint16"}, // native_mesg_num
-    {num: 6, type: "uint8"}, // native_field_num
+    {num: 3, type: "string", size: 64}, // field_name
+    {num: 8, type: "string", size: 16}, // units
+    {num: 13, type: "uint16"}, // native_mesg_num
+    {num: 14, type: "uint8"}, // native_field_num
   ]);
 
   const fileIdDef = createDefinition(0, 0, [
@@ -491,9 +494,9 @@ export function buildFitFile({
   const appId = encodeString("VeloDrive", 16);
   bytes.push(
     ...createDataMessage(developerDataIdDef, {
-      0: DEV_DATA_INDEX,
       1: appId,
-      2: 1,
+      3: DEV_DATA_INDEX,
+      4: 1,
     })
   );
 
@@ -505,9 +508,9 @@ export function buildFitFile({
         1: f.num,
         2: normalizeBaseType(f.type).id,
         3: f.name,
-        4: f.units || "",
-        5: f.nativeMesgNum || 0xffff,
-        6: f.nativeFieldNum || 0xff,
+        8: f.units || "",
+        13: f.nativeMesgNum || 0xffff,
+        14: f.nativeFieldNum || 0xff,
       })
     );
   });
@@ -582,7 +585,7 @@ export function buildFitFile({
           254: idx,
           0: `Step ${idx + 1}`,
           1: 0, // duration_time
-          2: durationSec * 1000, // milliseconds
+          2: durationSec, // seconds
           3: isFreeRide ? FIT_TARGET_TYPE_OPEN : FIT_TARGET_TYPE_POWER,
           4: 0xffffffff, // invalid target_value
           5: isFreeRide ? null : startW,
@@ -717,7 +720,7 @@ export function buildFitFile({
   return fileBytes;
 }
 
-function readValue(baseType, size, dataView, offset) {
+function readValue(baseType, size, dataView, offset, little = true) {
   const invalid = baseType.invalid;
   let value = null;
   switch (baseType.id) {
@@ -741,17 +744,17 @@ function readValue(baseType, size, dataView, offset) {
       break;
     case BASE_TYPES.uint16.id:
     case BASE_TYPES.uint16z.id:
-      value = dataView.getUint16(offset, true);
+      value = dataView.getUint16(offset, little);
       break;
     case BASE_TYPES.sint16.id:
-      value = dataView.getInt16(offset, true);
+      value = dataView.getInt16(offset, little);
       break;
     case BASE_TYPES.uint32.id:
     case BASE_TYPES.uint32z.id:
-      value = dataView.getUint32(offset, true);
+      value = dataView.getUint32(offset, little);
       break;
     case BASE_TYPES.sint32.id:
-      value = dataView.getInt32(offset, true);
+      value = dataView.getInt32(offset, little);
       break;
     case BASE_TYPES.string.id: {
       const bytes = [];
@@ -764,7 +767,7 @@ function readValue(baseType, size, dataView, offset) {
       break;
     }
     case BASE_TYPES.float32.id:
-      value = dataView.getFloat32(offset, true);
+      value = dataView.getFloat32(offset, little);
       break;
     default: {
       const bytes = [];
@@ -779,13 +782,28 @@ function readValue(baseType, size, dataView, offset) {
   return value;
 }
 
-function parseHeader(dataView) {
-  const headerSize = dataView.getUint8(0);
-  const dataSize = dataView.getUint32(4, true);
-  return {headerSize, dataSize};
+function parseHeader(dataView, offset = 0) {
+  if (dataView.byteLength < offset + 12) {
+    throw new Error("Invalid FIT header.");
+  }
+  const headerSize = dataView.getUint8(offset);
+  const dataSize = dataView.getUint32(offset + 4, true);
+  const signature =
+    headerSize >= 12 && dataView.byteLength >= offset + 12
+      ? String.fromCharCode(
+          dataView.getUint8(offset + 8),
+          dataView.getUint8(offset + 9),
+          dataView.getUint8(offset + 10),
+          dataView.getUint8(offset + 11)
+        )
+      : "";
+  return {headerSize, dataSize, signature};
 }
 
-function parseDefinition(dataView, offset, hasDevFields, localMsgNum) {
+function parseDefinition(dataView, offset, hasDevFields, localMsgNum, limit) {
+  if (offset + 5 > limit) {
+    return {nextOffset: limit, def: null};
+  }
   const arch = dataView.getUint8(offset + 1);
   const little = arch === 0;
   const globalMsgNum = dataView.getUint16(offset + 2, little);
@@ -793,18 +811,25 @@ function parseDefinition(dataView, offset, hasDevFields, localMsgNum) {
   const fields = [];
   let cursor = offset + 5;
   for (let i = 0; i < numFields; i++) {
+    if (cursor + 3 > limit) {
+      return {nextOffset: limit, def: null};
+    }
     const num = dataView.getUint8(cursor++);
     const size = dataView.getUint8(cursor++);
     const baseTypeId = dataView.getUint8(cursor++);
-    const baseType =
-      Object.values(BASE_TYPES).find((t) => t.id === baseTypeId) ||
-      BASE_TYPES.byte;
+    const baseType = baseTypeFromId(baseTypeId);
     fields.push({num, size, type: baseType});
   }
   const devFields = [];
   if (hasDevFields) {
+    if (cursor + 1 > limit) {
+      return {nextOffset: limit, def: null};
+    }
     const devCount = dataView.getUint8(cursor++);
     for (let i = 0; i < devCount; i++) {
+      if (cursor + 3 > limit) {
+        return {nextOffset: limit, def: null};
+      }
       const num = dataView.getUint8(cursor++);
       const size = dataView.getUint8(cursor++);
       const devIndex = dataView.getUint8(cursor++);
@@ -815,13 +840,19 @@ function parseDefinition(dataView, offset, hasDevFields, localMsgNum) {
     5 + numFields * 3 + (hasDevFields ? 1 + devFields.length * 3 : 0);
   return {
     nextOffset: offset + totalSize,
-    def: {localMsgNum, globalMsgNum, fields, devFields, hasDevFields},
+    def: {localMsgNum, globalMsgNum, fields, devFields, hasDevFields, little},
   };
 }
 
 export function parseFitFile(arrayBuffer) {
   const dataView = new DataView(arrayBuffer);
-  const {headerSize, dataSize} = parseHeader(dataView);
+  const {headerSize, dataSize, signature} = parseHeader(dataView);
+  if (headerSize < 12 || headerSize > dataView.byteLength) {
+    throw new Error("Invalid FIT header size.");
+  }
+  if (signature && signature !== ".FIT") {
+    throw new Error("Invalid FIT signature.");
+  }
   const defs = new Map();
   const devFieldInfo = new Map();
   const recordSamples = [];
@@ -831,22 +862,26 @@ export function parseFitFile(arrayBuffer) {
   const sessionValues = {};
   const timerEvents = [];
 
-  const limit = headerSize + dataSize;
+  const limit = Math.min(headerSize + dataSize, dataView.byteLength);
   let offset = headerSize;
+  let lastTimestamp = null;
   while (offset < limit) {
     const header = dataView.getUint8(offset++);
-    const isDefinition = (header & 0x40) !== 0;
-    const hasDevFields = (header & 0x20) !== 0;
-    const localMsgNum = header & 0x0f;
+    const isCompressed = (header & 0x80) !== 0;
+    const isDefinition = !isCompressed && (header & 0x40) !== 0;
+    const hasDevFields = !isCompressed && (header & 0x20) !== 0;
+    const localMsgNum = isCompressed ? (header >> 5) & 0x03 : header & 0x0f;
+    const timeOffset = isCompressed ? header & 0x1f : null;
 
     if (isDefinition) {
       const {def, nextOffset} = parseDefinition(
         dataView,
         offset,
         hasDevFields,
-        localMsgNum
+        localMsgNum,
+        limit
       );
-      defs.set(localMsgNum, def);
+      if (def) defs.set(localMsgNum, def);
       offset = nextOffset;
       continue;
     }
@@ -858,7 +893,11 @@ export function parseFitFile(arrayBuffer) {
     let cursor = offset;
     def.fields.forEach((f) => {
       const base = f.type || BASE_TYPES.byte;
-      values[f.num] = readValue(base, f.size, dataView, cursor);
+      if (cursor + f.size > limit) {
+        cursor = limit;
+        return;
+      }
+      values[f.num] = readValue(base, f.size, dataView, cursor, def.little);
       cursor += f.size;
     });
 
@@ -869,7 +908,11 @@ export function parseFitFile(arrayBuffer) {
         const base = info
           ? baseTypeFromId(info.fitBaseTypeId)
           : BASE_TYPES.byte;
-        const val = readValue(base, f.size, dataView, cursor);
+        if (cursor + f.size > limit) {
+          cursor = limit;
+          return;
+        }
+        const val = readValue(base, f.size, dataView, cursor, def.little);
         cursor += f.size;
         const key = `${f.devIndex}:${f.num}`;
         devValues[key] = val;
@@ -877,6 +920,16 @@ export function parseFitFile(arrayBuffer) {
     }
 
     offset = cursor;
+    if (isCompressed && timeOffset != null && lastTimestamp != null) {
+      const prevLsb = lastTimestamp & 0x1f;
+      const base = lastTimestamp & 0xffffffe0;
+      const ts =
+        timeOffset >= prevLsb ? base + timeOffset : base + timeOffset + 0x20;
+      if (values[253] == null) values[253] = ts;
+      lastTimestamp = ts;
+    } else if (values[253] != null) {
+      lastTimestamp = values[253];
+    }
 
     switch (def.globalMsgNum) {
       case 206: {
@@ -884,8 +937,8 @@ export function parseFitFile(arrayBuffer) {
         const devIndex = values[0] || 0;
         const fieldNum = values[1] || 0;
         const fitBaseTypeId = values[2];
-        const nativeMesgNum = values[5];
-        const nativeFieldNum = values[6];
+        const nativeMesgNum = values[13];
+        const nativeFieldNum = values[14];
         devFieldInfo.set(`${devIndex}:${fieldNum}`, {
           name,
           fitBaseTypeId,
@@ -917,7 +970,9 @@ export function parseFitFile(arrayBuffer) {
       }
       case 27: {
         const msgIdx = values[254] || 0;
-        const durMs = values[2] || 0;
+        const durValue = values[2] || 0;
+        const durSec =
+          durValue > 86400 ? Math.round(durValue / 1000) : durValue;
         const targetType = values[3];
         const startPct =
           devValues[`${DEV_DATA_INDEX}:1`] != null
@@ -928,7 +983,7 @@ export function parseFitFile(arrayBuffer) {
             ? devValues[`${DEV_DATA_INDEX}:2`] / 100
             : null;
         workoutSteps[msgIdx] = {
-          durationSec: durMs / 1000,
+          durationSec: durSec,
           startPct,
           endPct,
           customLow: values[5],
