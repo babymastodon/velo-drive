@@ -7,6 +7,7 @@ import {
 
 export function createBuilderBackend() {
   const FREERIDE_POWER_REL = 0.5;
+  let nextBlockId = 1;
   const state = {
     meta: {
       workoutTitle: "",
@@ -51,7 +52,7 @@ export function createBuilderBackend() {
       workoutTitle: state.meta.workoutTitle,
       rawSegments: state.currentRawSegments.slice(),
       description: state.meta.description,
-      textEvents: cloneTextEvents(state.textEvents),
+      textEvents: stripTextEventAnchors(resolveTextEvents(state.textEvents)),
     };
   }
 
@@ -84,17 +85,20 @@ export function createBuilderBackend() {
   }
 
   function getTextEvents() {
-    return cloneTextEvents(state.textEvents);
+    return stripTextEventAnchors(resolveTextEvents(state.textEvents));
   }
 
   function setTextEvents(events) {
-    state.textEvents = normalizeTextEvents(events);
+    state.textEvents = normalizeTextEvents(events, state.currentBlocks);
   }
 
   function addTextEvent(event) {
-    const next = normalizeTextEvent(event);
+    const next = normalizeTextEvent(event, state.currentBlocks);
     recordHistorySnapshot();
-    state.textEvents = normalizeTextEvents([...(state.textEvents || []), next]);
+    state.textEvents = normalizeTextEvents(
+      [...(state.textEvents || []), next],
+      state.currentBlocks,
+    );
     return state.textEvents.length - 1;
   }
 
@@ -103,10 +107,19 @@ export function createBuilderBackend() {
     if (!Array.isArray(state.textEvents) || !state.textEvents[index]) return;
     recordHistorySnapshot();
     const current = state.textEvents[index];
-    const next = normalizeTextEvent({ ...current, ...(updates || {}) });
+    const hasOffsetUpdate =
+      updates && Object.prototype.hasOwnProperty.call(updates, "offsetSec");
+    const merged = {
+      ...current,
+      ...(updates || {}),
+    };
+    if (hasOffsetUpdate && updates.anchor === undefined) {
+      merged.anchor = null;
+    }
+    const next = normalizeTextEvent(merged, state.currentBlocks);
     const updated = state.textEvents.slice();
     updated[index] = next;
-    state.textEvents = normalizeTextEvents(updated);
+    state.textEvents = normalizeTextEvents(updated, state.currentBlocks);
   }
 
   function deleteTextEvent(index) {
@@ -421,8 +434,12 @@ export function createBuilderBackend() {
     if (!snapshot) return;
     state.isHistoryRestoring = true;
     state.meta = { ...snapshot.meta };
-    state.currentBlocks = cloneBlocks(snapshot.blocks || []);
-    state.textEvents = cloneTextEvents(snapshot.textEvents);
+    state.currentBlocks = ensureBlockIds(cloneBlocks(snapshot.blocks || []));
+    state.textEvents = syncTextEventsToBlocks(
+      state.currentBlocks,
+      state.currentBlocks,
+      cloneTextEvents(snapshot.textEvents),
+    );
     state.selectedBlockIndex =
       snapshot.selectedBlockIndex != null ? snapshot.selectedBlockIndex : null;
     state.selectedBlockIndices =
@@ -453,6 +470,13 @@ export function createBuilderBackend() {
         offsetSec: Number(evt?.offsetSec) || 0,
         durationSec: Number(evt?.durationSec) || 0,
         text: evt?.text || "",
+        anchor: evt?.anchor
+          ? {
+            blockId: evt.anchor.blockId,
+            segIndex: Number(evt.anchor.segIndex) || 0,
+            offsetRel: Number(evt.anchor.offsetRel) || 0,
+          }
+          : null,
       }))
       : [];
   }
@@ -786,9 +810,15 @@ export function createBuilderBackend() {
   }
 
   function commitBlocks(updatedBlocks, options = {}) {
-    state.currentBlocks = updatedBlocks || [];
+    const prevBlocks = state.currentBlocks || [];
+    state.currentBlocks = ensureBlockIds(updatedBlocks || []);
     state.currentRawSegments = buildRawSegmentsFromBlocks(state.currentBlocks);
     state.currentErrors = [];
+    state.textEvents = syncTextEventsToBlocks(
+      prevBlocks,
+      state.currentBlocks,
+      state.textEvents,
+    );
 
     if (options.selectIndex !== undefined) {
       state.selectedBlockIndex = options.selectIndex;
@@ -966,6 +996,7 @@ export function createBuilderBackend() {
 
   function createBlock(kind, attrs) {
     const base = {
+      id: allocateBlockId(),
       kind,
       attrs: { ...(attrs || {}) },
     };
@@ -1072,18 +1103,285 @@ export function createBuilderBackend() {
     return Math.max(30, Math.min(200, Math.round(n)));
   }
 
-  function normalizeTextEvent(evt) {
+  function normalizeTextEvent(evt, blocks) {
     if (!evt || typeof evt !== "object") {
-      return { offsetSec: 0, durationSec: 10, text: "" };
+      return { offsetSec: 0, durationSec: 10, text: "", anchor: null };
     }
     const offsetSec = Math.max(0, Math.round(Number(evt.offsetSec) || 0));
     const durationSec = Math.max(1, Math.round(Number(evt.durationSec) || 10));
     const text = String(evt.text || "");
-    return { offsetSec, durationSec, text };
+    const anchor = normalizeTextEventAnchor(evt.anchor);
+    if (!blocks || !Array.isArray(blocks) || !blocks.length) {
+      return { offsetSec, durationSec, text, anchor };
+    }
+    if (anchor) {
+      const resolved = resolveOffsetFromAnchor(anchor, blocks);
+      if (resolved) {
+        return {
+          offsetSec: resolved.offsetSec,
+          durationSec,
+          text,
+          anchor: resolved.anchor,
+        };
+      }
+    }
+    const anchored = anchorTextEventToBlocks(offsetSec, blocks);
+    if (anchored) {
+      return {
+        offsetSec: anchored.offsetSec,
+        durationSec,
+        text,
+        anchor: anchored.anchor,
+      };
+    }
+    return { offsetSec, durationSec, text, anchor };
   }
 
-  function normalizeTextEvents(events) {
-    return Array.isArray(events) ? events.map(normalizeTextEvent) : [];
+  function normalizeTextEvents(events, blocks) {
+    return Array.isArray(events)
+      ? events.map((evt) => normalizeTextEvent(evt, blocks))
+      : [];
+  }
+
+  function normalizeTextEventAnchor(anchor) {
+    if (!anchor || typeof anchor !== "object") return null;
+    const blockId = anchor.blockId;
+    if (blockId == null) return null;
+    const segIndex = Math.max(0, Math.round(Number(anchor.segIndex) || 0));
+    const offsetRelRaw = Number(anchor.offsetRel);
+    const offsetRel = Number.isFinite(offsetRelRaw)
+      ? Math.max(0, Math.min(1, offsetRelRaw))
+      : 0;
+    return { blockId, segIndex, offsetRel };
+  }
+
+  function resolveTextEvents(events) {
+    return normalizeTextEvents(events, state.currentBlocks);
+  }
+
+  function stripTextEventAnchors(events) {
+    return Array.isArray(events)
+      ? events.map((evt) => ({
+        offsetSec: Number(evt?.offsetSec) || 0,
+        durationSec: Number(evt?.durationSec) || 0,
+        text: evt?.text || "",
+      }))
+      : [];
+  }
+
+  function resolveOffsetFromAnchor(anchor, blocks) {
+    const clean = normalizeTextEventAnchor(anchor);
+    if (!clean) return null;
+    const blockInfo = findBlockById(blocks, clean.blockId);
+    if (!blockInfo) return null;
+    const { block, blockStart } = blockInfo;
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    if (!segs.length) return null;
+    const segIndex = Math.min(clean.segIndex, segs.length - 1);
+    let segStart = blockStart;
+    for (let i = 0; i < segIndex; i += 1) {
+      segStart += Math.max(1, Math.round(segs[i]?.durationSec || 0));
+    }
+    const segDuration = Math.max(1, Math.round(segs[segIndex]?.durationSec || 0));
+    const offsetRel = Number.isFinite(clean.offsetRel)
+      ? Math.max(0, Math.min(1, clean.offsetRel))
+      : 0;
+    const offsetSec = Math.round(segStart + segDuration * offsetRel);
+    return {
+      offsetSec,
+      anchor: { blockId: block.id, segIndex, offsetRel },
+    };
+  }
+
+  function anchorTextEventToBlocks(offsetSec, blocks) {
+    const found = findSegmentAtTime(blocks, offsetSec);
+    if (!found) return null;
+    const offsetRel = found.durationSec
+      ? Math.max(0, Math.min(1, (offsetSec - found.startSec) / found.durationSec))
+      : 0;
+    return {
+      offsetSec: Math.round(found.startSec + found.durationSec * offsetRel),
+      anchor: {
+        blockId: found.blockId,
+        segIndex: found.segIndex,
+        offsetRel,
+      },
+    };
+  }
+
+  function findSegmentAtTime(blocks, tSec) {
+    if (!Array.isArray(blocks) || !blocks.length) return null;
+    let cursor = 0;
+    const totalSec = blocks.reduce((sum, block) => {
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      return (
+        sum +
+        segs.reduce(
+          (segSum, seg) => segSum + Math.max(1, Math.round(seg?.durationSec || 0)),
+          0,
+        )
+      );
+    }, 0);
+    const clamped = Math.max(0, Math.min(Number(tSec) || 0, Math.max(0, totalSec)));
+
+    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex += 1) {
+      const block = blocks[blockIndex];
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      for (let segIndex = 0; segIndex < segs.length; segIndex += 1) {
+        const durSec = Math.max(1, Math.round(segs[segIndex]?.durationSec || 0));
+        const start = cursor;
+        const end = cursor + durSec;
+        if (clamped < end || (blockIndex === blocks.length - 1 && segIndex === segs.length - 1)) {
+          return {
+            blockId: block?.id,
+            segIndex,
+            startSec: start,
+            durationSec: durSec,
+          };
+        }
+        cursor = end;
+      }
+    }
+    return null;
+  }
+
+  function findBlockById(blocks, blockId) {
+    if (!Array.isArray(blocks)) return null;
+    let blockStart = 0;
+    for (let i = 0; i < blocks.length; i += 1) {
+      const block = blocks[i];
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      if (block?.id === blockId) {
+        return { blockIndex: i, block, blockStart };
+      }
+      segs.forEach((seg) => {
+        blockStart += Math.max(1, Math.round(seg?.durationSec || 0));
+      });
+    }
+    return null;
+  }
+
+  function allocateBlockId() {
+    const next = nextBlockId;
+    nextBlockId += 1;
+    return next;
+  }
+
+  function ensureBlockIds(blocks) {
+    const updated = (blocks || []).map((block) => {
+      if (!block) return block;
+      if (block.id != null) return block;
+      return { ...block, id: allocateBlockId() };
+    });
+    let maxId = nextBlockId - 1;
+    updated.forEach((block) => {
+      const idNum = Number(block?.id);
+      if (Number.isFinite(idNum)) {
+        maxId = Math.max(maxId, idNum);
+      }
+    });
+    nextBlockId = Math.max(nextBlockId, maxId + 1);
+    return updated;
+  }
+
+  function syncTextEventsToBlocks(prevBlocks, nextBlocks, events) {
+    if (!Array.isArray(events) || !events.length) return [];
+    const prevList = Array.isArray(prevBlocks) ? prevBlocks : [];
+    const nextList = Array.isArray(nextBlocks) ? nextBlocks : [];
+    return events.map((evt) => {
+      const baseOffset =
+        evt?.anchor && prevList.length
+          ? resolveOffsetFromAnchor(evt.anchor, prevList)?.offsetSec ?? evt.offsetSec
+          : evt.offsetSec;
+      if (evt?.anchor) {
+        const resolved = resolveOffsetFromAnchor(evt.anchor, nextList);
+        if (resolved) {
+          return { ...evt, offsetSec: resolved.offsetSec, anchor: resolved.anchor };
+        }
+      }
+      const anchored = anchorTextEventToBlocks(baseOffset, nextList);
+      if (anchored) {
+        return { ...evt, offsetSec: anchored.offsetSec, anchor: anchored.anchor };
+      }
+      return evt;
+    });
+  }
+
+  function insertTextEventsAtInsertionPoint(textEvents) {
+    if (!Array.isArray(textEvents) || !textEvents.length) return;
+    const blocks = state.currentBlocks || [];
+    if (!blocks.length) return;
+    recordHistorySnapshot();
+    const { timings } = buildBlockTimings(blocks);
+    const insertAfter =
+      state.insertAfterOverrideIndex != null
+        ? state.insertAfterOverrideIndex
+        : state.selectedBlockIndex;
+    let baseOffset = 0;
+    if (timings.length) {
+      const safeIndex =
+        insertAfter == null
+          ? -1
+          : Math.max(-1, Math.min(insertAfter, timings.length - 1));
+      if (safeIndex >= 0) {
+        baseOffset = timings[safeIndex]?.tEnd || 0;
+      }
+    }
+
+    const inserted = textEvents.map((evt) => ({
+      offsetSec: Math.max(0, Math.round(Number(evt?.offsetSec) || 0)) + baseOffset,
+      durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+      text: String(evt?.text || ""),
+      anchor: null,
+    }));
+
+    state.textEvents = normalizeTextEvents(
+      [...state.textEvents, ...inserted],
+      state.currentBlocks,
+    );
+  }
+
+  function buildTextEventsForInsertion(textEvents, insertIndex, insertedBlocks, allBlocks) {
+    if (!Array.isArray(textEvents) || !textEvents.length) return [];
+    const baseOffset = getBlocksDurationUpTo(allBlocks, insertIndex);
+    return textEvents
+      .map((evt) => normalizeTextEvent(evt, insertedBlocks))
+      .map((evt) => {
+        if (!evt.anchor) return null;
+        const resolved = resolveOffsetFromAnchor(evt.anchor, insertedBlocks);
+        const offsetWithin = resolved ? resolved.offsetSec : evt.offsetSec;
+        return {
+          offsetSec: Math.round(baseOffset + (offsetWithin || 0)),
+          durationSec: evt.durationSec,
+          text: evt.text,
+          anchor: evt.anchor,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function getBlocksDurationUpTo(blocks, endIndex) {
+    const limit = Math.max(0, Math.min(endIndex, (blocks || []).length));
+    let total = 0;
+    for (let i = 0; i < limit; i += 1) {
+      total += getBlockDurationSec(blocks[i]);
+    }
+    return total;
+  }
+
+  function getTextEventsForSelection() {
+    const indices = getSelectedIndicesSorted();
+    if (!indices.length) return [];
+    const { timings } = buildBlockTimings(state.currentBlocks);
+    const start = timings[indices[0]]?.tStart ?? 0;
+    const end = timings[indices[indices.length - 1]]?.tEnd ?? start;
+    return stripTextEventAnchors(resolveTextEvents(state.textEvents))
+      .filter((evt) => evt.offsetSec >= start && evt.offsetSec < end)
+      .map((evt) => ({
+        offsetSec: Math.max(0, Math.round(evt.offsetSec - start)),
+        durationSec: evt.durationSec,
+        text: evt.text,
+      }));
   }
 
   function getInsertAfterIndex() {
@@ -1134,6 +1432,21 @@ export function createBuilderBackend() {
     const selectIndex = shouldSelect ? insertIndex : null;
     commitBlocks(updated, { selectIndex });
     state.insertAfterOverrideIndex = insertIndex + blocks.length - 1;
+
+    if (Array.isArray(options.textEvents) && options.textEvents.length) {
+      const inserted = buildTextEventsForInsertion(
+        options.textEvents,
+        insertIndex,
+        blocks,
+        state.currentBlocks,
+      );
+      if (inserted.length) {
+        state.textEvents = normalizeTextEvents(
+          [...state.textEvents, ...inserted],
+          state.currentBlocks,
+        );
+      }
+    }
   }
 
   function buildBlockFromSpec(spec) {
@@ -1461,6 +1774,8 @@ export function createBuilderBackend() {
     clampDuration,
     clampRepeat,
     clampPowerPercent,
+    getTextEventsForSelection,
+    insertTextEventsAtInsertionPoint,
     getInsertAfterIndex,
     insertBlockAtInsertionPoint,
     insertBlocksAtInsertionPoint,
