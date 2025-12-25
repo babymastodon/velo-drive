@@ -631,13 +631,33 @@
           <table class="workout-picker-table">
             <thead>
               <tr>
-                <th data-sort-key="name">Name</th>
-                <th>Zone</th>
-                <th>Source</th>
-                <th data-sort-key="if">IF</th>
-                <th data-sort-key="tss">TSS</th>
-                <th data-sort-key="duration">Duration</th>
-                <th data-sort-key="kjAdj">kJ</th>
+                <th data-sort-key="name" title="Workout name">Name</th>
+                <th title="Primary intensity focus (same colors as workout history)">Zone</th>
+                <th title="Where the workout came from (file name, scraper, or source)">Source</th>
+                <th
+                  data-sort-key="if"
+                  title="Intensity Factor: normalized power divided by FTP; 1.0 means riding steadily at FTP"
+                >
+                  IF
+                </th>
+                <th
+                  data-sort-key="tss"
+                  title="Training Stress Score: 100 equals 1 hour at FTP; typical weeks are ~300-700"
+                >
+                  TSS
+                </th>
+                <th
+                  data-sort-key="duration"
+                  title="Planned moving time; paused time is not counted"
+                >
+                  Duration
+                </th>
+                <th
+                  data-sort-key="kjAdj"
+                  title="Estimated work (kJ) at your FTP; roughly equals Calories if power is accurate"
+                >
+                  kJ
+                </th>
               </tr>
             </thead>
             <tbody id="pickerWorkoutTbody">
