@@ -8,6 +8,7 @@ export function formatDurationMinSec(totalSec) {
   const s = Math.max(0, Math.round(totalSec || 0));
   const m = Math.floor(s / 60);
   const sec = s % 60;
+  if (!m) return sec ? `${sec} sec` : "0 min";
   if (!sec) return `${m} min`;
   return `${m} min ${sec} sec`;
 }

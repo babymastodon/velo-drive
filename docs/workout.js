@@ -473,7 +473,8 @@ function updateWorkoutTitleUI(vm) {
             );
             if (nextSeg) {
               targetSeg = nextSeg;
-              prefix = "Up Next: ";
+              const remainingSec = Math.max(1, Math.ceil(remaining));
+              prefix = `In ${remainingSec} - `;
             }
           }
         }
