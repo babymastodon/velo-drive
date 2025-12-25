@@ -121,6 +121,7 @@ export function parseZwoSnippet(text) {
   }
 
   const textEventRegex = /<\s*(textevent|TextEvent)\b([^>]*)\/\s*>/gi;
+  const pendingTextEvents = [];
   working = working.replace(textEventRegex, (full, _tagName, attrsText, offset) => {
     const startIdx = Number.isFinite(offset) ? offset : 0;
     const endIdx = startIdx + full.length;
@@ -133,7 +134,7 @@ export function parseZwoSnippet(text) {
           "Malformed element: unexpected text or tokens inside element.",
       });
     } else {
-      handleZwoTextEvent(attrs, textEvents, errors, startIdx, endIdx);
+      pendingTextEvents.push({ attrs, start: startIdx, end: endIdx });
     }
     return " ".repeat(full.length);
   });
@@ -275,6 +276,51 @@ export function parseZwoSnippet(text) {
       start: lastIndex,
       end: lastIndex + trailing.length,
       message: "Trailing text after last element.",
+    });
+  }
+
+  if (pendingTextEvents.length) {
+    const cleaned = pendingTextEvents
+      .map((evt) => normalizePendingTextEvent(evt, errors))
+      .filter(Boolean);
+    const blockEntries = blocks.map((block, idx) => ({
+      index: idx,
+      start: block.start,
+      end: block.end,
+      block,
+    }));
+    const evaluations = cleaned.map((evt) =>
+      evaluateTextEventOffset(evt, blockEntries)
+    );
+    const nestedEvaluations = evaluations.filter((res) => res.blockEntry);
+    let relativeVotes = 0;
+    let absoluteVotes = 0;
+    nestedEvaluations.forEach((res) => {
+      if (res.classification === "relative") relativeVotes += 1;
+      if (res.classification === "absolute") absoluteVotes += 1;
+    });
+    const globalMode =
+      relativeVotes > absoluteVotes
+        ? "relative"
+        : "absolute";
+    evaluations.forEach((res) => {
+      if (!res.blockEntry) {
+        textEvents.push({
+          offsetSec: Math.round(res.event.offsetSec),
+          durationSec: res.event.durationSec,
+          text: res.event.text,
+        });
+        return;
+      }
+      const resolved = applyTextEventOffset(
+        res.event,
+        res.blockEntry,
+        globalMode,
+        blockEntries,
+      );
+      if (resolved) {
+        textEvents.push(resolved);
+      }
     });
   }
 
@@ -454,28 +500,100 @@ function handleZwoFreeRide(attrs, segments, errors, start, end) {
   };
 }
 
-function handleZwoTextEvent(attrs, textEvents, errors, start, end) {
-  const offset = getFirstNumber(attrs, ["timeoffset", "TimeOffset"]);
-  const durationRaw = getFirstNumber(attrs, ["duration", "Duration"]);
+function normalizePendingTextEvent(evt, errors) {
+  if (!evt || !evt.attrs) return null;
+  const offset = getFirstNumber(evt.attrs, ["timeoffset", "TimeOffset"]);
+  const durationRaw = getFirstNumber(evt.attrs, ["duration", "Duration"]);
   const message =
-    getAttrValue(attrs, "message") ??
-    getAttrValue(attrs, "mssage") ??
-    getAttrValue(attrs, "text");
-
+    getAttrValue(evt.attrs, "message") ??
+    getAttrValue(evt.attrs, "mssage") ??
+    getAttrValue(evt.attrs, "text");
   if (!Number.isFinite(offset) || offset < 0) {
     errors.push({
-      start,
-      end,
+      start: evt.start,
+      end: evt.end,
       message: "TextEvent must include a non-negative timeoffset (seconds).",
     });
-    return;
+    return null;
   }
-
   const durationSec = Number.isFinite(durationRaw)
     ? Math.max(1, Math.round(durationRaw))
     : 10;
   const text = message != null ? unescapeXml(String(message)) : "";
-  textEvents.push({ offsetSec: Math.round(offset), durationSec, text });
+  return {
+    offsetSec: Math.round(offset),
+    durationSec,
+    text,
+    start: evt.start,
+    end: evt.end,
+  };
+}
+
+function evaluateTextEventOffset(evt, blockEntries) {
+  if (!evt) return { event: evt, classification: "absolute" };
+  const parent = blockEntries.find(
+    (block) => evt.start >= block.start && evt.end <= block.end,
+  );
+  if (!parent) {
+    return { event: evt, classification: "absolute", blockEntry: null };
+  }
+  const { block } = parent;
+  const blockDuration = getBlockDurationFromSegments(block);
+  const blockStartSec = getBlockStartTimeSec(blockEntries, parent.index);
+  const absoluteOffset = evt.offsetSec;
+  const absoluteFits =
+    absoluteOffset >= blockStartSec &&
+    absoluteOffset < blockStartSec + blockDuration;
+  const relativeFits = evt.offsetSec < blockDuration;
+  let classification = "absolute";
+  if (relativeFits && !absoluteFits) {
+    classification = "relative";
+  } else if (relativeFits && absoluteFits) {
+    const absoluteWithin =
+      absoluteOffset >= blockStartSec &&
+      absoluteOffset < blockStartSec + blockDuration;
+    const relativeWithin =
+      blockStartSec + evt.offsetSec >= blockStartSec &&
+      blockStartSec + evt.offsetSec < blockStartSec + blockDuration;
+    if (relativeWithin && !absoluteWithin) {
+      classification = "relative";
+    }
+  }
+  return { event: evt, classification, blockEntry: parent };
+}
+
+function applyTextEventOffset(evt, blockEntry, mode, blockEntries) {
+  if (!evt) return null;
+  if (mode === "relative" && blockEntry) {
+    const blockStartSec = getBlockStartTimeSec(blockEntries, blockEntry.index);
+    const absoluteOffset = blockStartSec + evt.offsetSec;
+    return {
+      offsetSec: Math.round(absoluteOffset),
+      durationSec: evt.durationSec,
+      text: evt.text,
+    };
+  }
+  return {
+    offsetSec: Math.round(evt.offsetSec),
+    durationSec: evt.durationSec,
+    text: evt.text,
+  };
+}
+
+function getBlockDurationFromSegments(block) {
+  const segs = Array.isArray(block?.segments) ? block.segments : [];
+  return segs.reduce(
+    (total, seg) => total + Math.max(1, Math.round(seg?.durationSec || 0)),
+    0,
+  );
+}
+
+function getBlockStartTimeSec(blockEntries, index) {
+  let total = 0;
+  for (let i = 0; i < blockEntries.length && i < index; i += 1) {
+    total += getBlockDurationFromSegments(blockEntries[i].block);
+  }
+  return total;
 }
 
 function validateZwoDuration(duration, tagName, start, end, errors) {

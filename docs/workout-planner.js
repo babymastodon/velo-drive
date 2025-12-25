@@ -154,6 +154,7 @@ export function createWorkoutPlanner({
   const {
     historyIndex,
     historyData,
+    historyCache,
     scheduledMap,
     dateKeyFromHandleName,
     aggTotals,
@@ -525,6 +526,9 @@ export function createWorkoutPlanner({
       if (historyData.get(dateKey)?.length === 0) {
         historyData.delete(dateKey);
       }
+      if (historyCache) {
+        historyCache.delete(dateKey);
+      }
       const cell = calendarBody.querySelector(
         `.planner-day[data-date="${dateKey}"]`,
       );
@@ -602,6 +606,9 @@ export function createWorkoutPlanner({
     );
     if (historyData.get(dateKey)?.length === 0) {
       historyData.delete(dateKey);
+    }
+    if (historyCache) {
+      historyCache.delete(dateKey);
     }
     const cell = calendarBody.querySelector(
       `.planner-day[data-date="${dateKey}"]`,

@@ -22,6 +22,7 @@ import {
 import { createWorkoutBuilder } from "./workout-builder.js";
 import { renderMiniWorkoutGraph } from "./workout-chart.js";
 import { parseTrainerDayUrl } from "./scrapers.js";
+import { parseFitFile } from "./fit-file.js";
 
 import {
   ensureDirPermission,
@@ -208,6 +209,7 @@ function createWorkoutPicker(config) {
   const builderTrainerDayBtn = modal.querySelector(
     "#workoutBuilderTrainerDayBtn",
   );
+  const builderUploadBtn = modal.querySelector("#workoutBuilderUploadBtn");
   const builderRoot = modal.querySelector("#workoutBuilderRoot");
   const builderStatusEl = modal.querySelector("#workoutBuilderStatus");
   const builderFooter = modal.querySelector("#builderFooter");
@@ -290,6 +292,62 @@ function createWorkoutPicker(config) {
         if (titleEl) {
           titleEl.textContent =
             canonical.workoutTitle || "TrainerDay Workout";
+        }
+      } finally {
+        suppressBuilderDirty = false;
+      }
+    });
+  }
+
+  if (builderUploadBtn) {
+    const uploadInput = document.createElement("input");
+    uploadInput.type = "file";
+    uploadInput.accept = ".zwo,.fit";
+    uploadInput.style.display = "none";
+    modal.appendChild(uploadInput);
+
+    builderUploadBtn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      if (!workoutBuilder) return;
+      uploadInput.click();
+    });
+
+    uploadInput.addEventListener("change", async () => {
+      if (!workoutBuilder) return;
+      const file = uploadInput.files && uploadInput.files[0];
+      uploadInput.value = "";
+      if (!file) return;
+      const name = file.name || "";
+      const ext = name.toLowerCase().split(".").pop();
+      let canonical = null;
+      try {
+        if (ext === "fit") {
+          const buf = await file.arrayBuffer();
+          const parsed = parseFitFile(buf);
+          canonical = parsed?.canonicalWorkout || null;
+        } else {
+          const text = await file.text();
+          canonical = parseZwoXmlToCanonicalWorkout(text);
+        }
+      } catch (err) {
+        console.warn("[WorkoutBuilder] Upload parse failed:", err);
+        canonical = null;
+      }
+      if (!canonical || !Array.isArray(canonical.rawSegments)) {
+        alert("Unable to load workout file.");
+        return;
+      }
+      const normalized = normalizeUploadedWorkout(canonical, name);
+      suppressBuilderDirty = true;
+      try {
+        workoutBuilder.loadCanonicalWorkout(normalized);
+        workoutBuilder.refreshLayout();
+        builderOriginalTitle = null;
+        builderBaseline = cloneCanonicalWorkout(normalized);
+        hasUnsavedBuilderChanges = true;
+        if (titleEl) {
+          titleEl.textContent =
+            normalized.workoutTitle || "Uploaded Workout";
         }
       } finally {
         suppressBuilderDirty = false;
@@ -426,6 +484,73 @@ function createWorkoutPicker(config) {
     });
 
     return items;
+  }
+
+  function normalizeUploadedWorkout(canonical, fileName) {
+    const next = {
+      ...canonical,
+      rawSegments: Array.isArray(canonical.rawSegments)
+        ? canonical.rawSegments
+        : [],
+      textEvents: Array.isArray(canonical.textEvents)
+        ? canonical.textEvents
+        : [],
+    };
+    const baseName = String(fileName || "").replace(/\.[^/.]+$/, "");
+    if (!next.workoutTitle || !String(next.workoutTitle).trim()) {
+      next.workoutTitle = baseName || "Uploaded Workout";
+    }
+    if (!next.source || !String(next.source).trim()) {
+      next.source = baseName ? `Uploaded ${baseName}` : "Uploaded file";
+    }
+    if (!next.description || !String(next.description).trim()) {
+      next.description = buildSegmentDescription(next.rawSegments);
+    }
+    return next;
+  }
+
+  function buildSegmentDescription(rawSegments) {
+    if (!Array.isArray(rawSegments) || !rawSegments.length) {
+      return "Workout loaded from file.";
+    }
+    let totalSec = 0;
+    let rampCount = 0;
+    let steadyCount = 0;
+    let freeRideCount = 0;
+    rawSegments.forEach((seg) => {
+      if (!Array.isArray(seg)) return;
+      const minutes = Number(seg[0]) || 0;
+      const durationSec = Math.max(1, Math.round(minutes * 60));
+      totalSec += durationSec;
+      if (seg[3] === "freeride") {
+        freeRideCount += 1;
+        return;
+      }
+      const start = Number(seg[1]) || 0;
+      const end = seg[2] != null ? Number(seg[2]) : start;
+      if (Math.abs(start - end) > 1e-6) {
+        rampCount += 1;
+      } else {
+        steadyCount += 1;
+      }
+    });
+    const parts = [];
+    const durationLabel = formatDurationMinSec(totalSec);
+    parts.push(`${durationLabel} workout`);
+    const detail = [];
+    if (steadyCount) {
+      detail.push(`${steadyCount} steady`);
+    }
+    if (rampCount) {
+      detail.push(`${rampCount} ramp${rampCount === 1 ? "" : "s"}`);
+    }
+    if (freeRideCount) {
+      detail.push(`${freeRideCount} freeride`);
+    }
+    if (detail.length) {
+      parts.push(`with ${detail.join(", ")}`);
+    }
+    return parts.join(" ") + ".";
   }
 
   function updateSortHeaderIndicator() {
@@ -996,6 +1121,7 @@ function createWorkoutPicker(config) {
 
     if (addWorkoutBtn) addWorkoutBtn.style.display = "none";
     if (builderTrainerDayBtn) builderTrainerDayBtn.style.display = "inline-flex";
+    if (builderUploadBtn) builderUploadBtn.style.display = "inline-flex";
     if (builderSaveBtn) builderSaveBtn.style.display = "inline-flex";
     if (builderBackBtn) builderBackBtn.style.display = "inline-flex";
 
@@ -1030,6 +1156,7 @@ function createWorkoutPicker(config) {
     if (durationFilter) durationFilter.style.display = "";
     if (addWorkoutBtn) addWorkoutBtn.style.display = "inline-flex";
     if (builderTrainerDayBtn) builderTrainerDayBtn.style.display = "none";
+    if (builderUploadBtn) builderUploadBtn.style.display = "none";
     if (builderSaveBtn) builderSaveBtn.style.display = "none";
     if (builderBackBtn) builderBackBtn.style.display = "none";
     resetHeaderStatus();
