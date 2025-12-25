@@ -330,13 +330,13 @@ export function inferZoneFromSegments(rawSegments) {
 export function getDurationBucket(durationMin) {
   if (!Number.isFinite(durationMin)) return ">240";
   if (durationMin <= 30) return "1-30";
-  if (durationMin <= 60) return "31-60";
-  if (durationMin <= 90) return "61-90";
+  if (durationMin <= 45) return "31-45";
+  if (durationMin <= 60) return "46-60";
+  if (durationMin <= 75) return "61-75";
+  if (durationMin <= 90) return "76-90";
   if (durationMin <= 120) return "91-120";
-  if (durationMin <= 150) return "121-150";
-  if (durationMin <= 180) return "151-180";
-  if (durationMin <= 210) return "181-210";
-  if (durationMin <= 240) return "211-240";
+  if (durationMin <= 180) return "121-180";
+  if (durationMin <= 240) return "181-240";
   return ">240";
 }
 
