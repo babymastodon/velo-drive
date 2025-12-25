@@ -7,12 +7,22 @@
   <tags>
   </tags>
   <workout>
-    <Warmup Duration="180" PowerLow="0.40" PowerHigh="0.55" />
-    <SteadyState Duration="300" Power="0.55" />
-    <IntervalsT Repeat="4" OnDuration="60" OffDuration="30" OnPower="0.72" OffPower="0.55" />
-    <SteadyState Duration="240" Power="0.55" />
-    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.05" OffPower="0.40" />
-    <SteadyState Duration="210" Power="0.50" />
-    <Cooldown Duration="180" PowerLow="0.50" PowerHigh="0.40" />
+    <Warmup Duration="180" PowerLow="0.40" PowerHigh="0.55" Cadence="90">
+      <textevent timeoffset="60" message="Let the glow build—40-55% FTP, soft 88-90 rpm, shoulders quiet." />
+    </Warmup>
+    <SteadyState Duration="300" Power="0.55" Cadence="88" />
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="30" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
+      <textevent timeoffset="520" message="First matchsticks ahead—four 1-min flickers, light and playful." />
+    </IntervalsT>
+    <SteadyState Duration="240" Power="0.55" Cadence="88">
+      <textevent timeoffset="960" message="Back to the calm drift; breathe like waves, keep the spin airy." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.05" OffPower="0.40" Cadence="100" CadenceResting="85">
+      <textevent timeoffset="1150" message="Three firefly pops—brief 20s flares near race sparkle, then float." />
+    </IntervalsT>
+    <SteadyState Duration="210" Power="0.50" Cadence="85" />
+    <Cooldown Duration="180" PowerLow="0.50" PowerHigh="0.40" Cadence="82">
+      <textevent timeoffset="1620" message="Fade into the lullaby cooldown—low-40s FTP, night-light cadence." />
+    </Cooldown>
   </workout>
 </workout_file>
