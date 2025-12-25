@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Quick Turn</name>
+  <description><![CDATA[A quick tempo primer that settles you into a smooth rhythm with 2 short builds and 2 tempo holds. Stay relaxed, light on the pedals, and let the cadence carry you.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="120" PowerLow="0.45" PowerHigh="0.75" Cadence="90" >
+      <textevent timeoffset="0" duration="10" message="Roll in smooth—45-70% FTP, easy 88-90 rpm, relax the grip." />
+    </Warmup>
+    <SteadyState Duration="120" Power="0.75" Cadence="90" >
+      <textevent timeoffset="170" duration="10" message="First tempo settle—around 70%, steady breath, tall posture." />
+    </SteadyState>
+    <IntervalsT Repeat="2" OnDuration="90" OffDuration="50" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="248" duration="10" message="Three tempo waves: 3:00 at ~82%, 90s at ~75—smooth, no spikes." />
+    </IntervalsT>
+    <Warmup Duration="60" PowerLow="0.75" PowerHigh="0.85" Cadence="90" >
+      <textevent timeoffset="520" duration="10" message="Lift to high tempo—ramp 75→88%, keep cadence light." />
+    </Warmup>
+    <SteadyState Duration="280" Power="0.85" Cadence="96" >
+      <textevent timeoffset="580" duration="10" message="Hold ~88%—controlled breathing, 94-96 rpm, elbows soft." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="40" OnPower="1.00" OffPower="0.80" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="875" duration="10" message="4x1:00 near 94% with 45s at 82%—quick legs, calm mind." />
+    </IntervalsT>
+    <IntervalsT Repeat="2" OnDuration="90" OffDuration="120" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="1265" duration="10" message="Pair of 5:00 steadies at ~87% with 2:00 ease—lock in rhythm." />
+    </IntervalsT>
+    <Cooldown Duration="120" PowerLow="0.75" PowerHigh="0.45" Cadence="85" >
+      <textevent timeoffset="1690" duration="10" message="Final 3x75s at ~90%, 45s at ~78%—last bit of snap, stay smooth." />
+      <textevent timeoffset="1690" duration="10" message="Cool down—fade from ~70 to mid-40s FTP, long exhales." />
+    </Cooldown>
+  </workout>
+</workout_file>
