@@ -7,14 +7,30 @@
   <tags>
   </tags>
   <workout>
-    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" />
-    <SteadyState Duration="600" Power="0.55" />
-    <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.72" OffPower="0.58" />
-    <SteadyState Duration="315" Power="0.58" />
-    <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.85" OffPower="0.60" />
-    <SteadyState Duration="480" Power="0.55" />
-    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" />
-    <SteadyState Duration="360" Power="0.50" />
-    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" />
+    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" Cadence="90">
+      <textevent timeoffset="60" message="Drowse into it, legs waking at ~40-50% FTP, easy 88 rpm hush." />
+    </Warmup>
+    <SteadyState Duration="600" Power="0.55" Cadence="88">
+      <textevent timeoffset="700" message="First ripple set ahead: five 1-min glimmers with soft rolls after—stay dreamy." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.72" OffPower="0.58" Cadence="95" CadenceResting="88">
+      <textevent timeoffset="900" message="Tap through the glimmers—light 95 rpm, whispering pedals, relaxed shoulders." />
+    </IntervalsT>
+    <SteadyState Duration="315" Power="0.58" Cadence="90">
+      <textevent timeoffset="1540" message="Three 90s nudges toward threshold; tall spine, drifting around 90 rpm." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.85" OffPower="0.60" Cadence="94" CadenceResting="88">
+      <textevent timeoffset="1750" message="Melt into each 90s pull near mid-80s effort, breathing like slow waves at 94 rpm." />
+    </IntervalsT>
+    <SteadyState Duration="480" Power="0.55" Cadence="88">
+      <textevent timeoffset="2340" message="Tiny sparks soon: short 20s bursts, quick feet near 100, then float." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85">
+      <textevent timeoffset="2600" message="Each pop is a match strike—brief race pace, then ocean drift." />
+    </IntervalsT>
+    <SteadyState Duration="360" Power="0.50" Cadence="85" />
+    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" Cadence="85">
+      <textevent timeoffset="3300" message="Night-light spin into the cooldown, fading toward low-40s FTP and soft 85 rpm." />
+    </Cooldown>
   </workout>
 </workout_file>
