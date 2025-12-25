@@ -7,22 +7,40 @@
   <tags>
   </tags>
   <workout>
-    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" />
-    <SteadyState Duration="480" Power="0.55" />
-    <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" />
+    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" Cadence="90">
+      <textevent timeoffset="60" message="Ease in, sleepy legs waking at 40-50% FTP, hum along at cozy 88-90 rpm." />
+    </Warmup>
+    <SteadyState Duration="480" Power="0.55" Cadence="88">
+      <textevent timeoffset="630" message="Wake-up set ahead: five bright 1-min ripples—like sunrise on calm water." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
+      <textevent timeoffset="900" message="Float the ripples—quick 95 rpm on the taps, feather-soft spin between." />
+    </IntervalsT>
     <SteadyState Duration="360" Power="0.55" />
-    <SteadyState Duration="600" Power="0.65" />
-    <SteadyState Duration="420" Power="0.55" />
+    <SteadyState Duration="600" Power="0.65" Cadence="94">
+      <textevent timeoffset="1620" message="Settle into ten minutes of hush near mid-60s FTP, drifting like a lazy river." />
+    </SteadyState>
+    <SteadyState Duration="420" Power="0.55" Cadence="88">
+      <textevent timeoffset="2550" message="Three 90s nudges toward threshold; tall spine, 90ish rpm, calm face." />
+    </SteadyState>
     <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.90" OffPower="0.55" />
-    <SteadyState Duration="360" Power="0.55" />
-    <IntervalsT Repeat="6" OnDuration="40" OffDuration="60" OnPower="0.80" OffPower="0.40" />
-    <SteadyState Duration="480" Power="0.55" />
-    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" />
+    <SteadyState Duration="360" Power="0.55">
+      <textevent timeoffset="3380" message="Leg-speed sparks—six 40s flickers, spin like fireflies at 105-110 rpm." />
+    </SteadyState>
+    <IntervalsT Repeat="6" OnDuration="40" OffDuration="60" OnPower="0.80" OffPower="0.40" Cadence="110" CadenceResting="85" />
+    <SteadyState Duration="480" Power="0.55" Cadence="88">
+      <textevent timeoffset="4520" message="Tiny 20s burners incoming—pop to race pace then float; keep feet light ~100 rpm." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85" />
     <SteadyState Duration="300" Power="0.55" />
-    <SteadyState Duration="480" Power="0.60" />
-    <SteadyState Duration="420" Power="0.50" />
-    <IntervalsT Repeat="5" OnDuration="30" OffDuration="60" OnPower="0.90" OffPower="0.55" />
-    <SteadyState Duration="420" Power="0.50" />
-    <Cooldown Duration="270" PowerLow="0.50" PowerHigh="0.40" />
+    <SteadyState Duration="480" Power="0.60" Cadence="92" />
+    <SteadyState Duration="420" Power="0.50" Cadence="88">
+      <textevent timeoffset="6000" message="Five final 30s kisses of speed near 90%—upright, tidy, cruising toward home." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="30" OffDuration="60" OnPower="0.90" OffPower="0.55" Cadence="95" CadenceResting="88" />
+    <SteadyState Duration="420" Power="0.50" Cadence="85" />
+    <Cooldown Duration="270" PowerLow="0.50" PowerHigh="0.40" Cadence="85">
+      <textevent timeoffset="6930" message="Exhale into the 4:30 fade, melting from ~50 to 40% FTP, night-light spin." />
+    </Cooldown>
   </workout>
 </workout_file>
