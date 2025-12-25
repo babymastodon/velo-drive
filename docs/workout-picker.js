@@ -900,7 +900,17 @@ function createWorkoutPicker(config) {
 
         // Chips (using original helper signature)
         const zoneChip = createStatChip("Zone");
-        zoneChip.value.textContent = zone || "Uncategorized";
+        const zoneLabel = zone || "Uncategorized";
+        const zoneDot = document.createElement("span");
+        zoneDot.className = "picker-zone-dot";
+        const zoneDotClass = zoneClassFromLabel(zoneLabel);
+        zoneDot.classList.add(
+          zoneDotClass || "picker-zone-dot-unknown",
+        );
+        zoneDot.style.marginRight = "8px";
+        zoneChip.value.textContent = "";
+        zoneChip.value.appendChild(zoneDot);
+        zoneChip.value.appendChild(document.createTextNode(zoneLabel));
         tagsRow.appendChild(zoneChip.el);
 
         if (source) {
