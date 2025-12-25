@@ -20,9 +20,9 @@
     <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.05" OffPower="0.40" Cadence="100" CadenceResting="85">
       <textevent timeoffset="1150" message="Three firefly pops—brief 20s flares near race sparkle, then float." />
     </IntervalsT>
-    <SteadyState Duration="210" Power="0.50" Cadence="85" />
-    <Cooldown Duration="180" PowerLow="0.50" PowerHigh="0.40" Cadence="82">
-      <textevent timeoffset="1620" message="Fade into the lullaby cooldown—low-40s FTP, night-light cadence." />
-    </Cooldown>
+    <SteadyState Duration="210" Power="0.50" Cadence="85">
+      <textevent timeoffset="1605" message="Fade into the lullaby cooldown—low-40s FTP, night-light cadence." />
+    </SteadyState>
+    <Cooldown Duration="180" PowerLow="0.50" PowerHigh="0.40" Cadence="82" />
   </workout>
 </workout_file>

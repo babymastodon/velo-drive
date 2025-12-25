@@ -20,10 +20,10 @@
     <SteadyState Duration="120" Power="0.65" Cadence="88" />
     <SteadyState Duration="180" Power="0.55" Cadence="85" />
     <SteadyState Duration="120" Power="0.70" Cadence="90" />
-    <SteadyState Duration="60" Power="0.80" Cadence="95" />
-    <SteadyState Duration="240" Power="0.62" Cadence="88">
-      <textevent timeoffset="1380" message="Settle into the rollers, breath matching the road, cadence whispering in the high 80s." />
+    <SteadyState Duration="60" Power="0.80" Cadence="95">
+      <textevent timeoffset="1365" message="Settle into the rollers, breath matching the road, cadence whispering in the high 80s." />
     </SteadyState>
+    <SteadyState Duration="240" Power="0.62" Cadence="88" />
     <SteadyState Duration="120" Power="0.74" Cadence="94" />
     <SteadyState Duration="90" Power="0.59" Cadence="86" />
     <SteadyState Duration="180" Power="0.75" Cadence="95">
@@ -33,21 +33,20 @@
     <SteadyState Duration="120" Power="0.63" Cadence="88" />
     <SteadyState Duration="120" Power="0.71" Cadence="92" />
     <SteadyState Duration="120" Power="0.57" Cadence="86" />
-    <SteadyState Duration="90" Power="0.73" Cadence="94" />
-    <SteadyState Duration="180" Power="0.66" Cadence="90">
-      <textevent timeoffset="2520" message="Halfway over the hills—65-70% feel, sit tall as the grade tilts up." />
+    <SteadyState Duration="90" Power="0.73" Cadence="94">
+      <textevent timeoffset="2505" message="Halfway over the hills—65-70% feel, sit tall as the grade tilts up." />
     </SteadyState>
+    <SteadyState Duration="180" Power="0.66" Cadence="90" />
     <SteadyState Duration="180" Power="0.60" Cadence="88" />
-    <SteadyState Duration="120" Power="0.75" Cadence="94" />
-    <SteadyState Duration="120" Power="0.90" Cadence="96">
-      <textevent timeoffset="3000" message="Tall crest here—near 90% for a minute, smooth hands and a steady 95 rpm." />
+    <SteadyState Duration="120" Power="0.75" Cadence="94">
+      <textevent timeoffset="2985" message="Tall crest here—near 90% for a minute, smooth hands and a steady 95 rpm." />
     </SteadyState>
     <SteadyState Duration="120" Power="0.75" Cadence="94" />
     <SteadyState Duration="90" Power="0.90" Cadence="96" />
-    <SteadyState Duration="120" Power="0.70" Cadence="90" />
-    <SteadyState Duration="60" Power="0.95" Cadence="98">
-      <textevent timeoffset="3450" message="Last sting of this run—mid-90s touch, then roll the energy downhill." />
+    <SteadyState Duration="120" Power="0.70" Cadence="90">
+      <textevent timeoffset="3315" message="Last sting of this run—mid-90s touch, then roll the energy downhill." />
     </SteadyState>
+    <SteadyState Duration="60" Power="0.95" Cadence="98" />
     <SteadyState Duration="150" Power="0.60" Cadence="88" />
     <SteadyState Duration="180" Power="0.75" Cadence="94" />
     <SteadyState Duration="120" Power="0.75" Cadence="94" />
@@ -55,7 +54,7 @@
     <SteadyState Duration="90" Power="0.75" Cadence="94" />
     <SteadyState Duration="90" Power="0.50" Cadence="85" />
     <SteadyState Duration="120" Power="0.70" Cadence="90">
-      <textevent timeoffset="4260" message="Final wave set—back to low 70s FTP, wheels whispering over the rise." />
+      <textevent timeoffset="4245" message="Final wave set—back to low 70s FTP, wheels whispering over the rise." />
     </SteadyState>
     <SteadyState Duration="60" Power="0.85" Cadence="95" />
     <SteadyState Duration="180" Power="0.60" Cadence="88" />
@@ -64,7 +63,7 @@
     <SteadyState Duration="180" Power="0.60" Cadence="88" />
     <SteadyState Duration="60" Power="0.80" Cadence="95" />
     <SteadyState Duration="120" Power="0.63" Cadence="88">
-      <textevent timeoffset="5040" message="Home stretch—settle into mid-60s, exhale toward the cooldown coast." />
+      <textevent timeoffset="5025" message="Home stretch—settle into mid-60s, exhale toward the cooldown coast." />
     </SteadyState>
     <Cooldown Duration="240" PowerLow="0.63" PowerHigh="0.45" Cadence="85" />
   </workout>

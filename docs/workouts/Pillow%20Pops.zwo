@@ -20,13 +20,13 @@
     <IntervalsT Repeat="2" OnDuration="90" OffDuration="60" OnPower="0.80" OffPower="0.55" Cadence="92" CadenceResting="88">
       <textevent timeoffset="1300" message="Two longer lifts—breeze up to low 80s FTP, keep shoulders sleepy." />
     </IntervalsT>
-    <SteadyState Duration="180" Power="0.55" Cadence="88" />
-    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85">
-      <textevent timeoffset="1710" message="Short sparkles ahead—20s pops like match strikes, then float." />
-    </IntervalsT>
-    <SteadyState Duration="300" Power="0.50" Cadence="85" />
-    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" Cadence="82">
-      <textevent timeoffset="2340" message="Sink into the cooldown—low-40s FTP, night-light spin to finish." />
-    </Cooldown>
+    <SteadyState Duration="180" Power="0.55" Cadence="88">
+      <textevent timeoffset="1695" message="Short sparkles ahead—20s pops like match strikes, then float." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85" />
+    <SteadyState Duration="300" Power="0.50" Cadence="85">
+      <textevent timeoffset="2325" message="Sink into the cooldown—low-40s FTP, night-light spin to finish." />
+    </SteadyState>
+    <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" Cadence="82" />
   </workout>
 </workout_file>
