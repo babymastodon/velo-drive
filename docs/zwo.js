@@ -115,12 +115,31 @@ export function parseZwoSnippet(text) {
     .replace(/<\s*workout[^>]*>/gi, (m) => " ".repeat(m.length))
     .replace(/<\/\s*workout\s*>/gi, (m) => " ".repeat(m.length));
 
-  const working = withoutWorkoutWrappers;
+  let working = withoutWorkoutWrappers;
   if (!working.trim()) {
     return {rawSegments: [], textEvents, errors, blocks, sourceText: working};
   }
 
-  const tagRegex = /<([A-Za-z]+)\b([^>]*)\/>/g;
+  const textEventRegex = /<\s*(textevent|TextEvent)\b([^>]*)\/\s*>/gi;
+  working = working.replace(textEventRegex, (full, _tagName, attrsText, offset) => {
+    const startIdx = Number.isFinite(offset) ? offset : 0;
+    const endIdx = startIdx + full.length;
+    const {attrs, hasGarbage} = parseZwoAttributes(attrsText || "");
+    if (hasGarbage) {
+      errors.push({
+        start: startIdx,
+        end: endIdx,
+        message:
+          "Malformed element: unexpected text or tokens inside element.",
+      });
+    } else {
+      handleZwoTextEvent(attrs, textEvents, errors, startIdx, endIdx);
+    }
+    return " ".repeat(full.length);
+  });
+
+  const blockRegex =
+    /<\s*(SteadyState|Warmup|Cooldown|IntervalsT|FreeRide|Freeride)\b([^>]*?)(\/?)\s*>/gi;
   let lastIndex = 0;
   let match;
 
@@ -133,12 +152,14 @@ export function parseZwoSnippet(text) {
     return line;
   };
 
-  while ((match = tagRegex.exec(working)) !== null) {
+  while ((match = blockRegex.exec(working)) !== null) {
     const full = match[0];
     const tagName = match[1];
     const attrsText = match[2] || "";
+    const selfClosing = (match[3] || "").includes("/");
     const startIdx = match.index;
-    const endIdx = startIdx + full.length;
+    let endIdx = startIdx + full.length;
+    let blockEndIdx = endIdx;
 
     const between = working.slice(lastIndex, startIdx);
     if (between.trim().length > 0) {
@@ -163,6 +184,35 @@ export function parseZwoSnippet(text) {
       continue;
     }
 
+    if (!selfClosing) {
+      const closeRe = new RegExp(`</\\s*${tagName}\\s*>`, "i");
+      const rest = working.slice(endIdx);
+      const closeMatch = closeRe.exec(rest);
+      if (!closeMatch) {
+        errors.push({
+          start: startIdx,
+          end: endIdx,
+          message: `Missing closing tag for <${tagName}>`,
+        });
+        lastIndex = endIdx;
+        continue;
+      }
+      const closeStart = endIdx + closeMatch.index;
+      const closeEnd = closeStart + closeMatch[0].length;
+      const inner = working.slice(endIdx, closeStart);
+      if (inner.trim().length > 0) {
+        errors.push({
+          start: endIdx,
+          end: closeStart,
+          message:
+            "Unexpected text inside element; only <textevent/> tags are allowed.",
+        });
+      }
+      blockEndIdx = closeEnd;
+      endIdx = blockEndIdx;
+      blockRegex.lastIndex = blockEndIdx;
+    }
+
     const blockSegmentStart = segments.length;
     const blockLineStart = lineFromIndex(startIdx);
     let blockResult = null;
@@ -178,10 +228,6 @@ export function parseZwoSnippet(text) {
       case "FreeRide":
       case "Freeride":
         blockResult = handleZwoFreeRide(attrs, segments, errors, startIdx, endIdx);
-        break;
-      case "TextEvent":
-      case "textevent":
-        handleZwoTextEvent(attrs, textEvents, errors, startIdx, endIdx);
         break;
       case "IntervalsT":
         blockResult = handleZwoIntervals(attrs, segments, errors, startIdx, endIdx);
