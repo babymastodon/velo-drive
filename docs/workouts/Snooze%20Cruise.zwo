@@ -16,10 +16,10 @@
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
       <textevent timeoffset="900" message="Float the ripples—quick 95 rpm on the taps, feather-soft spin between." />
     </IntervalsT>
-    <SteadyState Duration="360" Power="0.55" />
-    <SteadyState Duration="600" Power="0.65" Cadence="94">
-      <textevent timeoffset="1620" message="Settle into ten minutes of hush near mid-60s FTP, drifting like a lazy river." />
+    <SteadyState Duration="360" Power="0.55">
+      <textevent timeoffset="1605" message="Settle into ten minutes of hush near mid-60s FTP, drifting like a lazy river." />
     </SteadyState>
+    <SteadyState Duration="600" Power="0.65" Cadence="94" />
     <SteadyState Duration="420" Power="0.55" Cadence="88">
       <textevent timeoffset="2550" message="Three 90s nudges toward threshold; tall spine, 90ish rpm, calm face." />
     </SteadyState>
@@ -38,9 +38,9 @@
       <textevent timeoffset="6000" message="Five final 30s kisses of speed near 90%—upright, tidy, cruising toward home." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="60" OnPower="0.90" OffPower="0.55" Cadence="95" CadenceResting="88" />
-    <SteadyState Duration="420" Power="0.50" Cadence="85" />
-    <Cooldown Duration="270" PowerLow="0.50" PowerHigh="0.40" Cadence="85">
-      <textevent timeoffset="6930" message="Exhale into the 4:30 fade, melting from ~50 to 40% FTP, night-light spin." />
-    </Cooldown>
+    <SteadyState Duration="420" Power="0.50" Cadence="85">
+      <textevent timeoffset="6915" message="Exhale into the 4:30 fade, melting from ~50 to 40% FTP, night-light spin." />
+    </SteadyState>
+    <Cooldown Duration="270" PowerLow="0.50" PowerHigh="0.40" Cadence="85" />
   </workout>
 </workout_file>
