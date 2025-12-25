@@ -11,6 +11,7 @@ const DEV_DATA_INDEX = 0;
 const CANON_CHUNK_SIZE = 200;
 const FIT_TARGET_TYPE_OPEN = 2;
 const FIT_TARGET_TYPE_POWER = 4;
+const FIT_DURATION_TYPE_REPEAT_STEPS = 6;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -974,6 +975,8 @@ export function parseFitFile(arrayBuffer) {
         const durSec =
           durValue > 86400 ? Math.round(durValue / 1000) : durValue;
         const targetType = values[3];
+        const durationType = values[1];
+        const targetValue = values[4];
         const startPct =
           devValues[`${DEV_DATA_INDEX}:1`] != null
             ? devValues[`${DEV_DATA_INDEX}:1`] / 100
@@ -984,6 +987,8 @@ export function parseFitFile(arrayBuffer) {
             : null;
         workoutSteps[msgIdx] = {
           durationSec: durSec,
+          durationType,
+          targetValue,
           startPct,
           endPct,
           customLow: values[5],
@@ -1072,12 +1077,23 @@ export function parseFitFile(arrayBuffer) {
   if (!canonicalWorkout) {
     const ftp = sessionValues[57] || 0;
     const rawSegments = [];
-    workoutSteps.forEach((s) => {
-      if (!s) return;
+    const stepList = workoutSteps.filter(Boolean);
+    const segments = [];
+    stepList.forEach((s) => {
+      if (s.durationType === FIT_DURATION_TYPE_REPEAT_STEPS) {
+        const repeatCount = Math.max(1, Number(s.durationSec || 0));
+        const repeatSteps = Math.max(1, Number(s.targetValue || 1));
+        const base = segments.slice(-repeatSteps);
+        if (!base.length) return;
+        for (let i = 0; i < repeatCount; i++) {
+          base.forEach((seg) => segments.push([...seg]));
+        }
+        return;
+      }
       const minutes = (s.durationSec || 0) / 60;
       const isFreeRide = s.targetType === FIT_TARGET_TYPE_OPEN;
       if (isFreeRide) {
-        rawSegments.push([minutes, 50, 50, "freeride"]);
+        segments.push([minutes, 50, 50, "freeride"]);
         return;
       }
       const ftpSafe = ftp || 1;
@@ -1089,8 +1105,9 @@ export function parseFitFile(arrayBuffer) {
           : ((s.customHigh != null ? s.customHigh : s.customLow || 0) /
               ftpSafe) *
             100;
-      rawSegments.push([minutes, startPct, endPct]);
+      segments.push([minutes, startPct, endPct]);
     });
+    rawSegments.push(...segments);
 
     canonicalWorkout = {
       source: workoutDevFieldValues["vd_source"] || "Unknown",
