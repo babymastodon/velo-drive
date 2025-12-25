@@ -130,25 +130,37 @@ export function powerMaxFromIntervals(intervals) {
 }
 
 const STAT_TOOLTIPS = {
+  Duration: {
+    name: "Moving time",
+    desc: "Time the timer was running; paused time is excluded (elapsed minus pauses).",
+  },
+  Paused: {
+    name: "Paused time",
+    desc: "Total time the ride timer was stopped; not counted in duration or averages.",
+  },
+  Work: {
+    name: "Work (kJ)",
+    desc: "Total energy recorded by the power meter in kilojoules; roughly equals Calories burned if the meter is accurate.",
+  },
   NP: {
     name: "Normalized Power",
-    desc: "Estimates steady power that would feel like this ride's variability.",
+    desc: "Turns your up-and-down pacing into an equivalent steady wattage so you can compare spiky and steady rides on the same scale.",
   },
   IF: {
     name: "Intensity Factor",
-    desc: "Normalized power divided by FTP to show how hard the ride was.",
+    desc: "Normalized power divided by FTP; 1.0 means riding steadily at FTP.",
   },
   TSS: {
     name: "Training Stress Score",
-    desc: "Combines intensity and duration to gauge training load.",
+    desc: "100 equals 1 hour at FTP; typical weekly totals: ~300–500 for maintenance, 500–700 for building, 700+ for heavy training.",
   },
   VI: {
     name: "Variability Index",
-    desc: "Normalized power over average power; indicates pacing smoothness.",
+    desc: "Normalized power divided by average power; higher values mean more surges and less steady pacing.",
   },
   EF: {
     name: "Efficiency Factor",
-    desc: "Normalized power over average HR to track aerobic efficiency.",
+    desc: "Normalized power divided by average HR to track aerobic efficiency over time.",
   },
 };
 
@@ -193,7 +205,8 @@ export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, fo
     row.appendChild(chip);
   };
 
-  pushStat("Duration", formatDuration(detail.durationSec));
+  const movingTime = detail.activeDurationSec || detail.durationSec;
+  pushStat("Duration", formatDuration(movingTime));
   if (Number.isFinite(detail.pausedSec) && detail.pausedSec > 0) {
     pushStat("Paused", formatDuration(detail.pausedSec));
   }
