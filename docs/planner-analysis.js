@@ -1,5 +1,6 @@
 import {drawPowerCurveChart, drawWorkoutChart} from "./workout-chart.js";
 import {loadWorkoutDirHandle, loadTrashDirHandle, ensureDirPermission} from "./storage.js";
+import {formatDurationMinSec} from "./workout-metrics.js";
 
 export function computeHrCadStats(samples) {
   if (!Array.isArray(samples) || !samples.length) return {};
@@ -30,9 +31,7 @@ export function computeHrCadStats(samples) {
 }
 
 export function formatDuration(sec) {
-  const s = Math.max(0, Math.round(sec || 0));
-  const m = Math.round(s / 60);
-  return `${m} min`;
+  return formatDurationMinSec(sec);
 }
 
 export function buildPowerSegments(samples, durationSecHint) {
@@ -130,6 +129,35 @@ export function powerMaxFromIntervals(intervals) {
   );
 }
 
+const STAT_TOOLTIPS = {
+  NP: {
+    name: "Normalized Power",
+    desc: "Estimates steady power that would feel like this ride's variability.",
+  },
+  IF: {
+    name: "Intensity Factor",
+    desc: "Normalized power divided by FTP to show how hard the ride was.",
+  },
+  TSS: {
+    name: "Training Stress Score",
+    desc: "Combines intensity and duration to gauge training load.",
+  },
+  VI: {
+    name: "Variability Index",
+    desc: "Normalized power over average power; indicates pacing smoothness.",
+  },
+  EF: {
+    name: "Efficiency Factor",
+    desc: "Normalized power over average HR to track aerobic efficiency.",
+  },
+};
+
+function getStatTooltip(label) {
+  const meta = STAT_TOOLTIPS[label];
+  if (!meta) return null;
+  return `${meta.name} — ${meta.desc}`;
+}
+
 export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, formatDuration) {
   if (!detailStatsEl) return;
   detailStatsEl.innerHTML = "";
@@ -157,6 +185,9 @@ export function renderDetailStats(detailStatsEl, detail, formatSelectedLabel, fo
     const val = document.createElement("div");
     val.className = "wb-stat-value";
     val.textContent = value;
+    const tooltip = getStatTooltip(label);
+    if (tooltip) chip.title = tooltip;
+
     chip.appendChild(lbl);
     chip.appendChild(val);
     row.appendChild(chip);

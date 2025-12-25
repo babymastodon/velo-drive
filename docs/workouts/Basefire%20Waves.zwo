@@ -7,31 +7,33 @@
   <tags>
   </tags>
   <workout>
-    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" />
-    <SteadyState Duration="120" Power="0.60" />
-    <SteadyState Duration="120" Power="0.68" />
-    <SteadyState Duration="120" Power="0.58" />
-    <SteadyState Duration="120" Power="0.72" />
-    <SteadyState Duration="60" Power="0.90" />
-    <SteadyState Duration="120" Power="0.65" />
-    <SteadyState Duration="180" Power="0.55" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="60" Power="0.80" />
-    <SteadyState Duration="180" Power="0.62" />
-    <SteadyState Duration="120" Power="0.74" />
-    <SteadyState Duration="60" Power="0.59" />
-    <SteadyState Duration="180" Power="0.68" />
-    <SteadyState Duration="60" Power="0.95" />
-    <SteadyState Duration="120" Power="0.63" />
-    <SteadyState Duration="120" Power="0.71" />
-    <SteadyState Duration="120" Power="0.57" />
-    <SteadyState Duration="60" Power="0.73" />
-    <SteadyState Duration="180" Power="0.66" />
-    <SteadyState Duration="180" Power="0.60" />
-    <SteadyState Duration="120" Power="0.75" />
-    <SteadyState Duration="120" Power="0.58" />
-    <SteadyState Duration="120" Power="0.70" />
-    <SteadyState Duration="240" Power="0.65" />
-    <Cooldown Duration="240" PowerLow="0.65" PowerHigh="0.45" />
+    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" Cadence="90">
+      <textevent timeoffset="90" message="Ease into the first glow—50-60% FTP, soft 88-90 rpm, shoulders unruffled." />
+    </Warmup>
+    <SteadyState Duration="120" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.68" Cadence="92" />
+    <SteadyState Duration="120" Power="0.58" Cadence="86" />
+    <SteadyState Duration="120" Power="0.72" Cadence="94" />
+    <SteadyState Duration="60" Power="0.90" Cadence="95" />
+    <SteadyState Duration="120" Power="0.65" Cadence="88" />
+    <SteadyState Duration="180" Power="0.55" Cadence="85" />
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="60" Power="0.80" Cadence="95" />
+    <SteadyState Duration="180" Power="0.62" Cadence="88" />
+    <SteadyState Duration="120" Power="0.74" Cadence="94" />
+    <SteadyState Duration="60" Power="0.59" Cadence="86" />
+    <SteadyState Duration="180" Power="0.68" Cadence="92" />
+    <SteadyState Duration="60" Power="0.95" Cadence="98" />
+    <SteadyState Duration="120" Power="0.63" Cadence="88" />
+    <SteadyState Duration="120" Power="0.71" Cadence="92" />
+    <SteadyState Duration="120" Power="0.57" Cadence="86" />
+    <SteadyState Duration="60" Power="0.73" Cadence="92" />
+    <SteadyState Duration="180" Power="0.66" Cadence="90" />
+    <SteadyState Duration="180" Power="0.60" Cadence="88" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" />
+    <SteadyState Duration="120" Power="0.58" Cadence="86" />
+    <SteadyState Duration="120" Power="0.70" Cadence="90" />
+    <SteadyState Duration="240" Power="0.65" Cadence="88" />
+    <Cooldown Duration="240" PowerLow="0.65" PowerHigh="0.45" Cadence="82" />
   </workout>
 </workout_file>

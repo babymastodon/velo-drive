@@ -1274,14 +1274,14 @@ async function initPage() {
     onWorkoutEnded: (info) => {
       const vm = engine.getViewModel();
       const finishedTitle = vm?.canonicalWorkout?.workoutTitle;
+      const historyDate = info?.endedAt || info?.startedAt || new Date();
       if (finishedTitle) {
-      const d = info?.startedAt || new Date();
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-        d.getDate(),
-      ).padStart(2, "0")}`;
+        const d = historyDate;
+        const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+          d.getDate(),
+        ).padStart(2, "0")}`;
         if (planner && typeof planner.removeScheduledByTitle === "function") {
           planner.removeScheduledByTitle(dateKey, finishedTitle);
-        } else {
         }
       }
       if (!planner) return;
@@ -1291,7 +1291,7 @@ async function initPage() {
         info.fileName &&
         typeof planner.openDetailByFile === "function"
       ) {
-        planner.openDetailByFile(info.fileName, info.startedAt);
+        planner.openDetailByFile(info.fileName, historyDate);
       }
     },
   });
