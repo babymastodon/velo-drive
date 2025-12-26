@@ -22,9 +22,9 @@
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90">
     </IntervalsT>
     <SteadyState Duration="240" Power="0.70" Cadence="92">
+      <textevent timeoffset="2265" duration="10" message="In 15s, threshold steps—3x3:00 at 100%, breathe deep, keep cadence clean." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="180" OffDuration="75" OnPower="1.00" OffPower="0.75" Cadence="96" CadenceResting="88">
-      <textevent timeoffset="2265" duration="10" message="In 15s, threshold steps—3x3:00 at 100%, breathe deep, keep cadence clean." />
     </IntervalsT>
     <Cooldown Duration="540" PowerLow="0.75" PowerHigh="0.45" Cadence="85">
       <textevent timeoffset="3210" duration="10" message="Let the darkness cool—fade to 45% FTP, long exhales, soft cadence." />
