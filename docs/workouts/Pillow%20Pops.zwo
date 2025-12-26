@@ -11,21 +11,21 @@
       <textevent timeoffset="60" duration="10" message="Melt into the pillow-soft warmup, 40-50% FTP, quiet 88-90 rpm." />
     </Warmup>
     <SteadyState Duration="480" Power="0.55" Cadence="88">
-      <textevent timeoffset="645" duration="10" message="In 15s, three gentle wake-ups—light 95 rpm taps, easy breath between." />
+      <textevent timeoffset="645" duration="10" message="Three gentle wake-ups—light 95 rpm taps, easy breath between." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="60" OffDuration="30" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
     </IntervalsT>
     <SteadyState Duration="300" Power="0.55" Cadence="88">
-      <textevent timeoffset="1215" duration="10" message="In 15s, two longer lifts—breeze up to low 80s FTP, keep it sleepy." />
+      <textevent timeoffset="1215" duration="10" message="Two longer lifts—breeze up to low 80s FTP, keep it sleepy." />
     </SteadyState>
     <IntervalsT Repeat="2" OnDuration="90" OffDuration="60" OnPower="0.80" OffPower="0.55" Cadence="92" CadenceResting="88">
     </IntervalsT>
     <SteadyState Duration="180" Power="0.55" Cadence="88">
-      <textevent timeoffset="1695" duration="10" message="In 15s, 3x20s sparkles—bright taps, then long, soft floats." />
+      <textevent timeoffset="1695" duration="10" message="3x20s sparkles—bright taps, then long, soft floats." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85" />
     <SteadyState Duration="300" Power="0.50" Cadence="85">
-      <textevent timeoffset="2325" duration="10" message="15s to cooldown—let the pillow settle, long exhales as power fades." />
+      <textevent timeoffset="2325" duration="10" message="Cooldown—let the pillow settle, long exhales as power fades." />
     </SteadyState>
     <Cooldown Duration="360" PowerLow="0.50" PowerHigh="0.40" Cadence="82" />
   </workout>
