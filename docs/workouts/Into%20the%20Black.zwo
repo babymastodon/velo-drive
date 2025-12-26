@@ -2,37 +2,32 @@
 <workout_file>
   <author>VeloDrive</author>
   <name>Into the Black</name>
-  <description><![CDATA[Step into a shadowy candyland where every effort is a different kind of enchanted treat. The ride begins on a gentle caramel ramp, smooth and sweet, before leading you toward the licorice winds—sharp, twirling bursts that test your courage. In the middle, the dark-chocolate climbs appear: rich, intense, and meant to be savored one breath at a time. As you near the end, the peppermint threshold path carries you home with a cool, steady glow. Into the black you go—where even the hardest places taste a little magical.]]></description>
+  <description><![CDATA[Step into a shadowed realm where pain feels strangely pure. The ride opens with a gentle ramp, then the licorice winds arrive—sharp, stinging bursts that make you hold your line. In the middle, the black-chocolate climbs press long and heavy, asking for patience and a steady breath. The last threshold path is cold and clean, a hard glow that guides you out of the dark.]]></description>
   <sportType>bike</sportType>
   <tags>
   </tags>
   <workout>
     <Warmup Duration="240" PowerLow="0.40" PowerHigh="0.65" Cadence="90">
-      <textevent timeoffset="120" message="Caramel ramp—sweet, smooth, soft 90 rpm as the legs wake." />
+      <textevent timeoffset="60" duration="10" message="Ease into the dark—ramp to 65% FTP, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="480" Power="0.80" Cadence="92">
-      <textevent timeoffset="420" message="Dark-chocolate climb ahead—hold tempo, breathe deep, polish the pedal stroke." />
     </SteadyState>
     <SteadyState Duration="165" Power="0.60" Cadence="88">
-      <textevent timeoffset="780" message="Drift in the shadows—shake the arms loose before the licorice winds." />
-      <textevent timeoffset="870" message="Licorice snaps—8x45s sharp bites, light hands, quick 100 rpm." />
+      <textevent timeoffset="870" duration="10" message="In 15s, licorice winds—8x45s at 120%, hold your line, quick 100 rpm." />
     </SteadyState>
     <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <SteadyState Duration="150" Power="0.65" Cadence="90">
-      <textevent timeoffset="1660" message="Sweet lull—mid-60s FTP, let the taste buds reset." />
-      <textevent timeoffset="1740" message="Peppermint shards—5x30s spikes, icy and sharp, then melt back." />
+      <textevent timeoffset="1725" duration="10" message="In 15s, peppermint shards—5x30s at 150%, sharp and cold, then melt back." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90">
-      <textevent timeoffset="2040" message="Dark chocolate groove—smooth 70% push, sit tall, 92 rpm glow." />
     </IntervalsT>
     <SteadyState Duration="240" Power="0.70" Cadence="92">
-      <textevent timeoffset="2280" message="Peppermint path home—3x3:00 at threshold glow, cool wind in the chest." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="180" OffDuration="75" OnPower="1.00" OffPower="0.75" Cadence="96" CadenceResting="88">
-      <textevent timeoffset="2820" message="Last drop into the black—hold form, 95-96 rpm, savor the finish." />
+      <textevent timeoffset="2265" duration="10" message="In 15s, threshold steps—3x3:00 at 100%, breathe deep, keep cadence clean." />
     </IntervalsT>
     <Cooldown Duration="540" PowerLow="0.75" PowerHigh="0.45" Cadence="85">
-      <textevent timeoffset="3180" message="Let the sweetness fade—slide from mid-70s toward 45% FTP, nightfall spin." />
+      <textevent timeoffset="3210" duration="10" message="Let the darkness cool—fade to 45% FTP, long exhales, soft cadence." />
     </Cooldown>
   </workout>
 </workout_file>
