@@ -8,30 +8,27 @@
   </tags>
   <workout>
     <Warmup Duration="210" PowerLow="0.50" PowerHigh="0.65" Cadence="90">
-      <textevent timeoffset="90" message="Slip into the drift—50-65% FTP, soft 88-90 rpm, shoulders loose." />
     </Warmup>
     <SteadyState Duration="120" Power="0.65" Cadence="88" />
     <SteadyState Duration="120" Power="0.75" Cadence="94" />
     <SteadyState Duration="120" Power="0.70" Cadence="90">
-      <textevent timeoffset="480" message="Find the lane—upper endurance, breath like a slow tide." />
     </SteadyState>
     <SteadyState Duration="120" Power="0.72" Cadence="92">
-      <textevent timeoffset="675" message="Quick crest—one sharp push, light hands, let it crest and fade." />
+      <textevent timeoffset="675" duration="10" message="In 15s, a quick crest—lift to ~105% with quiet hands, then drift back." />
     </SteadyState>
     <SteadyState Duration="60" Power="1.05" Cadence="100" />
     <SteadyState Duration="120" Power="0.65" Cadence="88" />
     <SteadyState Duration="180" Power="0.75" Cadence="94" />
     <SteadyState Duration="120" Power="0.70" Cadence="90">
-      <textevent timeoffset="1110" message="Drift back to tempo—smooth chain line, steady 90 rpm." />
+      <textevent timeoffset="1155" duration="10" message="Another rise in 15s—touch ~90%, keep the cadence smooth and airy." />
     </SteadyState>
     <SteadyState Duration="60" Power="0.90" Cadence="96" />
     <SteadyState Duration="180" Power="0.70" Cadence="90" />
     <SteadyState Duration="120" Power="0.75" Cadence="94">
-      <textevent timeoffset="1500" message="Last steady rise—touch mid-70s FTP, keep it silky." />
     </SteadyState>
     <SteadyState Duration="90" Power="0.59" Cadence="86" />
     <SteadyState Duration="60" Power="0.73" Cadence="92">
-      <textevent timeoffset="1665" message="Coast it out—fade from mid-60s toward 45% FTP, night-soft spin." />
+      <textevent timeoffset="1665" duration="10" message="15s to cooldown—let the drift settle, long exhales as power fades." />
     </SteadyState>
     <Cooldown Duration="120" PowerLow="0.65" PowerHigh="0.45" Cadence="82" />
   </workout>
