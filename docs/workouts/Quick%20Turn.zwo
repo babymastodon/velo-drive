@@ -10,19 +10,19 @@
     <Warmup Duration="120" PowerLow="0.45" PowerHigh="0.75" Cadence="90" >
     </Warmup>
     <SteadyState Duration="120" Power="0.75" Cadence="90" >
-      <textevent timeoffset="225" duration="10" message="In 15s, 2x90s at 85% with 50s steady—smooth cadence, tall posture." />
+      <textevent timeoffset="225" duration="10" message="2x90s at 85% with 50s steady—smooth cadence, tall posture." />
     </SteadyState>
     <IntervalsT Repeat="2" OnDuration="90" OffDuration="50" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.75" PowerHigh="0.85" Cadence="90" >
     </Warmup>
     <SteadyState Duration="280" Power="0.85" Cadence="96" >
-      <textevent timeoffset="845" duration="10" message="In 15s, 4x1:00 at 100% with 40s steady—quick legs, calm breath." />
+      <textevent timeoffset="845" duration="10" message="4x1:00 at 100% with 40s steady—quick legs, calm breath." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="40" OnPower="1.00" OffPower="0.80" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <IntervalsT Repeat="2" OnDuration="90" OffDuration="120" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="1665" duration="10" message="15s to cooldown—let the tempo unwind, long exhales to 45% FTP." />
+      <textevent timeoffset="1665" duration="10" message="Cooldown—let the tempo unwind, long exhales to 45% FTP." />
     </IntervalsT>
     <Cooldown Duration="120" PowerLow="0.75" PowerHigh="0.45" Cadence="85" >
     </Cooldown>
