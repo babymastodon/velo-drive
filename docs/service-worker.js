@@ -43,9 +43,12 @@ const PRECACHE_URLS = [
   "./velodrive.webmanifest",
 
   // Bundled default workouts
+  "./workouts/Airforge.zwo",
   "./workouts/Basefire%20Waves.zwo",
   "./workouts/Breath%20of%20Power.zwo",
+  "./workouts/Breath%20Spark.zwo",
   "./workouts/Crestline%20Endurance.zwo",
+  "./workouts/Deep%20Current.zwo",
   "./workouts/Endurance%20Drift.zwo",
   "./workouts/Endurance%20Espresso.zwo",
   "./workouts/Endure%20the%20Climb.zwo",
@@ -55,6 +58,7 @@ const PRECACHE_URLS = [
   "./workouts/Into%20the%20Black.zwo",
   "./workouts/Keep%20Turning.zwo",
   "./workouts/Long%20Rollers.zwo",
+  "./workouts/Lungfire.zwo",
   "./workouts/Lullaby%20Legs.zwo",
   "./workouts/Mellow%20Matchsticks.zwo",
   "./workouts/Open%20Road%20Pulse.zwo",
@@ -69,6 +73,7 @@ const PRECACHE_URLS = [
   "./workouts/Steel%20the%20Line.zwo",
   "./workouts/Steady%20Carousel.zwo",
   "./workouts/Velvet%20Cadence.zwo",
+  "./workouts/Windline.zwo",
 
   // Icons
   "./icons/logo_sq.svg",
