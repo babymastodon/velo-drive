@@ -382,11 +382,11 @@ export async function parseTrainerRoadPage() {
 // ---------- TrainerDay shared logic ----------
 
 /**
- * Convert TrainerDay segments into canonical [minutes, startPower, endPower].
- * TrainerDay segments are typically [minutes, startPct, endPct?].
+ * Convert TrainerDay segments into canonical [minutes, startPower, endPower, type?, cadenceRpm?].
+ * TrainerDay segments are typically [minutes, startPct, endPct?, cadence?, ...].
  *
  * @param {Array<any>} segments
- * @returns {Array<[number, number, number]>}
+ * @returns {Array<[number, number, number, (string?), (number?)]>}
  */
 function canonicalizeTrainerDaySegments(segments) {
   if (!Array.isArray(segments)) return [];
@@ -399,6 +399,11 @@ function canonicalizeTrainerDaySegments(segments) {
     const start = Number(seg[1]);
     const end =
       seg.length > 2 && seg[2] != null ? Number(seg[2]) : start;
+    const cadence =
+      seg.length > 3 && seg[3] != null ? Number(seg[3]) : null;
+    const cadenceRpm = Number.isFinite(cadence)
+      ? Math.round(cadence)
+      : null;
 
     if (
       Number.isFinite(minutes) &&
@@ -406,7 +411,11 @@ function canonicalizeTrainerDaySegments(segments) {
       Number.isFinite(start) &&
       Number.isFinite(end)
     ) {
-      out.push([minutes, start, end]);
+      if (cadenceRpm != null) {
+        out.push([minutes, start, end, null, cadenceRpm]);
+      } else {
+        out.push([minutes, start, end]);
+      }
     }
   }
 
