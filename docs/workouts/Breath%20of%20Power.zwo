@@ -11,7 +11,7 @@
       <textevent timeoffset="60" duration="10" message="Breathe the power in—float up to 75% FTP, 88-90 rpm, shoulders loose." />
     </Warmup>
     <SteadyState Duration="120" Power="0.75" Cadence="92" >
-      <textevent timeoffset="405" duration="10" message="15s to the first VO2 steps—set your breath, tall posture, light hands." />
+      <textevent timeoffset="405" duration="10" message="First VO2 steps—set your breath, tall posture, light hands." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
     </IntervalsT>
@@ -21,7 +21,7 @@
     <IntervalsT Repeat="3" OnDuration="150" OffDuration="90" OnPower="1.12" OffPower="0.72" Cadence="98" CadenceResting="90" >
     </IntervalsT>
     <SteadyState Duration="480" Power="0.60" Cadence="88" >
-      <textevent timeoffset="2265" duration="10" message="In 15s the 90s surges arrive—steady breath, clean cadence, brace for lift." />
+      <textevent timeoffset="2265" duration="10" message="90s surges arrive—steady breath, clean cadence, brace for lift." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="90" OffDuration="60" OnPower="1.08" OffPower="0.95" Cadence="96" CadenceResting="92" >
     </IntervalsT>
