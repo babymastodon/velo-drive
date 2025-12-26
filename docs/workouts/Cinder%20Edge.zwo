@@ -8,31 +8,25 @@
   </tags>
   <workout>
     <Warmup Duration="240" PowerLow="0.40" PowerHigh="0.80" Cadence="90" >
-      <textevent timeoffset="120" duration="10" message="Caramel ramp—sweet, smooth, soft 90 rpm as the legs wake." />
+      <textevent timeoffset="60" duration="10" message="Set the glow—smooth to 80%, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="300" Power="0.80" Cadence="92" >
-      <textevent timeoffset="353" duration="10" message="Dark-chocolate climb ahead—hold tempo, breathe deep, polish the pedal stroke." />
     </SteadyState>
     <SteadyState Duration="165" Power="0.60" Cadence="88" >
-      <textevent timeoffset="600" duration="10" message="Drift in the shadows—shake the arms loose before the licorice winds." />
-      <textevent timeoffset="690" duration="10" message="Licorice snaps—8x45s sharp bites, light hands, quick 100 rpm." />
+      <textevent timeoffset="690" duration="10" message="Edge snaps next—8x45s. Strike clean, quick feet, control the recoveries." />
     </SteadyState>
     <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <Warmup Duration="15" PowerLow="0.60" PowerHigh="0.65" />
     <SteadyState Duration="330" Power="0.65" Cadence="90" >
-      <textevent timeoffset="1561" duration="10" message="Sweet lull—mid-60s FTP, let the taste buds reset." />
-      <textevent timeoffset="1737" duration="10" message="Peppermint shards—5x30s spikes, icy and sharp, then melt back." />
+      <textevent timeoffset="1755" duration="10" message="Shatter set next—5x30s. Hold the line, then flash and return smooth." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
-      <textevent timeoffset="2055" duration="10" message="Dark chocolate groove—smooth 70% push, sit tall, 92 rpm glow." />
     </IntervalsT>
     <Warmup Duration="120" PowerLow="0.65" PowerHigh="0.75" />
     <SteadyState Duration="300" Power="0.75" Cadence="92" >
-      <textevent timeoffset="2471" duration="10" message="Peppermint path home—3x3:00 at threshold glow, cool wind in the chest." />
+      <textevent timeoffset="2475" duration="10" message="Cooldown next—stay tall, keep the cadence smooth, then let it fade." />
     </SteadyState>
     <Cooldown Duration="210" PowerLow="0.75" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="2537" duration="10" message="Let the sweetness fade—slide from mid-70s toward 45% FTP, nightfall spin." />
     </Cooldown>
-    <textevent timeoffset="2700" duration="10" message="Last drop into the black—hold form, 95-96 rpm, savor the finish." />
   </workout>
 </workout_file>
