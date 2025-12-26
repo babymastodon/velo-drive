@@ -1,6 +1,6 @@
 // workout-builder.js
 
-import { renderBuilderWorkoutGraph } from "./workout-chart.js";
+import { getScaledMaxY, renderBuilderWorkoutGraph } from "./workout-chart.js";
 import { createBuilderBackend } from "./builder-backend.js";
 import { formatDurationMinSec } from "./workout-metrics.js";
 import {
@@ -2466,7 +2466,17 @@ export function createWorkoutBuilder(options) {
 
     const ftp = getCurrentFtp() || 0;
     const safeFtp = ftp > 0 ? ftp : 200;
-    const maxY = Math.max(200, safeFtp * 2);
+    const maxTarget = (currentBlocks || []).reduce((max, block) => {
+      const segs = Array.isArray(block?.segments) ? block.segments : [];
+      return segs.reduce((segMax, seg) => {
+        const pStartRel = Number(seg?.pStartRel) || 0;
+        const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+        const p0 = pStartRel * safeFtp;
+        const p1 = pEndRel * safeFtp;
+        return Math.max(segMax, p0, p1);
+      }, max);
+    }, 0);
+    const maxY = getScaledMaxY({ftp: safeFtp, peak: maxTarget, minBase: 200});
     const timelineSec = Math.max(3600, totalSec || 0);
 
     let rampRegion = null;
