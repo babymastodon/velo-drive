@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Blackglass Gauntlet</name>
+  <description><![CDATA[Blackglass Gauntlet is a long corridor of shards: 3x3:30 awakenings, 7x45s snaps, 8x30s shards, another 7x45s, then a 4x3:00 grind at the end of the hall. The glass sings as you pass, and you do not flinch.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.40" PowerHigh="0.65" Cadence="90" >
+      <textevent timeoffset="120" duration="10" message="Caramel ramp—sweet, smooth, soft 90 rpm as the legs wake." />
+    </Warmup>
+    <SteadyState Duration="240" Power="0.80" Cadence="92" >
+      <textevent timeoffset="330" duration="10" message="Dark-chocolate climb ahead—hold tempo, breathe deep, polish the pedal stroke." />
+    </SteadyState>
+    <Cooldown Duration="120" PowerLow="0.80" PowerHigh="0.65" />
+    <SteadyState Duration="300" Power="0.65" />
+    <IntervalsT Repeat="3" OnDuration="210" OffDuration="60" OnPower="0.80" OffPower="0.55" />
+    <SteadyState Duration="300" Power="0.55" Cadence="88" >
+      <textevent timeoffset="1818" duration="10" message="Drift in the shadows—shake the arms loose before the licorice winds." />
+      <textevent timeoffset="1983" duration="10" message="Licorice snaps—8x45s sharp bites, light hands, quick 100 rpm." />
+    </SteadyState>
+    <Warmup Duration="60" PowerLow="0.55" PowerHigh="0.70" />
+    <SteadyState Duration="60" Power="0.70" />
+    <IntervalsT Repeat="7" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
+    <Warmup Duration="15" PowerLow="0.60" PowerHigh="0.65" />
+    <SteadyState Duration="540" Power="0.65" Cadence="90" >
+      <textevent timeoffset="2973" duration="10" message="Sweet lull—mid-60s FTP, let the taste buds reset." />
+      <textevent timeoffset="3261" duration="10" message="Peppermint shards—5x30s spikes, icy and sharp, then melt back." />
+    </SteadyState>
+    <IntervalsT Repeat="8" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
+      <textevent timeoffset="3600" duration="10" message="Dark chocolate groove—smooth 70% push, sit tall, 92 rpm glow." />
+    </IntervalsT>
+    <Warmup Duration="15" PowerLow="0.65" PowerHigh="0.70" />
+    <SteadyState Duration="510" Power="0.70" Cadence="92" >
+      <textevent timeoffset="4289" duration="10" message="Peppermint path home—3x3:00 at threshold glow, cool wind in the chest." />
+    </SteadyState>
+    <Cooldown Duration="60" PowerLow="0.70" PowerHigh="0.60" />
+    <SteadyState Duration="60" Power="0.60" />
+    <IntervalsT Repeat="7" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
+    <Cooldown Duration="120" PowerLow="0.60" PowerHigh="0.50" />
+    <SteadyState Duration="180" Power="0.50" />
+    <Warmup Duration="120" PowerLow="0.50" PowerHigh="0.60" />
+    <SteadyState Duration="150" Power="0.60" />
+    <IntervalsT Repeat="4" OnDuration="180" OffDuration="75" OnPower="0.80" OffPower="0.60" Cadence="96" CadenceResting="88" >
+      <textevent timeoffset="6165" duration="10" message="Last drop into the black—hold form, 95-96 rpm, savor the finish." />
+    </IntervalsT>
+    <Cooldown Duration="540" PowerLow="0.60" PowerHigh="0.45" Cadence="85" >
+      <textevent timeoffset="6780" duration="10" message="Let the sweetness fade—slide from mid-70s toward 45% FTP, nightfall spin." />
+    </Cooldown>
+  </workout>
+</workout_file>
