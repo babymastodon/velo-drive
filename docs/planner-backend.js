@@ -187,14 +187,16 @@ export function createPlannerBackend({
             ? parsed.samples[parsed.samples.length - 1]
             : null;
           const durationSecHint =
-            metaStarted && metaEnded
-              ? Math.max(
-                  1,
-                  Math.round(
-                    (metaEnded.getTime() - metaStarted.getTime()) / 1000,
-                  ),
-                )
-              : Math.max(1, Math.round(lastSample?.t || 0));
+            meta.totalTimerSec != null
+              ? Math.max(1, Math.round(meta.totalTimerSec))
+              : metaStarted && metaEnded
+                ? Math.max(
+                    1,
+                    Math.round(
+                      (metaEnded.getTime() - metaStarted.getTime()) / 1000,
+                    ),
+                  )
+                : Math.max(1, Math.round(lastSample?.t || 0));
 
           let metrics = null;
           if (
