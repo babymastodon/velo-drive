@@ -22,9 +22,9 @@
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="40" OnPower="1.00" OffPower="0.80" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <IntervalsT Repeat="2" OnDuration="90" OffDuration="120" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="1665" duration="10" message="15s to cooldown—let the tempo unwind, long exhales to 45% FTP." />
     </IntervalsT>
     <Cooldown Duration="120" PowerLow="0.75" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="1665" duration="10" message="15s to cooldown—let the tempo unwind, long exhales to 45% FTP." />
     </Cooldown>
   </workout>
 </workout_file>
