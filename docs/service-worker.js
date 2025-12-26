@@ -45,6 +45,7 @@ const PRECACHE_URLS = [
   // Bundled default workouts
   "./workouts/Airforge.zwo",
   "./workouts/Basefire%20Waves.zwo",
+  "./workouts/Ashen%20Surge.zwo",
   "./workouts/Breath%20of%20Power.zwo",
   "./workouts/Breath%20Spark.zwo",
   "./workouts/Crestline%20Endurance.zwo",
@@ -61,6 +62,10 @@ const PRECACHE_URLS = [
   "./workouts/Lungfire.zwo",
   "./workouts/Lullaby%20Legs.zwo",
   "./workouts/Mellow%20Matchsticks.zwo",
+  "./workouts/Blackglass%20Gauntlet.zwo",
+  "./workouts/Cinder%20Edge.zwo",
+  "./workouts/Nocturne%20Strain.zwo",
+  "./workouts/Obsidian%20Pulse.zwo",
   "./workouts/Open%20Road%20Pulse.zwo",
   "./workouts/Pillow%20Pops.zwo",
   "./workouts/Quick%20Turn.zwo",
