@@ -10,18 +10,18 @@
     <Warmup Duration="240" PowerLow="0.45" PowerHigh="0.70" Cadence="90" >
     </Warmup>
     <SteadyState Duration="165" Power="0.70" Cadence="90" >
-      <textevent timeoffset="390" duration="10" message="In 15s, tempo waves—smooth cadence, no spikes, tall posture." />
+      <textevent timeoffset="390" duration="10" message="Tempo waves—smooth cadence, no spikes, tall posture." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="180" OffDuration="90" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="1470" duration="10" message="15s to the ramp—lift to high tempo, keep the rhythm unbroken." />
+      <textevent timeoffset="1470" duration="10" message="Lift to high tempo, keep the rhythm unbroken." />
     </IntervalsT>
     <Warmup Duration="120" PowerLow="0.70" PowerHigh="0.80" Cadence="90" >
     </Warmup>
     <SteadyState Duration="240" Power="0.80" Cadence="96" >
-      <textevent timeoffset="1830" duration="10" message="In 15s, 5x1:00 at 95% with 45s steady—quick legs, calm breath." />
+      <textevent timeoffset="1830" duration="10" message="5x1:00 at 95% with 45s steady—quick legs, calm breath." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.95" OffPower="0.80" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="2355" duration="10" message="In 15s, 3x4:00 at 85% with 2:00 steady—lock into a patient rhythm." />
+      <textevent timeoffset="2355" duration="10" message="3x4:00 at 85% with 2:00 steady—lock into a patient rhythm." />
     </IntervalsT>
     <IntervalsT Repeat="3" OnDuration="240" OffDuration="120" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
@@ -29,8 +29,8 @@
     <IntervalsT Repeat="4" OnDuration="75" OffDuration="45" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <SteadyState Duration="120" Power="0.60" Cadence="90" >
-      <textevent timeoffset="3615" duration="10" message="In 15s, 4x75s at 85% with 45s steady—smooth pressure, quiet upper body." />
-      <textevent timeoffset="4215" duration="10" message="15s to cooldown—let the carousel slow, long exhales to 45% FTP." />
+      <textevent timeoffset="3615" duration="10" message="4x75s at 85% with 45s steady—smooth pressure, quiet upper body." />
+      <textevent timeoffset="4215" duration="10" message="Cooldown—let the carousel slow, long exhales to 45% FTP." />
     </SteadyState>
     <Cooldown Duration="270" PowerLow="0.60" PowerHigh="0.45" Cadence="85" />
   </workout>
