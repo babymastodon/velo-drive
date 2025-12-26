@@ -55,6 +55,18 @@ function getRawCadence(seg) {
   return null;
 }
 
+export function getScaledMaxY({ftp, peak, minBase = 200}) {
+  const ftpVal = Number(ftp) || 0;
+  const baseFtp = ftpVal > 0 ? ftpVal : DEFAULT_FTP;
+  const step = baseFtp > 0 ? baseFtp : 200;
+  let maxY = Math.max(minBase, baseFtp * 2);
+  const target = Number(peak) || 0;
+  while (target > 0 && maxY < target) {
+    maxY += step;
+  }
+  return maxY;
+}
+
 function ensureFreeridePatterns(svg) {
   if (!svg) return null;
   if (svg._freeridePatternIds) return svg._freeridePatternIds;
@@ -301,7 +313,11 @@ export function drawMiniHistoryChart({
       0
     )
   );
-  const maxY = Math.max(100, maxTarget, maxActual, ftp * 1.1);
+  const maxY = getScaledMaxY({
+    ftp,
+    peak: Math.max(maxTarget, maxActual),
+    minBase: 200,
+  });
 
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
 
@@ -475,10 +491,11 @@ export function drawPowerCurveChart({
   const maxDurRaw =
     maxDurationSec || (sorted.length ? sorted[sorted.length - 1].durSec || 1 : 1);
   const maxDur = Math.max(1, maxDurRaw * 1.1);
-  const maxPower = sorted.reduce(
+  const peakPower = sorted.reduce(
     (m, p) => Math.max(m, Math.abs(p.power || 0)),
-    Math.max(ftp * 2, 100),
+    0,
   );
+  const maxPower = getScaledMaxY({ftp, peak: peakPower, minBase: 200});
 
   const log = (v) => Math.log(Math.max(1, v));
   const logMin = log(1);
@@ -1162,7 +1179,15 @@ export function renderMiniWorkoutGraph(container, workout, currentFtp) {
 
 
   // Vertical scale: same logic as before
-  const maxY = Math.max(200, ftp * 2);
+  const maxTarget = rawSegments.reduce((max, seg) => {
+    const startPct = seg?.[1] || 0;
+    const endPct = seg?.[2] != null ? seg[2] : startPct;
+    const isFreeride = isFreeRideSegment(seg);
+    const p0 = (isFreeride ? FREERIDE_POWER_REL * 100 : startPct) * ftp * 0.01;
+    const p1 = (isFreeride ? FREERIDE_POWER_REL * 100 : endPct) * ftp * 0.01;
+    return Math.max(max, p0, p1);
+  }, 0);
+  const maxY = getScaledMaxY({ftp, peak: maxTarget, minBase: 200});
 
   // Draw workout segments
   renderSegmentsFromRaw({
@@ -1436,7 +1461,17 @@ export function renderBuilderWorkoutGraph(container, blocks, currentFtp, options
   bg.setAttribute("fill", "transparent");
   svg.appendChild(bg);
 
-  const maxY = Math.max(200, ftp * 2);
+  const maxTarget = (blocks || []).reduce((max, block) => {
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    return segs.reduce((segMax, seg) => {
+      const pStartRel = Number(seg?.pStartRel) || 0;
+      const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+      const p0 = pStartRel * ftp;
+      const p1 = pEndRel * ftp;
+      return Math.max(segMax, p0, p1);
+    }, max);
+  }, 0);
+  const maxY = getScaledMaxY({ftp, peak: maxTarget, minBase: 200});
   const gridStep = 100;
   const tickStepSec = 600;
   const hourStepSec = 3600;
@@ -1888,7 +1923,24 @@ export function drawWorkoutChart({
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
   svg.setAttribute("shape-rendering", "crispEdges");
 
-  const maxY = Math.max(200, ftp * 2);
+  const samples = liveSamples || [];
+  const maxTarget = (rawSegments || []).reduce((max, seg) => {
+    const startPct = seg?.[1] || 0;
+    const endPct = seg?.[2] != null ? seg[2] : startPct;
+    const isFreeride = isFreeRideSegment(seg);
+    const p0 = (isFreeride ? FREERIDE_POWER_REL * 100 : startPct) * ftp * 0.01;
+    const p1 = (isFreeride ? FREERIDE_POWER_REL * 100 : endPct) * ftp * 0.01;
+    return Math.max(max, p0, p1);
+  }, 0);
+  const maxLivePower = samples.reduce(
+    (max, s) => Math.max(max, Number(s?.power) || 0),
+    0,
+  );
+  const maxY = getScaledMaxY({
+    ftp,
+    peak: Math.max(maxTarget, maxLivePower, manualErgTarget || 0),
+    minBase: 200,
+  });
 
   // grid
   const step = 100;
@@ -1915,7 +1967,6 @@ export function drawWorkoutChart({
   }
 
   // horizontal span (seconds)
-  const samples = liveSamples || [];
   let totalFromStructure =
     rawSegments && rawSegments.length ? totalDurationSec(rawSegments) : 0;
 
