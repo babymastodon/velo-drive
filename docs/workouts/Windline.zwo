@@ -8,31 +8,29 @@
   </tags>
   <workout>
     <Warmup Duration="300" PowerLow="0.50" PowerHigh="0.75" Cadence="90" >
-      <textevent timeoffset="75" duration="10" message="Find the breath—easy rise to 40-75% FTP, 88-90 rpm, calm shoulders." />
+      <textevent timeoffset="60" duration="10" message="Find the windline—smooth to 75%, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="120" Power="0.75" Cadence="92" >
-      <textevent timeoffset="390" duration="10" message="First steady taste at ~75%—smooth pedals, settle the breath." />
+      <textevent timeoffset="405" duration="10" message="1:00 primers next—quick feet, calm breath." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="555" duration="10" message="VO2 steps start—4x1:00 at ~105% with 1:00 at ~90%, breathe tall." />
+      <textevent timeoffset="720" duration="10" message="Hit each 1:00 clean—quick feet, quiet hips, float the recoveries." />
     </IntervalsT>
     <SteadyState Duration="300" Power="0.60" Cadence="90" >
-      <textevent timeoffset="1100" duration="10" message="Reset to ~70%—steady nose breathing, prep for longer pulls." />
+      <textevent timeoffset="1185" duration="10" message="3x4:00 pulls next—stay tall, steady pressure." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="240" OffDuration="180" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
-      <textevent timeoffset="1692" duration="10" message="Three 2:30 efforts near 112%—stay composed, in through the nose, out long." />
+      <textevent timeoffset="1560" duration="10" message="Hold each 4:00—smooth power on, calm reset off." />
     </IntervalsT>
     <SteadyState Duration="120" Power="0.60" Cadence="88" >
-      <textevent timeoffset="2520" duration="10" message="Ease to ~60%—let HR drift down, keep legs awake at 88-90 rpm." />
+      <textevent timeoffset="2565" duration="10" message="Final 4x90s next—quick legs, steady breath." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="90" OffDuration="120" OnPower="1.05" OffPower="0.80" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="3045" duration="10" message="Final block: 4x90s ~108% / 60s ~95%—hold form, light grip." />
+      <textevent timeoffset="3120" duration="10" message="4x90s on—stay smooth, float the 2:00 recoveries." />
     </IntervalsT>
     <SteadyState Duration="750" Power="0.70" Cadence="94" >
-      <textevent timeoffset="4005" duration="10" message="Long settle at ~80%—smooth, strong, controlled breathing guides the power." />
+      <textevent timeoffset="4110" duration="10" message="Cooldown next—let the wind ease, long exhales." />
     </SteadyState>
-    <Cooldown Duration="330" PowerLow="0.70" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="4170" duration="10" message="Cooldown flow—fade from mid-60s to mid-40s FTP, easy 85 rpm, exhale long." />
-    </Cooldown>
+    <Cooldown Duration="330" PowerLow="0.70" PowerHigh="0.45" Cadence="85" />
   </workout>
 </workout_file>
