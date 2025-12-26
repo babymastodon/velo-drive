@@ -8,32 +8,29 @@
   </tags>
   <workout>
     <Warmup Duration="240" PowerLow="0.45" PowerHigh="0.70" Cadence="90" >
-      <textevent timeoffset="0" duration="10" message="Roll in smooth—45-70% FTP, easy 88-90 rpm, relax the grip." />
     </Warmup>
     <SteadyState Duration="165" Power="0.70" Cadence="90" >
-      <textevent timeoffset="309" duration="10" message="First tempo settle—around 70%, steady breath, tall posture." />
+      <textevent timeoffset="390" duration="10" message="In 15s, tempo waves—smooth cadence, no spikes, tall posture." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="180" OffDuration="90" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="420" duration="10" message="Three tempo waves: 3:00 at ~82%, 90s at ~75—smooth, no spikes." />
+      <textevent timeoffset="1470" duration="10" message="15s to the ramp—lift to high tempo, keep the rhythm unbroken." />
     </IntervalsT>
     <Warmup Duration="120" PowerLow="0.70" PowerHigh="0.80" Cadence="90" >
-      <textevent timeoffset="1485" duration="10" message="Lift to high tempo—ramp 75→88%, keep cadence light." />
     </Warmup>
     <SteadyState Duration="240" Power="0.80" Cadence="96" >
-      <textevent timeoffset="1605" duration="10" message="Hold ~88%—controlled breathing, 94-96 rpm, elbows soft." />
+      <textevent timeoffset="1830" duration="10" message="In 15s, 5x1:00 at 95% with 45s steady—quick legs, calm breath." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="45" OnPower="0.95" OffPower="0.80" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="1860" duration="10" message="4x1:00 near 94% with 45s at 82%—quick legs, calm mind." />
+      <textevent timeoffset="2355" duration="10" message="In 15s, 3x4:00 at 85% with 2:00 steady—lock into a patient rhythm." />
     </IntervalsT>
     <IntervalsT Repeat="3" OnDuration="240" OffDuration="120" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="2382" duration="10" message="Pair of 5:00 steadies at ~87% with 2:00 ease—lock in rhythm." />
     </IntervalsT>
     <IntervalsT Repeat="2" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.60" />
     <IntervalsT Repeat="4" OnDuration="75" OffDuration="45" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="3645" duration="10" message="Final 3x75s at ~90%, 45s at ~78%—last bit of snap, stay smooth." />
+      <textevent timeoffset="3615" duration="10" message="In 15s, 4x75s at 85% with 45s steady—smooth pressure, quiet upper body." />
     </IntervalsT>
     <SteadyState Duration="120" Power="0.60" Cadence="90" >
-      <textevent timeoffset="4125" duration="10" message="Cool down—fade from ~70 to mid-40s FTP, long exhales." />
+      <textevent timeoffset="4215" duration="10" message="15s to cooldown—let the carousel slow, long exhales to 45% FTP." />
     </SteadyState>
     <Cooldown Duration="270" PowerLow="0.60" PowerHigh="0.45" Cadence="85" />
   </workout>
