@@ -8,7 +8,6 @@
   </tags>
   <workout>
     <Warmup Duration="180" PowerLow="0.45" PowerHigh="0.70" Cadence="90" >
-      <textevent timeoffset="30" duration="10" message="Roll in smooth—45-70% FTP, easy 88-90 rpm, relax the grip." />
     </Warmup>
     <SteadyState Duration="180" Power="0.70" Cadence="90" >
       <textevent timeoffset="345" duration="10" message="Tempo waves—smooth cadence, no spikes, tall posture." />

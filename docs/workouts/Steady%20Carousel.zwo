@@ -25,11 +25,12 @@
     </IntervalsT>
     <IntervalsT Repeat="3" OnDuration="240" OffDuration="120" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
-    <IntervalsT Repeat="2" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.60" />
+    <IntervalsT Repeat="2" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.60" >
+      <textevent timeoffset="3615" duration="10" message="4x75s at 85% with 45s steady—smooth pressure, quiet upper body." />
+    </IntervalsT>
     <IntervalsT Repeat="4" OnDuration="75" OffDuration="45" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <SteadyState Duration="120" Power="0.60" Cadence="90" >
-      <textevent timeoffset="3615" duration="10" message="4x75s at 85% with 45s steady—smooth pressure, quiet upper body." />
       <textevent timeoffset="4215" duration="10" message="Cooldown—let the carousel slow, long exhales to 45% FTP." />
     </SteadyState>
     <Cooldown Duration="270" PowerLow="0.60" PowerHigh="0.45" Cadence="85" />
