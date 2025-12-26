@@ -11,25 +11,25 @@
       <textevent timeoffset="30" duration="10" message="Roll in smooth—45-70% FTP, easy 88-90 rpm, relax the grip." />
     </Warmup>
     <SteadyState Duration="180" Power="0.70" Cadence="90" >
-      <textevent timeoffset="345" duration="10" message="In 15s, tempo waves—smooth cadence, no spikes, tall posture." />
+      <textevent timeoffset="345" duration="10" message="Tempo waves—smooth cadence, no spikes, tall posture." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="90" OffDuration="50" OnPower="0.85" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.70" PowerHigh="0.85" Cadence="90" >
     </Warmup>
     <SteadyState Duration="120" Power="0.85" Cadence="96" >
-      <textevent timeoffset="945" duration="10" message="In 15s, 4x1:00 at 100% with 45s steady—quick legs, calm breath." />
+      <textevent timeoffset="945" duration="10" message="4x1:00 at 100% with 45s steady—quick legs, calm breath." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="45" OnPower="1.00" OffPower="0.80" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="1365" duration="10" message="In 15s, 2x3:30 at 85% with 2:00 steady—velvet smooth, even breath." />
+      <textevent timeoffset="1365" duration="10" message="2x3:30 at 85% with 2:00 steady—velvet smooth, even breath." />
     </IntervalsT>
     <IntervalsT Repeat="2" OnDuration="210" OffDuration="120" OnPower="0.85" OffPower="0.75" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="2025" duration="10" message="In 15s, 3x75s at 95% with 45s steady—keep the pressure smooth." />
+      <textevent timeoffset="2025" duration="10" message="3x75s at 95% with 45s steady—keep the pressure smooth." />
     </IntervalsT>
     <IntervalsT Repeat="3" OnDuration="75" OffDuration="45" OnPower="0.95" OffPower="0.78" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <SteadyState Duration="120" Power="0.70" Cadence="90" >
-      <textevent timeoffset="2415" duration="10" message="15s to cooldown—let the rhythm loosen, long exhales to 45% FTP." />
+      <textevent timeoffset="2415" duration="10" message="Cooldown—let the rhythm loosen, long exhales to 45% FTP." />
     </SteadyState>
     <Cooldown Duration="180" PowerLow="0.70" PowerHigh="0.45" Cadence="85" />
   </workout>
