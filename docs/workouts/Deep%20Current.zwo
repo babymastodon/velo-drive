@@ -8,19 +8,19 @@
   </tags>
   <workout>
     <Warmup Duration="300" PowerLow="0.50" PowerHigh="0.75" Cadence="90" >
-      <textevent timeoffset="75" duration="10" message="Find the breath—easy rise to 40-75% FTP, 88-90 rpm, calm shoulders." />
+      <textevent timeoffset="60" duration="10" message="Sink into the current—smooth to 75%, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="120" Power="0.75" Cadence="92" >
-      <textevent timeoffset="390" duration="10" message="First steady taste at ~75%—smooth pedals, settle the breath." />
+      <textevent timeoffset="405" duration="10" message="VO2 openers next—4x1:00 on, 1:00 float. Keep the breath deep." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="555" duration="10" message="VO2 steps start—4x1:00 at ~105% with 1:00 at ~90%, breathe tall." />
+      <textevent timeoffset="720" duration="10" message="Hit each 1:00 clean—quick feet, quiet hips, float the recoveries." />
     </IntervalsT>
     <SteadyState Duration="360" Power="0.60" Cadence="90" >
-      <textevent timeoffset="1140" duration="10" message="Reset to ~70%—steady nose breathing, prep for longer pulls." />
+      <textevent timeoffset="1245" duration="10" message="Longer grinders next—3x5:00. Stay smooth and controlled." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="300" OffDuration="300" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
-      <textevent timeoffset="1950" duration="10" message="Three 2:30 efforts near 112%—stay composed, in through the nose, out long." />
+      <textevent timeoffset="1860" duration="10" message="Hold the current—3x5:00 at ~110%, steady breath through the surge." />
     </IntervalsT>
     <Cooldown Duration="60" PowerLow="0.60" PowerHigh="0.50" />
     <SteadyState Duration="60" Power="0.50" />
@@ -32,20 +32,22 @@
     <SteadyState Duration="60" Power="0.50" />
     <Warmup Duration="60" PowerLow="0.50" PowerHigh="0.60" />
     <SteadyState Duration="300" Power="0.60" Cadence="88" >
-      <textevent timeoffset="4350" duration="10" message="Ease to ~60%—let HR drift down, keep legs awake at 88-90 rpm." />
+      <textevent timeoffset="4485" duration="10" message="Set up the 2:00s—reset posture, keep the cadence light." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="120" OffDuration="120" OnPower="1.05" OffPower="0.70" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="5040" duration="10" message="Final block: 4x90s ~108% / 60s ~95%—hold form, light grip." />
+      <textevent timeoffset="4800" duration="10" message="4x2:00 steadies—smooth power, even breathing, stay tall." />
     </IntervalsT>
     <Cooldown Duration="120" PowerLow="0.70" PowerHigh="0.60" />
-    <SteadyState Duration="480" Power="0.60" />
-    <IntervalsT Repeat="3" OnDuration="40" OffDuration="60" OnPower="1.35" OffPower="0.50" />
+    <SteadyState Duration="480" Power="0.60" >
+      <textevent timeoffset="6045" duration="10" message="40s spikes next—3 sharp pushes. Stay smooth so each one lands." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="40" OffDuration="60" OnPower="1.35" OffPower="0.50" >
+      <textevent timeoffset="6345" duration="10" message="Spikes are on—keep form sharp, then release back to the flow." />
+    </IntervalsT>
     <Warmup Duration="120" PowerLow="0.50" PowerHigh="0.60" />
     <SteadyState Duration="420" Power="0.60" Cadence="94" >
-      <textevent timeoffset="6808" duration="10" message="Long settle at ~80%—smooth, strong, controlled breathing guides the power." />
+      <textevent timeoffset="6885" duration="10" message="Cooldown next—let the current slow, long exhales, easy 85 rpm." />
     </SteadyState>
-    <Cooldown Duration="300" PowerLow="0.60" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="6900" duration="10" message="Cooldown flow—fade from mid-60s to mid-40s FTP, easy 85 rpm, exhale long." />
-    </Cooldown>
+    <Cooldown Duration="300" PowerLow="0.60" PowerHigh="0.45" Cadence="85" />
   </workout>
 </workout_file>
