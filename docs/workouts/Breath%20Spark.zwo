@@ -8,26 +8,21 @@
   </tags>
   <workout>
     <Warmup Duration="180" PowerLow="0.50" PowerHigh="0.80" Cadence="90" >
-      <textevent timeoffset="45" duration="10" message="Find the breath—easy rise to 40-75% FTP, 88-90 rpm, calm shoulders." />
+      <textevent timeoffset="60" duration="10" message="Light the match—smooth to 80%, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="120" Power="0.80" Cadence="92" >
-      <textevent timeoffset="270" duration="10" message="First steady taste at ~75%—smooth pedals, settle the breath." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="435" duration="10" message="VO2 steps start—4x1:00 at ~105% with 1:00 at ~90%, breathe tall." />
+      <textevent timeoffset="360" duration="10" message="Hit the 1:00 on efforts clean—quick feet, calm breath, float the 1:00 recoveries." />
     </IntervalsT>
     <SteadyState Duration="180" Power="0.60" Cadence="90" >
-      <textevent timeoffset="780" duration="10" message="Reset to ~70%—steady nose breathing, prep for longer pulls." />
+      <textevent timeoffset="825" duration="10" message="Longer pulls next—2x5:00. Stay smooth now so you can hold the line." />
     </SteadyState>
     <IntervalsT Repeat="2" OnDuration="300" OffDuration="120" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
-      <textevent timeoffset="1350" duration="10" message="Three 2:30 efforts near 112%—stay composed, in through the nose, out long." />
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.60" PowerHigh="0.70" />
     <Cooldown Duration="60" PowerLow="0.70" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="1740" duration="10" message="Cooldown flow—fade from mid-60s to mid-40s FTP, easy 85 rpm, exhale long." />
-      <textevent timeoffset="1746" duration="10" message="Ease to ~60%—let HR drift down, keep legs awake at 88-90 rpm." />
+      <textevent timeoffset="1740" duration="10" message="Cooldown—long exhales, soft spin, let the spark fade." />
     </Cooldown>
-    <textevent timeoffset="1800" duration="10" message="Final block: 4x90s ~108% / 60s ~95%—hold form, light grip." />
-    <textevent timeoffset="1800" duration="10" message="Long settle at ~80%—smooth, strong, controlled breathing guides the power." />
   </workout>
 </workout_file>
