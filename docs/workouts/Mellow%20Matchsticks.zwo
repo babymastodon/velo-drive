@@ -11,12 +11,12 @@
       <textevent timeoffset="60" duration="10" message="Let the glow build—40-55% FTP, soft 88-90 rpm, shoulders quiet." />
     </Warmup>
     <SteadyState Duration="300" Power="0.55" Cadence="88">
-      <textevent timeoffset="465" duration="10" message="In 15s, four 1-min flickers—quick feet, easy breath between." />
+      <textevent timeoffset="465" duration="10" message="Four 1-min flickers—quick feet, easy breath between." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="30" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
     </IntervalsT>
     <SteadyState Duration="240" Power="0.55" Cadence="88">
-      <textevent timeoffset="1065" duration="10" message="In 15s, three firefly pops—20s bright, then long, gentle floats." />
+      <textevent timeoffset="1065" duration="10" message="Three firefly pops—20s bright, then long, gentle floats." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.05" OffPower="0.40" Cadence="100" CadenceResting="85">
     </IntervalsT>
