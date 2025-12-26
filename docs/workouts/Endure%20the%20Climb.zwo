@@ -8,33 +8,36 @@
   </tags>
   <workout>
     <Warmup Duration="240" PowerLow="0.50" PowerHigh="0.90" Cadence="90" >
-      <textevent timeoffset="60" duration="10" message="Ease into the rise—50-90% ramp, 88-90 rpm, calm shoulders." />
+      <textevent timeoffset="60" duration="10" message="Set the climb rhythm—smooth to 90%, quiet shoulders, steady 88–90 rpm." />
     </Warmup>
     <SteadyState Duration="60" Power="0.90" Cadence="94" />
     <SteadyState Duration="240" Power="0.65" Cadence="92" >
-      <textevent timeoffset="384" duration="10" message="Settle at ~65%—smooth breaths, odds shifting your way already." />
+      <textevent timeoffset="525" duration="10" message="First 5:00 climbs next—stay tall, breathe deep, even pressure." />
     </SteadyState>
     <Warmup Duration="60" PowerLow="0.65" PowerHigh="0.90" />
     <IntervalsT Repeat="4" OnDuration="300" OffDuration="300" OnPower="0.90" OffPower="0.65" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="735" duration="10" message="First trio: 3x5:00 near 95% with 3:00 at 70%—steady, unflinching." />
-      <textevent timeoffset="1965" duration="10" message="Hold ~82%—compose the breath, keep the wheel straight and true." />
-      <textevent timeoffset="2175" duration="10" message="Two long bets: 7:00 near 95% with 2:30 at ~75%—odds swing your way." />
+      <textevent timeoffset="1260" duration="10" message="Hold the line through all 4x5:00—smooth power on, calm reset off." />
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.65" PowerHigh="0.75" />
     <SteadyState Duration="300" Power="0.75" Cadence="94" />
     <IntervalsT Repeat="2" OnDuration="480" OffDuration="360" OnPower="0.95" OffPower="0.75" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="4092" duration="10" message="Last steady at ~78%—proof in the legs, breath stays tall." />
-      <textevent timeoffset="4860" duration="10" message="Cooldown—fade toward 45% FTP, exhale the work, odds conquered." />
+      <textevent timeoffset="3375" duration="10" message="Two long 8:00 climbs—keep cadence steady and breathing deep." />
     </IntervalsT>
     <Cooldown Duration="120" PowerLow="0.75" PowerHigh="0.55" />
     <SteadyState Duration="300" Power="0.55" />
-    <IntervalsT Repeat="3" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.55" />
+    <IntervalsT Repeat="3" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.55" >
+      <textevent timeoffset="5460" duration="10" message="Sharp 30s surges—snap the legs, then return smooth." />
+    </IntervalsT>
     <SteadyState Duration="180" Power="0.55" />
     <SteadyState Duration="240" Power="0.80" />
     <SteadyState Duration="180" Power="0.55" />
-    <IntervalsT Repeat="3" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.55" />
+    <IntervalsT Repeat="3" OnDuration="30" OffDuration="60" OnPower="1.10" OffPower="0.55" >
+      <textevent timeoffset="6330" duration="10" message="Final 30s surges—stay tall and precise, then release." />
+    </IntervalsT>
     <SteadyState Duration="120" Power="0.55" />
     <Warmup Duration="120" PowerLow="0.55" PowerHigh="0.70" />
-    <Cooldown Duration="360" PowerLow="0.70" PowerHigh="0.55" Cadence="85" />
+    <Cooldown Duration="360" PowerLow="0.70" PowerHigh="0.55" Cadence="85" >
+      <textevent timeoffset="7185" duration="10" message="Cooldown—let the climb fade, long exhales, easy 85 rpm." />
+    </Cooldown>
   </workout>
 </workout_file>
