@@ -50,6 +50,12 @@ const statHrEl = document.getElementById("stat-hr");
 const statTargetPowerEl = document.getElementById("stat-target-power");
 const statElapsedTimeEl = document.getElementById("stat-elapsed-time");
 const statCadenceEl = document.getElementById("stat-cadence");
+const statCadenceIndicatorEl = document.getElementById(
+  "stat-cadence-indicator",
+);
+let cadenceOutSeconds = 0;
+let cadenceOutDirection = null;
+let lastCadenceElapsedSec = null;
 
 const chartSvg = document.getElementById("chartSvg");
 const chartPanel = document.getElementById("chartPanel");
@@ -361,6 +367,61 @@ function getSegmentAtTime(rawSegments, tSec) {
   return null;
 }
 
+function getCurrentCadenceTarget(vm) {
+  const raws = vm?.canonicalWorkout?.rawSegments;
+  if (!Array.isArray(raws) || !raws.length) return null;
+  const t = vm.workoutRunning || vm.elapsedSec > 0 ? vm.elapsedSec : 0;
+  const seg = getSegmentAtTime(raws, t);
+  if (!seg || seg.isFreeRide) return null;
+  if (!Number.isFinite(seg.cadenceRpm)) return null;
+  return Math.round(seg.cadenceRpm);
+}
+
+function updateCadenceOutOfBoundsState(vm) {
+  const canTrack =
+    vm &&
+    vm.workoutRunning &&
+    !vm.workoutPaused &&
+    !vm.workoutStarting;
+  if (!canTrack) {
+    cadenceOutSeconds = 0;
+    cadenceOutDirection = null;
+    lastCadenceElapsedSec = null;
+    return { seconds: cadenceOutSeconds, direction: cadenceOutDirection };
+  }
+  const elapsed = Math.max(0, vm.elapsedSec || 0);
+  const cadenceTarget = getCurrentCadenceTarget(vm);
+  const cadenceActual = Number.isFinite(vm.lastSampleCadence)
+    ? Math.round(vm.lastSampleCadence)
+    : null;
+  let nextDirection = null;
+  if (cadenceTarget != null && cadenceActual != null) {
+    if (cadenceActual > cadenceTarget + 5) nextDirection = "fast";
+    if (cadenceActual < cadenceTarget - 5) nextDirection = "slow";
+  }
+  if (lastCadenceElapsedSec == null) {
+    lastCadenceElapsedSec = elapsed;
+    cadenceOutSeconds = nextDirection ? 1 : 0;
+    cadenceOutDirection = nextDirection;
+    return { seconds: cadenceOutSeconds, direction: cadenceOutDirection };
+  }
+  if (elapsed > lastCadenceElapsedSec) {
+    const delta = Math.max(1, elapsed - lastCadenceElapsedSec);
+    if (!nextDirection) {
+      cadenceOutSeconds = 0;
+      cadenceOutDirection = null;
+    } else if (cadenceOutDirection && cadenceOutDirection !== nextDirection) {
+      cadenceOutSeconds = delta;
+      cadenceOutDirection = nextDirection;
+    } else {
+      cadenceOutSeconds += delta;
+      cadenceOutDirection = nextDirection;
+    }
+    lastCadenceElapsedSec = elapsed;
+  }
+  return { seconds: cadenceOutSeconds, direction: cadenceOutDirection };
+}
+
 function buildSegmentDescriptionParts(vm, segInfo, { prefix = "" } = {}) {
   if (!segInfo) return [{ text: vm.canonicalWorkout?.workoutTitle || "Workout" }];
   const ftp = vm.currentFtp || DEFAULT_FTP;
@@ -457,29 +518,45 @@ function updateWorkoutTitleUI(vm) {
 
   if (workoutTitleCenter) {
     if (vm.workoutRunning || vm.workoutStarting) {
+      if (vm.workoutPaused || vm.workoutStarting) {
+        cadenceOutSeconds = 0;
+        cadenceOutDirection = null;
+        lastCadenceElapsedSec = null;
+      }
       workoutTitleCenter.style.display = "block";
 
       if (vm.workoutRunning && !vm.workoutPaused && cw?.rawSegments?.length) {
-        const elapsed = Math.max(0, vm.elapsedSec || 0);
-        const currentSeg = getSegmentAtTime(cw.rawSegments, elapsed);
-        let targetSeg = currentSeg;
-        let prefix = "";
-        if (currentSeg) {
-          const remaining = currentSeg.endTimeSec - elapsed;
-          if (currentSeg.durationSec >= 20 && remaining <= 10) {
-            const nextSeg = getSegmentAtTime(
-              cw.rawSegments,
-              currentSeg.endTimeSec + 0.1,
-            );
-            if (nextSeg) {
-              targetSeg = nextSeg;
-              const remainingSec = Math.max(1, Math.ceil(remaining));
-              prefix = `In ${remainingSec} - `;
+        const cadenceTarget = getCurrentCadenceTarget(vm);
+        const cadenceState = updateCadenceOutOfBoundsState(vm);
+        if (
+          cadenceTarget != null &&
+          cadenceState.seconds >= 5 &&
+          cadenceState.direction
+        ) {
+          const verb = cadenceState.direction === "slow" ? "Speed up" : "Slow down";
+          workoutTitleCenter.textContent = `${verb} - target ${cadenceTarget} RPM`;
+        } else {
+          const elapsed = Math.max(0, vm.elapsedSec || 0);
+          const currentSeg = getSegmentAtTime(cw.rawSegments, elapsed);
+          let targetSeg = currentSeg;
+          let prefix = "";
+          if (currentSeg) {
+            const remaining = currentSeg.endTimeSec - elapsed;
+            if (currentSeg.durationSec >= 20 && remaining <= 10) {
+              const nextSeg = getSegmentAtTime(
+                cw.rawSegments,
+                currentSeg.endTimeSec + 0.1,
+              );
+              if (nextSeg) {
+                targetSeg = nextSeg;
+                const remainingSec = Math.max(1, Math.ceil(remaining));
+                prefix = `In ${remainingSec} - `;
+              }
             }
           }
+          const parts = buildSegmentDescriptionParts(vm, targetSeg, { prefix });
+          renderTitleParts(workoutTitleCenter, parts);
         }
-        const parts = buildSegmentDescriptionParts(vm, targetSeg, { prefix });
-        renderTitleParts(workoutTitleCenter, parts);
       } else {
         const name = cw?.workoutTitle || cw?.name || "Workout running";
         workoutTitleCenter.textContent = name;
@@ -721,10 +798,27 @@ function updateStatsDisplay(vm) {
   statHrEl.textContent =
     vm.lastSampleHr != null ? String(Math.round(vm.lastSampleHr)) : "--";
 
+  const cadenceActual = Number.isFinite(vm.lastSampleCadence)
+    ? Math.round(vm.lastSampleCadence)
+    : null;
   statCadenceEl.textContent =
-    vm.lastSampleCadence != null
-      ? String(Math.round(vm.lastSampleCadence))
-      : "--";
+    cadenceActual != null ? String(cadenceActual) : "--";
+
+  if (statCadenceIndicatorEl) {
+    const cadenceTarget = getCurrentCadenceTarget(vm);
+    let indicator = "";
+    if (cadenceActual != null && cadenceTarget != null) {
+      const delta = cadenceActual - cadenceTarget;
+      if (Math.abs(delta) > 5) {
+        indicator = delta > 0 ? "▾" : "▴";
+      }
+    }
+    statCadenceIndicatorEl.textContent = indicator;
+    statCadenceIndicatorEl.classList.toggle(
+      "stat-cadence-indicator--visible",
+      !!indicator,
+    );
+  }
 
   if (statElapsedTimeEl) {
     statElapsedTimeEl.textContent = formatTimeHHMMSS(vm.elapsedSec || 0);
