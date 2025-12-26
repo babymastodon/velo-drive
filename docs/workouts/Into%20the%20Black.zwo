@@ -13,16 +13,16 @@
     <SteadyState Duration="480" Power="0.80" Cadence="92">
     </SteadyState>
     <SteadyState Duration="165" Power="0.60" Cadence="88">
-      <textevent timeoffset="870" duration="10" message="In 15s, licorice winds—8x45s at 120%, hold your line, quick 100 rpm." />
+      <textevent timeoffset="870" duration="10" message="Licorice winds—8x45s at 120%, hold your line, quick 100 rpm." />
     </SteadyState>
     <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <SteadyState Duration="150" Power="0.65" Cadence="90">
-      <textevent timeoffset="1725" duration="10" message="In 15s, peppermint shards—5x30s at 150%, sharp and cold, then melt back." />
+      <textevent timeoffset="1725" duration="10" message="Peppermint shards—5x30s at 150%, sharp and cold, then melt back." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90">
     </IntervalsT>
     <SteadyState Duration="240" Power="0.70" Cadence="92">
-      <textevent timeoffset="2265" duration="10" message="In 15s, threshold steps—3x3:00 at 100%, breathe deep, keep cadence clean." />
+      <textevent timeoffset="2265" duration="10" message="Threshold steps—3x3:00 at 100%, breathe deep, keep cadence clean." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="180" OffDuration="75" OnPower="1.00" OffPower="0.75" Cadence="96" CadenceResting="88">
     </IntervalsT>
