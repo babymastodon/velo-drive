@@ -8,23 +8,18 @@
   </tags>
   <workout>
     <Warmup Duration="180" PowerLow="0.50" PowerHigh="1.00" Cadence="90" >
-      <textevent timeoffset="45" duration="10" message="Ease into the rise—50-90% ramp, 88-90 rpm, calm shoulders." />
+      <textevent timeoffset="60" duration="10" message="Set your line—smooth to 100%, quiet shoulders, steady 88–90 rpm." />
     </Warmup>
     <SteadyState Duration="60" Power="1.00" Cadence="94" />
-    <IntervalsT Repeat="2" OnDuration="90" OffDuration="210" OnPower="0.80" OffPower="1.00" Cadence="92" CadenceResting="96" >
-      <textevent timeoffset="272" duration="10" message="Settle at ~65%—smooth breaths, odds shifting your way already." />
-      <textevent timeoffset="425" duration="10" message="First trio: 3x5:00 near 95% with 3:00 at 70%—steady, unflinching." />
-    </IntervalsT>
+    <IntervalsT Repeat="2" OnDuration="90" OffDuration="210" OnPower="0.80" OffPower="1.00" Cadence="92" CadenceResting="96" />
     <SteadyState Duration="90" Power="0.80" Cadence="92" >
-      <textevent timeoffset="863" duration="10" message="Two long bets: 7:00 near 95% with 2:30 at ~75%—odds swing your way." />
-      <textevent timeoffset="890" duration="10" message="Hold ~82%—compose the breath, keep the wheel straight and true." />
+      <textevent timeoffset="915" duration="10" message="2x4:00 at threshold next—stay tall, breathe deep, hold the line." />
     </SteadyState>
     <Warmup Duration="30" PowerLow="0.80" PowerHigh="0.85" />
     <SteadyState Duration="60" Power="0.85" Cadence="94" />
-    <IntervalsT Repeat="2" OnDuration="240" OffDuration="90" OnPower="1.00" OffPower="0.85" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="1323" duration="10" message="Last steady at ~78%—proof in the legs, breath stays tall." />
-      <textevent timeoffset="1635" duration="10" message="Cooldown—fade toward 45% FTP, exhale the work, odds conquered." />
-    </IntervalsT>
-    <Cooldown Duration="120" PowerLow="0.85" PowerHigh="0.53" Cadence="85" />
+    <IntervalsT Repeat="2" OnDuration="240" OffDuration="90" OnPower="1.00" OffPower="0.85" Cadence="96" CadenceResting="92" />
+    <Cooldown Duration="120" PowerLow="0.85" PowerHigh="0.53" Cadence="85" >
+      <textevent timeoffset="1695" duration="10" message="Cooldown—soften the grip, long exhales, easy 85 rpm." />
+    </Cooldown>
   </workout>
 </workout_file>
