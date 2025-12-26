@@ -19,7 +19,7 @@
     <SteadyState Duration="180" Power="0.60" Cadence="90" >
       <textevent timeoffset="780" duration="10" message="Reset to ~70%—steady nose breathing, prep for longer pulls." />
     </SteadyState>
-    <IntervalsT Repeat="2" OnDuration="300" OffDuration="120" OnPower="1.05" OffPower="0.60" Cadence="98" CadenceResting="90" >
+    <IntervalsT Repeat="2" OnDuration="300" OffDuration="120" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
       <textevent timeoffset="1350" duration="10" message="Three 2:30 efforts near 112%—stay composed, in through the nose, out long." />
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.60" PowerHigh="0.70" />
