@@ -23,9 +23,8 @@
       <textevent timeoffset="2685" duration="10" message="Two long 8:00 pushes next—keep cadence steady and breathing deep." />
     </SteadyState>
     <IntervalsT Repeat="2" OnDuration="480" OffDuration="240" OnPower="0.95" OffPower="0.75" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="4125" duration="10" message="Cooldown next—soften the grip, long exhales, easy 85 rpm." />
     </IntervalsT>
-    <Cooldown Duration="360" PowerLow="0.75" PowerHigh="0.55" Cadence="85" >
-      <textevent timeoffset="4125" duration="10" message="Cooldown—soften the grip, long exhales, easy 85 rpm." />
-    </Cooldown>
+    <Cooldown Duration="360" PowerLow="0.75" PowerHigh="0.55" Cadence="85" />
   </workout>
 </workout_file>

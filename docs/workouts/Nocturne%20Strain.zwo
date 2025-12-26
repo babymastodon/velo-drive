@@ -13,12 +13,12 @@
     <SteadyState Duration="480" Power="0.80" Cadence="92" >
       <textevent timeoffset="705" duration="10" message="8x45s bites next—keep the breath calm, legs ready." />
     </SteadyState>
-    <SteadyState Duration="165" Power="0.60" Cadence="88" >
-      <textevent timeoffset="1590" duration="10" message="7x30s tugs next—stay light, snap clean, return smooth." />
-    </SteadyState>
+    <SteadyState Duration="165" Power="0.60" Cadence="88" />
     <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <Warmup Duration="15" PowerLow="0.60" PowerHigh="0.65" />
-    <SteadyState Duration="450" Power="0.65" Cadence="90" />
+    <SteadyState Duration="450" Power="0.65" Cadence="90" >
+      <textevent timeoffset="2055" duration="10" message="7x30s tugs next—stay light, snap clean, return smooth." />
+    </SteadyState>
     <IntervalsT Repeat="7" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
     </IntervalsT>
     <SteadyState Duration="450" Power="0.70" Cadence="92" >
