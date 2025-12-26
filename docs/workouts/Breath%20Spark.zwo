@@ -13,7 +13,6 @@
     <SteadyState Duration="120" Power="0.80" Cadence="92" >
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
-      <textevent timeoffset="360" duration="10" message="Hit the 1:00 on efforts clean—quick feet, calm breath, float the 1:00 recoveries." />
     </IntervalsT>
     <SteadyState Duration="180" Power="0.60" Cadence="90" >
       <textevent timeoffset="825" duration="10" message="Longer pulls next—2x5:00. Stay smooth now so you can hold the line." />
