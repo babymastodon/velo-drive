@@ -14,7 +14,7 @@
     <SteadyState Duration="120" Power="0.70" Cadence="90">
     </SteadyState>
     <SteadyState Duration="120" Power="0.72" Cadence="92">
-      <textevent timeoffset="675" duration="10" message="In 15s, a quick crest—lift to ~105% with quiet hands, then drift back." />
+      <textevent timeoffset="675" duration="10" message="A quick crest—lift to ~105% with quiet hands, then drift back." />
     </SteadyState>
     <SteadyState Duration="60" Power="1.05" Cadence="100" />
     <SteadyState Duration="120" Power="0.65" Cadence="88" />
@@ -28,7 +28,7 @@
     </SteadyState>
     <SteadyState Duration="90" Power="0.59" Cadence="86" />
     <SteadyState Duration="60" Power="0.73" Cadence="92">
-      <textevent timeoffset="1665" duration="10" message="15s to cooldown—let the drift settle, long exhales as power fades." />
+      <textevent timeoffset="1665" duration="10" message="Cooldown—let the drift settle, long exhales as power fades." />
     </SteadyState>
     <Cooldown Duration="120" PowerLow="0.65" PowerHigh="0.45" Cadence="82" />
   </workout>
