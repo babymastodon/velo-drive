@@ -22,16 +22,22 @@
     <IntervalsT Repeat="3" OnDuration="300" OffDuration="300" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
       <textevent timeoffset="1950" duration="10" message="Three 2:30 efforts near 112%—stay composed, in through the nose, out long." />
     </IntervalsT>
-    <SteadyState Duration="420" Power="0.70" />
-    <SteadyState Duration="300" Power="0.85" />
-    <SteadyState Duration="420" Power="0.70" />
+    <Cooldown Duration="60" PowerLow="0.60" PowerHigh="0.50" />
+    <SteadyState Duration="60" Power="0.50" />
+    <Warmup Duration="120" PowerLow="0.50" PowerHigh="0.70" />
+    <SteadyState Duration="240" Power="0.70" />
+    <SteadyState Duration="180" Power="0.80" />
+    <SteadyState Duration="240" Power="0.70" />
+    <Cooldown Duration="120" PowerLow="0.70" PowerHigh="0.50" />
+    <SteadyState Duration="60" Power="0.50" />
+    <Warmup Duration="60" PowerLow="0.50" PowerHigh="0.60" />
     <SteadyState Duration="300" Power="0.60" Cadence="88" >
       <textevent timeoffset="4350" duration="10" message="Ease to ~60%—let HR drift down, keep legs awake at 88-90 rpm." />
     </SteadyState>
-    <IntervalsT Repeat="4" OnDuration="120" OffDuration="120" OnPower="1.05" OffPower="0.80" Cadence="96" CadenceResting="92" >
+    <IntervalsT Repeat="4" OnDuration="120" OffDuration="120" OnPower="1.05" OffPower="0.70" Cadence="96" CadenceResting="92" >
       <textevent timeoffset="5040" duration="10" message="Final block: 4x90s ~108% / 60s ~95%—hold form, light grip." />
     </IntervalsT>
-    <Cooldown Duration="120" PowerLow="0.80" PowerHigh="0.60" />
+    <Cooldown Duration="120" PowerLow="0.70" PowerHigh="0.60" />
     <SteadyState Duration="480" Power="0.60" />
     <IntervalsT Repeat="3" OnDuration="40" OffDuration="60" OnPower="1.35" OffPower="0.50" />
     <Warmup Duration="120" PowerLow="0.50" PowerHigh="0.60" />
