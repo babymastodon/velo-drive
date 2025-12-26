@@ -28,9 +28,10 @@
       <textevent timeoffset="3615" duration="10" message="15s to the 30/30 sharpener—stay smooth, don't spike." />
     </IntervalsT>
     <IntervalsT Repeat="3" OnDuration="30" OffDuration="30" OnPower="1.10" OffPower="0.65" />
-    <SteadyState Duration="300" Power="0.80" />
-    <IntervalsT Repeat="4" OnDuration="120" OffDuration="60" OnPower="0.90" OffPower="0.70" Cadence="96" CadenceResting="92" >
+    <SteadyState Duration="300" Power="0.80" >
       <textevent timeoffset="4095" duration="10" message="In 15s: 4x2:00 at 90% with 1:00 steady—hold a clean, even rhythm." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="120" OffDuration="60" OnPower="0.90" OffPower="0.70" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <SteadyState Duration="300" Power="0.70" Cadence="90" >
       <textevent timeoffset="5115" duration="10" message="15s to cooldown—let the tempo unwind, long exhales." />
