@@ -1259,27 +1259,38 @@ export function createWorkoutBuilder(options) {
     const timelineSec = Math.max(3600, totalSec || 0);
 
     let focusTimeSec = null;
-    const selectedBlockIndex = backend.getSelectedBlockIndex();
-    if (
-      selectedBlockIndex != null &&
-      currentBlocks[selectedBlockIndex] &&
-      timings[selectedBlockIndex]
-    ) {
-      const timing = timings[selectedBlockIndex];
-      focusTimeSec = (timing.tStart + timing.tEnd) / 2;
-    } else {
-      const insertAfter =
-        dragInsertAfterIndex != null
-          ? dragInsertAfterIndex
-          : backend.getInsertAfterOverrideIndex() != null
-            ? backend.getInsertAfterOverrideIndex()
-            : backend.getInsertAfterIndex();
-      if (insertAfter != null) {
-        const timing =
-          insertAfter < 0
-            ? { tEnd: 0 }
-            : timings[Math.min(insertAfter, timings.length - 1)];
-        focusTimeSec = timing ? timing.tEnd : null;
+    if (selectedTextEventIndex != null) {
+      const events = backend.getTextEvents();
+      const evt = events[selectedTextEventIndex];
+      if (evt) {
+        const offsetSec = Number(evt.offsetSec) || 0;
+        const durationSec = Math.max(0, Number(evt.durationSec) || 0);
+        focusTimeSec = offsetSec + durationSec / 2;
+      }
+    }
+    if (focusTimeSec == null) {
+      const selectedBlockIndex = backend.getSelectedBlockIndex();
+      if (
+        selectedBlockIndex != null &&
+        currentBlocks[selectedBlockIndex] &&
+        timings[selectedBlockIndex]
+      ) {
+        const timing = timings[selectedBlockIndex];
+        focusTimeSec = (timing.tStart + timing.tEnd) / 2;
+      } else {
+        const insertAfter =
+          dragInsertAfterIndex != null
+            ? dragInsertAfterIndex
+            : backend.getInsertAfterOverrideIndex() != null
+              ? backend.getInsertAfterOverrideIndex()
+              : backend.getInsertAfterIndex();
+        if (insertAfter != null) {
+          const timing =
+            insertAfter < 0
+              ? { tEnd: 0 }
+              : timings[Math.min(insertAfter, timings.length - 1)];
+          focusTimeSec = timing ? timing.tEnd : null;
+        }
       }
     }
 
