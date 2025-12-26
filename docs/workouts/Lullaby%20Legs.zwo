@@ -11,7 +11,7 @@
       <textevent timeoffset="60" duration="10" message="Ease into the lullaby—40-55% FTP, soft 88-90 rpm, shoulders melting." />
     </Warmup>
     <SteadyState Duration="480" Power="0.55" Cadence="88">
-      <textevent timeoffset="645" duration="10" message="In 15s, five 1-min wake-ups—light feet, calm breath between." />
+      <textevent timeoffset="645" duration="10" message="Five 1-min wake-ups—light feet, calm breath between." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88">
     </IntervalsT>
@@ -20,15 +20,15 @@
     <SteadyState Duration="600" Power="0.65" Cadence="92">
     </SteadyState>
     <SteadyState Duration="360" Power="0.55" Cadence="88">
-      <textevent timeoffset="2565" duration="10" message="In 15s, five brighter surges—brush 80%+, quick feet, long dreamy floats." />
+      <textevent timeoffset="2565" duration="10" message="Five brighter surges—brush 80%+, quick feet, long dreamy floats." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="60" OffDuration="90" OnPower="0.80" OffPower="0.40" Cadence="96" CadenceResting="85">
     </IntervalsT>
     <SteadyState Duration="330" Power="0.55" Cadence="88">
-      <textevent timeoffset="3645" duration="10" message="In 15s, three tiny pops—20s fireflies, then long ocean drifts." />
+      <textevent timeoffset="3645" duration="10" message="Three tiny pops—20s fireflies, then long ocean drifts." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="20" OffDuration="120" OnPower="1.10" OffPower="0.55" Cadence="100" CadenceResting="85">
-      <textevent timeoffset="4065" duration="10" message="15s to cooldown—lay down the last notes, long exhales to 40% FTP." />
+      <textevent timeoffset="4065" duration="10" message="Cooldown—lay down the last notes, long exhales to 40% FTP." />
     </IntervalsT>
     <Cooldown Duration="420" PowerLow="0.55" PowerHigh="0.40" Cadence="82" />
   </workout>
