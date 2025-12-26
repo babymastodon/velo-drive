@@ -11,11 +11,11 @@
       <textevent timeoffset="60" duration="10" message="Find the pulse—smooth to 65%, quiet shoulders, steady 90 rpm." />
     </Warmup>
     <SteadyState Duration="240" Power="0.80" Cadence="92" >
-      <textevent timeoffset="465" duration="10" message="6x45s strikes next—keep the breath calm, legs ready." />
+      <textevent timeoffset="465" duration="10" message="Short reset next—drop to 60%, steady the pulse and breathe long." />
     </SteadyState>
     <Cooldown Duration="135" PowerLow="0.80" PowerHigh="0.60" />
     <SteadyState Duration="270" Power="0.60" Cadence="88" >
-      <textevent timeoffset="870" duration="10" message="Strikes continue—6x45s. Snap clean, recover smooth." />
+      <textevent timeoffset="870" duration="10" message="6x45s strikes next—snap clean, recover smooth, stay tall." />
     </SteadyState>
     <IntervalsT Repeat="6" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <Warmup Duration="15" PowerLow="0.60" PowerHigh="0.65" />
@@ -25,11 +25,11 @@
     <IntervalsT Repeat="7" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
     </IntervalsT>
     <Warmup Duration="15" PowerLow="0.65" PowerHigh="0.70" />
-    <SteadyState Duration="360" Power="0.70" Cadence="92" >
+    <SteadyState Duration="360" Power="0.70" Cadence="92" />
+    <Cooldown Duration="60" PowerLow="0.70" PowerHigh="0.60" />
+    <SteadyState Duration="60" Power="0.60" >
       <textevent timeoffset="2790" duration="10" message="Second 45s round next—keep cadence sharp, grip quiet." />
     </SteadyState>
-    <Cooldown Duration="60" PowerLow="0.70" PowerHigh="0.60" />
-    <SteadyState Duration="60" Power="0.60" />
     <IntervalsT Repeat="6" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <Cooldown Duration="120" PowerLow="0.60" PowerHigh="0.50" />
     <SteadyState Duration="105" Power="0.50" />

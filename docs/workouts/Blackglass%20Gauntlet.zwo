@@ -20,11 +20,11 @@
     <IntervalsT Repeat="3" OnDuration="210" OffDuration="60" OnPower="0.80" OffPower="0.55" >
       <textevent timeoffset="1200" duration="10" message="Keep the blade steady—drive each 3:30 on, float the 1:00 off." />
     </IntervalsT>
-    <SteadyState Duration="300" Power="0.55" Cadence="88" >
+    <SteadyState Duration="300" Power="0.55" Cadence="88" />
+    <Warmup Duration="60" PowerLow="0.55" PowerHigh="0.70" />
+    <SteadyState Duration="60" Power="0.70" >
       <textevent timeoffset="2115" duration="10" message="45s snaps next—light hands, sharp cadence." />
     </SteadyState>
-    <Warmup Duration="60" PowerLow="0.55" PowerHigh="0.70" />
-    <SteadyState Duration="60" Power="0.70" />
     <IntervalsT Repeat="7" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" >
       <textevent timeoffset="2430" duration="10" message="Stay clean through each snap; recoveries are for control, not collapse." />
     </IntervalsT>

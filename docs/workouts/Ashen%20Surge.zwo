@@ -14,12 +14,12 @@
     </SteadyState>
     <Cooldown Duration="60" PowerLow="0.80" PowerHigh="0.60" />
     <SteadyState Duration="60" Power="0.60" Cadence="88" >
-      <textevent timeoffset="45" duration="10" message="Ashen surges next—5x45s. Strike clean, keep the hips still, then drift through the soot." />
+      <textevent timeoffset="495" duration="10" message="Ashen surges next—5x45s. Strike clean, keep the hips still, then drift through the soot." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
     <Warmup Duration="40" PowerLow="0.60" PowerHigh="0.65" />
     <SteadyState Duration="240" Power="0.65" Cadence="90" >
-      <textevent timeoffset="225" duration="10" message="Razor sparks ahead—5x30s. Hold the ember steady, quick feet on the flash, then return smooth." />
+      <textevent timeoffset="1225" duration="10" message="Razor sparks ahead—5x30s. Hold the ember steady, quick feet on the flash, then return smooth." />
     </SteadyState>
     <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
     </IntervalsT>
