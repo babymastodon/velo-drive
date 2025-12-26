@@ -11,19 +11,19 @@
       <textevent timeoffset="60" duration="10" message="Build to 50–75% with relaxed shoulders and a smooth 88–90 rpm—set the breathing rhythm now." />
     </Warmup>
     <SteadyState Duration="120" Power="0.75" Cadence="92" >
-      <textevent timeoffset="105" duration="10" message="VO2 sparks next—1:00 on, 1:00 float; focus on quick feet and quiet hips." />
+      <textevent timeoffset="405" duration="10" message="VO2 sparks next—1:00 on, 1:00 float; focus on quick feet and quiet hips." />
     </SteadyState>
     <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
     </IntervalsT>
     <SteadyState Duration="300" Power="0.60" Cadence="90" >
-      <textevent timeoffset="285" duration="10" message="Longer pushes next—3x4:00; keep power even and breathe deep through the surge." />
+      <textevent timeoffset="1185" duration="10" message="Longer pushes next—3x4:00; keep power even and breathe deep through the surge." />
     </SteadyState>
     <IntervalsT Repeat="3" OnDuration="240" OffDuration="120" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
     </IntervalsT>
     <Warmup Duration="60" PowerLow="0.60" PowerHigh="0.70" />
     <SteadyState Duration="60" Power="0.70" Cadence="88" />
     <Cooldown Duration="300" PowerLow="0.70" PowerHigh="0.45" Cadence="85" >
-      <textevent timeoffset="15" duration="10" message="Cooldown—soften the grip, 85 rpm, long exhale to reset the system." />
+      <textevent timeoffset="2415" duration="10" message="Cooldown—soften the grip, 85 rpm, long exhale to reset the system." />
     </Cooldown>
   </workout>
 </workout_file>
