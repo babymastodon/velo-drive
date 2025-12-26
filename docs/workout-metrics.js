@@ -40,6 +40,7 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
   let totalSec = 0;
   let powerSec = 0;
   let sumFrac = 0;   // sum of relative power samples
+  const perSec = [];
   let sumFrac4 = 0;  // sum of (relative power^4)
 
   for (const seg of rawSegments) {
@@ -60,6 +61,7 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
       const rel = p0 + dp * ((i + 0.5) / dur); // mid-point power
       sumFrac += rel;
       sumFrac4 += rel ** 4;
+      perSec.push(rel);
       powerSec++;
     }
   }
@@ -76,7 +78,26 @@ export function computeMetricsFromSegments(rawSegments, ftp) {
   }
 
   const durationMin = totalSec / 60;
-  const IF = Math.pow(sumFrac4 / powerSec, 0.25);
+  const window = 30;
+  let sumPow4 = 0;
+  if (perSec.length <= window) {
+    const avg = perSec.reduce((s, v) => s + v, 0) / perSec.length;
+    sumPow4 = avg ** 4 * perSec.length;
+  } else {
+    let windowSum = 0;
+    for (let i = 0; i < perSec.length; i += 1) {
+      windowSum += perSec[i];
+      if (i >= window) {
+        windowSum -= perSec[i - window];
+      }
+      if (i >= window - 1) {
+        const avg = windowSum / window;
+        sumPow4 += avg ** 4;
+      }
+    }
+  }
+  const samplesForNp = Math.max(1, perSec.length - (window - 1));
+  const IF = Math.pow(sumPow4 / samplesForNp, 0.25);
   const tss = (powerSec * IF * IF) / 36;
   const kj = ftpVal * sumFrac / 1000;
 
