@@ -644,14 +644,16 @@ export function createWorkoutPlanner({
         ? parsed.samples[parsed.samples.length - 1]
         : null;
       const durationSecHint =
-        metaStartedAt && metaEndedAt
-          ? Math.max(
-              1,
-              Math.round(
-                (metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000,
-              ),
-            )
-          : Math.max(1, Math.round(lastSample?.t || 0));
+        meta.totalTimerSec != null
+          ? Math.max(1, Math.round(meta.totalTimerSec))
+          : metaStartedAt && metaEndedAt
+            ? Math.max(
+                1,
+                Math.round(
+                  (metaEndedAt.getTime() - metaStartedAt.getTime()) / 1000,
+                ),
+              )
+            : Math.max(1, Math.round(lastSample?.t || 0));
 
       const metrics = computeMetricsFromSamples(
         parsed.samples || [],
