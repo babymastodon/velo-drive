@@ -22,8 +22,11 @@ import { createPlannerBackend } from "./planner-backend.js";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VISIBLE_WEEKS = 16;
 const SCROLL_BUFFER_ROWS = 2;
-const TODAY = new Date();
-TODAY.setHours(0, 0, 0, 0);
+function getTodayMidnight() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
 const POWER_CURVE_DURS = [
   1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1200,
   1800, 2400, 3600, 5400, 7200, 14400, 28800,
@@ -904,13 +907,13 @@ export function createWorkoutPlanner({
   function isPastDate(dateKey) {
     const d = keyToDate(dateKey);
     d.setHours(0, 0, 0, 0);
-    return d < TODAY;
+    return d < getTodayMidnight();
   }
 
   function isPastOrTodayDate(dateKey) {
     const d = keyToDate(dateKey);
     d.setHours(0, 0, 0, 0);
-    return d <= TODAY;
+    return d <= getTodayMidnight();
   }
 
   function recomputeAgg(baseDate) {
