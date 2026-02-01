@@ -1,7 +1,7 @@
 // service-worker.js
 
 // Bump this when you deploy a new version so clients pick up new files
-const CACHE_VERSION = "v61";
+const CACHE_VERSION = "v62";
 const CACHE_NAME = `velodrive-cache-${CACHE_VERSION}`;
 
 // Files to make available offline
@@ -54,7 +54,11 @@ const PRECACHE_URLS = [
   "./workouts/Endurance%20Espresso.zwo",
   "./workouts/Endure%20the%20Climb.zwo",
   "./workouts/Endless%20Rhythm.zwo",
-  "./workouts/Freeride.zwo",
+  "./workouts/Freeride%2030.zwo",
+  "./workouts/Freeride%2045.zwo",
+  "./workouts/Freeride%2060.zwo",
+  "./workouts/Freeride%2075.zwo",
+  "./workouts/Freeride%2090.zwo",
   "./workouts/Hard%20Road%2C%20Steady%20Heart.zwo",
   "./workouts/Into%20the%20Black.zwo",
   "./workouts/Keep%20Turning.zwo",
