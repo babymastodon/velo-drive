@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'harness/**/*.test.ts'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
   },
 });
