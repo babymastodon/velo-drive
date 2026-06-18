@@ -11,11 +11,14 @@ import { Beeper } from '../core/beeper.js';
 import { WorkoutEngine } from '../core/engine.js';
 import { EngineStore } from '../state/engine.svelte.js';
 import { DEFAULT_FTP } from '../core/metrics.js';
+import { applyThemeMode, loadThemeMode } from './theme.js';
 
 export interface AppContext {
   store: EngineStore;
   engine: WorkoutEngine;
   transport: WebBluetoothTransport;
+  fileStore: WebFileStore;
+  beeper: Beeper;
 }
 
 export async function bootApp(): Promise<AppContext> {
@@ -44,6 +47,11 @@ export async function bootApp(): Promise<AppContext> {
   beeper.setEnabled(!!soundEnabled);
   engine.setFtpInitial(ftp);
 
+  // Apply the persisted theme to <html> (mirrors legacy initThemeFromStorage).
+  // The inline anti-FOUC script in index.html only reads localStorage; the
+  // store (IDB) is authoritative for the harness, so re-apply here.
+  applyThemeMode(await loadThemeMode(fileStore));
+
   // Tell the transport which saved devices to auto-reconnect.
   const { bikeId, hrId } = await fileStore.loadBleDeviceIds();
   transport.setSavedDeviceIds({ bikeId, hrId });
@@ -53,5 +61,5 @@ export async function bootApp(): Promise<AppContext> {
     onLog: () => {},
   });
 
-  return { store, engine, transport };
+  return { store, engine, transport, fileStore, beeper };
 }

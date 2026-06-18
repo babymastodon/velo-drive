@@ -10,10 +10,12 @@
     store,
     engine,
     transport,
+    onOpenSettings,
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
     transport: WebBluetoothTransport;
+    onOpenSettings?: () => void;
   } = $props();
 
   const vm = $derived(store.vm);
@@ -29,6 +31,7 @@
     {vm}
     {engine}
     {transport}
+    {onOpenSettings}
     bikeStatus={store.bikeStatus}
     hrStatus={store.hrStatus}
     hrBatteryPercent={store.hrBatteryPercent}

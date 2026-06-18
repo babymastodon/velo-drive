@@ -9,6 +9,7 @@
     bikeStatus,
     hrStatus,
     hrBatteryPercent,
+    onOpenSettings,
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
@@ -16,6 +17,7 @@
     bikeStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrBatteryPercent: number | null;
+    onOpenSettings?: () => void;
   } = $props();
 
   const workoutActive = $derived(vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
@@ -103,7 +105,13 @@
       </div>
     </button>
 
-    <button id="settingsBtn" data-testid="settings-btn" class="nav-icon-button" title="Settings (S)">
+    <button
+      id="settingsBtn"
+      data-testid="settings-btn"
+      class="nav-icon-button"
+      title="Settings (S)"
+      onclick={() => onOpenSettings?.()}
+    >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path
           d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.007 7.007 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.5 2h-4a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L3.1 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.65-.06.94 0 .32.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.25.42.49.42h4c.24 0 .44-.18.49-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"

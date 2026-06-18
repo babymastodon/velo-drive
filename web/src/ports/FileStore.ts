@@ -13,6 +13,7 @@ export interface ActiveState {
 }
 
 export interface FsDirHandle {
+  readonly name?: string;
   getFileHandle(name: string, opts?: { create?: boolean }): Promise<FsFileHandle>;
   getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<FsDirHandle>;
 }
@@ -27,8 +28,14 @@ export interface FsWritable {
 export interface FileStore {
   loadSelectedWorkout(): Promise<CanonicalWorkout | null>;
   getSetting<T>(key: string, defaultValue: T): Promise<T>;
+  /** Persist a single setting (mirrors docs/storage.js setSetting). */
+  putSetting(key: string, value: unknown): Promise<void>;
   loadBleDeviceIds(): Promise<{ bikeId: string | null; hrId: string | null }>;
   loadActiveState(): Promise<ActiveState | null>;
   saveActiveState(state: ActiveState): Promise<void>;
   loadWorkoutDirHandle(): Promise<FsDirHandle | null>;
+  /** The persisted root-dir handle (VeloDrive folder), or null if unset. */
+  loadRootDirHandle(): Promise<FsDirHandle | null>;
+  /** Prompt the user to pick the VeloDrive root folder (FSA). */
+  pickRootDir(): Promise<FsDirHandle | null>;
 }
