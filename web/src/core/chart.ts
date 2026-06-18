@@ -471,3 +471,102 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     addPaths(pathsForKey('cadence'), getCssVar('--cad-line'), 1.5);
   }
 }
+
+// --------------------------- Mini workout graph (picker) ---------------------------
+
+/**
+ * Render a small workout profile chart into a container for the picker's
+ * expanded row. Mirrors docs/workout-chart.js renderMiniWorkoutGraph (the
+ * non-interactive subset: segment polygons + a transparent hover bg + an empty
+ * tooltip div, so the DOM matches legacy for the visual diff). Geometry/scale
+ * are preserved verbatim.
+ */
+export function renderMiniWorkoutGraph(
+  container: HTMLElement,
+  workout: { rawSegments?: RawSegment[] } | null | undefined,
+  currentFtp: number,
+): void {
+  container.innerHTML = '';
+
+  const rawSegments = workout?.rawSegments || [];
+  if (!rawSegments.length) {
+    container.textContent = 'No workout structure available.';
+    container.classList.add('picker-detail-empty');
+    return;
+  }
+
+  const ftp = currentFtp || DEFAULT_FTP;
+
+  const totalSec = totalDurationSec(rawSegments);
+  if (!totalSec) {
+    container.textContent = 'No workout structure available.';
+    container.classList.add('picker-detail-empty');
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  let width = rect.width;
+  let height = rect.height;
+  if (!width) width = container.clientWidth || 400;
+  if (!height) height = container.clientHeight || 200;
+
+  const svg = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement & {
+    _freeridePatternIds?: FreeridePatternIds;
+  };
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('picker-graph-svg');
+  svg.setAttribute('shape-rendering', 'crispEdges');
+
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('x', '0');
+  bg.setAttribute('y', '0');
+  bg.setAttribute('width', String(width));
+  bg.setAttribute('height', String(height));
+  bg.setAttribute('fill', 'transparent');
+  svg.appendChild(bg);
+
+  const maxTarget = rawSegments.reduce((max, seg) => {
+    const startPct = (seg as number[])[1] || 0;
+    const endPct = (seg as number[])[2] != null ? (seg as number[])[2]! : startPct;
+    const isFreeride = isFreeRideSegment(seg);
+    const p0 = (isFreeride ? FREERIDE_POWER_REL * 100 : startPct) * ftp * 0.01;
+    const p1 = (isFreeride ? FREERIDE_POWER_REL * 100 : endPct) * ftp * 0.01;
+    return Math.max(max, p0, p1);
+  }, 0);
+  const maxY = getScaledMaxY({ ftp, peak: maxTarget, minBase: 200 });
+
+  let t = 0;
+  for (const seg of rawSegments) {
+    const durSec = Math.max(1, Math.round((seg[0] || 0) * 60));
+    const isFreeride = isFreeRideSegment(seg);
+    const cadenceRpm = getRawCadence(seg);
+    const pStartRel = isFreeride ? FREERIDE_POWER_REL : (seg[1] || 0) / 100;
+    const pEndRel = isFreeride
+      ? FREERIDE_POWER_REL
+      : (seg[2] != null ? seg[2] : seg[1] || 0) / 100;
+    renderSegmentPolygon({
+      svg,
+      totalSec,
+      width,
+      height,
+      ftp,
+      maxY,
+      tStart: t,
+      tEnd: t + durSec,
+      pStartRel,
+      pEndRel,
+      isFreeride,
+      cadenceRpm,
+    });
+    t += durSec;
+  }
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'picker-tooltip';
+
+  container.appendChild(svg);
+  container.appendChild(tooltip);
+}

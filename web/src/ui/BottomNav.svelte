@@ -10,6 +10,7 @@
     hrStatus,
     hrBatteryPercent,
     onOpenSettings,
+    onOpenPicker,
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
@@ -18,6 +19,7 @@
     hrStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrBatteryPercent: number | null;
     onOpenSettings?: () => void;
+    onOpenPicker?: () => void;
   } = $props();
 
   const workoutActive = $derived(vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
@@ -196,7 +198,13 @@
         id="workoutNameLabel"
         data-testid="workout-name-label"
         class="inline-clicktoggle"
+        data-clickable="true"
+        title="Select a workout (W)"
+        role="button"
+        tabindex="0"
         style="display: {freeRideUiActive ? 'none' : showTitleCenter ? 'none' : 'flex'}"
+        onclick={() => onOpenPicker?.()}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPicker?.(); } }}
       >
         {nameLabelText}
       </div>

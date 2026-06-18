@@ -16,9 +16,23 @@ export interface FsDirHandle {
   readonly name?: string;
   getFileHandle(name: string, opts?: { create?: boolean }): Promise<FsFileHandle>;
   getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<FsDirHandle>;
+  removeEntry(name: string, opts?: { recursive?: boolean }): Promise<void>;
+  values(): AsyncIterable<FsHandle> | AsyncIterableIterator<FsHandle>;
+  [Symbol.asyncIterator]?(): AsyncIterableIterator<FsHandle>;
+}
+export interface FsHandle {
+  readonly kind: 'file' | 'directory';
+  readonly name: string;
 }
 export interface FsFileHandle {
+  readonly kind?: 'file';
+  readonly name?: string;
+  getFile?(): Promise<FsFile>;
   createWritable(): Promise<FsWritable>;
+}
+export interface FsFile {
+  readonly name?: string;
+  text(): Promise<string>;
 }
 export interface FsWritable {
   write(data: ArrayBufferView | ArrayBuffer | string): Promise<void>;
@@ -38,4 +52,12 @@ export interface FileStore {
   loadRootDirHandle(): Promise<FsDirHandle | null>;
   /** Prompt the user to pick the VeloDrive root folder (FSA). */
   pickRootDir(): Promise<FsDirHandle | null>;
+
+  // ---- Workout library (picker) ----
+  /** Scan the .zwo workouts dir and return parsed CanonicalWorkouts. */
+  listWorkouts(): Promise<CanonicalWorkout[]>;
+  /** Move a workout's .zwo file to the trash folder (delete). */
+  deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean>;
+  /** Serialize + write a CanonicalWorkout into the workouts dir (used by clone). */
+  saveWorkout(canonical: CanonicalWorkout): Promise<boolean>;
 }
