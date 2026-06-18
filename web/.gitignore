@@ -1,0 +1,14 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.playwright/
+*.tsbuildinfo
+
+# Reproducible from ../docs via scripts/setup-legacy.sh (not versioned)
+legacy/
+legacy-shimmed/
+
+# Visual-test transient artifacts
+tests/**/__screenshots__/**/*-actual.png
+tests/**/__screenshots__/**/*-diff.png
