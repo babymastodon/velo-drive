@@ -6,6 +6,7 @@
   import { bootApp, type AppContext } from '../app/app.js';
   import HudView from './HudView.svelte';
   import SettingsView from './SettingsView.svelte';
+  import PickerView from './PickerView.svelte';
   import WelcomeView from './WelcomeView.svelte';
   import Dialog from './Dialog.svelte';
   import { UiStore } from '../state/ui.svelte.js';
@@ -67,7 +68,21 @@
     if (key === 's') {
       e.preventDefault();
       ui.open('settings');
+      return;
     }
+    if (key === 'w') {
+      e.preventDefault();
+      openPicker();
+    }
+  }
+
+  // Open the workout picker, guarding against an active workout (matches legacy
+  // openPickerWithGuard in docs/workout.js).
+  function openPicker(): void {
+    if (!ctx) return;
+    const vm = ctx.store.vm;
+    if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
+    ui.open('picker');
   }
 </script>
 
@@ -79,6 +94,7 @@
     engine={ctx.engine}
     transport={ctx.transport}
     onOpenSettings={() => ui.open('settings')}
+    onOpenPicker={openPicker}
   />
 
   <SettingsView
@@ -88,6 +104,15 @@
     beeper={ctx.beeper}
     {ui}
     open={ui.activeOverlay === 'settings'}
+  />
+
+  <PickerView
+    store={ctx.store}
+    engine={ctx.engine}
+    fileStore={ctx.fileStore}
+    {ui}
+    {dialogs}
+    open={ui.activeOverlay === 'picker'}
   />
 {/if}
 

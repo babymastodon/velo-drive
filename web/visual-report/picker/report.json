@@ -1,0 +1,9 @@
+{
+  "diffRatio": 0.000013671875,
+  "diffPixels": 14,
+  "totalPixels": 1024000,
+  "sizeMismatch": false,
+  "maxAllowed": 0.02,
+  "width": 1280,
+  "height": 800
+}

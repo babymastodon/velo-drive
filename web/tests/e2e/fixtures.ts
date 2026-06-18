@@ -82,6 +82,11 @@ export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
 export const SETTINGS_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 export const WELCOME_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 
+// Picker shares the same matched-state config (identical seeded .zwo library for
+// legacy + new). Both apps default to the same picker sort (kJ ascending) + no
+// filters, so the only difference a pixel diff can surface is layout/CSS.
+export const PICKER_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
+
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;

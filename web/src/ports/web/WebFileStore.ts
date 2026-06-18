@@ -8,8 +8,13 @@ import type {
   FileStore,
   ActiveState,
   FsDirHandle,
+  FsHandle,
 } from '../FileStore.js';
 import type { CanonicalWorkout } from '../../core/model.js';
+import {
+  parseZwoXmlToCanonicalWorkout,
+  canonicalWorkoutToZwoXml,
+} from '../../core/zwo.js';
 
 const DB_NAME = 'velo-drive';
 const DB_VERSION = 1;
@@ -20,7 +25,14 @@ const STORAGE_ACTIVE_STATE = 'activeWorkoutState';
 const STORAGE_LAST_BIKE_DEVICE_ID = 'lastBikeDeviceId';
 const STORAGE_LAST_HR_DEVICE_ID = 'lastHrDeviceId';
 const WORKOUT_DIR_KEY = 'workoutDirHandle'; // history dir
+const ZWO_DIR_KEY = 'dirHandle'; // .zwo workouts library dir
+const TRASH_DIR_KEY = 'trashDirHandle';
 const ROOT_DIR_KEY = 'rootDirHandle';
+
+/** Injective title -> file-safe base name (mirrors docs/workout-picker.js). */
+function sanitizeZwoFileName(title: string): string {
+  return encodeURIComponent(title);
+}
 
 interface HandleRecord {
   handle: unknown;
@@ -155,5 +167,92 @@ export class WebFileStore implements FileStore {
     }
     this.workoutDirHandle = handle || null;
     return this.workoutDirHandle;
+  }
+
+  // ---------- workout library (picker) ----------
+
+  private async loadZwoDirHandle(): Promise<FsDirHandle | null> {
+    let handle = (await this.loadHandle(ZWO_DIR_KEY)) as FsDirHandle | null;
+    if (!handle) {
+      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      if (root) handle = await root.getDirectoryHandle('workouts', { create: true });
+    }
+    return handle || null;
+  }
+
+  private async loadTrashDirHandle(): Promise<FsDirHandle | null> {
+    let handle = (await this.loadHandle(TRASH_DIR_KEY)) as FsDirHandle | null;
+    if (!handle) {
+      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      if (root) handle = await root.getDirectoryHandle('trash', { create: true });
+    }
+    return handle || null;
+  }
+
+  async listWorkouts(): Promise<CanonicalWorkout[]> {
+    const dir = await this.loadZwoDirHandle();
+    if (!dir) return [];
+    const out: CanonicalWorkout[] = [];
+    try {
+      for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
+        if (entry.kind !== 'file') continue;
+        if (!entry.name.toLowerCase().endsWith('.zwo')) continue;
+        const fileHandle = await dir.getFileHandle(entry.name);
+        const file = await fileHandle.getFile?.();
+        if (!file) continue;
+        const text = await file.text();
+        const canonical = parseZwoXmlToCanonicalWorkout(text);
+        if (canonical) out.push(canonical);
+      }
+    } catch (err) {
+      console.error('[WebFileStore] listWorkouts failed:', err);
+    }
+    return out;
+  }
+
+  async deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean> {
+    const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    const srcDir = await this.loadZwoDirHandle();
+    const trashDir = await this.loadTrashDirHandle();
+    if (!srcDir || !trashDir) return false;
+    try {
+      const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
+      const srcFile = await srcFileHandle.getFile?.();
+      const text = srcFile ? await srcFile.text() : '';
+
+      const dotIdx = fileName.lastIndexOf('.');
+      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+      const ext = dotIdx > 0 ? fileName.slice(dotIdx) : '';
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const destFileName = `${base} (${stamp})${ext}`;
+
+      const destFileHandle = await trashDir.getFileHandle(destFileName, { create: true });
+      const writable = await destFileHandle.createWritable();
+      await writable.write(text);
+      await writable.close();
+
+      await srcDir.removeEntry(fileName);
+      return true;
+    } catch (err) {
+      console.error('[WebFileStore] deleteWorkoutToTrash failed:', err);
+      return false;
+    }
+  }
+
+  async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
+    const dir = await this.loadZwoDirHandle();
+    if (!dir) return false;
+    const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    try {
+      const xml = canonicalWorkoutToZwoXml(canonical);
+      const fileHandle = await dir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(xml);
+      await writable.close();
+      return true;
+    } catch (err) {
+      console.error('[WebFileStore] saveWorkout failed:', err);
+      return false;
+    }
   }
 }
