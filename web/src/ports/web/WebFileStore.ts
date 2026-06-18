@@ -89,6 +89,43 @@ export class WebFileStore implements FileStore {
     return this.getSettingRaw(key, defaultValue);
   }
 
+  putSetting(key: string, value: unknown): Promise<void> {
+    return this.setSetting(key, value);
+  }
+
+  async loadRootDirHandle(): Promise<FsDirHandle | null> {
+    return (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+  }
+
+  async pickRootDir(): Promise<FsDirHandle | null> {
+    const picker = (globalThis as unknown as {
+      showDirectoryPicker?: () => Promise<FsDirHandle>;
+    }).showDirectoryPicker;
+    if (typeof picker !== 'function') {
+      if (typeof alert === 'function') {
+        alert('Selecting a data folder requires File System Access support.');
+      }
+      return null;
+    }
+    try {
+      const root = await picker();
+      // Persist the root handle and ensure the standard subdirs exist
+      // (mirrors docs/storage.js pickRootDir).
+      await this.setSetting(ROOT_DIR_KEY, { handle: root });
+      const history = await root.getDirectoryHandle('history', { create: true });
+      await root.getDirectoryHandle('workouts', { create: true });
+      await root.getDirectoryHandle('trash', { create: true });
+      await this.setSetting(WORKOUT_DIR_KEY, { handle: history });
+      this.workoutDirHandle = history;
+      return root;
+    } catch (err) {
+      if ((err as { name?: string })?.name === 'AbortError') return null;
+      console.error('[WebFileStore] Failed to choose root folder:', err);
+      if (typeof alert === 'function') alert('Failed to choose folder.');
+      return null;
+    }
+  }
+
   async loadSelectedWorkout(): Promise<CanonicalWorkout | null> {
     return this.getSettingRaw<CanonicalWorkout | null>(STORAGE_SELECTED_WORKOUT, null);
   }

@@ -75,6 +75,13 @@ export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
   seedZwo: readSeedWorkouts(),
 };
 
+// Settings + Welcome share the same matched-state config as the HUD: identical
+// for legacy + new so the only difference a pixel diff surfaces is layout/CSS.
+// (The settings modal + welcome overlay are theme/FTP/folder dependent, all of
+// which are seeded identically here.)
+export const SETTINGS_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
+export const WELCOME_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
+
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;
