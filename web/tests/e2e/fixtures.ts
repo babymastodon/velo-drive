@@ -60,6 +60,21 @@ export interface HarnessConfig {
   schedule?: unknown;
 }
 
+// Config for the VISUAL comparison: identical for legacy + new so the only
+// differences a pixel diff can surface are layout/CSS. connectBike:false ->
+// neither app auto-reconnects, so both show the same "no bike" empty state
+// (avoids cross-app auto-reconnect timing differences). Behavior tests use the
+// default config (bike connected) instead.
+export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
+  ftp: 250,
+  soundEnabled: false,
+  themeMode: "light",
+  selectedWorkout: SAMPLE_WORKOUT,
+  connectBike: false,
+  connectHr: false,
+  seedZwo: readSeedWorkouts(),
+};
+
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;
@@ -102,6 +117,29 @@ export const test = base.extend<{
     await use(page);
   },
 });
+
+/**
+ * Reach the NEW app's riding (HUD) view: wait for the app to boot (the harness
+ * control API to be present), settle the engine init timers, and confirm the
+ * HUD is mounted. The new app has no welcome gate in M3, so this is simpler than
+ * reachRidingView (legacy).
+ */
+export async function reachNewRidingView(page: Page): Promise<void> {
+  await page.waitForLoadState("load");
+  await page.waitForFunction(() => !!(window as unknown as {__VELO_HARNESS__?: unknown}).__VELO_HARNESS__);
+
+  // The HUD mounts after bootApp() resolves (an async chain over the fake
+  // IndexedDB). Wait for the stat element to render.
+  await page.locator("#stat-power").waitFor({state: "visible", timeout: 10_000});
+
+  // Settle engine init timers (microtasks/timeouts) so the configured VM is up.
+  await page.evaluate(async () => {
+    const h = (window as unknown as {__VELO_HARNESS__: {settle: () => Promise<void>}}).__VELO_HARNESS__;
+    await h.settle();
+  });
+
+  await expect(page.locator("#stat-power")).toBeVisible();
+}
 
 /**
  * Reach the configured riding (HUD) view: wait for the app to settle, dismiss

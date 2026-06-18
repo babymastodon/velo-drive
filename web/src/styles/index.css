@@ -7,3 +7,12 @@
 @import './workout-picker.css';
 @import './settings.css';
 @import './welcome.css';
+
+/* The Svelte mount point must not interpose a layout box between <body> and
+   .page-root — legacy renders .page-root as a direct child of <body>, and its
+   full-viewport flex/grid layout collapses (content squished to a centered
+   ~600px column) if #app generates its own box. `display: contents` makes #app
+   transparent to layout so the re-hosted CSS behaves exactly as in legacy. */
+#app {
+  display: contents;
+}

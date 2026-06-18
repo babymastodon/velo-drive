@@ -2,10 +2,12 @@
 // (web/visual-report/hud/legacy.png) that the new-app HUD test diffs against.
 // Also keeps real structural assertions (welcome dismissed, riding view up).
 
-import {test, expect, reachRidingView} from "./fixtures.js";
+import {test, expect, reachRidingView, VISUAL_HARNESS_CONFIG} from "./fixtures.js";
 import {writeBaseline} from "../visual/compare.js";
 
 test.describe("HUD legacy baseline", () => {
+  test.use({harnessConfig: VISUAL_HARNESS_CONFIG});
+
   test("boots configured to the riding view and writes the HUD baseline", async ({
     configuredPage,
   }) => {
