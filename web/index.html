@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>VeloDrive</title>
+    <!-- Anti-FOUC: sync, runs before paint (mirrors legacy theme-init.js). Must stay inline in <head>. -->
+    <script>
+      (function applyInitialTheme() {
+        try {
+          const root = document.documentElement;
+          const mode = localStorage.getItem("themeMode") || "auto";
+          root.classList.remove("theme-light", "theme-dark");
+          if (mode === "dark") root.classList.add("theme-dark");
+          else if (mode === "light") root.classList.add("theme-light");
+          root.dataset.theme = mode;
+        } catch (_err) {}
+      })();
+    </script>
+  </head>
+  <body class="welcome-active">
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

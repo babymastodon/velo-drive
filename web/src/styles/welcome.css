@@ -1,0 +1,495 @@
+/* welcome.css
+ * Fullscreen welcome / tour overlay for VeloDrive.
+ */
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #0c0c0c);
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+.welcome-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-main);
+  display: block;
+  padding: 0;
+  gap: 0;
+}
+
+@media (max-width: 720px) {
+  .welcome-shell {
+    padding: 16px;
+  }
+}
+
+/* Close button */
+
+.welcome-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.welcome-close-btn:hover {
+  background: var(--hover-strong);
+  color: var(--text-main);
+}
+
+/* Slide wrapper (animated) */
+
+.welcome-slide {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: block;
+  transition: transform 330ms cubic-bezier(0.4, 0, 0.2, 1), opacity 330ms cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: none;
+  padding: 20px 0 52px;
+}
+
+.welcome-slide--animating {
+  will-change: transform, opacity;
+}
+
+.welcome-slide.welcome-slide--animating-out-forward {
+  opacity: 0;
+  transform: translateX(-8%);
+  transition: transform 330ms cubic-bezier(0.42, 0, 1, 1), opacity 330ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.welcome-slide.welcome-slide--animating-out-backward {
+  opacity: 0;
+  transform: translateX(8%);
+  transition: transform 330ms cubic-bezier(0.42, 0, 1, 1), opacity 330ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.welcome-slide.welcome-slide--animating-in-forward {
+  opacity: 0;
+  transform: translateX(8%);
+  transition: transform 330ms cubic-bezier(0, 0, 0.58, 1), opacity 330ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.welcome-slide.welcome-slide--animating-in-backward {
+  opacity: 0;
+  transform: translateX(-8%);
+  transition: transform 330ms cubic-bezier(0, 0, 0.58, 1), opacity 330ms cubic-bezier(0, 0, 0.58, 1);
+}
+
+.welcome-slide.welcome-slide--animating-in-forward.welcome-slide--active,
+.welcome-slide.welcome-slide--animating-in-backward.welcome-slide--active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.welcome-slide-clone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Header */
+
+.welcome-header {
+  position: absolute;
+  top: 6vh;
+  left: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.welcome-title {
+  font-size: 34px;
+  /* 2x-ish */
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-main);
+  text-align: center;
+}
+
+/* Main: arrows + media */
+
+.welcome-main {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Carets at side edge, large clickable area
+   Use fixed positioning so they hug the viewport edges. */
+
+.welcome-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 61;
+  /* above slide content, still under overlay root */
+  transition: opacity 160ms ease;
+  opacity: 1;
+}
+
+.welcome-overlay:not(.welcome-overlay--visible) .welcome-nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.welcome-slide--splash .welcome-nav {
+  opacity: 0;
+  animation: welcome-nav-boot 280ms ease-out forwards;
+  animation-delay: 620ms;
+}
+
+@keyframes welcome-nav-boot {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.welcome-nav-prev {
+  left: 24px;
+}
+
+.welcome-nav-next {
+  right: 24px;
+}
+
+.welcome-nav span {
+  display: inline-block;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.welcome-nav:hover {
+  background: var(--hover-strong);
+  color: var(--text-main);
+}
+
+.welcome-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.welcome-nav-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Media wrapper: square, capped at 60% of viewport width/height */
+
+.welcome-scene-wrapper {
+  position: relative;
+  width: min(70vw, 70vh);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  margin: auto;
+  border-radius: var(--radius);
+  overflow: visible;
+  background: var(--surface-elevated);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.welcome-scene {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.welcome-scene-root {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  grid-area: 1 / 1;
+  overflow: hidden;
+}
+
+.welcome-scene-root .scene-piece {
+  opacity: 0;
+  transform-origin: center;
+}
+
+/* State-aware animation hooks */
+.welcome-scene-root.scene-enter-grow.welcome-scene--enter .scene-piece {
+  animation: scene-enter-grow 900ms ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-enter-fly.welcome-scene--enter .scene-piece {
+  animation: scene-enter-fly 900ms ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-steady-float.welcome-scene--steady .scene-piece {
+  opacity: 1;
+  animation: scene-float var(--float-ms, 2600ms) ease-in-out infinite;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-steady-none.welcome-scene--steady .scene-piece {
+  opacity: 1;
+  animation: none;
+}
+
+.welcome-scene-root.scene-exit-fade.welcome-scene--exit .scene-piece {
+  opacity: 1;
+  animation: scene-exit-fade 700ms ease forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.welcome-scene-root.scene-exit-rise.welcome-scene--exit .scene-piece {
+  opacity: 1;
+  animation: scene-exit-rise 900ms ease forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.scene-asset {
+  transform-box: fill-box;
+  transform-origin: center center;
+}
+
+
+@keyframes scene-enter-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scene-enter-fly {
+  from {
+    opacity: 0;
+    transform: translate(var(--fly-x, 0), var(--fly-y, 12px)) scale(var(--fly-scale, 0.96));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scene-float {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  25% {
+    transform: translate(calc(var(--float-x, 0px) * 0.35),
+        calc(var(--float-amp, 6px) * -0.35));
+  }
+
+  50% {
+    transform: translate(calc(var(--float-x, 0px) * -0.4),
+        calc(var(--float-amp, 6px) * -1));
+  }
+
+  75% {
+    transform: translate(calc(var(--float-x, 0px) * 0.3),
+        calc(var(--float-amp, 6px) * -0.3));
+  }
+
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes scene-exit-fade {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes scene-exit-rise {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+/* Body text */
+
+.welcome-body {
+  position: absolute;
+  bottom: 6vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 90vw;
+  right: auto;
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-main);
+  line-height: 1.6;
+  text-align: center;
+  min-height: 72px;
+  max-height: 132px;
+  overflow: auto;
+  margin-inline: auto;
+}
+
+.welcome-body-line {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.welcome-title,
+.welcome-body {
+  transition: opacity 260ms ease-out, transform 260ms ease-out;
+  transform-origin: center;
+}
+
+.welcome-text-hidden .welcome-title {
+  opacity: 0;
+  transform: translateY(4px) scale(0.97);
+}
+
+.welcome-text-visible .welcome-title {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.welcome-text-hidden .welcome-body {
+  opacity: 0;
+  transform: translate(-50%, 4px) scale(0.97);
+}
+
+.welcome-text-visible .welcome-body {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* Icon-only slide (splash) */
+
+.welcome-slide--icon-only .welcome-main {
+  max-width: 100%;
+}
+
+.welcome-overlay--splash-only .welcome-nav,
+.welcome-overlay--splash-only .welcome-close-btn,
+.welcome-overlay--splash-only .welcome-header,
+.welcome-overlay--splash-only .welcome-body {
+  display: none !important;
+}
+
+.welcome-overlay--splash-only .welcome-shell {
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+
+.welcome-overlay--splash-only .welcome-slide {
+  height: 100%;
+  padding: 0;
+}
+
+.welcome-overlay--splash-only .welcome-main {
+  padding: 0;
+}
+
+.welcome-overlay--hiding {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1000ms linear;
+}
+
+.welcome-shell {
+  transition: opacity 200ms linear;
+}
+
+.welcome-overlay--hiding .welcome-shell {
+  opacity: 0;
+}
+
+/* Hide main UI while welcome is active to prevent flash */
+body.welcome-active .page-root,
+body.welcome-active .bottom-nav {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* Mobile tweaks */
+
+@media (max-width: 720px) {
+  .welcome-slide {
+    max-width: 100%;
+    gap: 14px;
+  }
+
+  .welcome-title {
+    font-size: 26px;
+  }
+
+  .welcome-body {
+    font-size: 16px;
+  }
+
+  .welcome-scene-wrapper {
+    max-width: 80vw;
+    max-height: 50vh;
+  }
+}

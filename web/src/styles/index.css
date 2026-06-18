@@ -1,0 +1,9 @@
+/* Re-hosted legacy design — global & verbatim (the design IS this CSS).
+   Order preserved from legacy docs/index.html. New Svelte components reproduce
+   the same class names + semantic DOM so the cascade applies unchanged.
+   Only genuinely component-local rules belong in scoped <style> blocks. */
+@import './workout-base.css';
+@import './workout-planner.css';
+@import './workout-picker.css';
+@import './settings.css';
+@import './welcome.css';
