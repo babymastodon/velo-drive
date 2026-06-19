@@ -213,3 +213,120 @@ test.describe("Builder (new Svelte app) — behavior", () => {
     ).toBeVisible();
   });
 });
+
+// Real navigator.clipboard is denied by default in headless Chromium; granting
+// the clipboard permissions makes writeText/readText resolve against a real
+// in-browser store so copy->paste round-trips deterministically. (The pure
+// codec is unit-tested separately in tests/unit/builder-clipboard.test.ts.)
+async function grantClipboard(page: Page): Promise<void> {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+}
+
+function selectedBands(page: Page) {
+  return page.locator('[data-testid="wb-chart"] svg rect.wb-block-band.is-active');
+}
+
+test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
+  test("copy a block then paste duplicates it (block count + segment count grow)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await grantClipboard(page);
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    // Select the first block (a warmup ramp).
+    await chartSegments(page).first().click();
+    await expect(page.getByTestId("wb-block-editor")).toBeVisible();
+    const beforeSegments = await chartSegments(page).count();
+
+    await page.keyboard.press("Control+c");
+    await page.waitForTimeout(40);
+    await page.keyboard.press("Control+v");
+    await page.waitForTimeout(80);
+
+    const afterSegments = await chartSegments(page).count();
+    // The warmup ramp is a single segment, so pasting a copy adds exactly 1.
+    expect(afterSegments).toBe(beforeSegments + 1);
+
+    // The clipboard payload is the ZWO XML for the copied block.
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toContain("<workout_file>");
+    expect(clip).toContain("<Warmup");
+  });
+
+  test("cut (d) removes the block and paste re-inserts it", async ({configuredPage}) => {
+    const page = configuredPage;
+    await grantClipboard(page);
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    const baseline = await chartSegments(page).count();
+
+    // Select first block, cut it with `d` (legacy cut-to-clipboard).
+    await chartSegments(page).first().click();
+    await expect(page.getByTestId("wb-block-editor")).toBeVisible();
+    await page.keyboard.press("d");
+    await page.waitForTimeout(80);
+    const afterCut = await chartSegments(page).count();
+    expect(afterCut).toBe(baseline - 1);
+
+    // Paste re-inserts the cut block.
+    await page.keyboard.press("p");
+    await page.waitForTimeout(80);
+    const afterPaste = await chartSegments(page).count();
+    expect(afterPaste).toBe(baseline);
+  });
+
+  test("Shift+ArrowRight extends the selection from 1 to 2 blocks", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    // Select the first block.
+    await chartSegments(page).first().click();
+    await page.waitForTimeout(40);
+    expect(await selectedBands(page).count()).toBe(1);
+
+    // Shift+ArrowRight grows the selection to include the next block.
+    await page.keyboard.press("Shift+ArrowRight");
+    await page.waitForTimeout(60);
+    expect(await selectedBands(page).count()).toBe(2);
+  });
+
+  test("shift-clicking a later block range-selects between them", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    // Default workout has >= 4 blocks (warmup/steady/intervals/cooldown).
+    await chartSegments(page).first().click();
+    await page.waitForTimeout(40);
+    expect(await selectedBands(page).count()).toBe(1);
+
+    // Shift-click a later block's segment to extend the range. (The band rects
+    // are pointer-events:none; the visible segment polygons carry the click.)
+    const segs = chartSegments(page);
+    const total = await segs.count();
+    expect(total).toBeGreaterThanOrEqual(2);
+    await segs.nth(total - 1).click({modifiers: ["Shift"], force: true});
+    await page.waitForTimeout(60);
+    expect(await selectedBands(page).count()).toBeGreaterThan(1);
+  });
+
+  test("Cmd/Ctrl+A moves the insertion cursor to start (no selection)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    // Focus the builder, ensure no block is selected.
+    await page.locator("#workoutBuilderRoot").click({position: {x: 5, y: 5}});
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(40);
+
+    // Legacy Cmd+A (no selection) = cursor-to-start; it must NOT select all
+    // blocks (no block-editor appears, no bands become active).
+    await page.keyboard.press("Control+a");
+    await page.waitForTimeout(60);
+    expect(await selectedBands(page).count()).toBe(0);
+    await expect(page.getByTestId("wb-block-editor")).toHaveCount(0);
+  });
+});
