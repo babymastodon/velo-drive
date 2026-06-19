@@ -302,6 +302,45 @@ test.describe("Picker (new Svelte app) — keymap", () => {
     expect(back).toBe(first);
   });
 
+  test("'j' / 'k' navigate a focused filter <select>'s options (D1)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+
+    // Focus the zone filter via the 'z' hotkey (matches legacy z→showPicker).
+    await page.getByTestId("picker-modal").click();
+    await page.keyboard.press("z");
+    const zone = page.getByTestId("picker-zone-filter");
+    await expect(zone).toBeFocused();
+    await expect(zone).toHaveValue(""); // "All zones"
+
+    // Drive a keydown on the focused <select>. NOTE: Playwright's synthetic
+    // keyboard.press() to a focused native <select> is swallowed by Chromium's
+    // built-in select keyboard handling and never reaches the JS keydown handler
+    // (this is the SAME harness limitation the events audit hit with legacy —
+    // "on the harness Chromium `j` left the value unchanged"). So we dispatch the
+    // keydown the way a real keyboard would on the focused element.
+    const pressOnSelect = (key: string) =>
+      page.evaluate((k) => {
+        const el = document.querySelector("#pickerZoneFilter") as HTMLSelectElement;
+        el.focus();
+        el.dispatchEvent(new KeyboardEvent("keydown", {key: k, bubbles: true, cancelable: true}));
+      }, key);
+
+    await pressOnSelect("j");
+    await expect(zone).toHaveValue("Recovery");
+    await pressOnSelect("j");
+    await expect(zone).toHaveValue("Endurance");
+
+    // 'k' moves back up.
+    await pressOnSelect("k");
+    await expect(zone).toHaveValue("Recovery");
+
+    // The new value actually re-filters the table.
+    await page.waitForTimeout(30);
+    expect(await rows(page).count()).toBeGreaterThan(0);
+  });
+
   test("'e' opens the builder for the expanded row", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);

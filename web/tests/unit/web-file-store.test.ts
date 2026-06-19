@@ -157,6 +157,60 @@ describe("WebFileStore.removeScheduledByTitle (post-ride flow, J-PLAN-34)", () =
   });
 });
 
+describe("WebFileStore.moveScheduledEntry (drag-and-drop reschedule, G3)", () => {
+  function bootConfigured(initial: {date: string; workoutTitle: string}[]): {
+    store: WebFileStore;
+    root: FakeFileSystemDirectoryHandle;
+  } {
+    const root = new FakeFileSystemDirectoryHandle("VeloDrive");
+    root.seedFile("schedule.json", JSON.stringify(initial));
+    const {indexedDB} = createFakeIndexedDB({rootDirHandle: {key: "rootDirHandle", handle: root}});
+    (globalThis as unknown as {indexedDB: unknown}).indexedDB = indexedDB;
+    return {store: new WebFileStore(), root};
+  }
+
+  // Far-future days so "today" never makes them past, regardless of run date.
+  const FROM = "2099-06-18";
+  const TO = "2099-06-25";
+  const PAST = "2000-01-01";
+
+  it("moves the matching entry to a future day and persists schedule.json", async () => {
+    const {store} = bootConfigured([
+      {date: FROM, workoutTitle: "Sleepy Spin"},
+      {date: FROM, workoutTitle: "Keep Turning"},
+    ]);
+    const moved = await store.moveScheduledEntry(FROM, "Sleepy Spin", TO);
+    expect(moved).toBe(true);
+
+    const remaining = await store.loadSchedule();
+    expect(remaining).toEqual([
+      {date: FROM, workoutTitle: "Keep Turning"},
+      {date: TO, workoutTitle: "Sleepy Spin"},
+    ]);
+  });
+
+  it("rejects a move onto a PAST day (schedule unchanged)", async () => {
+    const initial = [{date: FROM, workoutTitle: "Sleepy Spin"}];
+    const {store} = bootConfigured(initial);
+    const moved = await store.moveScheduledEntry(FROM, "Sleepy Spin", PAST);
+    expect(moved).toBe(false);
+    expect(await store.loadSchedule()).toEqual(initial);
+  });
+
+  it("is a no-op (true) when from===to and does not duplicate", async () => {
+    const initial = [{date: FROM, workoutTitle: "Sleepy Spin"}];
+    const {store} = bootConfigured(initial);
+    const moved = await store.moveScheduledEntry(FROM, "Sleepy Spin", FROM);
+    expect(moved).toBe(true);
+    expect(await store.loadSchedule()).toEqual(initial);
+  });
+
+  it("returns false when no entry matches", async () => {
+    const {store} = bootConfigured([{date: FROM, workoutTitle: "Sleepy Spin"}]);
+    expect(await store.moveScheduledEntry(FROM, "Nonexistent", TO)).toBe(false);
+  });
+});
+
 describe("WebFileStore.setSetting de-proxies values (selectedWorkout reload regression, R1)", () => {
   beforeEach(() => {
     installEnv(new FakeFileSystemDirectoryHandle("VeloDrive"));

@@ -16,11 +16,15 @@
   // overlay (faithful to legacy picker.openScheduleMode). See onScheduleDay /
   // onEditScheduled below.
   //
-  // SIMPLIFICATIONS vs legacy (documented):
+  // Drag-and-drop reschedule (G3), the `?`-held hotkey overlay (G4), and
+  // keyboard-nav scroll-into-view (G5/D2) are all ported below.
+  //
+  // SIMPLIFICATION vs legacy (documented):
   //  * Scrolling renders the fixed legacy initial 16-week window rather than
   //    recycling rows on scroll — the initial render + scroll position is
   //    pixel-identical to legacy; deep scroll just stops instead of paging.
-  //  * Drag-and-drop reschedule + the `?`-held hotkey overlay are dropped.
+  //    Keyboard day-nav stays within this window and scrolls the selected cell
+  //    into view (scrollSelectedIntoView), matching legacy scrollCellIntoView.
   import OverlayModal from './OverlayModal.svelte';
   import type { WebFileStore, HistoryPreview } from '../ports/web/WebFileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
@@ -180,6 +184,12 @@
   let detail = $state<DetailState | null>(null);
   const detailMode = $derived(detail != null);
 
+  // `?`-held hotkey overlay (G4): while held, hide the footer aggregates and
+  // show the hotkey list. questionHeld guards key-repeat (legacy
+  // workout-planner.js:1445-1466).
+  let showHotkeys = $state(false);
+  let questionHeld = false;
+
   function todayMidnight(): Date {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -214,6 +224,8 @@
 
   async function onOpen(): Promise<void> {
     detail = null;
+    showHotkeys = false;
+    questionHeld = false;
     today = new Date();
     today.setHours(0, 0, 0, 0);
     if (pendingScheduleReturnDate) {
@@ -859,6 +871,109 @@
   function moveSelection(daysDelta: number): void {
     const base = selectedDate ? new Date(selectedDate) : new Date();
     selectedDate = addDays(base, daysDelta);
+    // Scroll the newly-selected day cell into view if it's outside the visible
+    // calendar window (legacy setSelectedDate → scrollCellIntoView, 8px pad,
+    // workout-planner.js:839-859). The fixed 16-week window doesn't recycle, so
+    // we only scroll; the cell is always rendered within the window.
+    queueMicrotask(() => scrollSelectedIntoView());
+  }
+
+  // Scroll the selected day's cell into view inside the calendar body (legacy
+  // scrollCellIntoView, workout-planner.js:839-849). 8px padding top/bottom.
+  function scrollSelectedIntoView(): void {
+    if (!calendarBodyEl || !selectedDate) return;
+    const key = formatKey(selectedDate);
+    const cell = calendarBodyEl.querySelector<HTMLElement>(`.planner-day[data-date="${key}"]`);
+    if (!cell) return;
+    const containerRect = calendarBodyEl.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+    const padding = 8;
+    if (cellRect.top < containerRect.top + padding) {
+      calendarBodyEl.scrollTop -= containerRect.top - cellRect.top + padding;
+    } else if (cellRect.bottom > containerRect.bottom - padding) {
+      calendarBodyEl.scrollTop += cellRect.bottom - containerRect.bottom + padding;
+    }
+  }
+
+  // --------------------------- `?`-held hotkey overlay (legacy G4) ---------------------------
+  // Hold `?` (Shift+/) or `/` to hide the footer aggregates and reveal the
+  // hotkey list; release restores the footer. Only while the planner overlay is
+  // active and not in detail mode (the footer is calendar-only). Mirrors
+  // workout-planner.js isQuestionShowHotkey/isQuestionReleaseKey + keydown/keyup
+  // (:1275-1283, :1445-1466).
+  function isQuestionShowHotkey(e: KeyboardEvent): boolean {
+    const key = e.key || '';
+    return key === '?' || (key === '/' && e.shiftKey) || (e.code === 'Slash' && e.shiftKey);
+  }
+  function isQuestionReleaseKey(e: KeyboardEvent): boolean {
+    const key = e.key || '';
+    return key === '?' || key === '/' || e.code === 'Slash';
+  }
+  function onWindowKeyDown(e: KeyboardEvent): void {
+    if (!open || detailMode) return;
+    if (isEditableTarget(e.target)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!isQuestionShowHotkey(e)) return;
+    e.preventDefault();
+    if (questionHeld) return;
+    questionHeld = true;
+    showHotkeys = true;
+  }
+  function onWindowKeyUp(e: KeyboardEvent): void {
+    if (!isQuestionReleaseKey(e)) return;
+    if (!questionHeld) return;
+    questionHeld = false;
+    showHotkeys = false;
+  }
+
+  // --------------------------- drag-and-drop reschedule (legacy G3) ---------------------------
+  // Drag a scheduled card onto a future-or-today day to move it. PAST days
+  // reject; SAME-day is a no-op; live planner-drop-hover (hovered day) +
+  // planner-dragging (dragged card) styling. Mirrors workout-planner.js
+  // :457-471 (dragstart payload), :985-1023 (dragover/leave/drop).
+  function onCardDragStart(e: DragEvent, fromDate: string, workoutTitle: string): void {
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    dt.effectAllowed = 'move';
+    dt.setData(
+      'application/json',
+      JSON.stringify({ kind: 'scheduled', date: fromDate, workoutTitle }),
+    );
+    (e.currentTarget as HTMLElement | null)?.classList.add('planner-dragging');
+    document.body.classList.add('planner-dragging');
+  }
+  function onCardDragEnd(e: DragEvent): void {
+    (e.currentTarget as HTMLElement | null)?.classList.remove('planner-dragging');
+    document.body.classList.remove('planner-dragging');
+  }
+  function onDayDragOver(e: DragEvent, dateKey: string): void {
+    if (!dateKey || isPastDate(dateKey)) return;
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    if (!dt.types || !Array.from(dt.types).includes('application/json')) return;
+    e.preventDefault();
+    dt.dropEffect = 'move';
+    (e.currentTarget as HTMLElement | null)?.classList.add('planner-drop-hover');
+  }
+  function onDayDragLeave(e: DragEvent): void {
+    (e.currentTarget as HTMLElement | null)?.classList.remove('planner-drop-hover');
+  }
+  async function onDayDrop(e: DragEvent, dateKey: string): Promise<void> {
+    (e.currentTarget as HTMLElement | null)?.classList.remove('planner-drop-hover');
+    const dt = e.dataTransfer;
+    if (!dt || !dateKey || isPastDate(dateKey)) return;
+    e.preventDefault();
+    let payload: { kind?: string; date?: string; workoutTitle?: string } | null = null;
+    try {
+      const raw = dt.getData('application/json');
+      payload = raw ? JSON.parse(raw) : null;
+    } catch {
+      payload = null;
+    }
+    if (!payload || payload.kind !== 'scheduled') return;
+    if (!payload.workoutTitle || !payload.date) return;
+    const moved = await fileStore.moveScheduledEntry(payload.date, payload.workoutTitle, dateKey);
+    if (moved) await loadSchedule();
   }
 
   async function onDeleteFirstHistory(p: HistoryPreview): Promise<void> {
@@ -891,6 +1006,8 @@
     ui.plannerDetailOpen = open && detailMode;
   });
 </script>
+
+<svelte:window onkeydown={onWindowKeyDown} onkeyup={onWindowKeyUp} />
 
 <OverlayModal
   {open}
@@ -997,6 +1114,9 @@
                   tabindex="-1"
                   onclick={() => selectDay(cell.key)}
                   onkeydown={() => {}}
+                  ondragover={(e) => onDayDragOver(e, cell.key)}
+                  ondragleave={onDayDragLeave}
+                  ondrop={(e) => void onDayDrop(e, cell.key)}
                 >
                   <div class="planner-day-content" class:has-history={history.length || scheduled.length}>
                     {#if cell.monthLabel != null}
@@ -1041,8 +1161,11 @@
                         data-testid="planner-scheduled-card"
                         role="button"
                         tabindex="-1"
+                        draggable="true"
                         onclick={(e) => { e.stopPropagation(); if (!p.missing) void onLoadScheduled(p); }}
                         onkeydown={() => {}}
+                        ondragstart={(e) => onCardDragStart(e, cell.key, p.workoutTitle)}
+                        ondragend={onCardDragEnd}
                       >
                         <div class="planner-scheduled-top">
                           <div class="planner-scheduled-tag" class:planner-scheduled-tag-past={past}>Scheduled</div>
@@ -1132,9 +1255,15 @@
 
       <div class="planner-footer" id="plannerFooter">
         <div class="planner-footer-left">
-          <span id="plannerHotkeyPrompt">Press <strong>?</strong> for shortcuts</span>
+          <span id="plannerHotkeyPrompt" style="display: {showHotkeys ? 'none' : ''}">Press <strong>?</strong> for shortcuts</span>
+          <span id="plannerHotkeyList" data-testid="planner-hotkey-list" style="display: {showHotkeys ? '' : 'none'}">
+            <strong>↑↓←→</strong> or <strong>hjkl</strong> to move •
+            <strong>Enter</strong> to open • <strong>e</strong> to edit •
+            <strong>d</strong> or <strong>Delete</strong> to delete • drag
+            and drop to reschedule
+          </span>
         </div>
-        <div class="planner-footer-right">
+        <div class="planner-footer-right" style="display: {showHotkeys ? 'none' : ''}">
           <span id="plannerAgg3" data-testid="planner-agg-3"><strong>3 day sum:</strong> {agg.d3}</span>
           <span class="planner-footer-sep">·</span>
           <span id="plannerAgg7" data-testid="planner-agg-7"><strong>7 day sum:</strong> {agg.d7}</span>

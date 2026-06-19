@@ -762,6 +762,29 @@
     }
   }
 
+  // When a filter <select> is FOCUSED, j/k + ArrowUp/ArrowDown navigate its
+  // options (clamped) and apply the new value, mirroring legacy handleSelectNav
+  // (workout-picker.js:1311-1334). A focused native <select> swallows letter
+  // keydowns (Chromium typeahead) so they never reach the window-routed
+  // handlePickerKey — hence this is bound directly on each <select>'s keydown
+  // (exactly like the legacy per-select listeners). We set the bound state
+  // directly so Svelte's bind:value stays in sync (no synthetic change needed).
+  function onSelectNavKeydown(e: KeyboardEvent, which: 'zone' | 'duration'): void {
+    const key = (e.key || '').toLowerCase();
+    if (key !== 'j' && key !== 'k' && key !== 'arrowdown' && key !== 'arrowup') return;
+    const sel = e.currentTarget as HTMLSelectElement;
+    const opts = Array.from(sel.options || []);
+    if (!opts.length) return;
+    const delta = key === 'k' || key === 'arrowup' ? -1 : 1;
+    const cur = sel.selectedIndex >= 0 ? sel.selectedIndex : 0;
+    const nextIdx = Math.min(Math.max(0, cur + delta), opts.length - 1);
+    const nextVal = opts[nextIdx]?.value ?? '';
+    if (which === 'zone') zoneValue = nextVal;
+    else durationValue = nextVal;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   // The picker keymap. Routed here by the App overlay-key hook while the picker
   // overlay is open (registered below). Returns true if it consumed the key.
   // Mirrors docs/workout-picker.js setupHotkeys (1310-1492).
@@ -1018,6 +1041,7 @@
           style:display={builderMode ? 'none' : ''}
           bind:this={zoneSelectEl}
           bind:value={zoneValue}
+          onkeydown={(e) => onSelectNavKeydown(e, 'zone')}
         >
           <option value="">All zones</option>
           <option value="Recovery">Recovery</option>
@@ -1034,6 +1058,7 @@
           style:display={builderMode ? 'none' : ''}
           bind:this={durationSelectEl}
           bind:value={durationValue}
+          onkeydown={(e) => onSelectNavKeydown(e, 'duration')}
         >
           <option value="">All durations</option>
           <option value="1-30">1–30 min</option>
