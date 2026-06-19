@@ -39,6 +39,17 @@ async function openPlanner(page: Page): Promise<void> {
   await page.waitForTimeout(250);
 }
 
+// Read the persisted schedule.json out of the in-memory fake FS root.
+async function readSchedule(page: Page): Promise<{date: string; workoutTitle: string}[]> {
+  return page.evaluate(async () => {
+    const h = (window as unknown as {__VELO_HARNESS__: {fs: {root: {_files: Map<string, {getFile: () => Promise<{text: () => Promise<string>}>}>}}}}).__VELO_HARNESS__;
+    const fh = h.fs.root._files.get("schedule.json");
+    if (!fh) return [];
+    const f = await fh.getFile();
+    return JSON.parse(await f.text());
+  });
+}
+
 test.describe("Planner (new Svelte app) — visual", () => {
   test.use({harnessConfig: PLANNER_HARNESS_CONFIG});
 
@@ -163,34 +174,74 @@ test.describe("Planner (new Svelte app) — behavior", () => {
     await expect(page.getByTestId("planner-agg-30")).toContainText("40 min, 410 kJ, TSS 35");
   });
 
-  test("scheduling a workout on a future day writes schedule.json", async ({configuredPage}) => {
+  test("scheduling a day opens the library in schedule mode → pick a workout writes schedule.json", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await openPlanner(page);
 
-    // Select a future day with no existing schedule (2026-06-19).
-    await page.locator('.planner-day[data-date="2026-06-19"]').click();
+    // Select a future day with no existing schedule (2026-06-23) and schedule it.
+    await page.locator('.planner-day[data-date="2026-06-23"]').click();
     await expect(page.getByTestId("planner-schedule")).toBeVisible();
     await page.getByTestId("planner-schedule").click();
-    // Confirm dialog (schedules the engine's current workout — "Harness Sample").
-    await page.getByTestId("dialog-ok").click();
-    await page.waitForTimeout(80);
 
-    const schedule = await page.evaluate(async () => {
-      const h = (window as unknown as {__VELO_HARNESS__: {fs: {root: {_files: Map<string, {getFile: () => Promise<{text: () => Promise<string>}>}>}}}}).__VELO_HARNESS__;
-      const fh = h.fs.root._files.get("schedule.json");
-      if (!fh) return null;
-      const f = await fh.getFile();
-      return JSON.parse(await f.text());
-    });
-    expect(Array.isArray(schedule)).toBe(true);
+    // The picker opens in SCHEDULE mode: title "Schedule Workout", a
+    // "Back to calendar" affordance, no "Create workout", row CTA "Schedule Workout".
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+    await expect(page.getByTestId("picker-title")).toHaveText("Schedule Workout");
+    await expect(page.getByTestId("picker-back-to-calendar")).toBeVisible();
+    await expect(page.getByTestId("picker-add-workout")).toBeHidden();
+
+    // Browse + pick ANY workout (expand a seeded one, then "Schedule Workout").
+    await page.locator('.picker-row[data-title="Sleepy Spin"]').click();
+    const cta = page.getByTestId("picker-select");
+    await expect(cta).toHaveText("Schedule Workout");
+    await cta.click();
+
+    // Returns to the planner calendar (not the HUD); schedule.json now holds it.
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+    await expect(page.getByTestId("picker-modal")).toHaveCount(0);
+    const schedule = await readSchedule(page);
     expect(
-      (schedule as {date: string; workoutTitle: string}[]).some((e) => e.date === "2026-06-19"),
+      schedule.some((e) => e.date === "2026-06-23" && e.workoutTitle === "Sleepy Spin"),
     ).toBe(true);
-    // The new scheduled card renders on that day.
     await expect(
-      page.locator('.planner-day[data-date="2026-06-19"] .planner-scheduled-card').first(),
+      page.locator('.planner-day[data-date="2026-06-23"] .planner-scheduled-card').first(),
     ).toBeVisible();
+  });
+
+  test("Back to calendar cancels schedule mode WITHOUT scheduling", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    await page.locator('.planner-day[data-date="2026-06-23"]').click();
+    await page.getByTestId("planner-schedule").click();
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+
+    await page.getByTestId("picker-back-to-calendar").click();
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+    await expect(page.getByTestId("picker-modal")).toHaveCount(0);
+
+    const schedule = await readSchedule(page);
+    expect(schedule.some((e) => e.date === "2026-06-23")).toBe(false);
+  });
+
+  test("Escape in schedule mode returns to the planner WITHOUT scheduling", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    await page.locator('.planner-day[data-date="2026-06-23"]').click();
+    await page.getByTestId("planner-schedule").click();
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    // Escape returns to the planner — it does NOT close everything.
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+    await expect(page.getByTestId("picker-modal")).toHaveCount(0);
+
+    const schedule = await readSchedule(page);
+    expect(schedule.some((e) => e.date === "2026-06-23")).toBe(false);
   });
 
   test("the 'c' key opens the planner", async ({configuredPage}) => {
@@ -299,31 +350,49 @@ test.describe("Planner (new Svelte app) — behavior", () => {
       .toBe("Sleepy Spin");
   });
 
-  test("editing a scheduled future entry removes it (schedule.json updated)", async ({configuredPage}) => {
+  test("editing a scheduled future entry opens edit mode → pick replaces it", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await openPlanner(page);
 
-    // The future scheduled card (2026-06-20) shows an edit affordance.
+    // The future scheduled card (2026-06-20, "Sleepy Spin") shows an edit pencil.
     const card = page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card').first();
     await expect(card).toBeVisible();
-    // The engine's current workout is "Harness Sample" (different title), so the
-    // edit confirm offers Replace / Remove. Choose Remove (the cancel button).
     await card.getByTestId("planner-scheduled-edit").click();
-    await page.getByTestId("dialog-cancel").click();
-    await page.waitForTimeout(80);
 
-    // schedule.json no longer contains the 2026-06-20 entry…
-    const schedule = await page.evaluate(async () => {
-      const h = (window as unknown as {__VELO_HARNESS__: {fs: {root: {_files: Map<string, {getFile: () => Promise<{text: () => Promise<string>}>}>}}}}).__VELO_HARNESS__;
-      const fh = h.fs.root._files.get("schedule.json");
-      if (!fh) return [];
-      const f = await fh.getFile();
-      return JSON.parse(await f.text());
-    });
-    expect(
-      (schedule as {date: string; workoutTitle: string}[]).some((e) => e.date === "2026-06-20"),
-    ).toBe(false);
+    // The picker opens in EDIT-schedule mode: title "Edit Schedule" + an
+    // "Unschedule" button; the targeted entry is pre-expanded.
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+    await expect(page.getByTestId("picker-title")).toHaveText("Edit Schedule");
+    await expect(page.getByTestId("picker-unschedule")).toBeVisible();
+
+    // Pick a DIFFERENT workout (one in the seeded library) → it REPLACES the
+    // entry on that day (no duplicate left behind).
+    await page.locator('.picker-row[data-title="Snooze Cruise"]').click();
+    await page.getByTestId("picker-select").click();
+
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+    const schedule = await readSchedule(page);
+    const onDay = schedule.filter((e) => e.date === "2026-06-20");
+    expect(onDay).toHaveLength(1);
+    expect(onDay[0]!.workoutTitle).toBe("Snooze Cruise");
+  });
+
+  test("editing a scheduled future entry → Unschedule removes it (schedule.json updated)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    const card = page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card').first();
+    await expect(card).toBeVisible();
+    await card.getByTestId("planner-scheduled-edit").click();
+    await expect(page.getByTestId("picker-unschedule")).toBeVisible();
+    await page.getByTestId("picker-unschedule").click();
+
+    // Returns to the planner; schedule.json no longer holds the 2026-06-20 entry…
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+    const schedule = await readSchedule(page);
+    expect(schedule.some((e) => e.date === "2026-06-20")).toBe(false);
     // …and the card is gone from the calendar.
     await expect(
       page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card'),

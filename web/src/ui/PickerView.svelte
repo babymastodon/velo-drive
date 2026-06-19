@@ -9,7 +9,7 @@
   // buttons are rendered but no-op (see onCreateWorkout / onEdit).
   import OverlayModal from './OverlayModal.svelte';
   import type { WorkoutEngine } from '../core/engine.js';
-  import type { WebFileStore } from '../ports/web/WebFileStore.js';
+  import type { WebFileStore, ScheduleEntry } from '../ports/web/WebFileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
@@ -116,7 +116,9 @@
   // Rescan the library whenever the picker is opened.
   $effect(() => {
     if (open) {
-      expandedTitle = null;
+      // Pre-expand the targeted entry in schedule EDIT mode (legacy open(entry
+      // ?.workoutTitle)); otherwise start collapsed.
+      expandedTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
       builderMode = false;
       void (async () => {
         await restorePickerState();
@@ -278,7 +280,22 @@
     expandedTitle = expandedTitle === title ? null : title;
   }
 
+  // --------------------------- schedule mode (G1/G2) ---------------------------
+  // When opened from the planner (ui.openPickerForSchedule), the picker becomes
+  // the workout LIBRARY in "Schedule Workout" / "Edit Schedule" mode: the row
+  // CTA is relabeled, Create-workout is hidden, Back-to-calendar (+ Unschedule
+  // in edit mode) appear, and selecting SCHEDULES the workout for the day (writes
+  // schedule.json) then returns to the planner — it does NOT load onto the HUD.
+  // Mirrors legacy picker.openScheduleMode (docs/workout-picker.js:1923-1934).
+  const scheduleCtx = $derived(ui.pickerScheduleContext);
+  const scheduleMode = $derived(scheduleCtx != null);
+  const scheduleEditMode = $derived(scheduleCtx?.editMode === true);
+
   function doSelect(canonical: CanonicalWorkout): void {
+    if (scheduleCtx) {
+      void scheduleWorkoutForDay(canonical, scheduleCtx);
+      return;
+    }
     // Persist so the selection survives a reload (WebFileStore de-proxies the
     // $state value). Surface failures instead of swallowing them with `void`.
     fileStore
@@ -286,6 +303,58 @@
       .catch((e) => console.error('[velo] persist selectedWorkout failed', e));
     engine.setWorkoutFromPicker(canonical);
     ui.close();
+  }
+
+  // Schedule the picked workout on the context's day (replace in edit mode),
+  // persist schedule.json, then return to the planner calendar (which reloads
+  // the schedule on re-open). Mirrors legacy planner.applyScheduledEntry +
+  // handleScheduleSelected (workout-planner.js:1551 / workout.js:1343).
+  async function scheduleWorkoutForDay(
+    canonical: CanonicalWorkout,
+    ctx: { dateKey: string; entry: ScheduleEntry | null; editMode: boolean },
+  ): Promise<void> {
+    const title = canonical.workoutTitle;
+    if (!title) return;
+    const entries = await fileStore.loadSchedule();
+    const nextEntry: ScheduleEntry = { date: ctx.dateKey, workoutTitle: title };
+    let next: ScheduleEntry[];
+    if (ctx.entry) {
+      // Replace the targeted entry in place (matched by date + title).
+      let replaced = false;
+      next = entries.map((e) => {
+        if (!replaced && e.date === ctx.entry!.date && e.workoutTitle === ctx.entry!.workoutTitle) {
+          replaced = true;
+          return nextEntry;
+        }
+        return e;
+      });
+      if (!replaced) next.push(nextEntry);
+    } else {
+      // Avoid a duplicate (same day + title) but otherwise append.
+      next = entries.filter((e) => !(e.date === ctx.dateKey && e.workoutTitle === title));
+      next.push(nextEntry);
+    }
+    await fileStore.saveSchedule(next);
+    ui.returnToPlannerFromSchedule();
+  }
+
+  // Unschedule (edit mode): remove the targeted entry, persist, return to planner.
+  // Mirrors legacy onScheduleUnschedule (workout.js:1355 / workout-picker.js:230).
+  async function onScheduleUnschedule(): Promise<void> {
+    const ctx = scheduleCtx;
+    if (!ctx?.entry) return;
+    const entries = await fileStore.loadSchedule();
+    const next = entries.filter(
+      (e) => !(e.date === ctx.entry!.date && e.workoutTitle === ctx.entry!.workoutTitle),
+    );
+    await fileStore.saveSchedule(next);
+    ui.returnToPlannerFromSchedule();
+  }
+
+  // Back to calendar (+ Escape/Backspace in schedule mode): cancel, return to the
+  // planner WITHOUT scheduling. Mirrors close({returnToPlanner:true}).
+  function onBackToCalendar(): void {
+    ui.returnToPlannerFromSchedule();
   }
 
   async function onDelete(canonical: CanonicalWorkout): Promise<void> {
@@ -748,13 +817,22 @@
 
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
 
+    // Schedule mode: Escape/Backspace return to the planner calendar WITHOUT
+    // scheduling (legacy workout-picker.js:1432-1443 close({returnToPlanner})).
+    if (scheduleMode && (key === 'escape' || key === 'backspace')) {
+      e.preventDefault();
+      onBackToCalendar();
+      return true;
+    }
+
     if (key === 'escape') {
       // Not handled here → App closes the overlay (matches legacy close()).
       return false;
     }
 
-    // e → open the expanded workout in the builder (legacy 1468-1478).
-    if (key === 'e') {
+    // e → open the expanded workout in the builder (legacy 1468-1478). Disabled
+    // in schedule mode (the builder/edit affordances are hidden there).
+    if (key === 'e' && !scheduleMode) {
       const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
       if (expanded) {
         e.preventDefault();
@@ -863,6 +941,19 @@
     <header class="workout-picker-header picker-only">
       <div class="workout-picker-header-actions">
         <button
+          id="pickerBackToPlannerBtn"
+          class="wb-code-insert-btn picker-back-btn"
+          type="button"
+          data-testid="picker-back-to-calendar"
+          style:display={scheduleMode && !builderMode ? 'inline-flex' : 'none'}
+          onclick={onBackToCalendar}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px; display: block; stroke-width: 1.6;" class="wb-code-icon">
+            <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Back to calendar</span>
+        </button>
+        <button
           id="workoutBuilderBackBtn"
           class="wb-code-insert-btn picker-back-btn"
           type="button"
@@ -879,7 +970,13 @@
 
       <div class="workout-picker-header-main">
         <div class="workout-picker-title" id="workoutPickerTitle" data-testid="picker-title">
-          {builderMode ? builderTitle : 'Workout library'}
+          {builderMode
+            ? builderTitle
+            : scheduleMode
+              ? scheduleEditMode
+                ? 'Edit Schedule'
+                : 'Schedule Workout'
+              : 'Workout library'}
         </div>
       </div>
 
@@ -955,13 +1052,29 @@
           data-testid="picker-add-workout"
           class="picker-add-btn"
           type="button"
-          style:display={builderMode ? 'none' : 'inline-flex'}
+          style:display={builderMode || scheduleMode ? 'none' : 'inline-flex'}
           onclick={onCreateWorkout}
         >
           <svg viewBox="0 0 24 24" class="wb-code-icon" aria-hidden="true">
             <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
           <span>Create workout</span>
+        </button>
+
+        <button
+          id="pickerScheduleUnscheduleBtn"
+          class="picker-add-btn delete-workout-btn"
+          type="button"
+          data-testid="picker-unschedule"
+          title="Remove the scheduled workout for this day."
+          style:display={scheduleEditMode && !builderMode ? 'inline-flex' : 'none'}
+          onclick={() => void onScheduleUnschedule()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M8 16l8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Unschedule</span>
         </button>
 
         <div
@@ -1120,6 +1233,7 @@
                     <div class="picker-expanded-header">
                       <div class="picker-expanded-title">{title}</div>
                       <div class="picker-expanded-actions">
+                        {#if !scheduleMode}
                         {#if item.canonical.sourceURL}
                           <button
                             type="button"
@@ -1170,15 +1284,16 @@
                           </svg>
                           <span>Edit</span>
                         </button>
+                        {/if}
                         <button
                           type="button"
                           class="select-workout-btn"
                           data-testid="picker-select"
-                          title="Use this workout on the workout page."
+                          title={scheduleMode ? 'Schedule this workout on the selected day.' : 'Use this workout on the workout page.'}
                           bind:this={selectBtnEl}
                           onclick={(e) => { e.stopPropagation(); doSelect(item.canonical); }}
                         >
-                          Select workout
+                          {scheduleMode ? 'Schedule Workout' : 'Select workout'}
                         </button>
                       </div>
                     </div>

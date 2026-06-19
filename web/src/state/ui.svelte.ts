@@ -32,6 +32,33 @@ export class UiStore {
   // Settings has an internal logs sub-view; Escape returns here first.
   settingsLogsOpen = $state(false);
 
+  // Schedule-mode handoff: the planner re-opens the picker as the workout
+  // LIBRARY in "Schedule Workout" / "Edit Schedule" mode so the user browses +
+  // picks ANY workout for a calendar day (legacy picker.openScheduleMode,
+  // docs/workout-picker.js:1923-1934). When set, PickerView relabels its chrome,
+  // hides Create-workout, shows Back-to-calendar (+ Unschedule in edit mode) and
+  // schedules instead of loading the workout onto the HUD. Cleared on every
+  // disposition (select / back / Escape) which returns to the planner overlay.
+  pickerScheduleContext = $state<{ dateKey: string; entry: { date: string; workoutTitle: string } | null; editMode: boolean } | null>(null);
+
+  /**
+   * Open the picker in schedule mode for a calendar day (from the planner). The
+   * picker becomes the workout library so the user can browse + pick ANY
+   * workout; selecting writes schedule.json and returns to the planner. In edit
+   * mode the entry is pre-targeted (selecting REPLACES it; Unschedule removes
+   * it). Mirrors legacy picker.openScheduleMode({dateKey, entry, editMode}).
+   */
+  openPickerForSchedule(dateKey: string, entry: { date: string; workoutTitle: string } | null = null, editMode = false): void {
+    this.pickerScheduleContext = { dateKey, entry, editMode };
+    this.activeOverlay = 'picker';
+  }
+
+  /** Return from schedule mode to the planner overlay (cancel or post-schedule). */
+  returnToPlannerFromSchedule(): void {
+    this.pickerScheduleContext = null;
+    this.activeOverlay = 'planner';
+  }
+
   // The picker hosts an in-place workout builder. While the builder is showing,
   // the BuilderView owns ALL keys (including Escape, which deselects a block or
   // goes Back — it must NOT close the picker). The App's global key router
@@ -70,6 +97,9 @@ export class UiStore {
 
   open(id: OverlayId): void {
     if (id === 'settings') this.settingsLogsOpen = false;
+    // A normal picker open (W key / chart "Select a workout") is LIBRARY mode —
+    // clear any stale schedule context so it never leaks into a plain open.
+    if (id !== 'picker') this.pickerScheduleContext = null;
     this.activeOverlay = id;
   }
 
@@ -82,6 +112,7 @@ export class UiStore {
   close(): void {
     this.settingsLogsOpen = false;
     this.plannerDetailOpen = false;
+    this.pickerScheduleContext = null;
     this.activeOverlay = 'none';
   }
 
@@ -102,6 +133,14 @@ export class UiStore {
     // pops detail first, ignores Escape on the calendar otherwise). The handler
     // already returned true in that case, so this is a defensive guard.
     if (this.activeOverlay === 'planner' && this.plannerDetailOpen) {
+      return true;
+    }
+    // Schedule-mode picker: Escape returns to the planner calendar WITHOUT
+    // scheduling, it does NOT close everything (legacy workout-picker.js:1432-
+    // 1443 close({returnToPlanner:true})). The picker's own key handler normally
+    // consumes Escape first; this is the defensive fallback.
+    if (this.activeOverlay === 'picker' && this.pickerScheduleContext) {
+      this.returnToPlannerFromSchedule();
       return true;
     }
     this.close();
