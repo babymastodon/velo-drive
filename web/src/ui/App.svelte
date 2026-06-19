@@ -9,6 +9,7 @@
   import PickerView from './PickerView.svelte';
   import PlannerView from './PlannerView.svelte';
   import WelcomeView from './WelcomeView.svelte';
+  import StatusOverlay from './StatusOverlay.svelte';
   import Dialog from './Dialog.svelte';
   import { UiStore } from '../state/ui.svelte.js';
   import { DialogStore } from '../state/dialog.svelte.js';
@@ -19,13 +20,27 @@
 
   // Expose the UI/dialog stores so e2e tests can drive overlays that have no
   // on-screen entry point (e.g. open the welcome tour for its visual diff).
-  (window as unknown as { __VELO_APP__: unknown }).__VELO_APP__ = { ui, dialogs };
+  // `getVm` lets behavior tests inspect the engine view-model (manual targets,
+  // free-ride state) without reaching into internals.
+  const appBridge = {
+    ui,
+    dialogs,
+    getVm: () => ctx?.store.vm ?? null,
+  };
+  (window as unknown as { __VELO_APP__: unknown }).__VELO_APP__ = appBridge;
 
   const welcomeActive = $derived(ui.activeOverlay === 'welcome');
 
   $effect(() => {
     let cancelled = false;
-    bootApp()
+    bootApp({
+      // Finishing a ride opens the planner to the saved ride (mirrors the
+      // legacy onWorkoutEnded follow-up in docs/workout.js:1368).
+      onWorkoutEnded: (info) => {
+        const date = info?.endedAt || info?.startedAt || new Date();
+        ui.openPlannerForRide(info?.fileName ?? null, date);
+      },
+    })
       .then((c) => {
         if (!cancelled) ctx = c;
       })
@@ -50,6 +65,13 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
   }
 
+  // Per-overlay keydown hooks. When an overlay is open, global hotkeys are
+  // suppressed and the keydown is routed to that overlay's handler instead
+  // (picker/planner/builder register their own in later waves). A handler
+  // returns true if it consumed the key. This is the single routing convention
+  // the other waves hook into — they only need to populate this map.
+  const overlayKeyHandlers: Partial<Record<typeof ui.activeOverlay, (e: KeyboardEvent) => boolean>> = {};
+
   function onKeydown(e: KeyboardEvent): void {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
@@ -61,11 +83,57 @@
       return;
     }
 
-    // Keys suppressed while typing in a field or while an overlay is open.
+    // When an overlay is open, route the key to that overlay (if it has a
+    // handler) and never fall through to the global HUD hotkeys. Welcome
+    // suppresses everything (no handler), matching legacy `isWelcomeActive`.
+    if (ui.activeOverlay !== 'none') {
+      const handler = overlayKeyHandlers[ui.activeOverlay];
+      if (handler && handler(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+
+    // Global HUD hotkeys — only with no overlay open and not typing in a field.
     if (isEditable(e.target)) return;
-    if (ui.activeOverlay !== 'none') return;
+    if (!ctx) return;
+    const vm = ctx.store.vm;
+
+    // Space → start / pause / resume (only when a workout is selected). Use
+    // e.code so it's layout-independent, mirroring legacy.
+    if (e.code === 'Space') {
+      if (!vm?.canonicalWorkout) return;
+      e.preventDefault();
+      ctx.engine.startWorkout();
+      return;
+    }
 
     const key = (e.key || '').toLowerCase();
+
+    // Manual ±10 (ArrowUp/k = +10, ArrowDown/j = -10) — only when a free-ride
+    // segment is active. Routes to erg or resistance per the current mode.
+    if (
+      vm?.isFreeRideActive &&
+      (key === 'arrowup' || key === 'k' || key === 'arrowdown' || key === 'j')
+    ) {
+      const delta = key === 'arrowup' || key === 'k' ? 10 : -10;
+      e.preventDefault();
+      if (vm.freeRideMode === 'erg') ctx.engine.adjustManualErg(delta);
+      else ctx.engine.adjustManualResistance(delta);
+      return;
+    }
+
+    // e / r → switch free-ride mode (only while a free-ride segment is active).
+    if (key === 'e' || key === 'r') {
+      e.preventDefault();
+      const active = !!(vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting);
+      if (active && vm?.isFreeRideActive) {
+        ctx.engine.setFreeRideMode(key === 'e' ? 'erg' : 'resistance');
+      }
+      return;
+    }
+
     if (key === 's') {
       e.preventDefault();
       ui.open('settings');
@@ -108,6 +176,7 @@
     store={ctx.store}
     engine={ctx.engine}
     transport={ctx.transport}
+    {dialogs}
     onOpenSettings={() => ui.open('settings')}
     onOpenPicker={openPicker}
     onOpenPlanner={openPlanner}
@@ -141,5 +210,7 @@
 {/if}
 
 <WelcomeView {ui} open={welcomeActive} />
+
+<StatusOverlay />
 
 <Dialog {dialogs} />

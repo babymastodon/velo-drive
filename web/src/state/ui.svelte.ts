@@ -19,6 +19,18 @@ export class UiStore {
   // Which slide the welcome tour opens on (for deterministic tests).
   welcomeStartIndex = $state(0);
 
+  // When a ride finishes, the shell opens the planner to the saved ride. The
+  // planner reads this on open to select the day + open the ride's detail
+  // (consumed in the planner wave; set here by onWorkoutEnded). Mirrors the
+  // legacy planner.openDetailByFile(fileName, date) call.
+  pendingHistoryFile = $state<{ fileName: string; date: Date } | null>(null);
+
+  // Open the planner focused on a just-saved ride (legacy onWorkoutEnded flow).
+  openPlannerForRide(fileName: string | null, date: Date): void {
+    this.pendingHistoryFile = fileName ? { fileName, date } : null;
+    this.activeOverlay = 'planner';
+  }
+
   open(id: OverlayId): void {
     if (id === 'settings') this.settingsLogsOpen = false;
     this.activeOverlay = id;

@@ -1,11 +1,15 @@
 <script lang="ts">
   import type { EngineViewModel, WorkoutEngine } from '../core/engine.js';
   import type { WebBluetoothTransport } from '../ports/web/WebBluetoothTransport.js';
+  import type { DialogStore } from '../state/dialog.svelte.js';
+  import { DEFAULT_FTP } from '../core/metrics.js';
+  import { CadenceCoach, computeCoachingTitle } from './hud-coaching.js';
 
   let {
     vm,
     engine,
     transport,
+    dialogs,
     bikeStatus,
     hrStatus,
     hrBatteryPercent,
@@ -16,6 +20,7 @@
     vm: EngineViewModel;
     engine: WorkoutEngine;
     transport: WebBluetoothTransport;
+    dialogs: DialogStore;
     bikeStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrBatteryPercent: number | null;
@@ -36,8 +41,17 @@
 
   // Workout title center (shown while running/starting).
   const showTitleCenter = $derived(vm.workoutRunning || vm.workoutStarting);
+
+  // Live coaching title: per-segment instruction ("Maintain N watts for D at C
+  // RPM" / "Ramp up/down to N watts" / "Free ride at N watts"), the "In N - "
+  // lookahead, and "Speed up/Slow down" cadence coaching (ported from
+  // docs/workout.js updateWorkoutTitleUI). The CadenceCoach accrues off-cadence
+  // seconds across renders, so it persists outside the $derived.
+  const coach = new CadenceCoach();
+  const coaching = $derived(computeCoachingTitle(vm, coach));
+  // Plain string for the title= tooltip / the simple-text branch.
   const titleText = $derived(
-    vm.canonicalWorkout?.workoutTitle || 'Workout running',
+    coaching.text ?? (coaching.parts ?? []).map((p) => p.text).join(''),
   );
   const nameLabelText = $derived(
     vm.canonicalWorkout
@@ -51,8 +65,11 @@
   function onStartLike(): void {
     engine.startWorkout();
   }
-  function onStop(): void {
-    void engine.endWorkout();
+  // Stop must confirm before ending + saving (legacy docs/workout.js:1647).
+  async function onStop(): Promise<void> {
+    const sure = await dialogs.confirm('End current workout and save it?');
+    if (!sure) return;
+    await engine.endWorkout();
   }
   function onConnectBike(): void {
     transport.connectBikeViaPicker().catch(() => {});
@@ -72,6 +89,62 @@
     vm.freeRideMode === 'erg' ? vm.manualErgTarget || 0 : vm.manualResistance || 0,
   );
   const manualUnit = $derived(vm.freeRideMode === 'erg' ? 'W' : '%');
+
+  // Manual input commit (legacy handleManualInputSave / normalise* ~996-1043).
+  // Parse the typed value, clamp it (ERG: [50, ftp*2.5]; resistance [0,100]),
+  // and push the diff to the engine. Reverts the input to the current value if
+  // unchanged (the engine is the source of truth for the displayed number).
+  function normaliseErg(raw: string): number {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return vm.manualErgTarget || vm.currentFtp || DEFAULT_FTP;
+    const ftp = vm.currentFtp || DEFAULT_FTP;
+    return Math.min(ftp * 2.5, Math.max(50, Math.round(n)));
+  }
+  function normaliseResistance(raw: string): number {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return vm.manualResistance || 0;
+    return Math.min(100, Math.max(0, Math.round(n)));
+  }
+  function commitManualInput(el: HTMLInputElement): void {
+    const active = vm.workoutRunning || vm.workoutPaused || vm.workoutStarting;
+    if (!active || !vm.isFreeRideActive) return;
+    const raw = el.value.trim();
+    if (vm.freeRideMode === 'erg') {
+      const next = normaliseErg(raw);
+      const current = vm.manualErgTarget || 0;
+      const delta = next - current;
+      if (delta) engine.adjustManualErg(delta);
+      else el.value = String(current);
+    } else {
+      const next = normaliseResistance(raw);
+      const current = vm.manualResistance || 0;
+      const delta = next - current;
+      if (delta) engine.adjustManualResistance(delta);
+      else el.value = String(current);
+    }
+  }
+  function onManualKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const el = e.currentTarget as HTMLInputElement;
+      commitManualInput(el);
+      el.blur();
+    }
+  }
+  function onManualBlur(e: FocusEvent): void {
+    commitManualInput(e.currentTarget as HTMLInputElement);
+  }
+
+  // Sync the displayed value from the engine, but never overwrite while the
+  // user is typing (legacy applyModeUI ~971-987 / D15).
+  let manualInputEl = $state<HTMLInputElement | null>(null);
+  $effect(() => {
+    const v = manualValue; // track
+    const el = manualInputEl;
+    if (!el) return;
+    if (document.activeElement === el) return;
+    el.value = String(v);
+  });
 </script>
 
 <nav class="bottom-nav">
@@ -147,7 +220,9 @@
       style="display: {showTitleCenter ? 'block' : 'none'}"
       title={titleText}
     >
-      {titleText}
+      {#if coaching.parts}{#each coaching.parts as part}{#if part.strong}<strong
+            >{part.text}</strong
+          >{:else}{part.text}{/if}{/each}{:else}{coaching.text}{/if}
     </div>
   </div>
 
@@ -190,7 +265,9 @@
             class="settings-ftp-input"
             type="number"
             inputmode="numeric"
-            value={manualValue}
+            bind:this={manualInputEl}
+            onkeydown={onManualKeydown}
+            onblur={onManualBlur}
           />
           <span id="manualUnit" class="settings-ftp-unit">{manualUnit}</span>
         </div>

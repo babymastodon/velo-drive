@@ -57,6 +57,7 @@
       elapsedSec: vm.elapsedSec,
       liveSamples: vm.liveSamples,
       manualErgTarget: vm.manualErgTarget,
+      textEvents: vm.canonicalWorkout?.textEvents || [],
     });
   }
 

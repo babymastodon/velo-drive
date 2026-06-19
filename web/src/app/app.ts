@@ -21,7 +21,14 @@ export interface AppContext {
   beeper: Beeper;
 }
 
-export async function bootApp(): Promise<AppContext> {
+export interface BootOptions {
+  // Called when a ride finishes (after the FIT is written). Mirrors the legacy
+  // onWorkoutEnded follow-up (docs/workout.js:1368) — the shell uses it to open
+  // the planner to the saved ride. `info` is null when nothing was saved.
+  onWorkoutEnded?: (info: { fileName: string; startedAt: Date; endedAt: Date } | null) => void;
+}
+
+export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const transport = new WebBluetoothTransport();
   const fileStore = new WebFileStore();
   const beeper = new Beeper();
@@ -59,6 +66,7 @@ export async function bootApp(): Promise<AppContext> {
   await engine.init({
     onStateChanged: store.set,
     onLog: () => {},
+    onWorkoutEnded: opts.onWorkoutEnded,
   });
 
   return { store, engine, transport, fileStore, beeper };

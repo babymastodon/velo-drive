@@ -34,6 +34,9 @@ export interface DrawWorkoutChartArgs {
   liveSamples: LiveSample[];
   manualErgTarget?: number;
   showProgress?: boolean;
+  // Active text-event message overlay (legacy drawWorkoutChart ~2081). When the
+  // elapsed time falls within an event window, its text is centered on the chart.
+  textEvents?: { offsetSec: number; durationSec: number; text?: string }[];
 }
 
 // --------------------------- CSS / color helpers ---------------------------
@@ -417,6 +420,46 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     posLine.setAttribute('stroke-width', '1.5');
     posLine.setAttribute('pointer-events', 'none');
     svg.appendChild(posLine);
+  }
+
+  // Active text-event message overlay (legacy drawWorkoutChart ~2081): the LAST
+  // event whose window contains the elapsed time is centered on the chart.
+  const textEvents = args.textEvents;
+  if (Array.isArray(textEvents) && textEvents.length && elapsedSec != null) {
+    const active = textEvents
+      .map((evt) => ({
+        offsetSec: Math.max(0, Number(evt?.offsetSec) || 0),
+        durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+        text: evt?.text || '',
+      }))
+      .filter(
+        (evt) => elapsedClamped >= evt.offsetSec && elapsedClamped <= evt.offsetSec + evt.durationSec,
+      )
+      .pop();
+    if (active && active.text) {
+      const fontSize = Math.max(14, Math.round(Math.min(w, h) / 7));
+      const maxWidth = Math.max(120, Math.round(w * 0.88));
+      const x = Math.round((w - maxWidth) / 2);
+      const y = Math.round(h * 0.22);
+      const foreign = document.createElementNS(SVG_NS, 'foreignObject');
+      foreign.setAttribute('x', String(x));
+      foreign.setAttribute('y', String(y));
+      foreign.setAttribute('width', String(maxWidth));
+      foreign.setAttribute('height', String(Math.round(h * 0.5)));
+      foreign.setAttribute('pointer-events', 'none');
+      const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div') as HTMLDivElement;
+      div.textContent = active.text;
+      div.style.color = getCssVar('--text-main');
+      div.style.fontSize = `${fontSize}px`;
+      div.style.fontWeight = '600';
+      div.style.lineHeight = '1.2';
+      div.style.textAlign = 'center';
+      div.style.whiteSpace = 'normal';
+      div.style.wordBreak = 'break-word';
+      div.style.textShadow = '0 0 12px var(--chart-empty-shadow)';
+      foreign.appendChild(div);
+      svg.appendChild(foreign);
+    }
   }
 
   // live traces
