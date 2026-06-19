@@ -12,6 +12,10 @@ import {
   inferZoneFromSegments,
   type SegmentMetrics,
 } from './metrics.js';
+import {
+  canonicalWorkoutToZwoXml,
+  parseZwoXmlToCanonicalWorkout,
+} from './zwo.js';
 import type { CanonicalWorkout, RawSegment, TextEvent } from './model.js';
 
 const FREERIDE_POWER_REL = 0.5;
@@ -127,6 +131,88 @@ export interface SelectionSnapshot {
   selectedBlockIndices: number[];
   selectionAnchorIndex: number | null;
   selectionAnchorCursorIndex: number | null;
+}
+
+// --------------------------- clipboard codec ---------------------------
+//
+// Pure encode/decode for the builder clipboard payload. The legacy builder
+// (docs/workout-builder.js copySelectionToClipboard/pasteFromClipboard) writes
+// either ZWO XML (for a block selection) or a `VELO_TEXT_EVENTS:{json}` string
+// (for a lone text-event selection) via navigator.clipboard. These two pure
+// functions own that wire format so it can be unit-tested without a real
+// clipboard; BuilderView is responsible only for the navigator.clipboard I/O.
+
+const TEXT_EVENT_PREFIX = 'VELO_TEXT_EVENTS:';
+
+export type ClipboardPayload =
+  | { kind: 'blocks'; canonical: CanonicalWorkout }
+  | { kind: 'textEvents'; textEvents: TextEvent[] };
+
+/**
+ * Encode block rawSegments (+ their text events) to ZWO XML for the clipboard.
+ * Mirrors the legacy copy path: a "Clipboard" canonical workout serialized via
+ * core/zwo canonicalWorkoutToZwoXml.
+ */
+export function encodeClipboard(
+  rawSegments: RawSegment[],
+  textEvents: TextEvent[] = [],
+): string {
+  const canonical: CanonicalWorkout = {
+    source: 'Me',
+    sourceURL: '',
+    workoutTitle: 'Clipboard',
+    rawSegments,
+    description: '',
+    textEvents,
+  } as CanonicalWorkout;
+  return canonicalWorkoutToZwoXml(canonical);
+}
+
+/**
+ * Encode a lone text-event selection to the `VELO_TEXT_EVENTS:{json}` string,
+ * matching the legacy copySelectionToClipboard text-event branch (offset reset
+ * to 0 so paste lands at the insertion cursor).
+ */
+export function encodeTextEventClipboard(textEvents: TextEvent[]): string {
+  const payload = {
+    textEvents: textEvents.map((evt) => ({
+      offsetSec: 0,
+      durationSec: evt.durationSec,
+      text: evt.text || '',
+    })),
+  };
+  return `${TEXT_EVENT_PREFIX}${JSON.stringify(payload)}`;
+}
+
+/**
+ * Decode a clipboard string into a structured payload. Recognizes the
+ * `VELO_TEXT_EVENTS:` prefix (text events) and otherwise tries to parse the
+ * text as ZWO XML. Returns null when nothing usable is found. Pure.
+ */
+export function parseClipboard(text: string): ClipboardPayload | null {
+  if (!text) return null;
+  if (text.startsWith(TEXT_EVENT_PREFIX)) {
+    try {
+      const parsed = JSON.parse(text.slice(TEXT_EVENT_PREFIX.length));
+      const events = Array.isArray(parsed?.textEvents) ? parsed.textEvents : [];
+      if (!events.length) return null;
+      return {
+        kind: 'textEvents',
+        textEvents: events.map((evt: Partial<TextEvent>) => ({
+          offsetSec: Math.max(0, Math.round(Number(evt?.offsetSec) || 0)),
+          durationSec: Math.max(1, Math.round(Number(evt?.durationSec) || 10)),
+          text: String(evt?.text || ''),
+        })),
+      };
+    } catch {
+      return null;
+    }
+  }
+  const canonical = parseZwoXmlToCanonicalWorkout(text);
+  if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+    return null;
+  }
+  return { kind: 'blocks', canonical };
 }
 
 export function createBuilderBackend() {

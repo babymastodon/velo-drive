@@ -26,7 +26,13 @@
   // power math reuses the legacy formulas); pixel-perfect ramp-region drag is
   // simplified (see handleChartPointerMove).
 
-  import { createBuilderBackend, type Block } from '../core/builder-backend.js';
+  import {
+    createBuilderBackend,
+    encodeClipboard,
+    encodeTextEventClipboard,
+    parseClipboard,
+    type Block,
+  } from '../core/builder-backend.js';
   import { renderBuilderWorkoutGraph } from '../core/chart.js';
   import { getScaledMaxY } from '../core/chart.js';
   import { formatDurationMinSec } from '../core/metrics.js';
@@ -326,6 +332,62 @@
     bump();
   }
 
+  // --------------------------- clipboard ---------------------------
+  // Faithful port of docs/workout-builder.js copy/cut/pasteFromClipboard. The
+  // wire format (ZWO XML for blocks, VELO_TEXT_EVENTS:{json} for a lone text
+  // event) lives in core/builder-backend.ts as pure encode/parse functions;
+  // here we only do the navigator.clipboard I/O.
+  async function clipboardWrite(text: string): Promise<void> {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.warn('[Builder] Clipboard write failed:', err);
+    }
+  }
+  async function copySelectionToClipboard(): Promise<void> {
+    if (!backend.hasSelection() && selectedTextEventIndex == null) return;
+    if (!backend.hasSelection() && selectedTextEventIndex != null) {
+      const evt = backend.getTextEvents()[selectedTextEventIndex];
+      if (!evt) return;
+      await clipboardWrite(encodeTextEventClipboard([evt]));
+      return;
+    }
+    const indices = backend.getSelectedIndicesSorted();
+    const blocks = indices.map((i) => backend.getCurrentBlocks()[i]).filter(Boolean) as Block[];
+    const rawSegments = backend.buildRawSegmentsFromBlocks(blocks);
+    if (!rawSegments.length) return;
+    const textEvents = backend.getTextEventsForSelection();
+    await clipboardWrite(encodeClipboard(rawSegments, textEvents));
+  }
+  async function cutSelectionToClipboard(): Promise<void> {
+    await copySelectionToClipboard();
+    deleteSelected();
+  }
+  async function pasteFromClipboard(): Promise<void> {
+    if (!navigator.clipboard?.readText) return;
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch (err) {
+      console.warn('[Builder] Clipboard read failed:', err);
+      return;
+    }
+    const payload = parseClipboard(text);
+    if (!payload) return;
+    if (payload.kind === 'textEvents') {
+      backend.insertTextEventsAtInsertionPoint(payload.textEvents);
+      bump();
+      return;
+    }
+    const blocks = backend.segmentsToBlocks(payload.canonical.rawSegments);
+    if (!blocks.length) return;
+    backend.insertBlocksAtInsertionPoint(blocks, {
+      selectOnInsert: false,
+      textEvents: payload.canonical.textEvents || [],
+    });
+    bump();
+  }
+
   function setSelectedBlock(idx: number | null): void {
     clearSelectedTextEventNoBump();
     backend.setSelectedBlock(idx);
@@ -427,9 +489,34 @@
     if (chartContainer) chartContainer.scrollLeft = prevScrollLeft;
   });
 
-  function handleBlockSelectionFromChart(idx: number | null): void {
+  function handleBlockSelectionFromChart(
+    idx: number | null,
+    opts: { shiftKey?: boolean } = {},
+  ): void {
     if (idx == null) {
       deselectBlock();
+      return;
+    }
+    // Shift-click range-select (docs/workout-builder.js:1362). Extend from the
+    // existing anchor to the clicked block via the cursor-based selection.
+    if (opts.shiftKey) {
+      const selection = backend.getSelectionSnapshot();
+      const anchor =
+        selection.selectionAnchorIndex != null
+          ? selection.selectionAnchorIndex
+          : selection.selectedBlockIndex;
+      if (anchor == null || anchor === idx) {
+        setSelectedBlock(idx);
+        return;
+      }
+      const isRight = idx > anchor;
+      const anchorCursor = backend.clampCursorIndex(isRight ? anchor - 1 : anchor);
+      const cursorIndex = backend.clampCursorIndex(isRight ? idx : idx - 1);
+      clearSelectedTextEventNoBump();
+      backend.setInsertAfterOverrideIndex(cursorIndex);
+      backend.setSelectionFromCursors(anchorCursor, cursorIndex, { preserveInsert: true });
+      bump();
+      emitUi();
       return;
     }
     setSelectedBlock(idx);
@@ -664,7 +751,47 @@
     const isRedo = ((e.metaKey || e.ctrlKey) && !e.altKey && ((lower === 'z' && e.shiftKey) || lower === 'y')) || (!e.metaKey && !e.ctrlKey && !e.altKey && lower === 'u' && e.shiftKey);
     if (isRedo) { e.preventDefault(); redo(); return; }
 
+    // Cmd/Ctrl+A / Cmd/Ctrl+E (no selection) -> move the insertion cursor to
+    // start / end (docs/workout-builder.js:525-539).
+    if (isMeta && !hasSel && currentBlocks.length) {
+      if (lower === 'a') { e.preventDefault(); backend.setInsertAfterOverrideIndex(-1); bump(); return; }
+      if (lower === 'e') { e.preventDefault(); backend.setInsertAfterOverrideIndex(currentBlocks.length - 1); bump(); return; }
+    }
+
+    // Clipboard (docs/workout-builder.js:561-602): Cmd/Ctrl+C/X/V, the legacy
+    // Insert/Delete variants, and bare P for paste.
+    const isShiftInsert = !e.metaKey && !e.ctrlKey && e.shiftKey && key === 'Insert';
+    const isShiftDelete = !e.metaKey && !e.ctrlKey && e.shiftKey && key === 'Delete';
+    const isCtrlInsert = (e.metaKey || e.ctrlKey) && !e.altKey && key === 'Insert';
+    if (isMeta && lower === 'c') { e.preventDefault(); void copySelectionToClipboard(); return; }
+    if (isMeta && lower === 'x') { e.preventDefault(); void cutSelectionToClipboard(); return; }
+    if (isMeta && lower === 'v') { e.preventDefault(); void pasteFromClipboard(); return; }
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && lower === 'p') { e.preventDefault(); void pasteFromClipboard(); return; }
+    if (isCtrlInsert) { e.preventDefault(); void copySelectionToClipboard(); return; }
+    if (isShiftInsert) { e.preventDefault(); void pasteFromClipboard(); return; }
+    if (isShiftDelete) { e.preventDefault(); void cutSelectionToClipboard(); return; }
+
+    // Shift+H/L/Arrows -> extend the multi-block selection by cursor
+    // (docs/workout-builder.js:604-619).
+    if (!e.metaKey && !e.ctrlKey && !e.altKey && e.shiftKey &&
+        (lower === 'h' || lower === 'l' || key === 'ArrowLeft' || key === 'ArrowRight')) {
+      e.preventDefault();
+      const direction = lower === 'h' || key === 'ArrowLeft' ? -1 : 1;
+      backend.shiftMoveSelection(direction);
+      bump();
+      emitUi();
+      return;
+    }
+
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    // Multi-selection Y -> copy then deselect (docs/workout-builder.js:623-629).
+    if (selCount > 1 && lower === 'y') {
+      e.preventDefault();
+      void copySelectionToClipboard();
+      deselectBlock();
+      return;
+    }
 
     const insertByKey = (specKey: string): boolean => {
       const spec = buttonSpecByKey.get(specKey);
@@ -688,7 +815,14 @@
         clearSelectedTextEvent();
         return;
       }
-      if (hasSel) { e.preventDefault(); deleteSelected(); return; }
+      if (hasSel) {
+        e.preventDefault();
+        // Legacy `d` is CUT-to-clipboard (copy+delete); Delete/Backspace are
+        // plain delete (docs/workout-builder.js:693-697).
+        if (lower === 'd') void cutSelectionToClipboard();
+        else deleteSelected();
+        return;
+      }
       if (currentBlocks.length) {
         const current = backend.getInsertAfterOverrideIndex() != null ? backend.getInsertAfterOverrideIndex() : backend.getInsertAfterIndex();
         if (key === 'Backspace') {
@@ -751,6 +885,20 @@
         backend.applyPowerUpdatesAroundCursor(prevIndex, prevIndex + 1, delta);
         bump();
       }
+      return;
+    }
+
+    // Multi-selection Space -> toggle insert side to first-1 / last of the
+    // range (docs/workout-builder.js:779-784).
+    if (!single && hasSel && (key === ' ' || e.code === 'Space')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sorted = backend.getSelectedIndicesSorted();
+      const first = sorted[0]!;
+      const last = sorted[sorted.length - 1]!;
+      const atEnd = backend.getInsertAfterOverrideIndex() === last;
+      backend.setInsertAfterOverrideIndex(atEnd ? first - 1 : last);
+      bump();
       return;
     }
 
@@ -987,10 +1135,10 @@
           <button type="button" class="wb-toolbar-action-btn" data-testid="wb-redo" title="Redo (Ctrl/⌘+Shift+Z or Ctrl/⌘+Y)" disabled={!snapshot.history.canRedo} onclick={(e) => { e.preventDefault(); redo(); }}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 8h3l-3-3m0 3h-6a6 6 0 1 0 0 12h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
-          <button type="button" class="wb-toolbar-action-btn" title="Copy (Ctrl/⌘+C or Ctrl/⌘+Insert)" disabled={!snapshot.hasSelection}>
+          <button type="button" class="wb-toolbar-action-btn" title="Copy (Ctrl/⌘+C or Ctrl/⌘+Insert)" disabled={!snapshot.hasSelection} onclick={(e) => { e.preventDefault(); void copySelectionToClipboard(); }}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2" /><rect x="8" y="8" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2" /></svg>
           </button>
-          <button type="button" class="wb-toolbar-action-btn" title="Paste (Ctrl/⌘+V or Shift+Insert)">
+          <button type="button" class="wb-toolbar-action-btn" title="Paste (Ctrl/⌘+V or Shift+Insert)" onclick={(e) => { e.preventDefault(); void pasteFromClipboard(); }}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="7" width="12" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="2" /><rect x="9" y="3" width="6" height="4" rx="1.5" fill="none" stroke="currentColor" stroke-width="2" /></svg>
           </button>
         </div>
