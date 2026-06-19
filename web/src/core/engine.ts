@@ -447,6 +447,17 @@ export class WorkoutEngine {
 
   private async tick(): Promise<void> {
     this.lastTickWallMs = this.now();
+    // TODO(P6, known limitation — do not "fix" casually): ride time is COUNTED IN
+    // TICKS (elapsedSec += 1 per fired interval), not derived from wall-clock.
+    // Browsers throttle background-tab setInterval (fires far slower than 1 Hz),
+    // so a backgrounded ride under-counts elapsed time and delays the 0-power
+    // auto-pause. lastTickWallMs is captured here but NOT used to catch elapsed
+    // up. Inherited from legacy (docs/workout-engine.js). Fixing it (wall-clock
+    // reconciliation or a Web Worker ticker) changes the engine's core time
+    // source and the virtual-clock test harness, and naive catch-up causes timer
+    // jumps + skipped interval cues — so left as-is intentionally. See
+    // docs-analysis/audit/00-workout-state-bugs.md (P6). Screen Wake Lock would
+    // address the common screen-sleep case but not tab-switch throttling.
     const shouldAdvance = this.workoutRunning && !this.workoutPaused;
 
     if (!this.workoutRunning && !this.workoutPaused) {
