@@ -33,6 +33,7 @@ export interface FsFileHandle {
 export interface FsFile {
   readonly name?: string;
   text(): Promise<string>;
+  arrayBuffer(): Promise<ArrayBuffer>;
 }
 export interface FsWritable {
   write(data: ArrayBufferView | ArrayBuffer | string): Promise<void>;

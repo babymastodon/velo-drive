@@ -12,12 +12,14 @@
     transport,
     onOpenSettings,
     onOpenPicker,
+    onOpenPlanner,
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
     transport: WebBluetoothTransport;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
+    onOpenPlanner?: () => void;
   } = $props();
 
   const vm = $derived(store.vm);
@@ -35,6 +37,7 @@
     {transport}
     {onOpenSettings}
     {onOpenPicker}
+    {onOpenPlanner}
     bikeStatus={store.bikeStatus}
     hrStatus={store.hrStatus}
     hrBatteryPercent={store.hrBatteryPercent}

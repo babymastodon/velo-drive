@@ -15,6 +15,7 @@ import {
   parseZwoXmlToCanonicalWorkout,
   canonicalWorkoutToZwoXml,
 } from '../../core/zwo.js';
+import { parseFitFile, type ParseFitResult } from '../../core/fit.js';
 
 const DB_NAME = 'velo-drive';
 const DB_VERSION = 1;
@@ -28,6 +29,19 @@ const WORKOUT_DIR_KEY = 'workoutDirHandle'; // history dir
 const ZWO_DIR_KEY = 'dirHandle'; // .zwo workouts library dir
 const TRASH_DIR_KEY = 'trashDirHandle';
 const ROOT_DIR_KEY = 'rootDirHandle';
+const SCHEDULE_FILE = 'schedule.json';
+
+/** A raw FIT history file entry (name + parsed contents). */
+export interface HistoryFitEntry {
+  fileName: string;
+  parsed: ParseFitResult;
+}
+
+/** A persisted schedule entry (schedule.json is a flat array of these). */
+export interface ScheduleEntry {
+  date: string; // YYYY-MM-DD
+  workoutTitle: string;
+}
 
 /** Injective title -> file-safe base name (mirrors docs/workout-picker.js). */
 function sanitizeZwoFileName(title: string): string {
@@ -252,6 +266,98 @@ export class WebFileStore implements FileStore {
       return true;
     } catch (err) {
       console.error('[WebFileStore] saveWorkout failed:', err);
+      return false;
+    }
+  }
+
+  // ---------- planner: history (.fit) + schedule.json ----------
+
+  /**
+   * List + parse every .fit file in the history dir. Mirrors the legacy
+   * planner-backend.js history index (docs/planner-backend.js): the day a ride
+   * belongs to is derived by the caller from `fileName` (UTC ISO timestamps).
+   */
+  async listHistory(): Promise<HistoryFitEntry[]> {
+    const dir = await this.loadWorkoutDirHandle();
+    if (!dir) return [];
+    const out: HistoryFitEntry[] = [];
+    try {
+      for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
+        if (entry.kind !== 'file') continue;
+        if (!entry.name.toLowerCase().endsWith('.fit')) continue;
+        try {
+          const fileHandle = await dir.getFileHandle(entry.name);
+          const file = await fileHandle.getFile?.();
+          if (!file) continue;
+          const buf = await file.arrayBuffer();
+          const parsed = parseFitFile(buf);
+          out.push({ fileName: entry.name, parsed });
+        } catch (err) {
+          console.warn('[WebFileStore] failed to parse history file', entry.name, err);
+        }
+      }
+    } catch (err) {
+      console.error('[WebFileStore] listHistory failed:', err);
+    }
+    return out;
+  }
+
+  /** Read schedule.json (a flat array) from the root dir; [] if absent. */
+  async loadSchedule(): Promise<ScheduleEntry[]> {
+    try {
+      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      if (!root) return [];
+      const fileHandle = await root.getFileHandle(SCHEDULE_FILE, { create: false });
+      const file = await fileHandle.getFile?.();
+      if (!file) return [];
+      const parsed = JSON.parse(await file.text());
+      return Array.isArray(parsed) ? (parsed as ScheduleEntry[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Persist schedule.json (pretty-printed, mirrors docs/storage.js). */
+  async saveSchedule(entries: ScheduleEntry[]): Promise<boolean> {
+    try {
+      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      if (!root) return false;
+      const fileHandle = await root.getFileHandle(SCHEDULE_FILE, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(entries || [], null, 2));
+      await writable.close();
+      return true;
+    } catch (err) {
+      console.warn('[WebFileStore] saveSchedule failed:', err);
+      return false;
+    }
+  }
+
+  /** Move a history .fit file to the trash dir (mirrors moveHistoryFileToTrash). */
+  async deleteHistoryToTrash(fileName: string): Promise<boolean> {
+    const srcDir = await this.loadWorkoutDirHandle();
+    const trashDir = await this.loadTrashDirHandle();
+    if (!srcDir || !trashDir) return false;
+    try {
+      const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
+      const srcFile = await srcFileHandle.getFile?.();
+      const buf = srcFile ? await srcFile.arrayBuffer() : new ArrayBuffer(0);
+
+      const dotIdx = fileName.lastIndexOf('.');
+      const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+      const ext = dotIdx > 0 ? fileName.slice(dotIdx) : '';
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const destFileName = `${base} (${stamp})${ext}`;
+
+      const destFileHandle = await trashDir.getFileHandle(destFileName, { create: true });
+      const writable = await destFileHandle.createWritable();
+      await writable.write(buf);
+      await writable.close();
+
+      await srcDir.removeEntry(fileName);
+      return true;
+    } catch (err) {
+      console.error('[WebFileStore] deleteHistoryToTrash failed:', err);
       return false;
     }
   }

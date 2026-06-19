@@ -570,3 +570,309 @@ export function renderMiniWorkoutGraph(
   container.appendChild(svg);
   container.appendChild(tooltip);
 }
+
+// --------------------------- Planner: mini history chart ---------------------------
+
+function formatDurationLabel(sec: number): string {
+  if (!sec) return '0s';
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  if (sec < 3600) return `${m}m`;
+  const h = Math.floor(sec / 3600);
+  const remM = Math.floor((sec % 3600) / 60);
+  if (remM > 0) return `${h}h${remM}m`;
+  return `${h}h`;
+}
+
+export interface DrawMiniHistoryChartArgs {
+  svg: SVGSVGElement;
+  width?: number;
+  height?: number;
+  ftp?: number;
+  rawSegments?: RawSegment[];
+  actualLineSegments?: number[][]; // [pStart, pEnd, dur]
+  actualPowerMax?: number;
+  durationSec?: number | null;
+}
+
+/**
+ * Render the small per-day history/scheduled chart (planned target bands +
+ * actual-power step line) into an existing <svg>. Ported from
+ * docs/workout-chart.js drawMiniHistoryChart — the non-interactive subset used
+ * by the planner day cards (the actualLineSegments path; actualPath / minute /
+ * segment fallbacks are dropped because the planner only ever passes
+ * actualLineSegments). Geometry/colors preserved verbatim.
+ */
+export function drawMiniHistoryChart(args: DrawMiniHistoryChartArgs): void {
+  const {
+    svg: rawSvg,
+    width = 320,
+    height = 120,
+    ftp = DEFAULT_FTP,
+    rawSegments = [],
+    actualLineSegments = [],
+    actualPowerMax = 0,
+    durationSec: durationSecProp = null,
+  } = args;
+  const svg = rawSvg as SVGSVGElement & { _freeridePatternIds?: FreeridePatternIds };
+  if (!svg) return;
+  clearSvg(svg);
+
+  const w = Math.max(120, width);
+  const h = Math.max(36, height);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('width', String(w));
+  svg.setAttribute('height', String(h));
+  svg.style.width = `${w}px`;
+  svg.style.height = `${h}px`;
+
+  const totalSegSec = rawSegments.reduce(
+    (sum, seg) => sum + Math.max(1, Math.round(((seg[0] as number) || 0) * 60)),
+    0,
+  );
+  const totalActualSecFromLines = actualLineSegments.reduce(
+    (sum, seg) => sum + Math.max(0, (seg[2] as number) || 0),
+    0,
+  );
+  const totalActualSec =
+    actualLineSegments.length > 0 ? totalActualSecFromLines : 0;
+  const totalSec =
+    durationSecProp && durationSecProp > 0
+      ? durationSecProp
+      : Math.max(1, totalSegSec, totalActualSec);
+
+  const maxTarget =
+    rawSegments.reduce((max, seg) => {
+      const p0 = ((seg[1] as number) || 0) * ftp * 0.01;
+      const p1 = ((seg[2] != null ? (seg[2] as number) : (seg[1] as number)) || 0) * ftp * 0.01;
+      return Math.max(max, p0, p1);
+    }, 0) || ftp * 1.2;
+  const maxActual = Math.max(
+    actualPowerMax || 0,
+    actualLineSegments.reduce(
+      (m, seg) => Math.max(m, (seg[0] as number) || 0, (seg[1] as number) || 0),
+      0,
+    ),
+  );
+  const maxY = getScaledMaxY({ ftp, peak: Math.max(maxTarget, maxActual), minBase: 200 });
+
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  // Target bands.
+  if (rawSegments.length) {
+    let acc = 0;
+    for (const seg of rawSegments) {
+      const minutes = (seg[0] as number) || 0;
+      const startPct = (seg[1] as number) || 0;
+      const endPct = seg[2] != null ? (seg[2] as number) : startPct;
+      const dur = Math.max(1, Math.round(minutes * 60));
+      const tStart = acc;
+      const tEnd = acc + dur;
+      acc = tEnd;
+      const isFreeride = isFreeRideSegment(seg);
+      renderSegmentPolygon({
+        svg,
+        totalSec,
+        width: w,
+        height: h,
+        ftp,
+        maxY,
+        tStart,
+        tEnd,
+        pStartRel: isFreeride ? FREERIDE_POWER_REL : startPct / 100,
+        pEndRel: isFreeride ? FREERIDE_POWER_REL : endPct / 100,
+        isFreeride,
+        cadenceRpm: null,
+      });
+    }
+  }
+
+  // Actual power step line.
+  const step: string[] = [];
+  if (actualLineSegments.length) {
+    const safeTotalSec = Math.max(totalSec, totalActualSec);
+    let cursor = 0;
+    actualLineSegments.forEach((seg, idx) => {
+      const pStart = (seg[0] as number) || 0;
+      const pEnd = (seg[1] as number) || 0;
+      const durSec = Math.max(0, (seg[2] as number) || 0);
+      const x0 = Math.max(0, Math.min(1, cursor / safeTotalSec)) * w;
+      const x1 = Math.max(0, Math.min(1, (cursor + durSec) / safeTotalSec)) * w;
+      const y0 = h - (Math.min(maxY, Math.max(0, pStart)) / maxY) * h;
+      const y1 = h - (Math.min(maxY, Math.max(0, pEnd)) / maxY) * h;
+      if (idx === 0) step.push(`M${x0.toFixed(2)},${y0.toFixed(2)}`);
+      step.push(`L${x1.toFixed(2)},${y1.toFixed(2)}`);
+      cursor += durSec;
+    });
+  }
+
+  if (step.length) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', step.join(''));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', getCssVar('--power-line') || '#a607a6');
+    path.setAttribute('stroke-width', '1.6');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+  }
+}
+
+// --------------------------- Planner: power curve (history detail) ------------
+
+export interface PowerCurvePoint {
+  durSec: number;
+  power: number;
+}
+
+export interface DrawPowerCurveChartArgs {
+  svg: SVGSVGElement;
+  width?: number;
+  height?: number;
+  ftp?: number;
+  points?: PowerCurvePoint[];
+  maxDurationSec?: number;
+}
+
+/**
+ * Render the ride-detail power-duration curve into an existing <svg>. Ported
+ * from docs/workout-chart.js drawPowerCurveChart (the non-interactive subset:
+ * grid/ticks, FTP line, 1h marker, the curve path — the hover dot/label/mouse
+ * listeners are dropped). Log-x duration axis, linear-W y axis.
+ */
+export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
+  const { svg, width = 600, height = 300, ftp = DEFAULT_FTP, points = [], maxDurationSec = 0 } =
+    args;
+  if (!svg) return;
+  clearSvg(svg as SVGSVGElement & { _freeridePatternIds?: FreeridePatternIds });
+
+  const w = Math.max(200, width);
+  const h = Math.max(180, height);
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+
+  const sorted = [...points].sort((a, b) => (a.durSec || 0) - (b.durSec || 0));
+  const maxDurRaw =
+    maxDurationSec || (sorted.length ? sorted[sorted.length - 1]!.durSec || 1 : 1);
+  const maxDur = Math.max(1, maxDurRaw * 1.1);
+  const peakPower = sorted.reduce((m, p) => Math.max(m, Math.abs(p.power || 0)), 0);
+  const maxPower = getScaledMaxY({ ftp, peak: peakPower, minBase: 200 });
+
+  const log = (v: number) => Math.log(Math.max(1, v));
+  const logMin = log(1);
+  const logMax = log(maxDur);
+  const xFor = (dur: number) =>
+    ((log(Math.max(1, dur)) - logMin) / Math.max(1e-6, logMax - logMin)) * w;
+  const yFor = (p: number) => h - (Math.max(0, p) / maxPower) * h;
+
+  const tickDurations = [
+    1, 2, 5, 10, 30, 60, 120, 300, 600, 1800, 3600, 5400, 7200, 14400, 28800,
+  ].filter((d) => d <= maxDur);
+
+  tickDurations.forEach((dur, idx) => {
+    const x = xFor(dur);
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', String(x));
+    line.setAttribute('x2', String(x));
+    line.setAttribute('y1', '0');
+    line.setAttribute('y2', String(h));
+    line.setAttribute('stroke', getCssVar('--border-subtle'));
+    line.setAttribute('stroke-width', '0.7');
+    line.setAttribute('pointer-events', 'none');
+    svg.appendChild(line);
+
+    if (idx === tickDurations.length - 1) return;
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', String(x + 4));
+    label.setAttribute('y', String(h - 6));
+    label.setAttribute('fill', getCssVar('--text-muted'));
+    label.setAttribute('font-size', '14');
+    label.setAttribute('pointer-events', 'none');
+    label.textContent = formatDurationLabel(dur);
+    svg.appendChild(label);
+  });
+
+  for (let p = 100; p <= maxPower; p += 100) {
+    const y = yFor(p);
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', '0');
+    line.setAttribute('x2', String(w));
+    line.setAttribute('y1', String(y));
+    line.setAttribute('y2', String(y));
+    line.setAttribute('stroke', getCssVar('--border-subtle'));
+    line.setAttribute('stroke-width', '0.6');
+    line.setAttribute('pointer-events', 'none');
+    svg.appendChild(line);
+
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', '4');
+    label.setAttribute('y', String(y - 4));
+    label.setAttribute('fill', getCssVar('--text-muted'));
+    label.setAttribute('font-size', '12');
+    label.setAttribute('pointer-events', 'none');
+    label.textContent = `${p} W`;
+    svg.appendChild(label);
+  }
+
+  const ftpY = yFor(ftp);
+  const ftpLine = document.createElementNS(SVG_NS, 'line');
+  ftpLine.setAttribute('x1', '0');
+  ftpLine.setAttribute('x2', String(w));
+  ftpLine.setAttribute('y1', String(ftpY));
+  ftpLine.setAttribute('y2', String(ftpY));
+  ftpLine.setAttribute('stroke', getCssVar('--ftp-line'));
+  ftpLine.setAttribute('stroke-width', '2.1');
+  ftpLine.setAttribute('pointer-events', 'none');
+  svg.appendChild(ftpLine);
+
+  const ftpLabel = document.createElementNS(SVG_NS, 'text');
+  ftpLabel.setAttribute('x', '6');
+  ftpLabel.setAttribute('y', String(ftpY - 6));
+  ftpLabel.setAttribute('fill', getCssVar('--ftp-line'));
+  ftpLabel.setAttribute('font-size', '14');
+  ftpLabel.setAttribute('pointer-events', 'none');
+  ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
+  svg.appendChild(ftpLabel);
+
+  const hourDur = 3600;
+  if (hourDur <= maxDur) {
+    const x = xFor(hourDur);
+    const vline = document.createElementNS(SVG_NS, 'line');
+    vline.setAttribute('x1', String(x));
+    vline.setAttribute('x2', String(x));
+    vline.setAttribute('y1', '0');
+    vline.setAttribute('y2', String(h));
+    vline.setAttribute('stroke', getCssVar('--border-strong'));
+    vline.setAttribute('stroke-dasharray', '4 4');
+    vline.setAttribute('stroke-width', '1.4');
+    vline.setAttribute('pointer-events', 'none');
+    svg.appendChild(vline);
+
+    const lbl = document.createElementNS(SVG_NS, 'text');
+    lbl.setAttribute('x', String(x + 6));
+    lbl.setAttribute('y', '16');
+    lbl.setAttribute('fill', getCssVar('--border-strong'));
+    lbl.setAttribute('font-size', '14');
+    lbl.setAttribute('pointer-events', 'none');
+    lbl.textContent = '1h';
+    svg.appendChild(lbl);
+  }
+
+  if (!sorted.length) return;
+
+  const pathParts: string[] = [];
+  sorted.forEach((pt, idx) => {
+    const x = xFor(pt.durSec || 1);
+    const y = yFor(pt.power || 0);
+    pathParts.push(`${idx === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`);
+  });
+
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', pathParts.join(''));
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', getCssVar('--power-line'));
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+}
