@@ -12,8 +12,11 @@
   import type { Beeper } from '../core/beeper.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
+  import type { LogsStore } from '../state/logs.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import { saveAndApplyThemeMode, loadThemeMode, type ThemeMode } from '../app/theme.js';
+  import { compatMessage, isWebBluetoothAvailable } from '../app/compat.js';
+  import { tick } from 'svelte';
 
   let {
     store,
@@ -21,6 +24,7 @@
     fileStore,
     beeper,
     ui,
+    logs,
     open = false,
   }: {
     store: EngineStore;
@@ -28,6 +32,7 @@
     fileStore: WebFileStore;
     beeper: Beeper;
     ui: UiStore;
+    logs: LogsStore;
     open?: boolean;
   } = $props();
 
@@ -119,15 +124,10 @@
     if (handle) rootDirName = handle.name ?? 'Selected folder';
   }
 
-  // ---- Environment / compatibility (stubbed detection; same DOM) ----
-  function isWebBluetoothAvailable(): boolean {
-    return (
-      typeof navigator !== 'undefined' &&
-      !!(navigator as Navigator & { bluetooth?: { getDevices?: unknown } }).bluetooth &&
-      typeof (navigator as Navigator & { bluetooth?: { getDevices?: unknown } }).bluetooth
-        ?.getDevices === 'function'
-    );
-  }
+  // ---- Environment / compatibility ----
+  // Compatibility alert: empty message when supported, so the alert stays
+  // `hidden` (settings render unchanged in the supported/seeded test state).
+  const compatAlertText = $derived(open ? compatMessage() : '');
   function isRunningAsPwa(): boolean {
     try {
       return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
@@ -143,10 +143,43 @@
   function toggleHelp(id: string): void {
     helpOpen = { ...helpOpen, [id]: !helpOpen[id] };
   }
+  // Force-open a help section (used by the boot-time auto-open; mirrors
+  // settings.js showHelpSectionById). Reads ui.forceHelpSection set by the
+  // startup-attention path.
+  $effect(() => {
+    if (open && ui.forceHelpSection) {
+      const id = ui.forceHelpSection;
+      helpOpen = { ...helpOpen, [id]: true };
+      ui.forceHelpSection = null;
+    }
+  });
 
   // ---- Logs sub-view ----
+  // Render the reactive log lines, preserving the legacy "auto-scroll only when
+  // already at the bottom" behavior (docs/settings.js addLogLineToSettings):
+  // measure before re-render, then if the user was at the bottom, keep them
+  // pinned; otherwise leave their scroll position alone.
+  let logsContentEl = $state<HTMLDivElement | null>(null);
+  const logText = $derived(logs.lines.join('\n'));
+  $effect(() => {
+    // Track the dependency so this re-runs on every append.
+    void logText;
+    const el = logsContentEl;
+    if (!el) return;
+    // Capture whether we were at the bottom BEFORE the DOM updates flush.
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    void tick().then(() => {
+      if (atBottom && logsContentEl) {
+        logsContentEl.scrollTop = logsContentEl.scrollHeight;
+      }
+    });
+  });
+
   function openLogs(): void {
     ui.settingsLogsOpen = true;
+    void tick().then(() => {
+      if (logsContentEl) logsContentEl.scrollTop = logsContentEl.scrollHeight;
+    });
   }
   function backFromLogs(): void {
     ui.settingsLogsOpen = false;
@@ -225,9 +258,10 @@
         <div
           id="settingsCompatibilityAlert"
           class="settings-alert settings-alert-warning"
-          hidden
+          data-testid="settings-compat-alert"
+          hidden={!compatAlertText}
         >
-          <div id="settingsCompatibilityText"></div>
+          <div id="settingsCompatibilityText" data-testid="settings-compat-text">{compatAlertText}</div>
         </div>
 
         <div class="settings-list">
@@ -625,7 +659,12 @@
         class="settings-logs-view"
         style="display: {ui.settingsLogsOpen ? 'flex' : 'none'}"
       >
-        <div id="settingsLogsContent" class="settings-logs-body" data-testid="settings-logs-content"></div>
+        <div
+          id="settingsLogsContent"
+          class="settings-logs-body"
+          data-testid="settings-logs-content"
+          bind:this={logsContentEl}
+        >{logText}</div>
       </div>
     </div>
   </div>

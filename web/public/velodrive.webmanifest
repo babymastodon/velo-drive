@@ -1,0 +1,15 @@
+{
+  "name": "VeloDrive",
+  "short_name": "VeloDrive",
+  "description": "Cycling workout controller with trainer and heart-rate connectivity.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#222222",
+  "theme_color": "#222222",
+  "icons": [
+    { "src": "icons/logo_sq.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/logo.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

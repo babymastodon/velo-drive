@@ -10,6 +10,7 @@ import { WebFileStore } from '../ports/web/WebFileStore.js';
 import { Beeper } from '../core/beeper.js';
 import { WorkoutEngine } from '../core/engine.js';
 import { EngineStore } from '../state/engine.svelte.js';
+import { LogsStore } from '../state/logs.svelte.js';
 import { DEFAULT_FTP } from '../core/metrics.js';
 import { applyThemeMode, loadThemeMode } from './theme.js';
 
@@ -19,6 +20,7 @@ export interface AppContext {
   transport: WebBluetoothTransport;
   fileStore: WebFileStore;
   beeper: Beeper;
+  logs: LogsStore;
 }
 
 export interface BootOptions {
@@ -33,6 +35,7 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const fileStore = new WebFileStore();
   const beeper = new Beeper();
   const store = new EngineStore();
+  const logs = new LogsStore();
 
   const engine = new WorkoutEngine({ transport, fileStore, beeper });
 
@@ -46,6 +49,9 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   transport.on('hrBattery', (pct) => {
     store.hrBatteryPercent = pct;
   });
+  // Surface BLE/transport logs in the Settings logs sub-view (mirrors legacy
+  // workout.js `BleManager.on("log", logDebug)` → addLogLineToSettings).
+  transport.on('log', logs.append);
 
   // Load persisted FTP + sound preference before init (the engine reads the
   // selected workout + active state itself in init()).
@@ -59,15 +65,21 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   // store (IDB) is authoritative for the harness, so re-apply here.
   applyThemeMode(await loadThemeMode(fileStore));
 
-  // Tell the transport which saved devices to auto-reconnect.
+  // Tell the transport which saved devices to auto-reconnect, and how to persist
+  // a newly paired device id for next-load reconnect (mirrors legacy
+  // saveBikeBleDeviceId/saveHrBleDeviceId via storage.js).
   const { bikeId, hrId } = await fileStore.loadBleDeviceIds();
   transport.setSavedDeviceIds({ bikeId, hrId });
+  transport.setPersistDeviceIds({
+    saveBikeId: (id) => fileStore.putSetting('lastBikeDeviceId', id),
+    saveHrId: (id) => fileStore.putSetting('lastHrDeviceId', id),
+  });
 
   await engine.init({
     onStateChanged: store.set,
-    onLog: () => {},
+    onLog: logs.append,
     onWorkoutEnded: opts.onWorkoutEnded,
   });
 
-  return { store, engine, transport, fileStore, beeper };
+  return { store, engine, transport, fileStore, beeper, logs };
 }

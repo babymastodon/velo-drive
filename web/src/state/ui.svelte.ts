@@ -32,6 +32,11 @@ export class UiStore {
   // Settings has an internal logs sub-view; Escape returns here first.
   settingsLogsOpen = $state(false);
 
+  // The boot-time auto-open (startupNeedsAttention) can force a help section
+  // open when it auto-opens Settings (mirrors settings.js showHelpSectionById).
+  // SettingsView reads + clears this on open. null = no forced section.
+  forceHelpSection = $state<string | null>(null);
+
   // The planner has an internal ride-detail sub-view; Escape/Backspace return to
   // the calendar first (and Escape on the calendar does NOT close the planner —
   // legacy ignores it). Set by PlannerView; consumed in handleEscape. The

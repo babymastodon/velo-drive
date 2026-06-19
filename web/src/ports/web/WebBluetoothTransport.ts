@@ -32,6 +32,9 @@ const FTMS_OPCODES = {
 
 const TRAINER_SEND_MIN_INTERVAL_SEC = 10;
 
+const MIN_RECONNECT_DELAY_MS = 1000; // 1s
+const MAX_RECONNECT_DELAY_MS = 10000; // cap at 10s
+
 // minimal structural typings for the Web Bluetooth surface we use
 interface BtChar {
   writeValueWithResponse?(buf: BufferSource): Promise<void>;
@@ -47,12 +50,14 @@ interface BtServer {
   connect(): Promise<BtServer>;
   disconnect(): void;
   getPrimaryService(uuid: number): Promise<BtService>;
+  connected?: boolean;
 }
 interface BtDevice {
   id: string;
   name?: string;
   gatt: BtServer;
   addEventListener(t: string, fn: () => void): void;
+  removeEventListener?(t: string, fn: () => void): void;
 }
 interface BtNavigator {
   requestDevice(opts: unknown): Promise<BtDevice>;
@@ -88,6 +93,34 @@ export class WebBluetoothTransport implements TrainerTransport {
   private autoReconnectEnabled = true;
   private bikeDesiredDeviceId: string | null = null;
   private hrDesiredDeviceId: string | null = null;
+
+  // Known device objects by id (from getDevices() or requestDevice()), so the
+  // backoff reconnect timers can re-`gatt.connect()` the same BtDevice.
+  private bikeKnownDevices = new Map<string, BtDevice>();
+  private hrKnownDevices = new Map<string, BtDevice>();
+
+  // Per-device exponential-backoff reconnect (1s → ×2 → cap 10s).
+  private bikeReconnectTimerId: number | null = null;
+  private hrReconnectTimerId: number | null = null;
+  private bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+  private hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+
+  private hrConnected = false;
+  private bikeServer: BtServer | null = null;
+  private hrServer: BtServer | null = null;
+
+  // Suppress auto-reconnect once after a MANUAL disconnect (re-pairing).
+  private bikeSuppressAutoReconnectOnce = false;
+  private hrSuppressAutoReconnectOnce = false;
+
+  // Disconnect listeners (so we can detach a previous connection's handler).
+  private bikeDisconnectHandler: (() => void) | null = null;
+  private hrDisconnectHandler: (() => void) | null = null;
+
+  // Persist newly paired device ids for next-load reconnect (set by the
+  // composition root). Mirrors legacy saveBikeBleDeviceId/saveHrBleDeviceId.
+  private persistBikeId: ((id: string | null) => void) | null = null;
+  private persistHrId: ((id: string | null) => void) | null = null;
 
   private nowSec(): number {
     return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
@@ -130,95 +163,331 @@ export class WebBluetoothTransport implements TrainerTransport {
     this.hrDesiredDeviceId = ids.hrId || null;
   }
 
+  /** How to persist a newly paired device id (mirrors legacy saveBikeBleDeviceId). */
+  setPersistDeviceIds(cb: {
+    saveBikeId: (id: string | null) => void;
+    saveHrId: (id: string | null) => void;
+  }): void {
+    this.persistBikeId = cb.saveBikeId;
+    this.persistHrId = cb.saveHrId;
+  }
+
+  // -------- auto-reconnect via getDevices() (mirrors maybeReconnectSavedDevicesOnLoad) --------
+
   private async maybeReconnectSavedDevices(): Promise<void> {
     const bt = getBluetooth();
-    if (!bt || !bt.getDevices) return;
+    if (!bt || !bt.getDevices) {
+      this.log('Web Bluetooth getDevices() not supported, skipping auto-reconnect.');
+      return;
+    }
+    if (!this.bikeDesiredDeviceId && !this.hrDesiredDeviceId) {
+      this.log('No saved BLE device IDs, skipping auto-reconnect.');
+      return;
+    }
     let devices: BtDevice[] = [];
     try {
       devices = await bt.getDevices();
-    } catch {
+    } catch (err) {
+      this.log('getDevices() failed: ' + err);
       return;
     }
-    if (this.bikeDesiredDeviceId) {
-      const dev = devices.find((d) => d.id === this.bikeDesiredDeviceId);
-      if (dev) {
-        try {
-          await this.connectToBike(dev);
-        } catch (err) {
-          this.log('Auto-reconnect bike failed: ' + err);
-        }
-      }
+    this.log(`getDevices() returned ${devices.length} devices.`);
+
+    const bikeDevice = this.bikeDesiredDeviceId
+      ? devices.find((d) => d.id === this.bikeDesiredDeviceId)
+      : null;
+    const hrDevice = this.hrDesiredDeviceId
+      ? devices.find((d) => d.id === this.hrDesiredDeviceId)
+      : null;
+
+    if (bikeDevice) {
+      this.bikeKnownDevices.set(bikeDevice.id, bikeDevice);
+      this.bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+      this.log(
+        `Found previously paired bike "${bikeDevice.name || 'bike'}", reconnecting…`,
+      );
+      // Connect immediately on load (a found device is already paired); fall
+      // back to backoff scheduling only if that attempt fails.
+      this.connectToBike(bikeDevice).catch((err) => {
+        this.log('Auto-reconnect bike failed: ' + err);
+        this.scheduleBikeAutoReconnect(true);
+      });
+    } else if (this.bikeDesiredDeviceId) {
+      this.log('Saved bike ID not available in getDevices() (permission revoked?).');
     }
-    if (this.hrDesiredDeviceId) {
-      const dev = devices.find((d) => d.id === this.hrDesiredDeviceId);
-      if (dev) {
-        try {
-          await this.connectToHr(dev);
-        } catch (err) {
-          this.log('Auto-reconnect HR failed: ' + err);
-        }
-      }
+
+    if (hrDevice) {
+      this.hrKnownDevices.set(hrDevice.id, hrDevice);
+      this.hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+      this.log(
+        `Found previously paired HRM "${hrDevice.name || 'heart-rate monitor'}", reconnecting…`,
+      );
+      this.connectToHr(hrDevice).catch((err) => {
+        this.log('Auto-reconnect HR failed: ' + err);
+        this.scheduleHrAutoReconnect(true);
+      });
+    } else if (this.hrDesiredDeviceId) {
+      this.log('Saved HRM ID not available in getDevices() (permission revoked?).');
     }
+  }
+
+  private cancelBikeAutoReconnect(): void {
+    if (this.bikeReconnectTimerId != null) {
+      window.clearTimeout(this.bikeReconnectTimerId);
+      this.bikeReconnectTimerId = null;
+    }
+  }
+
+  private cancelHrAutoReconnect(): void {
+    if (this.hrReconnectTimerId != null) {
+      window.clearTimeout(this.hrReconnectTimerId);
+      this.hrReconnectTimerId = null;
+    }
+  }
+
+  private scheduleBikeAutoReconnect(resetDelay = false): void {
+    if (!this.autoReconnectEnabled || !this.bikeDesiredDeviceId) return;
+    const device = this.bikeKnownDevices.get(this.bikeDesiredDeviceId);
+    if (!device || this.bikeConnected) return;
+    if (resetDelay || !this.bikeReconnectDelayMs) {
+      this.bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    }
+    this.cancelBikeAutoReconnect();
+    const name = device.name || 'bike';
+    this.updateBikeStatus(
+      'error',
+      `Device "${name}" disconnected. Will retry in ${Math.round(this.bikeReconnectDelayMs / 1000)}s…`,
+    );
+    this.bikeReconnectTimerId = window.setTimeout(() => {
+      this.bikeReconnectTimerId = null;
+      if (!this.autoReconnectEnabled || !this.bikeDesiredDeviceId) return;
+      const dev = this.bikeKnownDevices.get(this.bikeDesiredDeviceId);
+      if (!dev) return;
+      this.log(`Auto-reconnect: attempting reconnect to "${dev.name || 'bike'}"…`);
+      this.connectToBike(dev).catch((err) => {
+        this.log(`Auto-reconnect (bike) failed: ` + err);
+        this.bikeReconnectDelayMs = Math.min(MAX_RECONNECT_DELAY_MS, this.bikeReconnectDelayMs * 2);
+        this.scheduleBikeAutoReconnect(false);
+      });
+    }, this.bikeReconnectDelayMs) as unknown as number;
+  }
+
+  private scheduleHrAutoReconnect(resetDelay = false): void {
+    if (!this.autoReconnectEnabled || !this.hrDesiredDeviceId) return;
+    const device = this.hrKnownDevices.get(this.hrDesiredDeviceId);
+    if (!device || this.hrConnected) return;
+    if (resetDelay || !this.hrReconnectDelayMs) {
+      this.hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    }
+    this.cancelHrAutoReconnect();
+    const name = device.name || 'heart-rate monitor';
+    this.updateHrStatus(
+      'error',
+      `Device "${name}" disconnected. Will retry in ${Math.round(this.hrReconnectDelayMs / 1000)}s…`,
+    );
+    this.hrReconnectTimerId = window.setTimeout(() => {
+      this.hrReconnectTimerId = null;
+      if (!this.autoReconnectEnabled || !this.hrDesiredDeviceId) return;
+      const dev = this.hrKnownDevices.get(this.hrDesiredDeviceId);
+      if (!dev) return;
+      this.log(`Auto-reconnect: attempting HRM reconnect to "${dev.name || 'heart-rate monitor'}"…`);
+      this.connectToHr(dev).catch((err) => {
+        this.log(`Auto-reconnect (HR) failed: ` + err);
+        this.hrReconnectDelayMs = Math.min(MAX_RECONNECT_DELAY_MS, this.hrReconnectDelayMs * 2);
+        this.scheduleHrAutoReconnect(false);
+      });
+    }, this.hrReconnectDelayMs) as unknown as number;
   }
 
   async connectBikeViaPicker(): Promise<void> {
     const bt = getBluetooth();
     if (!bt) throw new Error('Web Bluetooth not available');
+    // A manual connect cancels any pending auto-reconnect for this device.
+    this.cancelBikeAutoReconnect();
+    const wasConnected = this.bikeConnected;
     this.updateBikeStatus('connecting');
-    const device = await bt.requestDevice({
-      filters: [{ services: [FTMS_SERVICE_UUID] }],
-      optionalServices: [FTMS_SERVICE_UUID],
-    });
+    let device: BtDevice;
+    try {
+      device = await bt.requestDevice({
+        filters: [{ services: [FTMS_SERVICE_UUID] }],
+        optionalServices: [FTMS_SERVICE_UUID],
+      });
+    } catch (err) {
+      this.log('Bike picker cancelled or failed: ' + err);
+      // Re-pair was cancelled: tear down the old connection, suppressing the
+      // resulting disconnect's auto-reconnect once (legacy behavior).
+      if (wasConnected && this.bikeServer?.connected) {
+        this.bikeSuppressAutoReconnectOnce = true;
+        try {
+          this.bikeServer.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      throw err;
+    }
     this.bikeDesiredDeviceId = device.id;
-    await this.connectToBike(device);
+    this.bikeKnownDevices.set(device.id, device);
+    this.bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    try {
+      await this.connectToBike(device);
+    } catch (err) {
+      // Even if the user connect fails, keep auto-retrying this id.
+      this.scheduleBikeAutoReconnect(true);
+      throw err;
+    }
   }
 
   async connectHrViaPicker(): Promise<void> {
     const bt = getBluetooth();
     if (!bt) throw new Error('Web Bluetooth not available');
+    this.cancelHrAutoReconnect();
+    const wasConnected = this.hrConnected;
     this.updateHrStatus('connecting');
-    const device = await bt.requestDevice({
-      filters: [{ services: [HEART_RATE_SERVICE_UUID] }],
-      optionalServices: [HEART_RATE_SERVICE_UUID, BATTERY_SERVICE_UUID],
-    });
+    let device: BtDevice;
+    try {
+      device = await bt.requestDevice({
+        filters: [{ services: [HEART_RATE_SERVICE_UUID] }],
+        optionalServices: [HEART_RATE_SERVICE_UUID, BATTERY_SERVICE_UUID],
+      });
+    } catch (err) {
+      this.log('HR picker cancelled or failed: ' + err);
+      if (wasConnected && this.hrServer?.connected) {
+        this.hrSuppressAutoReconnectOnce = true;
+        try {
+          this.hrServer.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      throw err;
+    }
     this.hrDesiredDeviceId = device.id;
-    await this.connectToHr(device);
+    this.hrKnownDevices.set(device.id, device);
+    this.hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    try {
+      await this.connectToHr(device);
+    } catch (err) {
+      this.scheduleHrAutoReconnect(true);
+      throw err;
+    }
   }
 
   // ---------- bike connect + parse ----------
 
   private async connectToBike(device: BtDevice): Promise<void> {
+    this.bikeKnownDevices.set(device.id, device);
+    const deviceId = device.id;
+    const friendlyName = device.name || 'bike';
     this.updateBikeStatus('connecting');
-    const server = await device.gatt.connect();
-    const ftmsService = await server.getPrimaryService(FTMS_SERVICE_UUID);
-    const indoorChar = await ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR);
-    const cpChar = await ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR);
+    let server: BtServer | null = null;
+    try {
+      server = await device.gatt.connect();
+      const ftmsService = await server.getPrimaryService(FTMS_SERVICE_UUID);
+      const indoorChar = await ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR);
+      const cpChar = await ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR);
 
-    await cpChar.startNotifications();
-    indoorChar.addEventListener('characteristicvaluechanged', (e) => {
-      this.parseIndoorBikeData(e.target.value);
-    });
-    await indoorChar.startNotifications();
+      // Log FTMS Control Point indications (result codes), mirroring legacy.
+      cpChar.addEventListener('characteristicvaluechanged', (e) => {
+        const dv = e.target.value;
+        if (!dv || dv.byteLength < 3) return;
+        const op = dv.getUint8(0);
+        const reqOp = dv.getUint8(1);
+        const resCode = dv.getUint8(2);
+        this.log(
+          `FTMS CP <- Indication: op=0x${op.toString(16).padStart(2, '0')}, ` +
+            `req=0x${reqOp.toString(16).padStart(2, '0')}, ` +
+            `result=0x${resCode.toString(16).padStart(2, '0')}`,
+        );
+      });
+      await cpChar.startNotifications();
+      indoorChar.addEventListener('characteristicvaluechanged', (e) => {
+        this.parseIndoorBikeData(e.target.value);
+      });
+      await indoorChar.startNotifications();
 
-    this.bikeControlPointChar = cpChar;
+      this.bikeControlPointChar = cpChar;
 
-    // requestControl + startOrResume handshake (both fatal on failure)
-    await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.requestControl, null);
-    await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.startOrResume, null);
-    this.log('FTMS requestControl + startOrResume sent.');
+      // requestControl + startOrResume handshake (both fatal on failure)
+      await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.requestControl, null);
+      await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.startOrResume, null);
+      this.log('FTMS requestControl + startOrResume sent.');
 
-    this.bikeConnected = true;
-    this.updateBikeStatus('connected');
+      // Only commit + save the id if this device is still the desired one
+      // (the desired id can change mid-connect on a re-pair).
+      if (deviceId !== this.bikeDesiredDeviceId) {
+        this.log(`Bike connect succeeded for stale device ${deviceId}; tearing down.`);
+        try {
+          server.disconnect();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
 
-    device.addEventListener('gattserverdisconnected', () => this.onBikeDisconnect());
+      // Persist the paired device id for next-load auto-reconnect.
+      this.persistBikeId?.(deviceId);
+
+      // Detach a previous connection's disconnect handler.
+      if (this.bikeDisconnectHandler) {
+        try {
+          device.removeEventListener?.('gattserverdisconnected', this.bikeDisconnectHandler);
+        } catch {
+          /* ignore */
+        }
+      }
+      const handler = (): void => this.onBikeDisconnect(friendlyName);
+      this.bikeDisconnectHandler = handler;
+      device.addEventListener('gattserverdisconnected', handler);
+
+      this.bikeServer = server;
+      this.bikeConnected = true;
+      this.bikeConnected = true;
+      this.updateBikeStatus('connected', `Connected to "${friendlyName}".`);
+    } catch (err) {
+      if (deviceId === this.bikeDesiredDeviceId) {
+        this.bikeConnected = false;
+        this.updateBikeStatus('error', `Failed to connect to "${friendlyName}": ` + err);
+      }
+      if (server?.connected) {
+        try {
+          server.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      throw err;
+    }
   }
 
-  private onBikeDisconnect(): void {
+  private onBikeDisconnect(friendlyName = 'bike'): void {
+    this.bikeConnected = false;
     this.bikeConnected = false;
     this.bikeControlPointChar = null;
-    this.updateBikeStatus('error', 'Trainer disconnected.');
+    this.bikeServer = null;
+
+    const willRetry =
+      this.autoReconnectEnabled &&
+      !this.bikeSuppressAutoReconnectOnce &&
+      !!this.bikeDesiredDeviceId;
+    this.updateBikeStatus(
+      'error',
+      willRetry
+        ? `Device "${friendlyName}" disconnected. Will retry shortly…`
+        : `Device "${friendlyName}" disconnected.`,
+    );
+
     this.lastBikeSample = { power: null, cadence: null, speedKph: null, hrFromBike: null };
     this.emit('bikeSample', { ...this.lastBikeSample });
+
+    // Resume regular auto-reconnect with reset backoff (unless suppressed once).
+    this.bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    if (!this.bikeSuppressAutoReconnectOnce) {
+      this.scheduleBikeAutoReconnect(true);
+    } else {
+      this.bikeSuppressAutoReconnectOnce = false;
+      this.log('Bike auto-reconnect suppressed once after manual disconnect.');
+    }
   }
 
   private parseIndoorBikeData(dataView: DataView): void {
@@ -265,40 +534,102 @@ export class WebBluetoothTransport implements TrainerTransport {
   // ---------- HR connect + parse ----------
 
   private async connectToHr(device: BtDevice): Promise<void> {
+    this.hrKnownDevices.set(device.id, device);
+    const deviceId = device.id;
+    const friendlyName = device.name || 'heart-rate monitor';
     this.updateHrStatus('connecting');
-    const server = await device.gatt.connect();
-    const hrService = await server.getPrimaryService(HEART_RATE_SERVICE_UUID);
-    const hrChar = await hrService.getCharacteristic(HR_MEASUREMENT_CHAR);
-    hrChar.addEventListener('characteristicvaluechanged', (e) => {
-      this.parseHrMeasurement(e.target.value);
-    });
-    await hrChar.startNotifications();
-
-    let batteryService: BtService | null = null;
+    let server: BtServer | null = null;
     try {
-      batteryService = await server.getPrimaryService(BATTERY_SERVICE_UUID);
-    } catch {
-      batteryService = null;
-    }
-    if (batteryService) {
-      try {
-        const batChar = await batteryService.getCharacteristic(BATTERY_LEVEL_CHAR);
-        const val = await batChar.readValue();
-        const pct = val.getUint8(0);
-        this.emit('hrBattery', pct);
-      } catch (err) {
-        this.log('HR battery read failed: ' + err);
-      }
-    }
+      server = await device.gatt.connect();
+      const hrService = await server.getPrimaryService(HEART_RATE_SERVICE_UUID);
+      const hrChar = await hrService.getCharacteristic(HR_MEASUREMENT_CHAR);
+      hrChar.addEventListener('characteristicvaluechanged', (e) => {
+        this.parseHrMeasurement(e.target.value);
+      });
+      await hrChar.startNotifications();
 
-    this.updateHrStatus('connected');
-    device.addEventListener('gattserverdisconnected', () => this.onHrDisconnect());
+      let batteryService: BtService | null = null;
+      try {
+        batteryService = await server.getPrimaryService(BATTERY_SERVICE_UUID);
+      } catch {
+        batteryService = null;
+      }
+      if (batteryService) {
+        try {
+          const batChar = await batteryService.getCharacteristic(BATTERY_LEVEL_CHAR);
+          const val = await batChar.readValue();
+          const pct = val.getUint8(0);
+          this.emit('hrBattery', pct);
+        } catch (err) {
+          this.log('HR battery read failed: ' + err);
+        }
+      }
+
+      if (deviceId !== this.hrDesiredDeviceId) {
+        this.log(`HR connect succeeded for stale device ${deviceId}; tearing down.`);
+        try {
+          server.disconnect();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
+      this.persistHrId?.(deviceId);
+
+      if (this.hrDisconnectHandler) {
+        try {
+          device.removeEventListener?.('gattserverdisconnected', this.hrDisconnectHandler);
+        } catch {
+          /* ignore */
+        }
+      }
+      const handler = (): void => this.onHrDisconnect(friendlyName);
+      this.hrDisconnectHandler = handler;
+      device.addEventListener('gattserverdisconnected', handler);
+
+      this.hrServer = server;
+      this.hrConnected = true;
+      this.updateHrStatus('connected', `Connected to "${friendlyName}".`);
+    } catch (err) {
+      if (deviceId === this.hrDesiredDeviceId) {
+        this.hrConnected = false;
+        this.updateHrStatus('error', `Failed to connect to "${friendlyName}": ` + err);
+      }
+      if (server?.connected) {
+        try {
+          server.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      throw err;
+    }
   }
 
-  private onHrDisconnect(): void {
-    this.updateHrStatus('error', 'Heart-rate monitor disconnected.');
+  private onHrDisconnect(friendlyName = 'heart-rate monitor'): void {
+    this.hrConnected = false;
+    this.hrServer = null;
+
+    const willRetry =
+      this.autoReconnectEnabled && !this.hrSuppressAutoReconnectOnce && !!this.hrDesiredDeviceId;
+    this.updateHrStatus(
+      'error',
+      willRetry
+        ? `Device "${friendlyName}" disconnected. Will retry shortly…`
+        : `Device "${friendlyName}" disconnected.`,
+    );
+
     this.emit('hrBattery', null);
     this.emit('hrSample', null);
+
+    this.hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
+    if (!this.hrSuppressAutoReconnectOnce) {
+      this.scheduleHrAutoReconnect(true);
+    } else {
+      this.hrSuppressAutoReconnectOnce = false;
+      this.log('HR auto-reconnect suppressed once after manual disconnect.');
+    }
   }
 
   private parseHrMeasurement(dataView: DataView): void {
