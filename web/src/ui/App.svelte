@@ -219,6 +219,31 @@
   function onKeydown(e: KeyboardEvent): void {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+    // A modal dialog (alert/confirm/prompt) traps the keyboard: Escape cancels,
+    // Enter confirms (alert/confirm), and every other key is swallowed so it
+    // can't leak to the overlay or builder behind it. Legacy native alert()/
+    // confirm() are modal and cancel on Escape (events audit D3 + the dialog-
+    // over-overlay leak). For a prompt, let typing + the input's own Enter/
+    // Escape handler through (bail without swallowing).
+    if (dialogs.current) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        dialogs.resolve(false);
+        return;
+      }
+      if (dialogs.current.kind === 'prompt') return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        dialogs.resolve(true);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     // While the picker's in-place builder is open it owns the ENTIRE keymap
     // (insert/edit/undo/Escape-deselect/Escape-back). The BuilderView has its
     // own window keydown handler; the App must stay completely out of the way —

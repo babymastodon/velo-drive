@@ -555,6 +555,13 @@
   background: var(--hover-medium);
 }
 
+/* Forced-theme parity: the @media-dark block above strengthens the day hover
+   to --hover-medium on a dark OS. Under a manual Light toggle on a dark OS that
+   @media still applies, so re-assert the lighter base hover for forced light. */
+:root.theme-light .planner-day:hover {
+  background: var(--hover-light);
+}
+
 @media (max-width: 900px) {
   .workout-planner-modal {
     width: 96vw;
