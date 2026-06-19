@@ -5,8 +5,8 @@
 // engine view-model to display values exactly as the legacy HUD does.
 
 import type { EngineViewModel } from '../core/engine.js';
-import type { RawSegment } from '../core/model.js';
 import { DEFAULT_FTP } from '../core/metrics.js';
+import { getRawCadence, isFreeRideSegment, segDurationSec } from '../core/segments.js';
 import { zoneInfoFromRel, mixColors, getCssVar } from '../core/chart.js';
 
 export function formatTimeMMSS(sec: number): string {
@@ -24,30 +24,18 @@ export function formatTimeHHMMSS(sec: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
-function getRawCadence(seg: RawSegment): number | null {
-  if (!Array.isArray(seg)) return null;
-  if (seg[3] === 'freeride') return null;
-  if (Number.isFinite(seg[4] as number)) return Number(seg[4]);
-  if (typeof seg[3] === 'number' && Number.isFinite(seg[3])) return Number(seg[3]);
-  return null;
-}
-
-function isFreeRideSegment(seg: RawSegment): boolean {
-  return Array.isArray(seg) && seg[3] === 'freeride';
-}
-
 /** Workout target watts at absolute time t (interpolated). null for freeride. */
 export function getWorkoutTargetAtTime(vm: EngineViewModel, tSec: number): number | null {
   const cw = vm.canonicalWorkout;
   if (!cw || !cw.rawSegments?.length) return null;
   const ftp = vm.currentFtp || DEFAULT_FTP;
   let total = 0;
-  for (const seg of cw.rawSegments) total += Math.max(1, Math.round((seg[0] || 0) * 60));
+  for (const seg of cw.rawSegments) total += segDurationSec(seg[0] || 0);
   const t = Math.min(Math.max(0, tSec), total);
 
   let acc = 0;
   for (const seg of cw.rawSegments) {
-    const dur = Math.max(1, Math.round((seg[0] || 0) * 60));
+    const dur = segDurationSec(seg[0] || 0);
     const end = acc + dur;
     if (t < end) {
       if (isFreeRideSegment(seg)) return null;
@@ -81,10 +69,10 @@ export function getCurrentCadenceTarget(vm: EngineViewModel): number | null {
   const t = timeForTarget(vm);
   let acc = 0;
   for (const seg of cw.rawSegments) {
-    const dur = Math.max(1, Math.round((seg[0] || 0) * 60));
+    const dur = segDurationSec(seg[0] || 0);
     const end = acc + dur;
     let total = 0;
-    for (const s of cw.rawSegments) total += Math.max(1, Math.round((s[0] || 0) * 60));
+    for (const s of cw.rawSegments) total += segDurationSec(s[0] || 0);
     const tc = Math.min(Math.max(0, t), total);
     if (tc < end) {
       if (isFreeRideSegment(seg)) return null;

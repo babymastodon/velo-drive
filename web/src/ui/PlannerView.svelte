@@ -46,6 +46,8 @@
     type PowerCurvePoint,
   } from '../core/planner-analysis.js';
   import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from '../core/chart.js';
+  import { formatDateKey as formatKey } from '../core/date-keys.js';
+  import { isEditableTarget } from './dom-utils.js';
   import { themeVersion } from '../state/theme.svelte.js';
 
   let {
@@ -80,12 +82,6 @@
     const d = new Date(date);
     d.setDate(d.getDate() + days);
     return d;
-  }
-  function formatKey(date: Date): string {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
   }
   function keyToDate(key: string): Date {
     const [y, m, d] = key.split('-').map((n) => Number(n));
@@ -774,13 +770,6 @@
   }
 
   // --------------------------- keyboard (legacy onKeyDown ~1285-1395) ---------------------------
-  function isEditableTarget(t: EventTarget | null): boolean {
-    const el = t as HTMLElement | null;
-    if (!el) return false;
-    const tag = el.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
-  }
-
   function handlePlannerKey(e: KeyboardEvent): boolean {
     const key = (e.key || '').toLowerCase();
     // Detail mode: d/Delete delete the shown ride; Backspace/Escape exit detail.

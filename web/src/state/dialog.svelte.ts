@@ -81,11 +81,4 @@ export class DialogStore {
     }
     req?.resolve(value);
   }
-
-  /** Resolve a prompt with the current input value (OK) or null (cancel). */
-  resolvePrompt(accepted: boolean): void {
-    const req = this.current;
-    this.current = null;
-    req?.resolveText?.(accepted ? (req.inputValue ?? '') : null);
-  }
 }

@@ -393,9 +393,7 @@ export function buildFitFile({
   const avgHr = avg(hrVals);
   const avgCadence = avg(cadVals);
   const maxPower = max(powerVals);
-  const maxHr = max(hrVals);
   const maxCadence = max(cadVals);
-  void maxHr;
 
   const durationSec = samples.length
     ? (samples[samples.length - 1] as FitSample).t || 0

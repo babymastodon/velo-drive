@@ -5,8 +5,8 @@
   // unchanged; data-testids added for behavior assertions. Implements browse /
   // list / search (grammar 30-45 / <40 / >60 / 45) / zone+duration filters /
   // sort / expand (stats + mini chart) / select-to-ride / delete (->trash) /
-  // clone. The in-picker workout BUILDER is DEFERRED: the "Create workout" / Edit
-  // buttons are rendered but no-op (see onCreateWorkout / onEdit).
+  // clone. The in-picker workout BUILDER is fully shipped: the "Create workout" /
+  // Edit buttons open the embedded BuilderView (see onCreateWorkout / onEdit).
   import OverlayModal from './OverlayModal.svelte';
   import type { WorkoutEngine } from '../core/engine.js';
   import type { WebFileStore, ScheduleEntry } from '../ports/web/WebFileStore.js';
@@ -28,6 +28,7 @@
   import { parseTrainerDayUrl } from '../core/scrapers.js';
   import { parseFitFile } from '../core/fit.js';
   import { parseZwoXmlToCanonicalWorkout } from '../core/zwo.js';
+  import { isEditableTarget } from './dom-utils.js';
 
   let {
     store,
@@ -795,7 +796,6 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
     const key = (e.key || '').toLowerCase();
     const target = e.target as HTMLElement | null;
-    const tag = target?.tagName;
 
     if (key === '/' && searchInputEl) {
       e.preventDefault();
@@ -838,7 +838,7 @@
       return true;
     }
 
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
+    if (isEditableTarget(target)) return false;
 
     // Schedule mode: Escape/Backspace return to the planner calendar WITHOUT
     // scheduling (legacy workout-picker.js:1432-1443 close({returnToPlanner})).

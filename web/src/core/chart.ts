@@ -8,10 +8,16 @@
 // tooltips, text-event overlay, grid lines, and ERG/builder/history paths are
 // intentionally dropped — they are separable in the legacy code too).
 
-import { DEFAULT_FTP, formatDurationMinSec } from './metrics.js';
+import { DEFAULT_FTP, formatDurationMinSec, zoneIndexForPct } from './metrics.js';
 import type { RawSegment } from './model.js';
+import {
+  FREERIDE_POWER_REL,
+  getRawCadence,
+  getRawMinutes,
+  isFreeRideSegment,
+  segDurationSec,
+} from './segments.js';
 
-const FREERIDE_POWER_REL = 0.5;
 const GAP_BREAK_SECONDS = 6;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -75,18 +81,6 @@ export function mixColors(hexA: string, hexB: string, factor: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(bC)}`;
 }
 
-function isFreeRideSegment(seg: RawSegment): boolean {
-  return Array.isArray(seg) && seg[3] === 'freeride';
-}
-
-function getRawCadence(seg: RawSegment): number | null {
-  if (!Array.isArray(seg)) return null;
-  if (seg[3] === 'freeride') return null;
-  if (Number.isFinite(seg[4] as number)) return Number(seg[4]);
-  if (typeof seg[3] === 'number' && Number.isFinite(seg[3])) return Number(seg[3]);
-  return null;
-}
-
 export function getScaledMaxY({
   ftp,
   peak,
@@ -109,13 +103,9 @@ export function getScaledMaxY({
 
 export function zoneInfoFromRel(rel: number): { key: string; color: string; bg: string } {
   const pct = Math.max(0, rel) * 100;
-  let key = 'Recovery';
-  if (pct < 60) key = 'Recovery';
-  else if (pct < 76) key = 'Endurance';
-  else if (pct < 90) key = 'Tempo';
-  else if (pct < 105) key = 'Threshold';
-  else if (pct < 119) key = 'VO2Max';
-  else key = 'Anaerobic';
+  const key = ['Recovery', 'Endurance', 'Tempo', 'Threshold', 'VO2Max', 'Anaerobic'][
+    zoneIndexForPct(pct)
+  ] as string;
 
   const colorVarMap: Record<string, string> = {
     Recovery: '--zone-recovery',
@@ -194,7 +184,7 @@ function ensureFreeridePatterns(
 }
 
 function totalDurationSec(rawSegments: RawSegment[]): number {
-  return rawSegments.reduce((sum, seg) => sum + Math.max(1, Math.round((seg[0] || 0) * 60)), 0);
+  return rawSegments.reduce((sum, seg) => sum + segDurationSec(getRawMinutes(seg)), 0);
 }
 
 function renderSegmentPolygon(args: {
@@ -613,7 +603,7 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
   // profile blocks
   let t = 0;
   for (const seg of rawSegments) {
-    const durSec = Math.max(1, Math.round((seg[0] || 0) * 60));
+    const durSec = segDurationSec(getRawMinutes(seg));
     const isFreeride = isFreeRideSegment(seg);
     const cadenceRpm = getRawCadence(seg);
     const pStartRel = isFreeride ? FREERIDE_POWER_REL : (seg[1] || 0) / 100;
@@ -875,7 +865,7 @@ export function renderMiniWorkoutGraph(
 
   let t = 0;
   for (const seg of rawSegments) {
-    const durSec = Math.max(1, Math.round((seg[0] || 0) * 60));
+    const durSec = segDurationSec(getRawMinutes(seg));
     const isFreeride = isFreeRideSegment(seg);
     const cadenceRpm = getRawCadence(seg);
     const pStartRel = isFreeride ? FREERIDE_POWER_REL : (seg[1] || 0) / 100;
@@ -918,8 +908,6 @@ export function renderMiniWorkoutGraph(
 // pointer-down drag engine lives in the BuilderView host.
 
 import type { Block, BlockSegment } from './builder-backend.js';
-
-const FREERIDE_POWER_REL_BUILDER = 0.5;
 
 function computeBlockTimings(blocks: Block[]): {
   timings: { index: number; tStart: number; tEnd: number }[];
@@ -1683,7 +1671,7 @@ export function drawMiniHistoryChart(args: DrawMiniHistoryChartArgs): void {
   svg.style.height = `${h}px`;
 
   const totalSegSec = rawSegments.reduce(
-    (sum, seg) => sum + Math.max(1, Math.round(((seg[0] as number) || 0) * 60)),
+    (sum, seg) => sum + segDurationSec(getRawMinutes(seg)),
     0,
   );
   const totalActualSecFromLines = actualLineSegments.reduce(
@@ -1721,7 +1709,7 @@ export function drawMiniHistoryChart(args: DrawMiniHistoryChartArgs): void {
       const minutes = (seg[0] as number) || 0;
       const startPct = (seg[1] as number) || 0;
       const endPct = seg[2] != null ? (seg[2] as number) : startPct;
-      const dur = Math.max(1, Math.round(minutes * 60));
+      const dur = segDurationSec(minutes);
       const tStart = acc;
       const tEnd = acc + dur;
       acc = tEnd;

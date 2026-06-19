@@ -449,7 +449,6 @@ export class WebBluetoothTransport implements TrainerTransport {
 
       this.bikeServer = server;
       this.bikeConnected = true;
-      this.bikeConnected = true;
       this.updateBikeStatus('connected', `Connected to "${friendlyName}".`);
     } catch (err) {
       if (deviceId === this.bikeDesiredDeviceId) {
@@ -468,7 +467,6 @@ export class WebBluetoothTransport implements TrainerTransport {
   }
 
   private onBikeDisconnect(friendlyName = 'bike'): void {
-    this.bikeConnected = false;
     this.bikeConnected = false;
     this.bikeControlPointChar = null;
     this.bikeServer = null;

@@ -37,6 +37,7 @@
   import { getScaledMaxY } from '../core/chart.js';
   import { themeAutoVersion } from '../state/theme.svelte.js';
   import { formatDurationMinSec } from '../core/metrics.js';
+  import { isEditableTarget } from './dom-utils.js';
   import type { CanonicalWorkout } from '../core/model.js';
 
   let {
@@ -740,8 +741,7 @@
   // --------------------------- keyboard (vim keymap subset) ---------------------------
   function handleKeydown(e: KeyboardEvent): void {
     if (e.defaultPrevented) return;
-    const target = e.target as HTMLElement | null;
-    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) {
+    if (isEditableTarget(e.target)) {
       return;
     }
     const key = e.key;

@@ -16,9 +16,8 @@ import {
   canonicalWorkoutToZwoXml,
   parseZwoXmlToCanonicalWorkout,
 } from './zwo.js';
+import { FREERIDE_POWER_REL, isFreeRideSegment } from './segments.js';
 import type { CanonicalWorkout, RawSegment, TextEvent } from './model.js';
-
-const FREERIDE_POWER_REL = 0.5;
 
 export type BlockKind =
   | 'steady'
@@ -26,6 +25,14 @@ export type BlockKind =
   | 'cooldown'
   | 'intervals'
   | 'freeride';
+
+/**
+ * Intermediate segment classification used while folding raw segments back into
+ * builder blocks. `rampUp`/`rampDown` are NOT persisted block kinds — they are
+ * resolved into `warmup`/`cooldown` blocks downstream — so they live in this
+ * dedicated union rather than being smuggled through `BlockKind` via casts.
+ */
+type NormalizedKind = BlockKind | 'rampUp' | 'rampDown';
 
 export interface BlockSegment {
   durationSec: number;
@@ -810,7 +817,7 @@ export function createBuilderBackend() {
   function segmentsToBlocks(segments: RawSegment[]): Block[] {
     if (!Array.isArray(segments) || !segments.length) return [];
     const normalized: {
-      kind: BlockKind;
+      kind: NormalizedKind;
       durationSec: number;
       powerRel?: number;
       powerLowRel?: number;
@@ -823,7 +830,7 @@ export function createBuilderBackend() {
       const minutes = Number(seg[0]);
       const startVal = Number(seg[1]);
       const endVal = seg.length > 2 && seg[2] != null ? Number(seg[2]) : startVal;
-      const isFreeRide = seg[3] === 'freeride';
+      const isFreeRide = isFreeRideSegment(seg);
       const cadence = getRawCadence(seg);
 
       if (
@@ -856,7 +863,7 @@ export function createBuilderBackend() {
         });
       } else if (pEndRel > pStartRel) {
         normalized.push({
-          kind: 'rampUp' as BlockKind,
+          kind: 'rampUp',
           durationSec,
           powerLowRel: pStartRel,
           powerHighRel: pEndRel,
@@ -864,7 +871,7 @@ export function createBuilderBackend() {
         });
       } else {
         normalized.push({
-          kind: 'rampDown' as BlockKind,
+          kind: 'rampDown',
           durationSec,
           powerLowRel: pStartRel,
           powerHighRel: pEndRel,
@@ -943,7 +950,7 @@ export function createBuilderBackend() {
             durationSec: clampDuration(b.durationSec),
           }),
         );
-      } else if ((b.kind as string) === 'rampUp') {
+      } else if (b.kind === 'rampUp') {
         blocks.push(
           createBlock('warmup', {
             durationSec: clampDuration(b.durationSec),
@@ -952,7 +959,7 @@ export function createBuilderBackend() {
             cadenceRpm: normalizeCadence(b.cadenceRpm),
           }),
         );
-      } else if ((b.kind as string) === 'rampDown') {
+      } else if (b.kind === 'rampDown') {
         blocks.push(
           createBlock('cooldown', {
             durationSec: clampDuration(b.durationSec),
@@ -980,8 +987,8 @@ export function createBuilderBackend() {
   }
 
   function blocksSimilarSteady(
-    a: { kind: BlockKind; durationSec: number; powerRel?: number; cadenceRpm?: number | null },
-    b: { kind: BlockKind; durationSec: number; powerRel?: number; cadenceRpm?: number | null },
+    a: { kind: NormalizedKind; durationSec: number; powerRel?: number; cadenceRpm?: number | null },
+    b: { kind: NormalizedKind; durationSec: number; powerRel?: number; cadenceRpm?: number | null },
     durTolSec: number,
     pwrTol: number,
   ): boolean {
@@ -1183,19 +1190,9 @@ export function createBuilderBackend() {
       const repeat = parts.repeat;
       return Math.max(1, Math.round((on + off) * repeat));
     }
-    if (block.kind === 'steady') {
-      const dur = block.attrs?.durationSec;
-      return Math.max(1, Math.round(Number(dur) || 0));
-    }
-    if (block.kind === 'freeride') {
-      const dur = block.attrs?.durationSec;
-      return Math.max(1, Math.round(Number(dur) || 0));
-    }
-    if (block.kind === 'warmup' || block.kind === 'cooldown') {
-      const dur = block.attrs?.durationSec;
-      return Math.max(1, Math.round(Number(dur) || 0));
-    }
-    return 0;
+    // steady / freeride / warmup / cooldown all use the same single duration.
+    const dur = block.attrs?.durationSec;
+    return Math.max(1, Math.round(Number(dur) || 0));
   }
 
   function getBlockSteadyPower(block: Block | null): number {
