@@ -4,8 +4,28 @@
 // ASSERTS the diffRatio is under threshold — it FAILS on visual divergence and
 // writes legacy/new/diff.png for review. Both apps boot the SAME hermetic config.
 
-import {test, expect, reachNewRidingView, VISUAL_HARNESS_CONFIG} from "./fixtures.js";
+import {test, expect, reachNewRidingView, VISUAL_HARNESS_CONFIG, type HarnessConfig} from "./fixtures.js";
 import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
+
+// A workout that STARTS in a free-ride (ERG) segment so the manual controls +
+// e/r/j/k hotkeys are active from the first tick (seg[3] === "freeride").
+const FREERIDE_WORKOUT = {
+  workoutTitle: "Freeride Sample",
+  rawSegments: [
+    [10, 60, 60, "freeride"], // 10 min free ride
+    [5, 60, 60, null, 90],
+  ],
+  textEvents: [],
+};
+
+const FREERIDE_CONFIG: HarnessConfig = {
+  ftp: 250,
+  soundEnabled: false,
+  themeMode: "light",
+  selectedWorkout: FREERIDE_WORKOUT,
+  connectBike: true,
+  connectHr: false,
+};
 
 // Fidelity budget: the new Svelte DOM reproduces the legacy classes + the same
 // re-hosted CSS, so a faithful render diffs only by sub-pixel AA. Keep this
@@ -98,7 +118,189 @@ test.describe("HUD (new Svelte app) — behavior", () => {
     await expect(page.getByTestId("pause-btn")).toHaveClass(/visible/);
     await expect(page.getByTestId("stop-btn")).toHaveClass(/visible/);
   });
+
+  test("Space starts the ride: countdown overlay -> running", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    await page.evaluate(() => {
+      window.__VELO_HARNESS__.sim.setReportedPower(200);
+      window.__VELO_HARNESS__.sim.setReportedCadence(90);
+    });
+
+    // Press Space (code-based, layout independent). The countdown overlay
+    // renders "3" synchronously, proving Space reached engine.startWorkout().
+    await page.locator("body").press("Space");
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.settle();
+    });
+    await expect(page.locator("#statusOverlay")).toBeVisible();
+    await expect(page.locator("#statusText")).toHaveText("3");
+
+    // Advance past the 4s countdown into the running state.
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.clock.step(5000);
+    });
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.ride(3, () => {
+        window.__VELO_HARNESS__.sim.setReportedPower(200);
+        window.__VELO_HARNESS__.sim.setReportedCadence(90);
+      });
+      await window.__VELO_HARNESS__.settle();
+    });
+
+    await expect(page.getByTestId("pause-btn")).toHaveClass(/visible/);
+    const running = await page.evaluate(() => window.__VELO_APP__.getVm()?.workoutRunning);
+    expect(running).toBe(true);
+  });
+
+  test("stop shows the Dialog confirm, then ends + writes a .fit", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // Run a few seconds so there are live samples to save into a .fit.
+    await page.evaluate(() => {
+      window.__VELO_HARNESS__.sim.setReportedPower(200);
+      window.__VELO_HARNESS__.sim.setReportedCadence(90);
+    });
+    await page.getByTestId("start-btn").click();
+    await page.evaluate(async () => window.__VELO_HARNESS__.clock.step(5000));
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.ride(5, () => {
+        window.__VELO_HARNESS__.sim.setReportedPower(200);
+        window.__VELO_HARNESS__.sim.setReportedCadence(90);
+      });
+      await window.__VELO_HARNESS__.settle();
+    });
+
+    // Click stop -> the confirm dialog appears (no native confirm()).
+    await page.getByTestId("stop-btn").click();
+    await expect(page.getByTestId("dialog")).toBeVisible();
+    await expect(page.getByTestId("dialog-message")).toHaveText("End current workout and save it?");
+
+    // Cancel first: the workout stays running (not ended).
+    await page.getByTestId("dialog-cancel").click();
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.workoutRunning)).toBe(true);
+
+    // Confirm: the workout ends and a .fit is written to the history dir.
+    await page.getByTestId("stop-btn").click();
+    await page.getByTestId("dialog-ok").click();
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.settle();
+      await window.__VELO_HARNESS__.clock.step(0);
+    });
+
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.workoutRunning)).toBe(false);
+    const fits = await page.evaluate(() =>
+      Array.from(window.__VELO_HARNESS__.fs.history._files.keys()).filter((n) =>
+        n.toLowerCase().endsWith(".fit"),
+      ),
+    );
+    expect(fits.length).toBeGreaterThan(0);
+  });
+
+  test("cadence-out coaching text appears after the >=5s dwell", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // SAMPLE_WORKOUT warmup targets 90 RPM. Start, then report 70 RPM (20 below
+    // target) for >=5s so the running title flips to "Speed up - target 90 RPM".
+    await page.evaluate(() => {
+      window.__VELO_HARNESS__.sim.setReportedPower(150);
+      window.__VELO_HARNESS__.sim.setReportedCadence(70);
+    });
+    await page.getByTestId("start-btn").click();
+    await page.evaluate(async () => window.__VELO_HARNESS__.clock.step(5000));
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.ride(8, () => {
+        window.__VELO_HARNESS__.sim.setReportedPower(150);
+        window.__VELO_HARNESS__.sim.setReportedCadence(70);
+      });
+      await window.__VELO_HARNESS__.settle();
+    });
+
+    await expect(page.getByTestId("workout-title-center")).toHaveText("Speed up - target 90 RPM");
+  });
 });
+
+test.describe("HUD (new Svelte app) — free-ride manual controls", () => {
+  test.use({harnessConfig: FREERIDE_CONFIG});
+
+  test("manual input commit reaches the engine (free-ride ERG config)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await startFreeride(page);
+
+    // The manual ERG input is now visible; type a new watts value and Enter.
+    const input = page.getByTestId("manual-input");
+    await expect(input).toBeVisible();
+    await input.fill("175");
+    await input.press("Enter");
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+
+    const target = await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget);
+    expect(target).toBe(175);
+
+    // The committed ERG value reached the trainer (a control-point ERG write).
+    const ergWrites = await page.evaluate(() =>
+      window.__VELO_HARNESS__.sim.controlPointWrites.filter((w) => w.opcode === 0x05).map((w) => w.value),
+    );
+    expect(ergWrites).toContain(175);
+  });
+
+  test("manual input clamps out-of-range watts to [50, ftp*2.5]", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await startFreeride(page);
+
+    const input = page.getByTestId("manual-input");
+    await input.fill("9999"); // ftp=250 -> max 625
+    await input.press("Enter");
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget)).toBe(625);
+
+    await input.fill("1"); // min 50
+    await input.press("Enter");
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget)).toBe(50);
+  });
+
+  test("j/k adjust the manual target by -/+10", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await startFreeride(page);
+
+    const before = await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget ?? 0);
+    // k = +10
+    await page.locator("body").press("k");
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget)).toBe(before + 10);
+    // j = -10
+    await page.locator("body").press("j");
+    await page.evaluate(async () => window.__VELO_HARNESS__.settle());
+    expect(await page.evaluate(() => window.__VELO_APP__.getVm()?.manualErgTarget)).toBe(before);
+  });
+});
+
+// Reach a running, free-ride (ERG) state from the FREERIDE_CONFIG so the manual
+// controls + e/r/j/k hotkeys are active.
+async function startFreeride(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(() => {
+    window.__VELO_HARNESS__.sim.setReportedPower(180);
+    window.__VELO_HARNESS__.sim.setReportedCadence(85);
+  });
+  await page.getByTestId("start-btn").click();
+  await page.evaluate(async () => window.__VELO_HARNESS__.clock.step(5000));
+  await page.evaluate(async () => {
+    await window.__VELO_HARNESS__.ride(2, () => {
+      window.__VELO_HARNESS__.sim.setReportedPower(180);
+      window.__VELO_HARNESS__.sim.setReportedCadence(85);
+    });
+    await window.__VELO_HARNESS__.settle();
+  });
+  await page.locator('[data-testid="manual-controls"]').waitFor({state: "visible"});
+}
 
 declare global {
   interface Window {
@@ -111,6 +313,16 @@ declare global {
       };
       ride: (n: number, perTick?: (i: number) => void) => Promise<void>;
       settle: () => Promise<void>;
+      fs: {history: {_files: Map<string, unknown>}};
+    };
+    __VELO_APP__: {
+      getVm: () => {
+        workoutRunning?: boolean;
+        manualErgTarget?: number;
+        manualResistance?: number;
+        freeRideMode?: string;
+        isFreeRideActive?: boolean;
+      } | null;
     };
   }
 }

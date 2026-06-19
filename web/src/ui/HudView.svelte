@@ -2,6 +2,7 @@
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { WorkoutEngine } from '../core/engine.js';
   import type { WebBluetoothTransport } from '../ports/web/WebBluetoothTransport.js';
+  import type { DialogStore } from '../state/dialog.svelte.js';
   import StatCards from './StatCards.svelte';
   import LiveChart from './LiveChart.svelte';
   import BottomNav from './BottomNav.svelte';
@@ -10,6 +11,7 @@
     store,
     engine,
     transport,
+    dialogs,
     onOpenSettings,
     onOpenPicker,
     onOpenPlanner,
@@ -17,6 +19,7 @@
     store: EngineStore;
     engine: WorkoutEngine;
     transport: WebBluetoothTransport;
+    dialogs: DialogStore;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
     onOpenPlanner?: () => void;
@@ -35,6 +38,7 @@
     {vm}
     {engine}
     {transport}
+    {dialogs}
     {onOpenSettings}
     {onOpenPicker}
     {onOpenPlanner}
