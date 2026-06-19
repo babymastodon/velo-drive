@@ -85,6 +85,26 @@ describe("WebFileStore.pickRootDir default-workout seeding (J-CFG-17)", () => {
     expect((await file.text()).length).toBeGreaterThan(0);
   });
 
+  it("persists the picked folder so a reload (new store, same IndexedDB) loads it back", async () => {
+    // Regression for the handle-shape bug: pickRootDir wrote handles via
+    // setSetting ({key,value:{handle}}) but loadHandle reads record.handle, so
+    // the folder never survived a reload and ALL file ops broke in the real app.
+    // The harness hid it by seeding the read-shape directly; nothing exercised
+    // the pick->persist->load round trip. This does.
+    await new WebFileStore().pickRootDir();
+
+    // Simulate a reload: a fresh store reading the SAME (fake) IndexedDB.
+    const store2 = new WebFileStore();
+    const rootHandle = (await store2.loadRootDirHandle()) as { name?: string } | null;
+    expect(rootHandle, "root dir handle must survive a reload").not.toBeNull();
+    expect(rootHandle?.name).toBe("VeloDrive");
+
+    // The workouts dir resolves via the persisted handle (the loadHandle path),
+    // so the library lists the seeded workouts after reload.
+    const lib = await store2.listWorkouts();
+    expect(lib.length).toBe(DEFAULT_NAMES.length);
+  });
+
   it("does NOT seed when the library already has a .zwo", async () => {
     // Pre-create workouts/ with one existing file.
     const workouts = await root.getDirectoryHandle("workouts", {create: true});

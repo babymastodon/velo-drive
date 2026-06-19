@@ -210,6 +210,23 @@ export class WebFileStore implements FileStore {
     });
   }
 
+  // Persist a FileSystemDirectoryHandle. Handles use a DIFFERENT record shape
+  // than settings: `{key, handle}` (read back by loadHandle via `record.handle`),
+  // NOT `{key, value}`. Writing a handle through setSetting() stores
+  // `{key, value:{handle}}`, which loadHandle CANNOT read (record.handle is
+  // undefined) — so the picked folder silently failed to persist. This matches
+  // the harness seed shape (page-env: store[key] = {handle}) and legacy
+  // storage.js saveHandle.
+  private async saveHandle(key: string, handle: unknown): Promise<void> {
+    const db = await this.getDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+      tx.objectStore(SETTINGS_STORE).put({ key, handle });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   private async getSettingRaw<T>(key: string, defaultValue: T): Promise<T> {
     const db = await this.getDb();
     return new Promise<T>((resolve, reject) => {
@@ -273,7 +290,7 @@ export class WebFileStore implements FileStore {
       // reload (mirrors docs/storage.js saveRootDirHandle/saveZwoDirHandle/
       // saveWorkoutDirHandle/saveTrashDirHandle). Persisting the subdir handles
       // (not just root) matches legacy and avoids re-deriving them every load.
-      await this.setSetting(ROOT_DIR_KEY, { handle: root });
+      await this.saveHandle(ROOT_DIR_KEY, root);
       const workouts = await root.getDirectoryHandle('workouts', { create: true });
       const history = await root.getDirectoryHandle('history', { create: true });
       const trash = await root.getDirectoryHandle('trash', { create: true });
@@ -283,9 +300,9 @@ export class WebFileStore implements FileStore {
       if (await ensureDirPermission(workouts)) {
         await this.maybeSeedDefaultWorkouts(workouts);
       }
-      await this.setSetting(ZWO_DIR_KEY, { handle: workouts });
-      await this.setSetting(WORKOUT_DIR_KEY, { handle: history });
-      await this.setSetting(TRASH_DIR_KEY, { handle: trash });
+      await this.saveHandle(ZWO_DIR_KEY, workouts);
+      await this.saveHandle(WORKOUT_DIR_KEY, history);
+      await this.saveHandle(TRASH_DIR_KEY, trash);
       this.workoutDirHandle = history;
       return root;
     } catch (err) {

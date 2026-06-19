@@ -198,6 +198,20 @@ export const PLANNER_HARNESS_CONFIG_DARK: HarnessConfig = {
   ...PLANNER_HARNESS_CONFIG,
   themeMode: "dark",
 };
+// No workout selected, bike connected -> the chart empty-state shows
+// "Select a workout" (the noWorkout state). This state was NEVER rendered by any
+// prior visual baseline (all seeded a workout), so its dark text-shadow went
+// untested. Bike connected so both apps reach the SAME state regardless of the
+// bike-vs-workout precedence.
+export const NO_WORKOUT_DARK: HarnessConfig = {
+  ...VISUAL_HARNESS_CONFIG_DARK,
+  selectedWorkout: undefined,
+  connectBike: true,
+};
+export const NO_WORKOUT_LIGHT: HarnessConfig = {
+  ...NO_WORKOUT_DARK,
+  themeMode: "light",
+};
 
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
