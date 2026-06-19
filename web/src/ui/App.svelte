@@ -223,6 +223,7 @@
     onOpenSettings={() => ui.open('settings')}
     onOpenPicker={openPicker}
     onOpenPlanner={openPlanner}
+    activeOverlay={ui.activeOverlay}
   />
 
   <SettingsView

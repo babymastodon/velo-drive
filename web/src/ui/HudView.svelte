@@ -15,6 +15,7 @@
     onOpenSettings,
     onOpenPicker,
     onOpenPlanner,
+    activeOverlay = 'none',
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
@@ -23,6 +24,7 @@
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
     onOpenPlanner?: () => void;
+    activeOverlay?: string;
   } = $props();
 
   const vm = $derived(store.vm);
@@ -42,6 +44,7 @@
     {onOpenSettings}
     {onOpenPicker}
     {onOpenPlanner}
+    {activeOverlay}
     bikeStatus={store.bikeStatus}
     hrStatus={store.hrStatus}
     hrBatteryPercent={store.hrBatteryPercent}

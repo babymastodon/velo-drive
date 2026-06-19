@@ -244,10 +244,10 @@
       <button
         id="welcomePrevBtn"
         class="welcome-nav welcome-nav-prev"
+        class:welcome-nav-hidden={currentIndex === 0}
         type="button"
         aria-label="Previous"
         data-testid="welcome-prev"
-        style="visibility: {currentIndex === 0 ? 'hidden' : 'visible'}"
         onclick={(e) => {
           e.stopPropagation();
           goPrev();

@@ -630,6 +630,9 @@
     };
     dragInsertAfterIndex = null;
     if (handle === 'right') timelineLockSec = dragState.lockedTimelineSec || 0;
+    // Legacy workout-builder.js:2548 — drives the `grabbing` cursor for the
+    // move-drag handle (workout-picker.css:1307 `body.wb-dragging …--move`).
+    document.body.classList.add('wb-dragging');
     window.addEventListener('pointermove', handleChartPointerMove);
     window.addEventListener('pointerup', handleChartPointerUp);
     window.addEventListener('pointercancel', handleChartPointerUp);
@@ -721,6 +724,7 @@
     if (dragState.handle === 'right') timelineLockSec = 0;
     dragState = null;
     dragInsertAfterIndex = null;
+    document.body.classList.remove('wb-dragging');
     bump();
     window.removeEventListener('pointermove', handleChartPointerMove);
     window.removeEventListener('pointerup', handleChartPointerUp);

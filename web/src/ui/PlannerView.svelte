@@ -496,7 +496,9 @@
   }
   function detailChart(node: SVGSVGElement, d: DetailState) {
     requestAnimationFrame(() => {
-      const rect = node.parentElement?.getBoundingClientRect();
+      const panel = node.parentElement as HTMLElement | null;
+      const rect = panel?.getBoundingClientRect();
+      const tooltipEl = panel?.querySelector<HTMLElement>('#plannerDetailChartTooltip') || null;
       drawWorkoutChart({
         svg: node,
         width: rect?.width || 1000,
@@ -506,6 +508,8 @@
         elapsedSec: d.activeDurationSec || d.durationSec || 0,
         liveSamples: d.samples || [],
         showProgress: false,
+        panel,
+        tooltipEl,
       });
     });
     return {};

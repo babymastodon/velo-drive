@@ -16,6 +16,7 @@
     onOpenSettings,
     onOpenPicker,
     onOpenPlanner,
+    activeOverlay = 'none',
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
@@ -27,6 +28,7 @@
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
     onOpenPlanner?: () => void;
+    activeOverlay?: string;
   } = $props();
 
   const workoutActive = $derived(vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
@@ -186,6 +188,7 @@
       id="settingsBtn"
       data-testid="settings-btn"
       class="nav-icon-button"
+      class:active={activeOverlay === 'settings'}
       title="Settings (S)"
       onclick={() => onOpenSettings?.()}
     >
@@ -201,6 +204,7 @@
       data-testid="calendar-btn"
       class="playback-button calendar-button"
       class:visible={showCalendar}
+      class:active={activeOverlay === 'planner'}
       title="Open calendar (C)"
       onclick={() => onOpenPlanner?.()}
     >
