@@ -40,6 +40,7 @@
     type PowerCurvePoint,
   } from '../core/planner-analysis.js';
   import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from '../core/chart.js';
+  import { themeVersion } from '../state/theme.svelte.js';
 
   let {
     store,
@@ -448,8 +449,23 @@
   }
 
   // --------------------------- charts (imperative use: actions) ---------------------------
+  //
+  // Each chart action registers its render closure so it can be re-run on a
+  // theme change (charts read CSS-var colors at draw time; legacy redraws all
+  // planner charts via planner.rerenderCharts() on the <html> class mutation).
+  const chartRenderers = new Set<() => void>();
+  function registerChart(node: SVGSVGElement, render: () => void) {
+    chartRenderers.add(render);
+    requestAnimationFrame(render);
+    return {
+      destroy() {
+        chartRenderers.delete(render);
+      },
+    };
+  }
+
   function historyChart(node: SVGSVGElement, p: HistoryPreview) {
-    const render = () => {
+    return registerChart(node, () => {
       const rect = node.parentElement?.getBoundingClientRect();
       drawMiniHistoryChart({
         svg: node,
@@ -461,12 +477,10 @@
         actualPowerMax: p.powerMax,
         durationSec: p.durationSec,
       });
-    };
-    requestAnimationFrame(render);
-    return {};
+    });
   }
   function scheduledChart(node: SVGSVGElement, p: ScheduledPreview) {
-    const render = () => {
+    return registerChart(node, () => {
       const rect = node.parentElement?.getBoundingClientRect();
       drawMiniHistoryChart({
         svg: node,
@@ -476,12 +490,10 @@
         rawSegments: p.rawSegments,
         durationSec: p.durationSec,
       });
-    };
-    requestAnimationFrame(render);
-    return {};
+    });
   }
   function powerCurveChart(node: SVGSVGElement, d: DetailState) {
-    requestAnimationFrame(() => {
+    return registerChart(node, () => {
       const rect = node.getBoundingClientRect();
       drawPowerCurveChart({
         svg: node,
@@ -492,10 +504,9 @@
         maxDurationSec: d.durationSec || 0,
       });
     });
-    return {};
   }
   function detailChart(node: SVGSVGElement, d: DetailState) {
-    requestAnimationFrame(() => {
+    return registerChart(node, () => {
       const panel = node.parentElement as HTMLElement | null;
       const rect = panel?.getBoundingClientRect();
       const tooltipEl = panel?.querySelector<HTMLElement>('#plannerDetailChartTooltip') || null;
@@ -512,8 +523,13 @@
         tooltipEl,
       });
     });
-    return {};
   }
+
+  // Re-run every mounted planner chart on a theme change (stale-color fix).
+  $effect(() => {
+    void themeVersion();
+    for (const render of chartRenderers) render();
+  });
 
   // --------------------------- interactions ---------------------------
   function selectDay(key: string): void {

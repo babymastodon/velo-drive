@@ -2,6 +2,7 @@
   import type { EngineViewModel } from '../core/engine.js';
   import { drawWorkoutChart } from '../core/chart.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
+  import { themeVersion } from '../state/theme.svelte.js';
 
   let {
     vm,
@@ -64,13 +65,16 @@
     });
   }
 
-  // Redraw on every VM change and whenever the SVG mounts.
+  // Redraw on every VM change, whenever the SVG mounts, and on theme change.
+  // The chart reads colors from CSS vars at draw time, so a theme toggle must
+  // trigger a redraw or the palette goes stale (legacy rerenderThemeSensitive).
   $effect(() => {
     // touch reactive deps so the effect re-runs
     void vm.elapsedSec;
     void vm.liveSamples;
     void vm.canonicalWorkout;
     void vm.currentFtp;
+    void themeVersion();
     if (chartSvg && chartPanel) redraw();
   });
 </script>
