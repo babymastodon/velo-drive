@@ -199,4 +199,164 @@ test.describe("Planner (new Svelte app) — behavior", () => {
     await page.keyboard.press("c");
     await expect(page.getByTestId("planner-modal")).toBeVisible();
   });
+
+  test("arrow / h-l-j-k move the selected day (selection class moves)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // Selection starts on "today" (2026-06-17, the pinned clock).
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-17");
+
+    // ArrowLeft / h → -1 day.
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-16");
+    await page.keyboard.press("h");
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-15");
+
+    // ArrowRight / l → +1 day.
+    await page.keyboard.press("l");
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-16");
+
+    // ArrowDown / j → +7 days; ArrowUp / k → -7 days.
+    await page.keyboard.press("ArrowDown");
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-23");
+    await page.keyboard.press("k");
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-16");
+  });
+
+  test("Enter on a past day with history opens the detail view", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // Move selection back to 2026-06-15 (seeded "Morning Tempo" ride) and Enter.
+    await page.keyboard.press("ArrowLeft"); // 06-16
+    await page.keyboard.press("ArrowLeft"); // 06-15
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", "2026-06-15");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByTestId("planner-detail")).toBeVisible();
+    await expect(page.locator("#plannerDetailStats .wb-stat-chip").first()).toBeVisible();
+  });
+
+  test("Escape in detail returns to the calendar; Escape on the calendar closes the planner", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // Open the ride detail.
+    await page
+      .locator('.planner-day[data-date="2026-06-15"] .planner-workout-card:not(.planner-scheduled-card)')
+      .first()
+      .click();
+    await expect(page.getByTestId("planner-detail")).toBeVisible();
+
+    // Escape pops detail back to the calendar; the planner stays open.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("planner-detail")).toHaveCount(0);
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+
+    // Escape on the calendar closes the whole planner.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("planner-modal")).toHaveCount(0);
+  });
+
+  test("Backspace in detail returns to the calendar", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    await page
+      .locator('.planner-day[data-date="2026-06-15"] .planner-workout-card:not(.planner-scheduled-card)')
+      .first()
+      .click();
+    await expect(page.getByTestId("planner-detail")).toBeVisible();
+    await page.keyboard.press("Backspace");
+    await expect(page.getByTestId("planner-detail")).toHaveCount(0);
+    await expect(page.getByTestId("planner-modal")).toBeVisible();
+  });
+
+  test("clicking a scheduled card loads the workout into the engine + closes the planner", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // The seeded schedule places "Sleepy Spin" on 2026-06-20.
+    const card = page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card').first();
+    await expect(card).toBeVisible();
+    await card.click();
+
+    // Planner closes and the engine now holds the scheduled workout.
+    await expect(page.getByTestId("planner-modal")).toHaveCount(0);
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const app = (window as unknown as {__VELO_APP__: {getVm: () => {canonicalWorkout?: {workoutTitle?: string} | null} | null}}).__VELO_APP__;
+          return app.getVm()?.canonicalWorkout?.workoutTitle ?? null;
+        }),
+      )
+      .toBe("Sleepy Spin");
+  });
+
+  test("editing a scheduled future entry removes it (schedule.json updated)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // The future scheduled card (2026-06-20) shows an edit affordance.
+    const card = page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card').first();
+    await expect(card).toBeVisible();
+    // The engine's current workout is "Harness Sample" (different title), so the
+    // edit confirm offers Replace / Remove. Choose Remove (the cancel button).
+    await card.getByTestId("planner-scheduled-edit").click();
+    await page.getByTestId("dialog-cancel").click();
+    await page.waitForTimeout(80);
+
+    // schedule.json no longer contains the 2026-06-20 entry…
+    const schedule = await page.evaluate(async () => {
+      const h = (window as unknown as {__VELO_HARNESS__: {fs: {root: {_files: Map<string, {getFile: () => Promise<{text: () => Promise<string>}>}>}}}}).__VELO_HARNESS__;
+      const fh = h.fs.root._files.get("schedule.json");
+      if (!fh) return [];
+      const f = await fh.getFile();
+      return JSON.parse(await f.text());
+    });
+    expect(
+      (schedule as {date: string; workoutTitle: string}[]).some((e) => e.date === "2026-06-20"),
+    ).toBe(false);
+    // …and the card is gone from the calendar.
+    await expect(
+      page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card'),
+    ).toHaveCount(0);
+  });
+
+  test("the stats cache means a second planner open re-parses nothing", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // First open parses the seeded FIT (cache miss) and persists the preview.
+    await openPlanner(page);
+    const firstCount = await page.evaluate(() => {
+      const app = (window as unknown as {__VELO_APP__: {getHistoryParseCount: () => number}}).__VELO_APP__;
+      return app.getHistoryParseCount();
+    });
+    expect(firstCount).toBeGreaterThan(0);
+
+    // Close the planner.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("planner-modal")).toHaveCount(0);
+
+    // Re-open: the cache (settings key `workoutStatsCache`) serves every file, so
+    // the parse counter does not advance.
+    await openPlanner(page);
+    const secondCount = await page.evaluate(() => {
+      const app = (window as unknown as {__VELO_APP__: {getHistoryParseCount: () => number}}).__VELO_APP__;
+      return app.getHistoryParseCount();
+    });
+    expect(secondCount).toBe(firstCount);
+    // The seeded ride still renders from cache.
+    await expect(
+      page.locator('.planner-day[data-date="2026-06-15"] .planner-workout-card:not(.planner-scheduled-card)').first(),
+    ).toBeVisible();
+  });
 });

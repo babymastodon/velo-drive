@@ -20,9 +20,10 @@
   //    schedule mode.
   //  * Drag-and-drop reschedule + the `?`-held hotkey overlay are dropped.
   import OverlayModal from './OverlayModal.svelte';
-  import type { WebFileStore, ScheduleEntry } from '../ports/web/WebFileStore.js';
+  import type { WebFileStore, ScheduleEntry, HistoryPreview } from '../ports/web/WebFileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
+  import type { WorkoutEngine } from '../core/engine.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
   import type { CanonicalWorkout, RawSegment } from '../core/model.js';
   import {
@@ -33,24 +34,23 @@
     formatDurationMinSec,
   } from '../core/metrics.js';
   import {
-    buildPowerSegments,
-    powerMaxFromIntervals,
     buildPowerCurve,
     computeHrCadStats,
     POWER_CURVE_DURS,
-    type PowerInterval,
     type PowerCurvePoint,
   } from '../core/planner-analysis.js';
   import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from '../core/chart.js';
 
   let {
     store,
+    engine,
     fileStore,
     ui,
     dialogs,
     open = false,
   }: {
     store: EngineStore;
+    engine: WorkoutEngine;
     fileStore: WebFileStore;
     ui: UiStore;
     dialogs: DialogStore;
@@ -126,22 +126,11 @@
   }
 
   // --------------------------- planner state ---------------------------
-  interface HistoryPreview {
-    fileName: string;
-    workoutTitle: string;
-    durationSec: number;
-    kj: number | null;
-    ifValue: number | null;
-    tss: number | null;
-    startedAt: Date | null;
-    rawSegments: RawSegment[];
-    powerSegments: PowerInterval[];
-    powerMax: number;
-    zone: string;
-  }
+  // HistoryPreview is owned by WebFileStore (which computes + caches it).
   interface ScheduledPreview {
     date: string;
     workoutTitle: string;
+    canonical: CanonicalWorkout | null;
     rawSegments: RawSegment[];
     durationSec: number;
     kj: number | null;
@@ -243,39 +232,21 @@
   }
 
   async function loadHistory(): Promise<void> {
-    const entries = await fileStore.listHistory();
+    // WebFileStore computes + caches previews by file name (stats cache), so a
+    // repeat open of an unchanged history re-parses nothing.
+    const previews = await fileStore.listHistoryPreviews();
     const map = new Map<string, HistoryPreview[]>();
-    for (const { fileName, parsed } of entries) {
-      const dateKey = dateKeyFromHandleName(fileName);
+    for (const preview of previews) {
+      const dateKey = dateKeyFromHandleName(preview.fileName);
       if (!dateKey) continue;
-      const cw = parsed.canonicalWorkout || ({} as CanonicalWorkout);
-      const meta = parsed.meta || {};
-      const ftp = meta.ftp || DEFAULT_FTP;
-      const samples = parsed.samples || [];
-      const lastSample = samples.length ? samples[samples.length - 1] : null;
-      const durationSecHint =
-        meta.totalTimerSec != null
-          ? Math.max(1, Math.round(meta.totalTimerSec))
-          : meta.startedAt && meta.endedAt
-            ? Math.max(1, Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000))
-            : Math.max(1, Math.round(lastSample?.t || 0));
-      const metrics = computeMetricsFromSamples(samples, ftp, durationSecHint);
-      const powerSeg = buildPowerSegments(samples, durationSecHint).intervals;
-      const preview: HistoryPreview = {
-        fileName,
-        workoutTitle: cw.workoutTitle || fileName.replace(/\.fit$/i, ''),
-        durationSec: metrics.durationSec || durationSecHint || 0,
-        kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
-        ifValue: metrics.ifValue,
-        tss: metrics.tss,
-        startedAt: meta.startedAt || utcDateKeyToLocalDate(dateKey),
-        rawSegments: cw.rawSegments || [],
-        powerSegments: powerSeg,
-        powerMax: powerMaxFromIntervals(powerSeg),
-        zone: inferZoneFromSegments(cw.rawSegments || []),
-      };
+      // Fall back to the file's day key when the FIT carried no startedAt
+      // (mirrors legacy loadHistoryPreview's utcDateKeyToLocalDate fallback).
+      const withStart: HistoryPreview =
+        preview.startedAt != null
+          ? preview
+          : { ...preview, startedAt: utcDateKeyToLocalDate(dateKey) };
       const arr = map.get(dateKey) || [];
-      arr.push(preview);
+      arr.push(withStart);
       map.set(dateKey, arr);
     }
     // newest-first within a day (filenames are ISO timestamps)
@@ -300,6 +271,7 @@
       const preview: ScheduledPreview = {
         date: e.date,
         workoutTitle: e.workoutTitle,
+        canonical: cw || null,
         rawSegments,
         durationSec: metrics?.durationSec || 0,
         kj: metrics?.kj ?? null,
@@ -708,6 +680,7 @@
     const fileName = detail.fileName;
     const moved = await fileStore.deleteHistoryToTrash(fileName);
     if (!moved) return;
+    await fileStore.invalidateHistoryStats(fileName);
     detail = null;
     await loadHistory();
   }
@@ -719,6 +692,185 @@
     }
     ui.close();
   }
+
+  // Load a scheduled workout into the engine + close the planner (legacy
+  // onScheduledLoadRequested → saveSelectedWorkout + setWorkoutFromPicker +
+  // planner.close). The full CanonicalWorkout was joined in loadSchedule.
+  async function onLoadScheduled(entry: ScheduledPreview): Promise<void> {
+    const canonical: CanonicalWorkout = entry.canonical || {
+      source: 'scheduled',
+      sourceURL: '',
+      workoutTitle: entry.workoutTitle || 'Workout',
+      rawSegments: entry.rawSegments || [],
+      description: '',
+    };
+    await fileStore.putSetting('selectedWorkout', canonical);
+    engine.setWorkoutFromPicker(canonical);
+    ui.close();
+  }
+
+  // Edit a scheduled entry (legacy onScheduledEditRequested re-opened the picker
+  // in schedule mode). Minimal-but-real handoff: let the user re-pick the
+  // engine's current workout for this day, or remove the entry. Writes
+  // schedule.json directly (mirrors the simplified onScheduleDay flow).
+  async function onEditScheduled(entry: ScheduledPreview): Promise<void> {
+    const cw = store.vm?.canonicalWorkout;
+    const newTitle = cw?.workoutTitle;
+    // Use the dialog confirm for replace (if a different workout is selected),
+    // otherwise go straight to a remove confirm.
+    let action: 'replace' | 'remove' | null = null;
+    if (newTitle && newTitle !== entry.workoutTitle) {
+      const replace = await dialogs.confirm(
+        `Replace "${entry.workoutTitle}" with the selected workout "${newTitle}" on ${entry.date}?`,
+        { title: 'Edit scheduled workout', okLabel: 'Replace', cancelLabel: 'Remove instead' },
+      );
+      action = replace ? 'replace' : 'remove';
+    } else {
+      const remove = await dialogs.confirm(
+        `Remove the scheduled workout "${entry.workoutTitle}" on ${entry.date}? (Select a different workout on the main screen first to change it.)`,
+        { title: 'Edit scheduled workout', okLabel: 'Remove' },
+      );
+      if (!remove) return;
+      action = 'remove';
+    }
+    const entries = await fileStore.loadSchedule();
+    const next = entries.filter((e) => !(e.date === entry.date && e.workoutTitle === entry.workoutTitle));
+    if (action === 'replace' && newTitle) {
+      next.push({ date: entry.date, workoutTitle: newTitle });
+    }
+    await fileStore.saveSchedule(next);
+    await loadSchedule();
+  }
+
+  // --------------------------- keyboard (legacy onKeyDown ~1285-1395) ---------------------------
+  function isEditableTarget(t: EventTarget | null): boolean {
+    const el = t as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  function handlePlannerKey(e: KeyboardEvent): boolean {
+    const key = (e.key || '').toLowerCase();
+    // Detail mode: d/Delete delete the shown ride; Backspace/Escape exit detail.
+    if (detailMode) {
+      if (isEditableTarget(e.target)) return false;
+      if (key === 'delete' || key === 'd') {
+        void onDeleteDetail();
+        return true;
+      }
+      if (key === 'backspace' || key === 'escape') {
+        exitDetail();
+        return true;
+      }
+      return false;
+    }
+    // Escape on the calendar is handled by ui.handleEscape (closes planner); not
+    // here. Mirrors legacy ignoring Escape in the non-detail branch.
+    if (key === 'escape') return false;
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    if (isEditableTarget(e.target)) return false;
+
+    const dateKey = selectedDate ? formatKey(selectedDate) : null;
+
+    if (key === 'enter') {
+      if (!dateKey) return true;
+      // Open the selected day's history detail if any…
+      const hist = historyMap.get(dateKey);
+      if (hist && hist.length) {
+        void openDetail(hist[0]!);
+        return true;
+      }
+      // …else load the day's scheduled workout…
+      const sched = scheduledMap.get(dateKey);
+      if (sched && sched.length) {
+        void onLoadScheduled(sched[0]!);
+        return true;
+      }
+      // …else (empty future day) request scheduling.
+      if (!isPastDate(dateKey)) void onScheduleDay();
+      return true;
+    }
+
+    if (key === 'e') {
+      if (!dateKey) return true;
+      const sched = scheduledMap.get(dateKey);
+      if (sched && sched.length) {
+        void onEditScheduled(sched[0]!);
+        return true;
+      }
+      if (!isPastDate(dateKey)) void onScheduleDay();
+      return true;
+    }
+
+    if (key === 'd' || key === 'delete') {
+      if (!dateKey) return true;
+      const sched = scheduledMap.get(dateKey);
+      if (sched && sched.length) {
+        void onDeleteScheduled(sched[0]!);
+        return true;
+      }
+      const hist = historyMap.get(dateKey);
+      if (hist && hist.length) {
+        void onDeleteFirstHistory(hist[0]!);
+        return true;
+      }
+      return true;
+    }
+
+    if (key === 'arrowdown' || key === 'j') {
+      moveSelection(7);
+      return true;
+    }
+    if (key === 'arrowup' || key === 'k') {
+      moveSelection(-7);
+      return true;
+    }
+    if (key === 'arrowleft' || key === 'h') {
+      moveSelection(-1);
+      return true;
+    }
+    if (key === 'arrowright' || key === 'l') {
+      moveSelection(1);
+      return true;
+    }
+    return false;
+  }
+
+  function moveSelection(daysDelta: number): void {
+    const base = selectedDate ? new Date(selectedDate) : new Date();
+    selectedDate = addDays(base, daysDelta);
+  }
+
+  async function onDeleteFirstHistory(p: HistoryPreview): Promise<void> {
+    const ok = await dialogs.confirm(
+      `Move workout "${p.workoutTitle || p.fileName}" to the trash folder?`,
+      { title: 'Delete workout', okLabel: 'Delete' },
+    );
+    if (!ok) return;
+    const moved = await fileStore.deleteHistoryToTrash(p.fileName);
+    if (!moved) return;
+    await fileStore.invalidateHistoryStats(p.fileName);
+    await loadHistory();
+  }
+
+  // Register the planner keymap with the App overlay-key router while the planner
+  // overlay is active (App suppresses global hotkeys + routes keys here). Mirrors
+  // the PickerView registration convention (Wave 1).
+  $effect(() => {
+    if (open) {
+      ui.registerOverlayKeyHandler('planner', handlePlannerKey);
+      return () => ui.registerOverlayKeyHandler('planner', null);
+    }
+    return undefined;
+  });
+
+  // Tell the ui store whether the detail sub-view is open so Escape/Backspace
+  // pop the detail back to the calendar (instead of closing the whole planner),
+  // matching legacy. Cleared on close.
+  $effect(() => {
+    ui.plannerDetailOpen = open && detailMode;
+  });
 </script>
 
 <OverlayModal
@@ -862,25 +1014,39 @@
                     {/each}
 
                     {#each scheduled as p (p.workoutTitle)}
+                      {@const past = isPastDate(cell.key)}
                       <div
                         class="planner-workout-card planner-scheduled-card"
                         class:planner-scheduled-missing={p.missing}
                         title={p.missing ? 'Workout file not found' : 'Start scheduled workout'}
                         data-testid="planner-scheduled-card"
+                        role="button"
+                        tabindex="-1"
+                        onclick={(e) => { e.stopPropagation(); if (!p.missing) void onLoadScheduled(p); }}
+                        onkeydown={() => {}}
                       >
                         <div class="planner-scheduled-top">
-                          <div class="planner-scheduled-tag" class:planner-scheduled-tag-past={isPastDate(cell.key)}>Scheduled</div>
+                          <div class="planner-scheduled-tag" class:planner-scheduled-tag-past={past}>Scheduled</div>
                           <button
                             type="button"
                             class="nav-icon-button planner-scheduled-edit-btn"
-                            title="Delete scheduled workout"
-                            onclick={(e) => { e.stopPropagation(); void onDeleteScheduled(p); }}
+                            data-testid="planner-scheduled-edit"
+                            title={past ? 'Delete scheduled workout' : 'Edit scheduled workout'}
+                            onclick={(e) => { e.stopPropagation(); if (past) void onDeleteScheduled(p); else void onEditScheduled(p); }}
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
-                              <path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                              <path d="M8 6V4h8v2" fill="none" stroke="currentColor" stroke-width="2" />
-                              <path d="M6 6l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" />
-                            </svg>
+                            {#if past}
+                              <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+                                <path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                <path d="M8 6V4h8v2" fill="none" stroke="currentColor" stroke-width="2" />
+                                <path d="M6 6l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" />
+                              </svg>
+                            {:else}
+                              <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+                                <path d="M4 20h4l10-10-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                <path d="M14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                <path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                              </svg>
+                            {/if}
                           </button>
                         </div>
                         <div class="planner-workout-header">
