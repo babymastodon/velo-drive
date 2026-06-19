@@ -77,6 +77,18 @@
     void themeVersion();
     if (chartSvg && chartPanel) redraw();
   });
+
+  // Redraw when the panel changes size. Legacy redrew charts on window 'resize';
+  // a ResizeObserver on the panel covers that plus any container reflow so the
+  // chart never stays at a stale size (events audit D4).
+  $effect(() => {
+    if (!chartPanel || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (chartSvg && chartPanel) redraw();
+    });
+    ro.observe(chartPanel);
+    return () => ro.disconnect();
+  });
 </script>
 
 <section
