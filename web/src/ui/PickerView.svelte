@@ -279,7 +279,11 @@
   }
 
   function doSelect(canonical: CanonicalWorkout): void {
-    void fileStore.putSetting('selectedWorkout', canonical);
+    // Persist so the selection survives a reload (WebFileStore de-proxies the
+    // $state value). Surface failures instead of swallowing them with `void`.
+    fileStore
+      .putSetting('selectedWorkout', canonical)
+      .catch((e) => console.error('[velo] persist selectedWorkout failed', e));
     engine.setWorkoutFromPicker(canonical);
     ui.close();
   }

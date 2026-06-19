@@ -156,3 +156,33 @@ describe("WebFileStore.removeScheduledByTitle (post-ride flow, J-PLAN-34)", () =
     expect(removed).toBe(false);
   });
 });
+
+describe("WebFileStore.setSetting de-proxies values (selectedWorkout reload regression, R1)", () => {
+  beforeEach(() => {
+    installEnv(new FakeFileSystemDirectoryHandle("VeloDrive"));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("persists a clone-HOSTILE value as a plain, structured-clone-safe object", async () => {
+    const store = new WebFileStore();
+    // Stand-in for a Svelte $state proxy: a value the real structured-clone
+    // algorithm REJECTS (a function property throws DataCloneError, exactly like
+    // the $state proxy did in a real browser). Persisting it must not throw and
+    // must round-trip as a plain object — else selectedWorkout is lost on reload.
+    const hostile = {
+      workoutTitle: "Sleepy Spin",
+      rawSegments: [{power: 1}],
+      textEvents: [],
+      _fn: () => 1,
+    };
+    expect(() => structuredClone(hostile)).toThrow(); // input IS clone-hostile
+
+    await store.putSetting("selectedWorkout", hostile);
+    const back = await store.loadSelectedWorkout();
+
+    expect(back).not.toBeNull();
+    expect(back).toMatchObject({workoutTitle: "Sleepy Spin"});
+    // The stored value is now plain -> survives the real structured clone.
+    expect(() => structuredClone(back)).not.toThrow();
+  });
+});
