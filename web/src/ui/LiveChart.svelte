@@ -10,6 +10,7 @@
 
   let chartSvg = $state<SVGSVGElement | null>(null);
   let chartPanel = $state<HTMLElement | null>(null);
+  let chartTooltip = $state<HTMLElement | null>(null);
 
   // Empty-state decision (ported from docs/workout.js drawChart, same priority).
   type EmptyKind = 'noBike' | 'noWorkout' | 'readyToStart' | 'resume' | 'none';
@@ -58,6 +59,8 @@
       liveSamples: vm.liveSamples,
       manualErgTarget: vm.manualErgTarget,
       textEvents: vm.canonicalWorkout?.textEvents || [],
+      panel: chartPanel,
+      tooltipEl: chartTooltip,
     });
   }
 
@@ -115,5 +118,5 @@
     preserveAspectRatio="none"
     bind:this={chartSvg}
   ></svg>
-  <div id="chartTooltip" class="chart-tooltip"></div>
+  <div id="chartTooltip" class="chart-tooltip" bind:this={chartTooltip}></div>
 </section>

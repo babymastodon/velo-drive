@@ -224,6 +224,86 @@ test.describe("HUD (new Svelte app) — behavior", () => {
   });
 });
 
+test.describe("HUD (new Svelte app) — chart hover tooltip", () => {
+  test("hovering a workout segment shows #chartTooltip with zone/power/duration text", async ({
+    configuredPage,
+  }) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    const svg = page.locator("#chartSvg");
+    await expect(svg).toBeVisible();
+    const tooltip = page.locator("#chartTooltip");
+
+    // Idle (no hover): the tooltip must be hidden (CSS display:none).
+    await expect(tooltip).toBeHidden();
+
+    // Move the real mouse over the middle of a rendered workout segment. The
+    // hover engine resolves the segment via elementFromPoint and fills the tip.
+    const seg = svg.locator(".chart-segment").first();
+    await expect(seg).toHaveCount(1);
+    const box = await seg.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+    await expect(tooltip).toBeVisible();
+    const text = (await tooltip.textContent())?.trim() ?? "";
+    expect(text.length).toBeGreaterThan(0);
+    // Segment tooltip format: "<Zone>: <p0>% FTP, <w0>W, <dur>" (or "Free ride: …").
+    expect(text).toMatch(/FTP|Free ride/);
+
+    // Leaving the chart hides the tooltip again.
+    const svgBox = await svg.boundingBox();
+    await page.mouse.move(svgBox!.x + svgBox!.width / 2, svgBox!.y - 40);
+    await expect(tooltip).toBeHidden();
+  });
+
+  test("hovering the live power trace during a ride shows the interpolated value", async ({
+    configuredPage,
+  }) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // Run a few seconds at a steady 200 W so a live power trace exists.
+    await page.evaluate(() => {
+      window.__VELO_HARNESS__.sim.setReportedPower(200);
+      window.__VELO_HARNESS__.sim.setReportedCadence(90);
+    });
+    await page.getByTestId("start-btn").click();
+    await page.evaluate(async () => window.__VELO_HARNESS__.clock.step(5000));
+    await page.evaluate(async () => {
+      await window.__VELO_HARNESS__.ride(8, () => {
+        window.__VELO_HARNESS__.sim.setReportedPower(200);
+        window.__VELO_HARNESS__.sim.setReportedCadence(90);
+      });
+      await window.__VELO_HARNESS__.settle();
+    });
+
+    const svg = page.locator("#chartSvg");
+    const tooltip = page.locator("#chartTooltip");
+    const box = await svg.boundingBox();
+    expect(box).not.toBeNull();
+
+    // The 200 W trace sits near the elapsed cursor (far left). Sweep vertically
+    // across the early-time column so the 16px line-hit band catches the trace.
+    const x = box!.x + box!.width * 0.02;
+    let lineText = "";
+    for (let i = 0; i <= 40; i += 1) {
+      const y = box!.y + (box!.height * i) / 40;
+      await page.mouse.move(x, y);
+      const t = (await tooltip.textContent())?.trim() ?? "";
+      if (/Power|Heart Rate|Cadence/.test(t)) {
+        lineText = t;
+        break;
+      }
+    }
+    expect(lineText, "live-trace hover should report Power/HR/Cadence").toMatch(
+      /Power|Heart Rate|Cadence/,
+    );
+    await expect(tooltip).toBeVisible();
+  });
+});
+
 test.describe("HUD (new Svelte app) — free-ride manual controls", () => {
   test.use({harnessConfig: FREERIDE_CONFIG});
 

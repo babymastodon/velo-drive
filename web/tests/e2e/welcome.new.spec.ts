@@ -64,16 +64,20 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
     await reachNewRidingView(page);
     await openWelcomeAt(page, 0);
 
-    // Slide 0 is the splash; prev is hidden.
+    // Slide 0 is the splash; the prev arrow is hidden via the legacy
+    // `.welcome-nav-hidden` class (opacity:0 + pointer-events:none) rather than
+    // an inline visibility:hidden (functional-equivalent, matches legacy CSS).
     await expect(page.getByTestId("welcome-title")).toHaveText("Welcome to VeloDrive");
-    await expect(page.getByTestId("welcome-prev")).toHaveCSS("visibility", "hidden");
+    await expect(page.getByTestId("welcome-prev")).toHaveClass(/welcome-nav-hidden/);
+    await expect(page.getByTestId("welcome-prev")).toHaveCSS("opacity", "0");
 
     // Next -> trainers.
     await page.getByTestId("welcome-next").click({force: true});
     await expect(page.getByTestId("welcome-title")).toHaveText(
       "Ride structured workouts on your smart trainer",
     );
-    await expect(page.getByTestId("welcome-prev")).toHaveCSS("visibility", "visible");
+    await expect(page.getByTestId("welcome-prev")).not.toHaveClass(/welcome-nav-hidden/);
+    await expect(page.getByTestId("welcome-prev")).toHaveCSS("opacity", "1");
 
     // Prev -> back to splash.
     await page.getByTestId("welcome-prev").click({force: true});

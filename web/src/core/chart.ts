@@ -37,6 +37,11 @@ export interface DrawWorkoutChartArgs {
   // Active text-event message overlay (legacy drawWorkoutChart ~2081). When the
   // elapsed time falls within an event window, its text is centered on the chart.
   textEvents?: { offsetSec: number; durationSec: number; text?: string }[];
+  // Hover tooltip wiring (legacy drawWorkoutChart `panel`/`tooltipEl`, ~1900).
+  // When both are supplied, mousemove over a segment shows zone/power/duration
+  // and mousemove over the live trace shows the interpolated power/HR/cadence.
+  panel?: HTMLElement | null;
+  tooltipEl?: HTMLElement | null;
 }
 
 // --------------------------- CSS / color helpers ---------------------------
@@ -247,8 +252,283 @@ function renderSegmentPolygon(args: {
   poly.setAttribute('stroke', 'none');
   poly.setAttribute('shape-rendering', 'crispEdges');
   poly.classList.add('chart-segment');
+
+  const durSec = Math.max(1, Math.round(tEnd - tStart));
+  const durMin = durSec / 60;
   poly.dataset.zone = zone.key;
+  poly.dataset.p0 = (pStartRel * 100).toFixed(0);
+  poly.dataset.p1 = (pEndRel * 100).toFixed(0);
+  poly.dataset.durMin = durMin.toFixed(1);
+  poly.dataset.durSec = String(durSec);
+  if (Number.isFinite(args.cadenceRpm as number)) {
+    poly.dataset.cadence = String(Math.round(args.cadenceRpm as number));
+  }
   svg.appendChild(poly);
+}
+
+// --------------------------- hover engine ---------------------------
+//
+// Focused port of docs/workout-chart.js `attachSegmentHover` (~712-1063) for the
+// non-scrolling, non-drag charts (live HUD + planner ride-detail). Hovering a
+// segment shows its zone/power/duration/cadence; hovering over a live trace
+// shows the binary-searched, gap-aware interpolated power/HR/cadence at that
+// time. The builder/picker mini-charts keep their own (inert) tooltip path.
+
+const hoverCleanupMap = new WeakMap<SVGSVGElement, () => void>();
+let lastHoveredSegment: SVGPolygonElement | null = null;
+
+interface HoverOptions {
+  liveSamples: LiveSample[];
+  totalSec: number;
+  width: number;
+  height: number;
+  maxY: number;
+  gapBreakSeconds: number;
+}
+
+function attachSegmentHover(
+  svg: SVGSVGElement,
+  tooltipEl: HTMLElement,
+  containerEl: HTMLElement,
+  ftp: number,
+  options: HoverOptions,
+): void {
+  const { liveSamples, totalSec, width, height, maxY, gapBreakSeconds } = options;
+
+  const prevCleanup = hoverCleanupMap.get(svg);
+  if (prevCleanup) prevCleanup();
+
+  const lineDots: Partial<Record<'power' | 'hr' | 'cadence', SVGCircleElement>> = {};
+  const createLineDot = (color: string): SVGCircleElement => {
+    const dot = document.createElementNS(SVG_NS, 'circle');
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', color);
+    dot.setAttribute('pointer-events', 'none');
+    dot.style.display = 'none';
+    svg.appendChild(dot);
+    return dot;
+  };
+
+  if (liveSamples.length && totalSec > 0 && width > 0 && height > 0) {
+    lineDots.power = createLineDot(getCssVar('--power-line'));
+    lineDots.hr = createLineDot(getCssVar('--hr-line'));
+    lineDots.cadence = createLineDot(getCssVar('--cad-line'));
+  }
+
+  const hideLineDots = (): void => {
+    for (const dot of Object.values(lineDots)) if (dot) dot.style.display = 'none';
+  };
+
+  const clearSegmentHover = (): void => {
+    tooltipEl.style.display = 'none';
+    if (lastHoveredSegment) {
+      const prevColor =
+        lastHoveredSegment.dataset.mutedColor || lastHoveredSegment.dataset.color;
+      if (prevColor) lastHoveredSegment.setAttribute('fill', prevColor);
+      lastHoveredSegment = null;
+    }
+  };
+
+  const updateTooltipPosition = (clientX: number, clientY: number): void => {
+    const panelRect = containerEl.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    const baseLeft = svgRect.left - panelRect.left;
+    const viewWidth = svgRect.width || panelRect.width;
+    let tx = clientX - panelRect.left + 8;
+    let ty = clientY - panelRect.top + 8;
+
+    const ttRect = tooltipEl.getBoundingClientRect();
+    const minX = baseLeft;
+    const maxX = minX + viewWidth - ttRect.width - 4;
+    if (tx > maxX) tx = maxX;
+    if (tx < minX) tx = minX;
+    if (ty + ttRect.height > panelRect.height - 4) ty = panelRect.height - ttRect.height - 4;
+    if (ty < 0) ty = 0;
+
+    tooltipEl.style.left = `${tx}px`;
+    tooltipEl.style.top = `${ty}px`;
+  };
+
+  const findSamplesAroundForKey = (
+    targetT: number,
+    key: 'power' | 'hr' | 'cadence',
+  ): { prev: LiveSample | null; next: LiveSample | null } => {
+    if (!liveSamples.length) return { prev: null, next: null };
+    let lo = 0;
+    let hi = liveSamples.length - 1;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const t = Number(liveSamples[mid]?.t);
+      if (!Number.isFinite(t) || t < targetT) lo = mid + 1;
+      else hi = mid;
+    }
+
+    let prevIdx = lo;
+    while (prevIdx >= 0) {
+      const s = liveSamples[prevIdx];
+      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) break;
+      prevIdx -= 1;
+    }
+    let nextIdx = lo;
+    while (nextIdx < liveSamples.length) {
+      const s = liveSamples[nextIdx];
+      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) break;
+      nextIdx += 1;
+    }
+    return {
+      prev: prevIdx >= 0 ? liveSamples[prevIdx]! : null,
+      next: nextIdx < liveSamples.length ? liveSamples[nextIdx]! : null,
+    };
+  };
+
+  interface LineHover {
+    x: number;
+    y: number;
+    label: string;
+    unit: string;
+    val: number;
+    key: 'power' | 'hr' | 'cadence';
+  }
+
+  const getLineHover = (clientX: number, clientY: number): LineHover | null => {
+    if (!Object.keys(lineDots).length) return null;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null;
+    const svgX = (relX / rect.width) * width;
+    const svgY = (relY / rect.height) * height;
+    const targetT = (svgX / width) * totalSec;
+    const keys: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string }[] = [
+      { key: 'power', label: 'Power', unit: 'W' },
+      { key: 'hr', label: 'Heart Rate', unit: 'bpm' },
+      { key: 'cadence', label: 'Cadence', unit: 'rpm' },
+    ];
+
+    const HIT_PX = 16;
+    let best: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string; val: number; y: number; dist: number } | null =
+      null;
+    for (const { key, label, unit } of keys) {
+      const { prev, next } = findSamplesAroundForKey(targetT, key);
+      if (!prev && !next) continue;
+      const prevT = Number(prev?.t);
+      const nextT = Number(next?.t);
+      const prevVal = prev ? Number(prev[key]) : null;
+      const nextVal = next ? Number(next[key]) : null;
+      let val: number | null = null;
+
+      if (Number.isFinite(prevT) && Number.isFinite(nextT)) {
+        if (
+          gapBreakSeconds &&
+          nextT - prevT > gapBreakSeconds &&
+          targetT > prevT &&
+          targetT < nextT
+        ) {
+          continue;
+        }
+        const span = nextT - prevT;
+        if (span > 0 && Number.isFinite(prevVal as number) && Number.isFinite(nextVal as number)) {
+          const t = (targetT - prevT) / span;
+          val = (prevVal as number) + ((nextVal as number) - (prevVal as number)) * t;
+        } else if (Number.isFinite(prevVal as number) && targetT <= prevT) {
+          val = prevVal;
+        } else if (Number.isFinite(nextVal as number) && targetT >= nextT) {
+          val = nextVal;
+        }
+      } else if (Number.isFinite(prevVal as number)) {
+        val = prevVal;
+      } else if (Number.isFinite(nextVal as number)) {
+        val = nextVal;
+      }
+
+      if (!Number.isFinite(val as number)) continue;
+      const yVal = Math.min(maxY, Math.max(0, val as number));
+      const y = height - (yVal / maxY) * height;
+      const dist = Math.abs(y - svgY);
+      if (dist > HIT_PX) continue;
+      if (!best || dist < best.dist) best = { key, label, unit, val: val as number, y, dist };
+    }
+
+    if (!best) return null;
+    const x = Math.min(width, Math.max(0, (targetT / totalSec) * width));
+    return { x, y: best.y, label: best.label, unit: best.unit, val: best.val, key: best.key };
+  };
+
+  const applyHoverAtClientPos = (clientX: number, clientY: number): void => {
+    if (lastHoveredSegment && !document.contains(lastHoveredSegment)) lastHoveredSegment = null;
+
+    const lineHover = getLineHover(clientX, clientY);
+    if (lineHover) {
+      clearSegmentHover();
+      hideLineDots();
+      const dot = lineDots[lineHover.key];
+      if (dot) {
+        dot.setAttribute('cx', String(lineHover.x));
+        dot.setAttribute('cy', String(lineHover.y));
+        dot.style.display = 'block';
+      }
+      tooltipEl.textContent = `${lineHover.label}: ${Math.round(lineHover.val)} ${lineHover.unit}`;
+      tooltipEl.style.display = 'block';
+      updateTooltipPosition(clientX, clientY);
+      return;
+    }
+
+    hideLineDots();
+
+    const hitEl = document.elementFromPoint(clientX, clientY);
+    const segment =
+      hitEl && hitEl.closest ? (hitEl.closest('.chart-segment') as SVGPolygonElement | null) : null;
+    if (!segment || !svg.contains(segment)) {
+      clearSegmentHover();
+      return;
+    }
+
+    const zone = segment.dataset.zone;
+    const p0 = segment.dataset.p0;
+    const p1 = segment.dataset.p1;
+    const durSec = Math.max(1, Math.round(Number(segment.dataset.durSec) || 0));
+    const durMin = durSec / 60;
+    const dur = durSec >= 60 ? `${durMin.toFixed(1)} min` : `${durSec} sec`;
+    const w0 = Math.round((Number(p0) * ftp) / 100);
+    const w1 = Math.round((Number(p1) * ftp) / 100);
+    const cadence = segment.dataset.cadence;
+    const cadenceSuffix = cadence ? `, ${cadence} rpm` : '';
+
+    if (segment.dataset.freeRide === 'true') {
+      tooltipEl.textContent = `Free ride: ${dur}${cadenceSuffix}`;
+    } else {
+      tooltipEl.textContent =
+        p0 === p1
+          ? `${zone}: ${p0}% FTP, ${w0}W, ${dur}${cadenceSuffix}`
+          : `${zone}: ${p0}–${p1}% FTP, ${w0}-${w1}W, ${dur}${cadenceSuffix}`;
+    }
+    tooltipEl.style.display = 'block';
+    updateTooltipPosition(clientX, clientY);
+
+    if (lastHoveredSegment && lastHoveredSegment !== segment) {
+      const prevColor =
+        lastHoveredSegment.dataset.mutedColor || lastHoveredSegment.dataset.color;
+      if (prevColor) lastHoveredSegment.setAttribute('fill', prevColor);
+    }
+    const hoverColor =
+      segment.dataset.hoverColor || segment.dataset.color || segment.dataset.mutedColor;
+    if (hoverColor) segment.setAttribute('fill', hoverColor);
+    lastHoveredSegment = segment;
+  };
+
+  const onMouseMove = (e: MouseEvent): void => applyHoverAtClientPos(e.clientX, e.clientY);
+  const onMouseLeave = (): void => {
+    hideLineDots();
+    clearSegmentHover();
+  };
+
+  svg.addEventListener('mousemove', onMouseMove);
+  svg.addEventListener('mouseleave', onMouseLeave);
+  hoverCleanupMap.set(svg, () => {
+    svg.removeEventListener('mousemove', onMouseMove);
+    svg.removeEventListener('mouseleave', onMouseLeave);
+  });
 }
 
 // --------------------------- public ---------------------------
@@ -512,6 +792,18 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     addPaths(pathsForKey('power'), getCssVar('--power-line'), 2.5);
     addPaths(pathsForKey('hr'), getCssVar('--hr-line'), 1.5);
     addPaths(pathsForKey('cadence'), getCssVar('--cad-line'), 1.5);
+  }
+
+  // Hover tooltip (legacy attachSegmentHover): segment + live-trace tooltips.
+  if (args.panel && args.tooltipEl) {
+    attachSegmentHover(svg, args.tooltipEl, args.panel, ftpVal, {
+      liveSamples: samples,
+      totalSec: safeTotalSec,
+      width: w,
+      height: h,
+      maxY,
+      gapBreakSeconds: GAP_BREAK_SECONDS,
+    });
   }
 }
 
