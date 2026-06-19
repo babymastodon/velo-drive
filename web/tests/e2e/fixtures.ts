@@ -181,6 +181,24 @@ export const PLANNER_HARNESS_CONFIG: HarnessConfig = {
   schedule: [{date: "2026-06-20", workoutTitle: "Sleepy Spin"}],
 };
 
+// --------------------------- DARK-mode variants ---------------------------
+//
+// Identical matched-state configs to the light ones above, but forcing
+// themeMode:"dark" so both legacy + new boot the forced-dark palette
+// (:root.theme-dark). The dark-mode visual specs diff legacy-vs-new in dark to
+// catch theme-only rendering bugs (stale chart colors on theme switch, modal
+// elevation, select carets, welcome SVGs) that the light-only specs miss.
+export const VISUAL_HARNESS_CONFIG_DARK: HarnessConfig = {
+  ...VISUAL_HARNESS_CONFIG,
+  themeMode: "dark",
+};
+export const SETTINGS_HARNESS_CONFIG_DARK: HarnessConfig = VISUAL_HARNESS_CONFIG_DARK;
+export const PICKER_HARNESS_CONFIG_DARK: HarnessConfig = VISUAL_HARNESS_CONFIG_DARK;
+export const PLANNER_HARNESS_CONFIG_DARK: HarnessConfig = {
+  ...PLANNER_HARNESS_CONFIG,
+  themeMode: "dark",
+};
+
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;
