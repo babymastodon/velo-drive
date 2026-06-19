@@ -28,6 +28,13 @@ export interface BootOptions {
   // onWorkoutEnded follow-up (docs/workout.js:1368) — the shell uses it to open
   // the planner to the saved ride. `info` is null when nothing was saved.
   onWorkoutEnded?: (info: { fileName: string; startedAt: Date; endedAt: Date } | null) => void;
+  // Surfaces the important WebFileStore failures (no folder, permission revoked,
+  // save/delete failed) to the UI via a themed Dialog alert (mirrors the legacy
+  // alert()s, replacing the unthemed native ones). Wired to dialogs.alert.
+  onFileError?: (message: string) => void;
+  // Surfaces the engine's two reachable warnings (no workout / end current
+  // workout first) via the themed Dialog (replaces native alert()s; J-DARK-12).
+  onEngineAlert?: (message: string) => void;
 }
 
 export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
@@ -38,6 +45,10 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const logs = new LogsStore();
 
   const engine = new WorkoutEngine({ transport, fileStore, beeper });
+
+  // Route the important file-op failures to the themed Dialog (replaces the
+  // unthemed native alert()s; J-ERR / J-DARK-12).
+  if (opts.onFileError) fileStore.onError = opts.onFileError;
 
   // Surface transport device status into the store (mirrors legacy bottom-nav).
   transport.on('bikeStatus', (s) => {
@@ -56,7 +67,8 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   // Load persisted FTP + sound preference before init (the engine reads the
   // selected workout + active state itself in init()).
   const ftp = await fileStore.getSetting<number>('ftp', DEFAULT_FTP);
-  const soundEnabled = await fileStore.getSetting<boolean>('soundEnabled', false);
+  // Default audible (legacy default true; J-CFG-15) — SettingsView agrees.
+  const soundEnabled = await fileStore.getSetting<boolean>('soundEnabled', true);
   beeper.setEnabled(!!soundEnabled);
   engine.setFtpInitial(ftp);
 
@@ -79,6 +91,7 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
     onStateChanged: store.set,
     onLog: logs.append,
     onWorkoutEnded: opts.onWorkoutEnded,
+    onAlert: opts.onEngineAlert,
   });
 
   return { store, engine, transport, fileStore, beeper, logs };

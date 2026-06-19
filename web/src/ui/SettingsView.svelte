@@ -76,7 +76,9 @@
   }
 
   // ---- Sound ----
-  let soundEnabled = $state(false);
+  // Default audible — agrees with the boot default in app.ts (legacy default
+  // true; J-CFG-15).
+  let soundEnabled = $state(true);
   $effect(() => {
     if (open) {
       void fileStore.getSetting<boolean>('soundEnabled', true).then((v) => {

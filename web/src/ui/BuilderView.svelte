@@ -35,6 +35,7 @@
   } from '../core/builder-backend.js';
   import { renderBuilderWorkoutGraph } from '../core/chart.js';
   import { getScaledMaxY } from '../core/chart.js';
+  import { themeAutoVersion } from '../state/theme.svelte.js';
   import { formatDurationMinSec } from '../core/metrics.js';
   import type { CanonicalWorkout } from '../core/model.js';
 
@@ -464,6 +465,11 @@
   // --------------------------- imperative chart render ---------------------------
   $effect(() => {
     void version;
+    // Redraw on an Auto-mode OS light/dark flip too (charts read CSS-var colors
+    // at draw time; J-DARK-06 / J-CFG-13). Uses themeAutoVersion (matchMedia
+    // path only) to match legacy workout-picker.js — a manual data-theme toggle
+    // does not redraw the builder there, keeping the dark visual baseline valid.
+    void themeAutoVersion();
     if (!chartHost) return;
     const ftp = getCurrentFtp() || 0;
     const prevScrollLeft = chartContainer ? chartContainer.scrollLeft : 0;

@@ -68,6 +68,10 @@ export interface EngineInitCallbacks {
   onStateChanged?: (vm: EngineViewModel) => void;
   onLog?: (msg: string) => void;
   onWorkoutEnded?: (info: { fileName: string; startedAt: Date; endedAt: Date } | null) => void;
+  // User-facing alert sink (themed Dialog) for the two reachable engine
+  // warnings ("No workout selected", "Please end your current workout first").
+  // Replaces the unthemed native alert()s (J-DARK-12). Falls back to onLog.
+  onAlert?: (msg: string) => void;
 }
 
 interface SegmentInfo {
@@ -112,6 +116,9 @@ export class WorkoutEngine {
   private lastSampleCadence: number | null = null;
 
   private zeroPowerSeconds = 0;
+  // Dedup key so the text-event cue fires once per active text event (port of
+  // docs/workout.js lastTextEventKey; J-RIDE-10).
+  private lastTextEventKey: string | null = null;
   private autoPauseDisabledUntilSec = 0;
   private manualPauseAutoResumeBlockedUntilMs = 0;
 
@@ -121,9 +128,16 @@ export class WorkoutEngine {
 
   private onStateChanged: (vm: EngineViewModel) => void = () => {};
   private onLog: (msg: string) => void = () => {};
+  private onAlert: ((msg: string) => void) | null = null;
   private onWorkoutEnded: (
     info: { fileName: string; startedAt: Date; endedAt: Date } | null,
   ) => void = () => {};
+
+  /** Surface a user-facing warning via the themed Dialog (or log it). */
+  private alertUser(message: string): void {
+    if (this.onAlert) this.onAlert(message);
+    else this.onLog(message);
+  }
 
   private readonly transport: TrainerTransport;
   private readonly fileStore: FileStore;
@@ -500,7 +514,45 @@ export class WorkoutEngine {
   // --------- state transitions ---------
 
   private emitStateChanged(): void {
+    this.maybePlayTextEvent();
     this.onStateChanged(this.getViewModel());
+  }
+
+  /**
+   * Fire the text-event audio cue once when a text event becomes active during a
+   * running (non-paused) ride (port of docs/workout.js getActiveTextEvent +
+   * maybePlayTextEvent, 1051-1086; J-RIDE-10). Deduped by idx/offset/text so a
+   * given event taps once for its whole window.
+   */
+  private maybePlayTextEvent(): void {
+    const cw = this.canonicalWorkout;
+    const events = cw?.textEvents;
+    if (!this.workoutRunning || this.workoutPaused || !events || !events.length) {
+      this.lastTextEventKey = null;
+      return;
+    }
+    const t = Math.max(0, this.elapsedSec || 0);
+    let activeIdx = -1;
+    let activeOffset = 0;
+    let activeText = '';
+    for (let idx = 0; idx < events.length; idx += 1) {
+      const evt = events[idx];
+      const offsetSec = Math.max(0, Number(evt?.offsetSec) || 0);
+      const durationSec = Math.max(1, Math.round(Number(evt?.durationSec) || 10));
+      if (t >= offsetSec && t <= offsetSec + durationSec) {
+        activeIdx = idx;
+        activeOffset = offsetSec;
+        activeText = evt?.text || '';
+      }
+    }
+    if (activeIdx < 0 || !activeText) {
+      this.lastTextEventKey = null;
+      return;
+    }
+    const key = `${activeIdx}:${activeOffset}:${activeText}`;
+    if (key === this.lastTextEventKey) return;
+    this.lastTextEventKey = key;
+    this.beeper.playTextEventTaps(0.5);
   }
 
   private setRunning(running: boolean): void {
@@ -534,8 +586,7 @@ export class WorkoutEngine {
 
   startWorkout(): void {
     if (!this.canonicalWorkout) {
-      // eslint-disable-next-line no-alert
-      if (typeof alert === 'function') alert('No workout selected. Choose a workout first.');
+      this.alertUser('No workout selected. Choose a workout first.');
       return;
     }
 
@@ -682,6 +733,7 @@ export class WorkoutEngine {
   async init(callbacks: EngineInitCallbacks = {}): Promise<void> {
     if (callbacks.onStateChanged) this.onStateChanged = callbacks.onStateChanged;
     if (callbacks.onLog) this.onLog = callbacks.onLog;
+    if (callbacks.onAlert) this.onAlert = callbacks.onAlert;
     if (callbacks.onWorkoutEnded) this.onWorkoutEnded = callbacks.onWorkoutEnded;
 
     this.log('Workout engine init…');
@@ -783,7 +835,7 @@ export class WorkoutEngine {
 
   setWorkoutFromPicker(canonical: CanonicalWorkout): void {
     if (this.workoutRunning || this.workoutPaused || this.workoutStarting) {
-      if (typeof alert === 'function') alert('Please end your current workout first.');
+      this.alertUser('Please end your current workout first.');
       return;
     }
     if (!canonical || !Array.isArray(canonical.rawSegments)) {

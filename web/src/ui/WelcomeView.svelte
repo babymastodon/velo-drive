@@ -124,10 +124,26 @@
 
   // (Re)initialise when opened, starting from ui.welcomeStartIndex if set.
   let lastOpen = false;
+  let splashTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
     if (open && !lastOpen) {
       firstRenderDone = false;
       void goToIndex(ui.welcomeStartIndex ?? 0);
+      // Configured-PWA splash auto-dismisses after ~1100ms (legacy
+      // playSplash(1100), docs/workout.js:1272-1273; J-WEL-03). The full tour
+      // stays open until the user dismisses it.
+      if (splashTimer != null) clearTimeout(splashTimer);
+      if (splashMode) {
+        splashTimer = setTimeout(() => {
+          splashTimer = null;
+          if (ui.activeOverlay === 'welcome') ui.close();
+        }, 1100);
+      }
+    } else if (!open && lastOpen) {
+      if (splashTimer != null) {
+        clearTimeout(splashTimer);
+        splashTimer = null;
+      }
     }
     lastOpen = open;
   });

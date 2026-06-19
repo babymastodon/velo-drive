@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>VeloDrive</title>
     <link rel="manifest" href="velodrive.webmanifest" />
-    <meta name="theme-color" content="#222222" />
+    <!-- Dynamic theme colors: browser chrome follows the OS theme instead of a
+         static dark #222 (mirrors docs/index.html; J-DARK-11). -->
+    <meta name="theme-color" content="#f4f4f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#222222" media="(prefers-color-scheme: dark)" />
     <!-- Anti-FOUC: sync, runs before paint (mirrors legacy theme-init.js). Must stay inline in <head>. -->
     <script>
       (function applyInitialTheme() {

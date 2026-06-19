@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Breath of Power</name>
+  <description><![CDATA[A focused VO2 max session built around steady breathing and controlled intensity. The efforts rise in steps, challenging your ability to stay composed as the power increases. Settle in, stay smooth, and let your breath guide you through the harder moments.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.40" PowerHigh="0.75" Cadence="90" >
+      <textevent timeoffset="60" duration="10" message="Breathe the power in—float up to 75% FTP, 88-90 rpm, shoulders loose." />
+    </Warmup>
+    <SteadyState Duration="120" Power="0.75" Cadence="92" >
+      <textevent timeoffset="405" duration="10" message="First VO2 steps—set your breath, tall posture, light hands." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
+    </IntervalsT>
+    <SteadyState Duration="180" Power="0.70" Cadence="90" >
+      <textevent timeoffset="1065" duration="10" message="Longer pulls next—reset at 70%, slow the inhale, ready the legs." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="150" OffDuration="90" OnPower="1.12" OffPower="0.72" Cadence="98" CadenceResting="90" >
+    </IntervalsT>
+    <SteadyState Duration="480" Power="0.60" Cadence="88" >
+      <textevent timeoffset="2265" duration="10" message="90s surges arrive—steady breath, clean cadence, brace for lift." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="90" OffDuration="60" OnPower="1.08" OffPower="0.95" Cadence="96" CadenceResting="92" >
+    </IntervalsT>
+    <SteadyState Duration="390" Power="0.80" Cadence="94" >
+    </SteadyState>
+    <Cooldown Duration="330" PowerLow="0.65" PowerHigh="0.45" Cadence="85" >
+      <textevent timeoffset="3585" duration="10" message="Let the power drain with your exhale—easy cadence, long breaths home." />
+    </Cooldown>
+  </workout>
+</workout_file>

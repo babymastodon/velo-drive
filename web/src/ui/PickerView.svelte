@@ -22,6 +22,7 @@
     type SegmentMetrics,
   } from '../core/metrics.js';
   import { renderMiniWorkoutGraph } from '../core/chart.js';
+  import { themeAutoVersion } from '../state/theme.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
   import { parseTrainerDayUrl } from '../core/scrapers.js';
@@ -717,14 +718,13 @@
         return true;
       }
       if (key === 'escape') {
-        // Clear search if it has text; else fall through to let Escape close.
-        if (searchTerm) {
-          e.preventDefault();
-          searchTerm = '';
-          return true;
-        }
+        // Escape in the focused search ALWAYS consumes (clear if non-empty +
+        // blur) and NEVER falls through to close the picker — even when the
+        // search is empty (legacy workout-picker.js:1393-1398; P-1).
+        e.preventDefault();
+        if (searchTerm) searchTerm = '';
         searchInputEl?.blur();
-        return false;
+        return true;
       }
       return false;
     }
@@ -798,28 +798,47 @@
   // The App routes window keydowns; this catches the same event harmlessly
   // (handler is idempotent + guards on `open`). We forward to the same handler.
   function onModalKeydown(e: KeyboardEvent): void {
-    // Escape inside the search box clears it; that case is handled by
-    // handlePickerKey returning true (preventDefault). Everything else is
-    // already handled by the App-level router, so do nothing here to avoid
-    // double-processing — except we must still clear search on Escape because
-    // the App routes Escape to ui.handleEscape() (which closes the overlay).
-    if ((e.key || '').toLowerCase() === 'escape' && e.target === searchInputEl && searchTerm) {
+    // Escape inside the search box ALWAYS consumes here (clear if non-empty +
+    // blur) and stops the event reaching the App router, so it never closes the
+    // picker — even when the search is empty (legacy workout-picker.js:1393-1398;
+    // P-1). handlePickerKey enforces the same for the window-routed path.
+    if ((e.key || '').toLowerCase() === 'escape' && e.target === searchInputEl) {
       e.preventDefault();
       e.stopPropagation();
-      searchTerm = '';
+      if (searchTerm) searchTerm = '';
+      searchInputEl?.blur();
     }
   }
 
   // Imperative mini-chart render for the expanded row (SVG built in core/chart).
+  // Each mounted chart registers its render closure so a theme change can re-run
+  // it (charts read CSS-var colors at draw time; legacy redraws the picker chart
+  // on the <html> class mutation). Mirrors PlannerView's registerChart pattern.
+  const chartRenderers = new Set<() => void>();
   function miniChart(node: HTMLElement, canonical: CanonicalWorkout) {
-    const render = () => renderMiniWorkoutGraph(node, canonical, currentFtp);
+    let cw = canonical;
+    const render = () => renderMiniWorkoutGraph(node, cw, currentFtp);
+    chartRenderers.add(render);
     requestAnimationFrame(render);
     return {
       update(next: CanonicalWorkout) {
-        requestAnimationFrame(() => renderMiniWorkoutGraph(node, next, currentFtp));
+        cw = next;
+        requestAnimationFrame(render);
+      },
+      destroy() {
+        chartRenderers.delete(render);
       },
     };
   }
+
+  // Re-run every mounted picker mini-chart on an Auto-mode OS light/dark flip
+  // (stale-color fix; J-DARK-06 / J-CFG-13). Uses themeAutoVersion (NOT the full
+  // themeVersion) to match legacy workout-picker.js, which redraws the picker on
+  // the matchMedia path ONLY — a manual data-theme toggle does not redraw it.
+  $effect(() => {
+    void themeAutoVersion();
+    for (const render of chartRenderers) render();
+  });
 </script>
 
 <OverlayModal

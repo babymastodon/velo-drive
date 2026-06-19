@@ -13,6 +13,7 @@
   import Dialog from './Dialog.svelte';
   import { UiStore } from '../state/ui.svelte.js';
   import { DialogStore } from '../state/dialog.svelte.js';
+  import { themeStore, themeVersion } from '../state/theme.svelte.js';
   import { isPlatformIncompatible, isWebBluetoothAvailable } from '../app/compat.js';
 
   let ctx = $state<AppContext | null>(null);
@@ -30,7 +31,13 @@
     // Diagnostic for behavior tests: how many FIT files the planner stats cache
     // has parsed (cache misses). A second open of an unchanged history adds 0.
     getHistoryParseCount: () => ctx?.fileStore.historyParseCount ?? 0,
+    // Diagnostic for the theme-redraw test: the shared theme version counter,
+    // bumped on a manual toggle OR an Auto-mode OS color-scheme flip (J-DARK-06).
+    getThemeVersion: () => themeStore.version,
   };
+  // Ensure the theme observer + OS-flip listener are installed at boot (charts
+  // do this lazily on first render; this guarantees it even before any chart).
+  themeVersion();
   (window as unknown as { __VELO_APP__: unknown }).__VELO_APP__ = appBridge;
 
   const welcomeActive = $derived(ui.activeOverlay === 'welcome');
@@ -42,7 +49,24 @@
       // legacy onWorkoutEnded follow-up in docs/workout.js:1368).
       onWorkoutEnded: (info) => {
         const date = info?.endedAt || info?.startedAt || new Date();
+        // Remove the just-completed scheduled entry for the ride's day (port of
+        // legacy planner.removeScheduledByTitle, docs/workout.js:1376-1380).
+        const finishedTitle = ctx?.store.vm?.canonicalWorkout?.workoutTitle;
+        if (finishedTitle) {
+          const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          void ctx?.fileStore.removeScheduledByTitle(dateKey, finishedTitle);
+        }
+        // Open the planner to the saved ride; the planner consumes
+        // ui.pendingHistoryFile to auto-open the ride detail (J-RIDE-26).
         ui.openPlannerForRide(info?.fileName ?? null, date);
+      },
+      // Surface the important file-op failures as a themed Dialog alert
+      // (J-ERR / J-DARK-12) instead of failing silently / native alert().
+      onFileError: (message) => {
+        void dialogs.alert(message, { title: 'VeloDrive' });
+      },
+      onEngineAlert: (message) => {
+        void dialogs.alert(message, { title: 'VeloDrive' });
       },
     })
       .then((c) => {
@@ -117,6 +141,34 @@
     const shown = await maybeShowWelcome(c);
     if (shown) return;
     await maybeAutoOpenSettings(c);
+    // If settings didn't claim the screen, auto-open the planner to today's
+    // scheduled ride (legacy maybeOpenPlannerForTodaySchedule, workout.js:1292).
+    if (ui.activeOverlay === 'none') await maybeOpenPlannerForTodaySchedule(c);
+  }
+
+  // Boot-time auto-open of the planner when TODAY has a scheduled workout (port
+  // of docs/workout.js maybeOpenPlannerForTodaySchedule, 1292-1315). Suppressed
+  // when a workout is active or the scheduled workout is already the loaded one.
+  async function maybeOpenPlannerForTodaySchedule(c: AppContext): Promise<void> {
+    try {
+      const vm = c.store.vm;
+      if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
+
+      const d = new Date();
+      const todayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const schedule = await c.fileStore.loadSchedule();
+      if (!Array.isArray(schedule) || !schedule.length) return;
+      const todayEntry = schedule.find((e) => e && e.date === todayKey && e.workoutTitle);
+      if (!todayEntry) return;
+
+      // Already loaded? (case-insensitive trimmed title match) → don't reopen.
+      const loadedTitle = (vm?.canonicalWorkout?.workoutTitle || '').trim().toLowerCase();
+      if (loadedTitle && loadedTitle === todayEntry.workoutTitle.trim().toLowerCase()) return;
+
+      ui.open('planner');
+    } catch (err) {
+      console.warn('[App] Failed to auto-open planner for today:', err);
+    }
   }
 
   // Boot-time auto-open (mirrors docs/settings.js startupNeedsAttention +
