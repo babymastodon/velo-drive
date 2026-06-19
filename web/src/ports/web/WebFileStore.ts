@@ -226,6 +226,48 @@ export class WebFileStore implements FileStore {
 
   async deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean> {
     const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    return this.moveZwoFileToTrash(fileName);
+  }
+
+  async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
+    const dir = await this.loadZwoDirHandle();
+    if (!dir) return false;
+    const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    try {
+      // Mirror legacy saveCanonicalWorkoutToZwoDir (docs/workout-picker.js
+      // 1805-1823): if a same-name .zwo already exists, move it to trash BEFORE
+      // writing so there is always a recoverable copy (no silent overwrite). If
+      // the trash move fails, abort the save rather than risk data loss.
+      let overwriting = false;
+      try {
+        await dir.getFileHandle(fileName, { create: false });
+        overwriting = true;
+      } catch {
+        overwriting = false;
+      }
+      if (overwriting) {
+        const moved = await this.moveZwoFileToTrash(fileName);
+        if (!moved) return false;
+      }
+
+      const xml = canonicalWorkoutToZwoXml(canonical);
+      const fileHandle = await dir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(xml);
+      await writable.close();
+      return true;
+    } catch (err) {
+      console.error('[WebFileStore] saveWorkout failed:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Move an existing library .zwo (by exact file name) to the trash dir with a
+   * timestamped name. Shared by deleteWorkoutToTrash + the pre-overwrite trash
+   * move in saveWorkout. Mirrors legacy moveWorkoutFileToTrash.
+   */
+  private async moveZwoFileToTrash(fileName: string): Promise<boolean> {
     const srcDir = await this.loadZwoDirHandle();
     const trashDir = await this.loadTrashDirHandle();
     if (!srcDir || !trashDir) return false;
@@ -238,7 +280,13 @@ export class WebFileStore implements FileStore {
       const base = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
       const ext = dotIdx > 0 ? fileName.slice(dotIdx) : '';
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const destFileName = `${base} (${stamp})${ext}`;
+      let destFileName = `${base} (${stamp})${ext}`;
+      // Cap the trashed file name length (legacy 1644-1647) to keep the FS happy.
+      if (destFileName.length > 120) {
+        const overflow = destFileName.length - 120;
+        const trimmedBase = base.slice(0, Math.max(0, base.length - overflow));
+        destFileName = `${trimmedBase} (${stamp})${ext}`;
+      }
 
       const destFileHandle = await trashDir.getFileHandle(destFileName, { create: true });
       const writable = await destFileHandle.createWritable();
@@ -248,24 +296,7 @@ export class WebFileStore implements FileStore {
       await srcDir.removeEntry(fileName);
       return true;
     } catch (err) {
-      console.error('[WebFileStore] deleteWorkoutToTrash failed:', err);
-      return false;
-    }
-  }
-
-  async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
-    const dir = await this.loadZwoDirHandle();
-    if (!dir) return false;
-    const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
-    try {
-      const xml = canonicalWorkoutToZwoXml(canonical);
-      const fileHandle = await dir.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(xml);
-      await writable.close();
-      return true;
-    } catch (err) {
-      console.error('[WebFileStore] saveWorkout failed:', err);
+      console.error('[WebFileStore] moveZwoFileToTrash failed:', err);
       return false;
     }
   }

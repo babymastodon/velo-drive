@@ -28,8 +28,22 @@
       {/if}
       <div class="settings-body">
         <p class="dialog-message" data-testid="dialog-message">{req.message}</p>
+        {#if req.kind === 'prompt'}
+          <input
+            class="dialog-input"
+            type="text"
+            data-testid="dialog-input"
+            placeholder={req.placeholder ?? ''}
+            value={req.inputValue ?? ''}
+            oninput={(e) => { if (req) req.inputValue = (e.currentTarget as HTMLInputElement).value; }}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); dialogs.resolve(true); }
+              else if (e.key === 'Escape') { e.preventDefault(); dialogs.resolve(false); }
+            }}
+          />
+        {/if}
         <div class="dialog-actions">
-          {#if req.kind === 'confirm'}
+          {#if req.kind === 'confirm' || req.kind === 'prompt'}
             <button
               class="settings-button"
               type="button"
@@ -58,6 +72,14 @@
   .dialog-message {
     margin: 0 0 16px;
     line-height: 1.5;
+    white-space: pre-line;
+  }
+  .dialog-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 16px;
+    padding: 8px 10px;
+    font: inherit;
   }
   .dialog-actions {
     display: flex;

@@ -37,12 +37,17 @@
     onRequestBack,
     onStatusChange,
     onUiStateChange,
+    onChange,
     api = $bindable(),
   }: {
     getCurrentFtp: () => number;
     onRequestBack?: () => void;
     onStatusChange?: (p: { text: string; tone: string }) => void;
     onUiStateChange?: (p: { hasSelection: boolean }) => void;
+    // Fired after any model mutation (version bump). The host uses this to
+    // diff against a baseline for unsaved-changes tracking + draft persistence
+    // (mirrors docs/workout-picker.js handleBuilderChange wiring).
+    onChange?: () => void;
     api?: BuilderApi;
   } = $props();
 
@@ -51,6 +56,12 @@
 
   // version bumps whenever the model mutates; reactive reads depend on it.
   let version = $state(0);
+  // Notify the host on every mutation (skip the very first init bump so the
+  // host's baseline is taken against the initialized state, not a dirty one).
+  $effect(() => {
+    void version;
+    if (version > 0) onChange?.();
+  });
   function bump(): void {
     version += 1;
   }
