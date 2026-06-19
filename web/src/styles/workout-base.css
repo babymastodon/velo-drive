@@ -38,6 +38,7 @@
   --expanded-bg: rgba(0, 0, 0, 0.02);
   --chart-empty-bg: rgba(244, 244, 244, 0.8);
   --chart-empty-shadow: rgba(244, 244, 244, 1);
+  --picker-empty-glow: rgba(255, 255, 255, 0.2);
   --alert-bg: #f2e0c6;
   --alert-text: #7a4100;
   --alert-border: #f3d19c;
@@ -128,6 +129,7 @@
     --expanded-bg: rgba(255, 255, 255, 0.04);
     --chart-empty-bg: rgba(34, 34, 34, 0.8);
     --chart-empty-shadow: rgba(34, 34, 34, 1);
+    --picker-empty-glow: rgba(255, 255, 255, 0.04);
     --alert-bg: rgba(255, 184, 108, 0.12);
     --alert-text: #ffb86c;
     --alert-border: rgba(255, 184, 108, 0.35);
@@ -211,6 +213,7 @@
   --expanded-bg: rgba(0, 0, 0, 0.02);
   --chart-empty-bg: rgba(244, 244, 244, 0.8);
   --chart-empty-shadow: rgba(244, 244, 244, 1);
+  --picker-empty-glow: rgba(255, 255, 255, 0.2);
   --alert-bg: #f2e0c6;
   --alert-text: #7a4100;
   --alert-border: #f3d19c;
@@ -242,6 +245,13 @@
   --zone-anaerobic: #ff403d;
   --stat-number-color: #333333;
   --wb-block-active-filter: brightness(0.7) saturate(1);
+
+  /* Forced-light select caret (re-assert the dim %23999 chevron) so a manual
+     Light toggle on a dark OS does not inherit the @media-dark light-grey one. */
+  --select-arrow: url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5' fill='none'>\
+      <path d='M1 1l3.5 3L8 1' stroke='%23999' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round'/>\
+    </svg>");
 }
 
 :root.theme-dark {
@@ -283,6 +293,7 @@
   --expanded-bg: rgba(255, 255, 255, 0.04);
   --chart-empty-bg: rgba(34, 34, 34, 0.8);
   --chart-empty-shadow: rgba(34, 34, 34, 1);
+  --picker-empty-glow: rgba(255, 255, 255, 0.04);
   --alert-bg: rgba(255, 184, 108, 0.12);
   --alert-text: #ffb86c;
   --alert-border: rgba(255, 184, 108, 0.35);
@@ -312,6 +323,14 @@
   --stat-number-color: #f5f5f5;
   --wb-block-active-filter: brightness(1.4) saturate(0.8);
   --wb-insert-line: #6ba8ff;
+
+  /* Forced-dark select caret: without this, a manual Dark toggle (no OS
+     prefers-dark) fell back to the light :root --select-arrow (a dim %23999
+     grey chevron) on the dark selects. Re-assert the light-grey dark chevron. */
+  --select-arrow: url("data:image/svg+xml;utf8,\
+    <svg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5' fill='none'>\
+      <path d='M1 1l3.5 3L8 1' stroke='%23bbbbbb' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round'/>\
+    </svg>");
 }
 
 * {
@@ -492,6 +511,25 @@ a:hover {
   }
 }
 
+/* Forced-theme parity: a manual Dark/Light toggle sets <html class="theme-*">
+   without changing the OS prefers-color-scheme, so the @media block above does
+   NOT apply under forced dark (and wrongly WOULD apply under forced light on a
+   dark OS). Re-assert both palettes explicitly so the tooltip is never a white
+   card on a dark surface. */
+:root.theme-dark .chart-tooltip {
+  background: #303030;
+  color: #dddddd;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+:root.theme-light .chart-tooltip {
+  background: #ffffff;
+  color: #666666;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
 /* Bottom navbar */
 
 .bottom-nav {
@@ -659,6 +697,16 @@ a:hover {
   }
 }
 
+:root.theme-dark .nav-icon-button:hover,
+:root.theme-dark .device-group:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.theme-light .nav-icon-button:hover,
+:root.theme-light .device-group:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .nav-icon-button.active {
   background: rgba(0, 0, 0, 0.06);
 }
@@ -667,6 +715,14 @@ a:hover {
   .nav-icon-button.active {
     background: rgba(255, 255, 255, 0.1);
   }
+}
+
+:root.theme-dark .nav-icon-button.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.theme-light .nav-icon-button.active {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* Mode toggle */
@@ -749,6 +805,14 @@ a:hover {
   }
 }
 
+:root.theme-dark .control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.theme-light .control-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .control-value {
   min-width: 54px;
   padding: 0 8px;
@@ -811,6 +875,14 @@ a:hover {
   }
 }
 
+:root.theme-dark .playback-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.theme-light .playback-button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 .inline-clicktoggle {
   display: inline-flex;
   align-items: center;
@@ -846,6 +918,22 @@ a:hover {
   .inline-clicktoggle:active {
     background: rgba(255, 255, 255, 0.14);
   }
+}
+
+:root.theme-dark .inline-clicktoggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:root.theme-dark .inline-clicktoggle:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+:root.theme-light .inline-clicktoggle:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:root.theme-light .inline-clicktoggle:active {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 /* Debug overlay (no longer used, retained for reference)
@@ -917,6 +1005,19 @@ a:hover {
   }
 }
 
+:root.theme-dark .debug-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  color: #aaaaaa;
+}
+
+:root.theme-dark .debug-log {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+:root.theme-dark .debug-close-btn {
+  border-color: #777;
+}
+
 /* Status overlay (countdown / paused / resumed) */
 
 .status-overlay {
@@ -941,6 +1042,19 @@ a:hover {
     text-shadow: 0 0 20px rgba(34, 34, 34, 1);
     background: rgba(34, 34, 34, 0.8);
   }
+}
+
+/* Forced-theme parity: under a manual Dark toggle the @media block does not
+   apply, so the countdown/paused overlay kept a WHITE glow + white wash over the
+   chart. Re-assert both palettes explicitly. */
+:root.theme-dark .status-overlay {
+  text-shadow: 0 0 20px rgba(34, 34, 34, 1);
+  background: rgba(34, 34, 34, 0.8);
+}
+
+:root.theme-light .status-overlay {
+  text-shadow: 0 0 20px rgba(244, 244, 244, 1);
+  background: rgba(244, 244, 244, 0.9);
 }
 
 #statusText {

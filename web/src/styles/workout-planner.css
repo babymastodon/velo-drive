@@ -551,6 +551,10 @@
   }
 }
 
+:root.theme-dark .planner-day:hover {
+  background: var(--hover-medium);
+}
+
 @media (max-width: 900px) {
   .workout-planner-modal {
     width: 96vw;

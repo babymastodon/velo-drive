@@ -725,7 +725,7 @@
   gap: 12px;
   background: radial-gradient(
     circle at top,
-    rgba(255, 255, 255, 0.2),
+    var(--picker-empty-glow),
     transparent 55%
   );
   pointer-events: none;
