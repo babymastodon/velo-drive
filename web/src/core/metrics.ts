@@ -10,9 +10,28 @@
 // test asserting the fixed behavior.
 
 import type { RawSegment } from './model.js';
+import { FREERIDE_SEGMENT_FLAG, isFreeRideSegment, segDurationSec } from './segments.js';
 
 export const DEFAULT_FTP = 250;
-const FREERIDE_SEGMENT_FLAG = 'freeride';
+
+/**
+ * Power-zone upper thresholds (% of FTP). A power percentage falls in zone `i`
+ * when `pct < ZONE_THRESHOLDS[i]`, or the top (anaerobic) zone when it exceeds
+ * every threshold. Single source of truth shared by `zoneIndexForPct` here and
+ * the chart's `zoneInfoFromRel` colorer — the two must stay byte-identical.
+ */
+export const ZONE_THRESHOLDS = [60, 76, 90, 105, 119] as const;
+
+/**
+ * Index (0..ZONE_THRESHOLDS.length) of the power zone a % of FTP falls in.
+ * 0 = recovery … last = anaerobic. Callers map the index to their own labels.
+ */
+export function zoneIndexForPct(pct: number): number {
+  for (let i = 0; i < ZONE_THRESHOLDS.length; i++) {
+    if (pct < (ZONE_THRESHOLDS[i] as number)) return i;
+  }
+  return ZONE_THRESHOLDS.length;
+}
 
 export function formatDurationMinSec(totalSec: number): string {
   const s = Math.max(0, Math.round(totalSec || 0));
@@ -64,9 +83,8 @@ export function computeMetricsFromSegments(
 
   for (const seg of rawSegments as unknown as number[][]) {
     const [minutes, startPct, endPct] = seg;
-    const dur = Math.max(1, Math.round((minutes as number) * 60));
-    const isFreeRide =
-      Array.isArray(seg) && (seg as unknown[])[3] === FREERIDE_SEGMENT_FLAG;
+    const dur = segDurationSec(minutes as number);
+    const isFreeRide = isFreeRideSegment(seg);
     totalSec += dur;
 
     if (isFreeRide) {
@@ -348,13 +366,9 @@ export function inferZoneFromSegments(
 
     totalSec += durSec;
 
-    let zoneKey: string;
-    if (avgPct < 60) zoneKey = 'recovery';
-    else if (avgPct < 76) zoneKey = 'endurance';
-    else if (avgPct < 90) zoneKey = 'tempo';
-    else if (avgPct < 105) zoneKey = 'threshold';
-    else if (avgPct < 119) zoneKey = 'vo2';
-    else zoneKey = 'anaerobic';
+    const zoneKey = ['recovery', 'endurance', 'tempo', 'threshold', 'vo2', 'anaerobic'][
+      zoneIndexForPct(avgPct)
+    ] as string;
 
     zoneTime[zoneKey] = (zoneTime[zoneKey] as number) + durSec;
 

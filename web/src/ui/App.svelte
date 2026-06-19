@@ -15,6 +15,8 @@
   import { DialogStore } from '../state/dialog.svelte.js';
   import { themeStore, themeVersion } from '../state/theme.svelte.js';
   import { isPlatformIncompatible, isWebBluetoothAvailable } from '../app/compat.js';
+  import { formatDateKey } from '../core/date-keys.js';
+  import { isEditableTarget } from './dom-utils.js';
 
   let ctx = $state<AppContext | null>(null);
   const ui = new UiStore();
@@ -53,7 +55,7 @@
         // legacy planner.removeScheduledByTitle, docs/workout.js:1376-1380).
         const finishedTitle = ctx?.store.vm?.canonicalWorkout?.workoutTitle;
         if (finishedTitle) {
-          const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          const dateKey = formatDateKey(date);
           void ctx?.fileStore.removeScheduledByTitle(dateKey, finishedTitle);
         }
         // Open the planner to the saved ride; the planner consumes
@@ -155,7 +157,7 @@
       if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
 
       const d = new Date();
-      const todayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const todayKey = formatDateKey(d);
       const schedule = await c.fileStore.loadSchedule();
       if (!Array.isArray(schedule) || !schedule.length) return;
       const todayEntry = schedule.find((e) => e && e.date === todayKey && e.workoutTitle);
@@ -200,13 +202,6 @@
   $effect(() => {
     document.body.classList.toggle('welcome-active', welcomeActive);
   });
-
-  function isEditable(el: EventTarget | null): boolean {
-    const t = el as HTMLElement | null;
-    if (!t) return false;
-    const tag = t.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
-  }
 
   // Per-overlay keydown hooks. When an overlay is open, global hotkeys are
   // suppressed and the keydown is routed to that overlay's handler instead
@@ -286,7 +281,7 @@
     }
 
     // Global HUD hotkeys — only with no overlay open and not typing in a field.
-    if (isEditable(e.target)) return;
+    if (isEditableTarget(e.target)) return;
     if (!ctx) return;
     const vm = ctx.store.vm;
 

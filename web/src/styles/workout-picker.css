@@ -211,8 +211,7 @@
 .picker-search-wrap.picker-search-active
   input[type="search"]:-webkit-autofill:hover,
 .picker-search-wrap.picker-search-active
-  input[type="search"]:-webkit-autofill:focus,
-.picker-search-wrap.picker-search-active input[type="search"]:-webkit-autofill {
+  input[type="search"]:-webkit-autofill:focus {
   background-color: var(--cta-bg);
   -webkit-text-fill-color: var(--cta-text);
   caret-color: var(--cta-text);
@@ -261,13 +260,6 @@
   width: 260px;
   height: var(--nav-control-height);
   box-sizing: border-box;
-}
-
-.picker-search-wrap input[type="search"] {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-top-right-radius: var(--radius);
-  border-bottom-right-radius: var(--radius);
 }
 
 .workout-picker-controls select {

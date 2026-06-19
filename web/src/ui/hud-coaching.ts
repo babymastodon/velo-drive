@@ -15,6 +15,7 @@
 import type { EngineViewModel } from '../core/engine.js';
 import type { RawSegment } from '../core/model.js';
 import { DEFAULT_FTP, formatDurationMinSec } from '../core/metrics.js';
+import { getRawCadence, isFreeRideSegment, segDurationSec } from '../core/segments.js';
 
 export interface SegInfo {
   index: number;
@@ -27,21 +28,13 @@ export interface SegInfo {
   isFreeRide: boolean;
 }
 
-function getRawCadence(seg: RawSegment): number | null {
-  if (!Array.isArray(seg)) return null;
-  if (seg[3] === 'freeride') return null;
-  if (Number.isFinite(seg[4] as number)) return Number(seg[4]);
-  if (typeof seg[3] === 'number' && Number.isFinite(seg[3])) return Number(seg[3]);
-  return null;
-}
-
 export function getSegmentAtTime(rawSegments: RawSegment[] | undefined, tSec: number): SegInfo | null {
   if (!Array.isArray(rawSegments) || !rawSegments.length) return null;
   let acc = 0;
   for (let i = 0; i < rawSegments.length; i += 1) {
     const seg = rawSegments[i]!;
     const minutes = Number(seg?.[0]) || 0;
-    const dur = Math.max(1, Math.round(minutes * 60));
+    const dur = segDurationSec(minutes);
     const start = acc;
     const end = acc + dur;
     if (tSec < end) {
@@ -55,7 +48,7 @@ export function getSegmentAtTime(rawSegments: RawSegment[] | undefined, tSec: nu
         pStartRel: startPct / 100,
         pEndRel: endPct / 100,
         cadenceRpm: getRawCadence(seg),
-        isFreeRide: Array.isArray(seg) && seg[3] === 'freeride',
+        isFreeRide: isFreeRideSegment(seg),
       };
     }
     acc = end;

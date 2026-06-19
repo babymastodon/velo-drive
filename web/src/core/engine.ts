@@ -9,6 +9,7 @@
 
 import { DEFAULT_FTP } from './metrics.js';
 import { buildFitFile, type FitSample } from './fit.js';
+import { getRawCadence, isFreeRideSegment, segDurationSec } from './segments.js';
 import type { CanonicalWorkout, RawSegment } from './model.js';
 import type { TrainerTransport, BikeSample, TrainerState } from '../ports/TrainerTransport.js';
 import type { FileStore, ActiveState } from '../ports/FileStore.js';
@@ -172,25 +173,13 @@ export class WorkoutEngine {
 
   // --------- helpers for rawSegments ---------
 
-  private isFreeRideSegment(seg: RawSegment): boolean {
-    return Array.isArray(seg) && seg[3] === 'freeride';
-  }
-
-  private getRawCadence(seg: RawSegment): number | null {
-    if (!Array.isArray(seg)) return null;
-    if (seg[3] === 'freeride') return null;
-    if (Number.isFinite(seg[4] as number)) return Number(seg[4]);
-    if (typeof seg[3] === 'number' && Number.isFinite(seg[3])) return Number(seg[3]);
-    return null;
-  }
-
   private recomputeWorkoutTotalSec(): void {
     if (!this.canonicalWorkout) {
       this.workoutTotalSec = 0;
       return;
     }
     this.workoutTotalSec = this.canonicalWorkout.rawSegments.reduce(
-      (sum, seg) => sum + Math.max(1, Math.round((seg[0] || 0) * 60)),
+      (sum, seg) => sum + segDurationSec(seg[0] || 0),
       0,
     );
   }
@@ -209,11 +198,11 @@ export class WorkoutEngine {
       const minutes = seg[0];
       const startPct = seg[1];
       const endPct = seg[2];
-      const dur = Math.max(1, Math.round((minutes || 0) * 60));
+      const dur = segDurationSec(minutes || 0);
       const start = acc;
       const end = acc + dur;
-      const isFreeRide = this.isFreeRideSegment(seg);
-      const cadenceRpm = this.getRawCadence(seg);
+      const isFreeRide = isFreeRideSegment(seg);
+      const cadenceRpm = getRawCadence(seg);
 
       if (t < end) {
         const pStartRel = (startPct || 0) / 100;
@@ -416,7 +405,7 @@ export class WorkoutEngine {
     const raws = this.canonicalWorkout.rawSegments;
     const nextRaw = raws[index + 1];
     if (!nextRaw) return;
-    if (this.isFreeRideSegment(nextRaw)) return;
+    if (isFreeRideSegment(nextRaw)) return;
 
     const currEnd = segment.pEndRel * ftp;
     const nextStartPct = nextRaw[1];
@@ -671,7 +660,7 @@ export class WorkoutEngine {
     const first = this.canonicalWorkout!.rawSegments[0];
     if (!first) return; // A2: guard empty rawSegments
     const minutes = first[0];
-    this.intervalElapsedSec = Math.max(1, Math.round((minutes || 0) * 60));
+    this.intervalElapsedSec = segDurationSec(minutes || 0);
     this.currentIntervalIndex = 0;
     this.workoutStartedAt = new Date(this.now());
     this.pauseEvents = [];

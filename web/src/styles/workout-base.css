@@ -155,8 +155,6 @@
   --freeride-stripe: #4a4a4a;
   --wb-block-active-filter: brightness(1.4) saturate(0.8);
   --wb-insert-line: #6ba8ff;
-    --freeride-fill: #3a3a3a;
-    --freeride-stripe: #4a4a4a;
 
     /* slightly darkened versions of the light colors */
     --zone-recovery: #cccccc;
@@ -389,16 +387,6 @@ a:hover {
   text-decoration: underline;
 }
 
-@media (prefers-color-scheme: dark) {
-  a {
-    color: var(--text-muted);
-  }
-
-  a:hover {
-    color: var(--text-main);
-  }
-}
-
 .page-root {
   width: 100%;
   height: 100vh;
@@ -502,8 +490,8 @@ a:hover {
   font-size: 16px;
   padding: 4px 6px;
   border-radius: var(--radius);
-  background: #ffffff;
-  color: #666666;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   border: 1px solid rgba(0, 0, 0, 0.12);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
   white-space: nowrap;
@@ -945,103 +933,6 @@ a:hover {
   background: rgba(0, 0, 0, 0.08);
 }
 
-/* Debug overlay (no longer used, retained for reference)
-   (Could be removed once we're sure settings logs cover all needs)
-*/
-
-.debug-overlay {
-  position: fixed;
-  inset: 10px;
-  border-radius: var(--radius);
-  padding: 8px;
-  display: none;
-  flex-direction: column;
-  font-size: var(--font-size-base);
-  z-index: 50;
-  background: rgba(255, 255, 255, 0.85);
-  color: #111111;
-}
-
-.debug-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-  font-size: var(--font-size-base);
-}
-
-.debug-header-title {
-  font-weight: 600;
-  font-size: var(--font-size-base);
-}
-
-.debug-close-btn {
-  border-radius: var(--radius);
-  border: 1px solid #999;
-  background: transparent;
-  color: inherit;
-  padding: 2px 6px;
-  font-size: var(--font-size-base);
-  cursor: pointer;
-  transition: var(--interactive-transition);
-}
-
-.debug-log {
-  flex: 1;
-  overflow: auto;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: var(--radius);
-  padding: 4px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  white-space: pre-wrap;
-  font-size: var(--font-size-base);
-}
-
-@media (prefers-color-scheme: dark) {
-  .debug-overlay {
-    background: rgba(0, 0, 0, 0.85);
-    color: #aaaaaa;
-  }
-
-  .debug-log {
-    background: rgba(0, 0, 0, 0.55);
-  }
-
-  .debug-close-btn {
-    border-color: #777;
-  }
-}
-
-:root.theme-dark .debug-overlay {
-  background: rgba(0, 0, 0, 0.85);
-  color: #aaaaaa;
-}
-
-:root.theme-dark .debug-log {
-  background: rgba(0, 0, 0, 0.55);
-}
-
-:root.theme-dark .debug-close-btn {
-  border-color: #777;
-}
-
-/* Forced-theme parity: re-assert the light debug palette so a manual Light
-   toggle on a dark OS does not inherit the @media-dark dark overlay. */
-:root.theme-light .debug-overlay {
-  background: rgba(255, 255, 255, 0.85);
-  color: #111111;
-}
-
-:root.theme-light .debug-log {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-:root.theme-light .debug-close-btn {
-  border-color: #999;
-}
-
 /* Status overlay (countdown / paused / resumed) */
 
 .status-overlay {
@@ -1052,8 +943,6 @@ a:hover {
   justify-content: center;
   pointer-events: none;
   z-index: 40;
-  opacity: 0;
-  transition: opacity 0.2s ease-out;
   opacity: 0;
   transition: opacity 0.3s ease;
   color: var(--text-numbers);

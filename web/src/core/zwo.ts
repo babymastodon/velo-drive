@@ -10,15 +10,17 @@
 // This file is intentionally standalone (no DOM or fetch dependencies).
 
 import type { CanonicalWorkout, RawSegment, TextEvent } from './model.js';
+import {
+  FREERIDE_POWER_REL,
+  FREERIDE_SEGMENT_FLAG,
+  getRawCadence,
+} from './segments.js';
 
 // ---------------- Safety limits for ZWO parsing ----------------
 
 const ZWO_MAX_SEGMENT_DURATION_SEC = 12 * 3600; // 12 hours per segment
 const ZWO_MAX_WORKOUT_DURATION_SEC = 24 * 3600; // 24 hours total workout
 const ZWO_MAX_INTERVAL_REPEATS = 500; // sanity cap on repeats
-const FREERIDE_SEGMENT_FLAG = 'freeride';
-const FREERIDE_POWER_REL = 0.5;
-
 // ---------------- Internal working types ----------------
 
 interface ZwoError {
@@ -1177,16 +1179,6 @@ function blocksSimilarSteady(
     : null;
   const cadenceMatch = cadA == null && cadB == null ? true : cadA === cadB;
   return durDiff <= durTolSec && pDiff <= pwrTol && cadenceMatch;
-}
-
-function getRawCadence(seg: unknown[]): number | null {
-  if (!Array.isArray(seg)) return null;
-  if (seg[3] === FREERIDE_SEGMENT_FLAG) return null;
-  if (Number.isFinite(seg[4])) return Number(seg[4]);
-  if (typeof seg[3] === 'number' && Number.isFinite(seg[3])) {
-    return Number(seg[3]);
-  }
-  return null;
 }
 
 // ---------------- CanonicalWorkout -> ZWO XML ----------------
