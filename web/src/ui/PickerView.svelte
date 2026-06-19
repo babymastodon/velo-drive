@@ -427,6 +427,17 @@
     return true;
   }
 
+  // Mirror builderMode into the ui store so the App's global key router knows
+  // the builder owns the keymap (suppresses global hotkeys + close-on-Escape).
+  // Cleared whenever the picker is closed (open=false) so a stale flag never
+  // leaks into the HUD. Mirrors legacy picker.isBuilderMode() gating.
+  $effect(() => {
+    ui.pickerBuilderMode = open && builderMode;
+    return () => {
+      ui.pickerBuilderMode = false;
+    };
+  });
+
   // When entering builder mode, mount the BuilderView; defer init to it.
   function enterBuilderMode(title: string): void {
     builderMode = true;

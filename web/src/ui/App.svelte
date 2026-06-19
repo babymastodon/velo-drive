@@ -48,7 +48,7 @@
       .then((c) => {
         if (cancelled) return;
         ctx = c;
-        void maybeAutoOpenSettings(c);
+        void maybeShowWelcomeThenAttention(c);
       })
       .catch((err) => {
         console.error('[App] boot failed:', err);
@@ -57,6 +57,67 @@
       cancelled = true;
     };
   });
+
+  // PWA / standalone detection (mirrors docs/workout.js isRunningAsPwa).
+  function isRunningAsPwa(): boolean {
+    try {
+      return !!(
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        (navigator as Navigator & { standalone?: boolean }).standalone === true
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Boot-time welcome gating (port of docs/workout.js shouldForceFullWelcome +
+  // maybeShowWelcome, 184-207 / 1223-1283). Shows the first-run tour for a fresh
+  // real user, then falls through to startupNeedsAttention only when welcome was
+  // NOT shown. Gating:
+  //   * Persisted `hasSeenWelcome` flag → never show again (this is what the
+  //     hermetic harness seeds, so configured test state never triggers it).
+  //   * An active workout → never show (resuming a ride).
+  //   * Otherwise show: FULL tour when on the web (not a PWA) OR the root folder
+  //     is missing; a SPLASH when running as a configured PWA.
+  // Returns true if it showed welcome (so the caller skips the settings auto-open).
+  async function maybeShowWelcome(c: AppContext): Promise<boolean> {
+    let seen = false;
+    try {
+      seen = await c.fileStore.getSetting<boolean>('hasSeenWelcome', false);
+    } catch {
+      seen = false;
+    }
+    if (seen) return false;
+
+    const vm = c.store.vm;
+    if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return false;
+
+    let missingRootDir = false;
+    try {
+      missingRootDir = !(await c.fileStore.loadRootDirHandle());
+    } catch {
+      missingRootDir = true;
+    }
+    const runningAsPwa = isRunningAsPwa();
+    const forceFullWelcome = !runningAsPwa || missingRootDir;
+
+    // Mark seen now so a reload doesn't re-show it (legacy persists on first show).
+    try {
+      await c.fileStore.putSetting('hasSeenWelcome', true);
+    } catch {
+      /* ignore */
+    }
+
+    if (forceFullWelcome) ui.openWelcome('full', 0);
+    else ui.openWelcome('splash', 0);
+    return true;
+  }
+
+  async function maybeShowWelcomeThenAttention(c: AppContext): Promise<void> {
+    const shown = await maybeShowWelcome(c);
+    if (shown) return;
+    await maybeAutoOpenSettings(c);
+  }
 
   // Boot-time auto-open (mirrors docs/settings.js startupNeedsAttention +
   // shouldAutoOpen): if the root data folder is missing, OR Web Bluetooth is
@@ -105,6 +166,15 @@
 
   function onKeydown(e: KeyboardEvent): void {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    // While the picker's in-place builder is open it owns the ENTIRE keymap
+    // (insert/edit/undo/Escape-deselect/Escape-back). The BuilderView has its
+    // own window keydown handler; the App must stay completely out of the way —
+    // do NOT route to the picker handler, do NOT preventDefault, and CRUCIALLY
+    // do NOT close the overlay on Escape (legacy returns early in builder mode,
+    // docs/workout.js:1748-1750). Bailing here (without preventDefault) lets the
+    // BuilderView's handler run with e.defaultPrevented still false.
+    if (ui.pickerBuilderMode) return;
 
     if (e.key === 'Escape') {
       // Give the active overlay's handler first crack at Escape (e.g. the
@@ -184,7 +254,7 @@
     }
     if (key === 'w') {
       e.preventDefault();
-      openPicker();
+      void openPicker();
       return;
     }
     if (key === 'c') {
@@ -193,12 +263,31 @@
     }
   }
 
+  // Guard the picker/save flows on a configured VeloDrive folder (mirrors legacy
+  // ensureRootDirConfiguredForWorkouts, docs/workout.js:209-222): no folder →
+  // warn + open Settings to the folders help section, and do NOT proceed.
+  async function ensureRootDirConfigured(): Promise<boolean> {
+    if (!ctx) return false;
+    let hasRoot = false;
+    try {
+      hasRoot = !!(await ctx.fileStore.loadRootDirHandle());
+    } catch {
+      hasRoot = false;
+    }
+    if (hasRoot) return true;
+    await dialogs.alert('Choose a VeloDrive folder first, then pick a workout.');
+    ui.forceHelpSection = 'settingsFoldersHelp';
+    ui.open('settings');
+    return false;
+  }
+
   // Open the workout picker, guarding against an active workout (matches legacy
-  // openPickerWithGuard in docs/workout.js).
-  function openPicker(): void {
+  // openPickerWithGuard in docs/workout.js) AND requiring a configured folder.
+  async function openPicker(): Promise<void> {
     if (!ctx) return;
     const vm = ctx.store.vm;
     if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
+    if (!(await ensureRootDirConfigured())) return;
     ui.open('picker');
   }
 

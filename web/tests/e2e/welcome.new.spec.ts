@@ -120,3 +120,52 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
     await expect(page.locator("#welcomeOverlay")).toHaveCount(0);
   });
 });
+
+// Bug #5: boot-time welcome gating. A fresh REAL user (no hasSeenWelcome flag)
+// sees the welcome tour on boot; a configured user who has seen it does NOT.
+// Mirrors legacy shouldForceFullWelcome/maybeShowWelcome (docs/workout.js).
+test.describe("Welcome (new Svelte app) — boot gating", () => {
+  test.use({harnessConfig: WELCOME_HARNESS_CONFIG});
+
+  test("first-run (no hasSeenWelcome flag) shows the welcome tour on boot", async ({page, harnessConfig}) => {
+    await page.addInitScript((c) => {
+      (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = c;
+    }, harnessConfig);
+    await page.addInitScript({path: new URL("../../harness/page-env.js", import.meta.url).pathname});
+    // Do NOT seed hasSeenWelcome → fresh user. (Configured, web/not-PWA → full tour.)
+    await page.goto("/");
+    await page.waitForFunction(() => !!(window as unknown as {__VELO_HARNESS__?: unknown}).__VELO_HARNESS__);
+    await page.evaluate(async () => {
+      await (window as unknown as {__VELO_HARNESS__: {settle: () => Promise<void>}}).__VELO_HARNESS__.settle();
+    });
+    // Welcome shows on boot for a fresh user.
+    await expect(page.locator("#welcomeOverlay")).toBeVisible();
+    await expect(page.getByTestId("welcome-title")).toHaveText("Welcome to VeloDrive");
+
+    // And the flag is persisted so a reload does NOT re-show it.
+    const seen = await page.evaluate(() => {
+      const store = (window as unknown as {__VELO_HARNESS__: {settingsStore: Map<string, {value?: unknown}>}})
+        .__VELO_HARNESS__.settingsStore;
+      return store.get("hasSeenWelcome")?.value;
+    });
+    expect(seen).toBe(true);
+  });
+
+  test("a configured user who has seen welcome does NOT see it on boot", async ({page, harnessConfig}) => {
+    await page.addInitScript((c) => {
+      (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = c;
+    }, harnessConfig);
+    await page.addInitScript({path: new URL("../../harness/page-env.js", import.meta.url).pathname});
+    // Seed the "welcome seen" flag → matches the configured hermetic state.
+    await page.addInitScript(() => {
+      const store = (window as unknown as {__VELO_HARNESS__?: {settingsStore?: Map<string, unknown>}})
+        .__VELO_HARNESS__?.settingsStore;
+      store?.set("hasSeenWelcome", {key: "hasSeenWelcome", value: true});
+    });
+    await page.goto("/");
+    await reachNewRidingView(page);
+    // No welcome on boot; the HUD is shown directly.
+    await expect(page.locator("#welcomeOverlay")).toHaveCount(0);
+    await expect(page.locator("#stat-power")).toBeVisible();
+  });
+});

@@ -96,3 +96,64 @@ test.describe("BLE (new Svelte app) — boot auto-open guard", () => {
     await expect(page.getByTestId("settings-compat-alert")).toBeHidden();
   });
 });
+
+// Bug #4: clicking Bike/HRM connect when Web Bluetooth is unavailable must warn
+// (Dialog) + open Settings (legacy docs/workout.js:1525-1565); and cancelling
+// the device chooser (AbortError) must return the status dot to IDLE — not
+// error or connected.
+test.describe("BLE (new Svelte app) — unavailable warning + cancel status", () => {
+  test.use({harnessConfig: {...CONNECT_CONFIG, connectBike: false}});
+
+  test("connect with no Web Bluetooth warns and opens Settings", async ({configuredPage}) => {
+    const page = configuredPage;
+    // Strip navigator.bluetooth so isWebBluetoothAvailable() is false (the env
+    // shim installed it from the sim; remove it post-boot for a clean state).
+    await reachNewRidingView(page);
+    await page.evaluate(() => {
+      try {
+        Object.defineProperty(navigator, "bluetooth", {value: undefined, configurable: true});
+      } catch {
+        /* ignore */
+      }
+    });
+
+    // Close any boot-time auto-opened Settings first.
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(50);
+
+    await page.getByTestId("bike-connect").click();
+    await expect(page.getByTestId("dialog-message")).toContainText("Bluetooth");
+    await page.getByTestId("dialog-ok").click();
+    await expect(page.getByTestId("settings-modal")).toBeVisible();
+  });
+
+  test("cancelling the bike chooser returns the status dot to idle", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // The dot starts idle (connectBike:false → no auto-reconnect).
+    await expect(page.getByTestId("bike-status-dot")).not.toHaveClass(/connected/);
+
+    // Make the device chooser reject with an AbortError (user cancel).
+    await page.evaluate(() => {
+      const bt = (navigator as unknown as {bluetooth?: {requestDevice: (o: unknown) => Promise<unknown>}}).bluetooth;
+      if (bt) {
+        bt.requestDevice = () => {
+          const err = new Error("User cancelled");
+          err.name = "AbortError";
+          return Promise.reject(err);
+        };
+      }
+    });
+
+    await page.getByTestId("bike-connect").click();
+    await settle(page);
+
+    // After a cancel with nothing connected, the dot returns to idle (no
+    // 'error', no 'connected', no stuck 'connecting').
+    const dot = page.getByTestId("bike-status-dot");
+    await expect(dot).not.toHaveClass(/error/);
+    await expect(dot).not.toHaveClass(/connected/);
+    await expect(dot).not.toHaveClass(/connecting/);
+  });
+});
