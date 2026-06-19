@@ -247,6 +247,13 @@ export class WorkoutEngine {
     return { segment: null, target: null, index: -1 };
   }
 
+  /** True when the segment at the current ride time is a free-ride in resistance mode. */
+  private isResistanceFreeRideActive(): boolean {
+    if (this.freeRideMode !== 'resistance') return false;
+    const t = this.workoutRunning || this.elapsedSec > 0 ? this.elapsedSec : 0;
+    return !!this.getCurrentSegmentAtTime(t).segment?.isFreeRide;
+  }
+
   private getCurrentTargetPower(): number | null {
     if (!this.canonicalWorkout) return null;
     const t = this.workoutRunning || this.elapsedSec > 0 ? this.elapsedSec : 0;
@@ -385,7 +392,8 @@ export class WorkoutEngine {
     if (this.elapsedSec > 0 || this.liveSamples.length) return;
     if (!this.canonicalWorkout) return;
 
-    const first = this.canonicalWorkout.rawSegments[0]!;
+    const first = this.canonicalWorkout.rawSegments[0];
+    if (!first) return; // A2: guard empty rawSegments
     const startPct = first[1];
     const ftp = this.currentFtp || DEFAULT_FTP;
     const pStartRel = (startPct || 50) / 100;
@@ -492,13 +500,22 @@ export class WorkoutEngine {
       const now = this.now();
       const autoResumeBlocked = now < this.manualPauseAutoResumeBlockedUntilMs;
       const currentTarget = this.getCurrentTargetPower();
-      if (!autoResumeBlocked && currentTarget && this.lastSamplePower) {
-        if (this.lastSamplePower >= 0.9 * currentTarget) {
-          this.log('Auto-resume: power high vs target (>=90%).');
-          this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
-          this.beeper.showResumedOverlay();
-          this.setPaused(false);
-        }
+      // P1: a RESISTANCE free-ride has no numeric ERG target (currentTarget is
+      // null), so the ERG ">=0.9*target" rule never fires and the rider stays
+      // trapped after an auto-pause. For that case auto-resume on any positive
+      // power; keep the ERG rule for ERG/structured segments.
+      const resistanceFreeRide = currentTarget == null && this.isResistanceFreeRideActive();
+      const shouldAutoResume = resistanceFreeRide
+        ? !!this.lastSamplePower && this.lastSamplePower > 0
+        : !!currentTarget && !!this.lastSamplePower && this.lastSamplePower >= 0.9 * currentTarget;
+      if (!autoResumeBlocked && shouldAutoResume) {
+        this.log('Auto-resume: power high vs target (>=90%).');
+        this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
+        // P4: clear the manual-pause auto-resume block for symmetry with the
+        // manual resume path, so snapshots don't carry a stale block timestamp.
+        this.manualPauseAutoResumeBlockedUntilMs = 0;
+        this.beeper.showResumedOverlay();
+        await this.resumeFromPause();
       }
     }
 
@@ -584,11 +601,30 @@ export class WorkoutEngine {
     this.scheduleSaveActiveState();
   }
 
+  /**
+   * Resume from a paused ride (paused→running) and immediately force-re-send the
+   * held target to the trainer (P3). Without the force-send, re-application is
+   * left to the throttled next tick (sendTrainerState(false)) and can be a no-op
+   * if the target is unchanged and <10s have elapsed on the transport clock.
+   * No-op if we are not actually paused, so the force-send only fires on a real
+   * resume transition.
+   */
+  private async resumeFromPause(): Promise<void> {
+    if (!this.workoutPaused) return;
+    this.setPaused(false);
+    await this.sendTrainerState(true);
+  }
+
   startWorkout(): void {
     if (!this.canonicalWorkout) {
       this.alertUser('No workout selected. Choose a workout first.');
       return;
     }
+
+    // A4: during the 3-2-1 countdown workoutStarting is true; ignore Start/Space
+    // so we don't fall through to the pause/resume else-branch and flip a stray
+    // workoutPaused (which beginRun would otherwise self-heal).
+    if (this.workoutStarting) return;
 
     this.autoStartSuppressed = false;
 
@@ -607,7 +643,9 @@ export class WorkoutEngine {
       this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
       this.manualPauseAutoResumeBlockedUntilMs = 0;
       this.beeper.showResumedOverlay();
-      this.setPaused(false);
+      // P3: force-re-send the held target on resume (fire-and-forget; startWorkout
+      // is sync). resumeFromPause no-ops if we're not actually paused.
+      void this.resumeFromPause();
     } else {
       this.log('Manual pause requested.');
       this.manualPauseAutoResumeBlockedUntilMs = this.now() + 10_000;
@@ -619,7 +657,8 @@ export class WorkoutEngine {
   private async beginRun(): Promise<void> {
     this.liveSamples = [];
     this.elapsedSec = 0;
-    const first = this.canonicalWorkout!.rawSegments[0]!;
+    const first = this.canonicalWorkout!.rawSegments[0];
+    if (!first) return; // A2: guard empty rawSegments
     const minutes = first[0];
     this.intervalElapsedSec = Math.max(1, Math.round((minutes || 0) * 60));
     this.currentIntervalIndex = 0;
@@ -756,8 +795,16 @@ export class WorkoutEngine {
     }
 
     if (this.workoutRunning) {
-      this.startTicker();
-      this.setPaused(true);
+      // P7: a ride that crashed at/after completion would otherwise be restored
+      // as paused — and the end check (elapsedSec >= workoutTotalSec) lives inside
+      // the running-&-not-paused tick block, so it sits stuck forever. Finalize
+      // immediately instead of arming a paused ticker.
+      if (this.workoutTotalSec > 0 && this.elapsedSec >= this.workoutTotalSec) {
+        await this.endWorkout();
+      } else {
+        this.startTicker();
+        this.setPaused(true);
+      }
     }
 
     this.emitStateChanged();
@@ -784,10 +831,14 @@ export class WorkoutEngine {
     this.liveSamples = (a.liveSamples as LiveSample[]) || [];
     this.zeroPowerSeconds = (a.zeroPowerSeconds as number) || 0;
     this.autoPauseDisabledUntilSec = (a.autoPauseDisabledUntilSec as number) || 0;
-    this.manualPauseAutoResumeBlockedUntilMs =
-      (a.manualPauseAutoResumeBlockedUntilMs as number) || 0;
+    // P8: do NOT carry the prior session's wall-clock pause-start / block ms. The
+    // app-closed gap is not "paused riding"; restoring pauseStartedAtMs as an
+    // absolute prior-session ms would flow the whole closed-app interval into
+    // totalPausedMs → FIT totalElapsedSec on the next resume/end. We keep the
+    // restored workoutPaused (above) but start a fresh pause window.
+    this.manualPauseAutoResumeBlockedUntilMs = 0;
     this.pauseEvents = Array.isArray(a.pauseEvents) ? (a.pauseEvents as PauseEvent[]) : [];
-    this.pauseStartedAtMs = typeof a.pauseStartedAtMs === 'number' ? a.pauseStartedAtMs : null;
+    this.pauseStartedAtMs = null;
     this.totalPausedMs = (a.totalPausedMs as number) || 0;
     this.lastTickWallMs = (a.lastTickWallMs as number) || null;
     this.workoutStartedAt = a.workoutStartedAt ? new Date(a.workoutStartedAt as string) : null;
@@ -806,30 +857,43 @@ export class WorkoutEngine {
     if (newMode === this.freeRideMode || this.workoutStarting) return;
     this.freeRideMode = newMode;
     this.scheduleSaveActiveState();
-    this.sendTrainerState(true).catch((err) =>
-      this.log('Trainer state send on free ride mode change failed: ' + err),
-    );
+    // P2: don't force a fresh setpoint to the wheel while paused; the resume
+    // re-send (P3) re-asserts the target. State still updates + persists.
+    if (!this.workoutPaused) {
+      this.sendTrainerState(true).catch((err) =>
+        this.log('Trainer state send on free ride mode change failed: ' + err),
+      );
+    }
     this.emitStateChanged();
   }
 
   setFtp(newFtp: number): void {
     this.currentFtp = newFtp || DEFAULT_FTP;
     this.scheduleSaveActiveState();
-    this.sendTrainerState(true).catch((err) => this.log('Trainer state send after FTP change failed: ' + err));
+    // P2: skip the forced send while paused (state still updates + persists).
+    if (!this.workoutPaused) {
+      this.sendTrainerState(true).catch((err) => this.log('Trainer state send after FTP change failed: ' + err));
+    }
     this.emitStateChanged();
   }
 
   adjustManualErg(delta: number): void {
     this.manualErgTarget = Math.max(50, Math.min(1500, this.manualErgTarget + delta));
     this.scheduleSaveActiveState();
-    this.sendTrainerState(true).catch(() => {});
+    // P2: skip the forced send while paused (state still updates + persists).
+    if (!this.workoutPaused) {
+      this.sendTrainerState(true).catch(() => {});
+    }
     this.emitStateChanged();
   }
 
   adjustManualResistance(delta: number): void {
     this.manualResistance = Math.max(0, Math.min(100, this.manualResistance + delta));
     this.scheduleSaveActiveState();
-    this.sendTrainerState(true).catch(() => {});
+    // P2: skip the forced send while paused (state still updates + persists).
+    if (!this.workoutPaused) {
+      this.sendTrainerState(true).catch(() => {});
+    }
     this.emitStateChanged();
   }
 
@@ -842,6 +906,13 @@ export class WorkoutEngine {
       console.warn('[WorkoutEngine] Invalid CanonicalWorkout payload:', canonical);
       return;
     }
+    // A2: reject zero-length workouts — beginRun/maybeAutoStartFromPower read
+    // rawSegments[0] and an empty array (reachable via the planner scheduled-load
+    // `entry.rawSegments || []`) would TypeError on every sample + on Start.
+    if (!canonical.rawSegments.length) {
+      this.alertUser('This workout has no segments.');
+      return;
+    }
     this.canonicalWorkout = canonical;
     if (!this.currentFtp || !Number.isFinite(this.currentFtp)) this.currentFtp = DEFAULT_FTP;
     this.elapsedSec = 0;
@@ -850,6 +921,10 @@ export class WorkoutEngine {
     this.zeroPowerSeconds = 0;
     this.autoPauseDisabledUntilSec = 0;
     this.manualPauseAutoResumeBlockedUntilMs = 0;
+    // A1: a freshly selected workout is an intentional workout action, so lift
+    // the auto-start suppression set by a prior endWorkout — otherwise pedaling
+    // never auto-starts the new ride until a manual Start.
+    this.autoStartSuppressed = false;
     this.recomputeWorkoutTotalSec();
     void this.persistIdleState();
     this.emitStateChanged();
