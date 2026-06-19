@@ -32,6 +32,12 @@ export class UiStore {
   // Settings has an internal logs sub-view; Escape returns here first.
   settingsLogsOpen = $state(false);
 
+  // The planner has an internal ride-detail sub-view; Escape/Backspace return to
+  // the calendar first (and Escape on the calendar does NOT close the planner —
+  // legacy ignores it). Set by PlannerView; consumed in handleEscape. The
+  // PlannerView's own key handler does the calendar→detail pop for Backspace.
+  plannerDetailOpen = $state(false);
+
   // Welcome render mode ("full" tour vs "splash" only). Default off on boot.
   welcomeMode = $state<'full' | 'splash'>('full');
   // Which slide the welcome tour opens on (for deterministic tests).
@@ -62,6 +68,7 @@ export class UiStore {
 
   close(): void {
     this.settingsLogsOpen = false;
+    this.plannerDetailOpen = false;
     this.activeOverlay = 'none';
   }
 
@@ -74,6 +81,14 @@ export class UiStore {
     if (this.activeOverlay === 'none') return false;
     if (this.activeOverlay === 'settings' && this.settingsLogsOpen) {
       this.settingsLogsOpen = false;
+      return true;
+    }
+    // The planner's ride-detail sub-view is popped by the planner's own key
+    // handler (routed first in App). If we still see it open here, the detail
+    // view owns Escape — never close the whole planner from detail (legacy
+    // pops detail first, ignores Escape on the calendar otherwise). The handler
+    // already returned true in that case, so this is a defensive guard.
+    if (this.activeOverlay === 'planner' && this.plannerDetailOpen) {
       return true;
     }
     this.close();

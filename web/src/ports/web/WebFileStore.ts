@@ -16,10 +16,30 @@ import {
   canonicalWorkoutToZwoXml,
 } from '../../core/zwo.js';
 import { parseFitFile, type ParseFitResult } from '../../core/fit.js';
+import type { RawSegment } from '../../core/model.js';
+import {
+  DEFAULT_FTP,
+  computeMetricsFromSamples,
+  inferZoneFromSegments,
+  type Sample,
+} from '../../core/metrics.js';
+import {
+  buildPowerSegments,
+  powerMaxFromIntervals,
+  type PowerInterval,
+} from '../../core/planner-analysis.js';
 
 const DB_NAME = 'velo-drive';
 const DB_VERSION = 1;
 const SETTINGS_STORE = 'settings';
+
+// Persisted FIT-metrics cache (mirrors docs/planner-backend.js
+// STATS_CACHE_VERSION + load/saveWorkoutStatsCache). Computed previews are keyed
+// by the FIT file name so each planner open re-parses only NEW files. Bump the
+// version whenever the preview format/computation changes (invalidates the whole
+// cache).
+const STATS_CACHE_KEY = 'workoutStatsCache';
+const STATS_CACHE_VERSION = 30;
 
 const STORAGE_SELECTED_WORKOUT = 'selectedWorkout';
 const STORAGE_ACTIVE_STATE = 'activeWorkoutState';
@@ -35,6 +55,44 @@ const SCHEDULE_FILE = 'schedule.json';
 export interface HistoryFitEntry {
   fileName: string;
   parsed: ParseFitResult;
+}
+
+/**
+ * A computed per-ride history preview (the planner calendar card model). Built
+ * by listHistoryPreviews from a parsed FIT + cached by file name so repeat opens
+ * skip the parse + metric/segment math. `startedAt` is serialized as an ISO
+ * string in the cache and rehydrated to a Date here.
+ */
+export interface HistoryPreview {
+  fileName: string;
+  workoutTitle: string;
+  durationSec: number;
+  kj: number | null;
+  ifValue: number | null;
+  tss: number | null;
+  startedAt: Date | null;
+  rawSegments: RawSegment[];
+  powerSegments: PowerInterval[];
+  powerMax: number;
+  zone: string;
+}
+
+// On-disk cache entry (startedAt as ISO string, everything else JSON-friendly).
+interface StatsCacheEntry {
+  workoutTitle: string;
+  durationSec: number;
+  kj: number | null;
+  ifValue: number | null;
+  tss: number | null;
+  startedAt: string | null;
+  rawSegments: RawSegment[];
+  powerSegments: PowerInterval[];
+  powerMax: number;
+  zone: string;
+}
+interface StatsCache {
+  version: number;
+  entries: Record<string, StatsCacheEntry>;
 }
 
 /** A persisted schedule entry (schedule.json is a flat array of these). */
@@ -55,6 +113,11 @@ interface HandleRecord {
 export class WebFileStore implements FileStore {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private workoutDirHandle: FsDirHandle | null = null;
+  private statsCache: StatsCache | null = null;
+
+  // Test/diagnostic marker: how many FIT files listHistoryPreviews parsed (i.e.
+  // cache misses). A second open of an unchanged history should add 0.
+  historyParseCount = 0;
 
   private getDb(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
@@ -331,6 +394,161 @@ export class WebFileStore implements FileStore {
       console.error('[WebFileStore] listHistory failed:', err);
     }
     return out;
+  }
+
+  /**
+   * List the history dir and return a computed preview per .fit file, using the
+   * persisted stats cache (settings key `workoutStatsCache`) to skip re-parsing
+   * unchanged files. Mirrors docs/planner-backend.js loadHistoryPreview, but
+   * caches the WHOLE preview (rawSegments included) keyed by file name so a
+   * cache hit avoids the parse entirely. Cache invalidates by file name +
+   * STATS_CACHE_VERSION; entries for files no longer present are pruned.
+   */
+  async listHistoryPreviews(): Promise<HistoryPreview[]> {
+    const dir = await this.loadWorkoutDirHandle();
+    if (!dir) return [];
+    const cache = await this.ensureStatsCache();
+    const out: HistoryPreview[] = [];
+    const seen = new Set<string>();
+    let dirty = false;
+    try {
+      for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
+        if (entry.kind !== 'file') continue;
+        const fileName = entry.name;
+        if (!fileName.toLowerCase().endsWith('.fit')) continue;
+        seen.add(fileName);
+        const cached = cache.entries[fileName];
+        if (cached) {
+          out.push(this.previewFromCache(fileName, cached));
+          continue;
+        }
+        // Cache miss → parse + compute, then persist.
+        try {
+          const fileHandle = await dir.getFileHandle(fileName);
+          const file = await fileHandle.getFile?.();
+          if (!file) continue;
+          const buf = await file.arrayBuffer();
+          this.historyParseCount += 1;
+          const parsed = parseFitFile(buf);
+          const built = this.buildPreview(fileName, parsed);
+          cache.entries[fileName] = this.cacheEntryFromPreview(built);
+          dirty = true;
+          out.push(built);
+        } catch (err) {
+          console.warn('[WebFileStore] failed to parse history file', fileName, err);
+        }
+      }
+    } catch (err) {
+      console.error('[WebFileStore] listHistoryPreviews failed:', err);
+    }
+    // Prune cache entries whose files have vanished (e.g. trashed rides).
+    for (const key of Object.keys(cache.entries)) {
+      if (!seen.has(key)) {
+        delete cache.entries[key];
+        dirty = true;
+      }
+    }
+    if (dirty) void this.saveStatsCache(cache);
+    return out;
+  }
+
+  private buildPreview(fileName: string, parsed: ParseFitResult): HistoryPreview {
+    const cw = parsed.canonicalWorkout || ({} as CanonicalWorkout);
+    const meta = parsed.meta || {};
+    const ftp = meta.ftp || DEFAULT_FTP;
+    // FitSample lacks the index signature Sample carries; the fields used are
+    // identical, so widen for the metric/segment helpers (same call PlannerView
+    // makes against parsed.samples).
+    const samples = (parsed.samples || []) as Sample[];
+    const lastSample = samples.length ? samples[samples.length - 1] : null;
+    const durationSecHint =
+      meta.totalTimerSec != null
+        ? Math.max(1, Math.round(meta.totalTimerSec))
+        : meta.startedAt && meta.endedAt
+          ? Math.max(1, Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000))
+          : Math.max(1, Math.round(lastSample?.t || 0));
+    const metrics = computeMetricsFromSamples(samples, ftp, durationSecHint);
+    const powerSegments = buildPowerSegments(samples, durationSecHint).intervals;
+    return {
+      fileName,
+      workoutTitle: cw.workoutTitle || fileName.replace(/\.fit$/i, ''),
+      durationSec: metrics.durationSec || durationSecHint || 0,
+      kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
+      ifValue: metrics.ifValue,
+      tss: metrics.tss,
+      startedAt: meta.startedAt || null,
+      rawSegments: cw.rawSegments || [],
+      powerSegments,
+      powerMax: powerMaxFromIntervals(powerSegments),
+      zone: inferZoneFromSegments(cw.rawSegments || []),
+    };
+  }
+
+  private cacheEntryFromPreview(p: HistoryPreview): StatsCacheEntry {
+    return {
+      workoutTitle: p.workoutTitle,
+      durationSec: p.durationSec,
+      kj: p.kj,
+      ifValue: p.ifValue,
+      tss: p.tss,
+      startedAt: p.startedAt ? p.startedAt.toISOString() : null,
+      rawSegments: p.rawSegments,
+      powerSegments: p.powerSegments,
+      powerMax: p.powerMax,
+      zone: p.zone,
+    };
+  }
+
+  private previewFromCache(fileName: string, c: StatsCacheEntry): HistoryPreview {
+    return {
+      fileName,
+      workoutTitle: c.workoutTitle,
+      durationSec: c.durationSec,
+      kj: c.kj,
+      ifValue: c.ifValue,
+      tss: c.tss,
+      startedAt: c.startedAt ? new Date(c.startedAt) : null,
+      rawSegments: c.rawSegments || [],
+      powerSegments: c.powerSegments || [],
+      powerMax: c.powerMax || 0,
+      zone: c.zone || '',
+    };
+  }
+
+  private async ensureStatsCache(): Promise<StatsCache> {
+    if (this.statsCache) return this.statsCache;
+    try {
+      const raw = await this.getSettingRaw<StatsCache | null>(STATS_CACHE_KEY, null);
+      if (raw && raw.version === STATS_CACHE_VERSION && raw.entries) {
+        this.statsCache = raw;
+      } else {
+        this.statsCache = { version: STATS_CACHE_VERSION, entries: {} };
+      }
+    } catch {
+      this.statsCache = { version: STATS_CACHE_VERSION, entries: {} };
+    }
+    return this.statsCache;
+  }
+
+  private async saveStatsCache(cache: StatsCache): Promise<void> {
+    try {
+      await this.setSetting(STATS_CACHE_KEY, cache);
+    } catch (err) {
+      console.warn('[WebFileStore] saveStatsCache failed:', err);
+    }
+  }
+
+  /**
+   * Drop a file from the in-memory + persisted stats cache (e.g. after trashing
+   * a ride). The next listHistoryPreviews would also prune it, but this keeps
+   * the cache consistent immediately.
+   */
+  async invalidateHistoryStats(fileName: string): Promise<void> {
+    const cache = await this.ensureStatsCache();
+    if (cache.entries[fileName]) {
+      delete cache.entries[fileName];
+      await this.saveStatsCache(cache);
+    }
   }
 
   /** Read schedule.json (a flat array) from the root dir; [] if absent. */

@@ -26,6 +26,9 @@
     ui,
     dialogs,
     getVm: () => ctx?.store.vm ?? null,
+    // Diagnostic for behavior tests: how many FIT files the planner stats cache
+    // has parsed (cache misses). A second open of an unchanged history adds 0.
+    getHistoryParseCount: () => ctx?.fileStore.historyParseCount ?? 0,
   };
   (window as unknown as { __VELO_APP__: unknown }).__VELO_APP__ = appBridge;
 
@@ -77,6 +80,18 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
     if (e.key === 'Escape') {
+      // Give the active overlay's handler first crack at Escape (e.g. the
+      // planner pops its ride-detail sub-view back to the calendar, or the
+      // picker clears its search). If it consumes the key, stop; otherwise fall
+      // back to the default disposition (handleEscape → close the overlay).
+      if (ui.activeOverlay !== 'none') {
+        const handler = overlayKeyHandlers[ui.activeOverlay];
+        if (handler && handler(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       if (ui.handleEscape()) {
         e.preventDefault();
         e.stopPropagation();
@@ -203,6 +218,7 @@
 
   <PlannerView
     store={ctx.store}
+    engine={ctx.engine}
     fileStore={ctx.fileStore}
     {ui}
     {dialogs}
