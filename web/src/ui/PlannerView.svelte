@@ -215,8 +215,31 @@
     loaded = false;
     await Promise.all([loadHistory(), loadSchedule()]);
     loaded = true;
+    // Post-ride flow: if the shell opened the planner with a just-saved ride,
+    // auto-open that ride's DETAIL view (port of legacy planner.openDetailByFile,
+    // docs/workout.js:1383-1389 / workout-planner.js:1520; J-RIDE-26). Consume +
+    // clear the pending file so a later manual open shows the calendar.
+    const pending = ui.pendingHistoryFile;
+    if (pending) {
+      ui.pendingHistoryFile = null;
+      await openDetailByFile(pending.fileName, pending.date);
+    }
     // Scroll so today's week sits one row below the top (legacy centerOnDate).
     requestAnimationFrame(() => scrollToToday());
+  }
+
+  // Open the ride detail for a specific history file (post-ride follow-up).
+  // Selects the ride's day, finds its preview, and opens the detail. Mirrors
+  // legacy openDetailByFile (workout-planner.js:1520).
+  async function openDetailByFile(fileName: string, startedAt: Date | null): Promise<void> {
+    if (!fileName) return;
+    const dateKey = startedAt ? formatKey(startedAt) : dateKeyFromHandleName(fileName);
+    if (!dateKey) return;
+    selectedDate = keyToDate(dateKey);
+    const previews = historyMap.get(dateKey) || [];
+    const match = previews.find((p) => p.fileName === fileName) || previews[0];
+    if (!match) return;
+    await openDetail(match);
   }
 
   function scrollToToday(): void {

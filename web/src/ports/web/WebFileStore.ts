@@ -51,6 +51,20 @@ const TRASH_DIR_KEY = 'trashDirHandle';
 const ROOT_DIR_KEY = 'rootDirHandle';
 const SCHEDULE_FILE = 'schedule.json';
 
+// The bundled default workout library (mirrors docs/storage.js
+// DEFAULT_WORKOUT_FILES, 35-42). On a fresh folder pick, if the workouts/ dir is
+// empty, these 6 starters are fetched from /workouts/<name> (bundled in
+// web/public/workouts) and written into the folder so a new user is never left
+// with an empty library.
+const DEFAULT_WORKOUT_FILES = [
+  'Basefire%20Waves.zwo',
+  'Breath%20of%20Power.zwo',
+  'Into%20the%20Black.zwo',
+  'Keep%20Turning.zwo',
+  'Rise%20Against%20the%20Odds.zwo',
+  'Sleepy%20Spin.zwo',
+];
+
 /** A raw FIT history file entry (name + parsed contents). */
 export interface HistoryFitEntry {
   fileName: string;
@@ -153,6 +167,23 @@ export class WebFileStore implements FileStore {
   // cache misses). A second open of an unchanged history should add 0.
   historyParseCount = 0;
 
+  // Optional UI error sink. The composition root wires this to a themed Dialog
+  // alert so the important file-op failures (no folder, permission revoked,
+  // save/delete failed) surface to the user instead of failing silently
+  // (mirrors the legacy alert()s; replaces the unthemed native alert()s). The
+  // data-loss guard (overwrite-to-trash-first) is unaffected.
+  onError: ((message: string) => void) | null = null;
+
+  private notifyError(message: string): void {
+    if (this.onError) {
+      try {
+        this.onError(message);
+      } catch {
+        /* never let the notifier break a file op */
+      }
+    }
+  }
+
   private getDb(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
     this.dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
@@ -225,9 +256,7 @@ export class WebFileStore implements FileStore {
       showDirectoryPicker?: () => Promise<FsDirHandle>;
     }).showDirectoryPicker;
     if (typeof picker !== 'function') {
-      if (typeof alert === 'function') {
-        alert('Selecting a data folder requires File System Access support.');
-      }
+      this.notifyError('Selecting a data folder requires File System Access support.');
       return null;
     }
     try {
@@ -237,9 +266,7 @@ export class WebFileStore implements FileStore {
       // showDirectoryPicker() grants on selection, but be explicit.
       const ok = await ensureDirPermission(root);
       if (!ok) {
-        if (typeof alert === 'function') {
-          alert('Permission was not granted to the selected folder.');
-        }
+        this.notifyError('Permission was not granted to the selected folder.');
         return null;
       }
       // Persist the root + the three standard subdir handles so they survive a
@@ -250,6 +277,12 @@ export class WebFileStore implements FileStore {
       const workouts = await root.getDirectoryHandle('workouts', { create: true });
       const history = await root.getDirectoryHandle('history', { create: true });
       const trash = await root.getDirectoryHandle('trash', { create: true });
+      // Seed the 6 bundled default workouts when the library is empty (mirrors
+      // docs/storage.js maybeSeedDefaultWorkouts after ensureDirPermission), so a
+      // fresh user never lands on an empty picker.
+      if (await ensureDirPermission(workouts)) {
+        await this.maybeSeedDefaultWorkouts(workouts);
+      }
       await this.setSetting(ZWO_DIR_KEY, { handle: workouts });
       await this.setSetting(WORKOUT_DIR_KEY, { handle: history });
       await this.setSetting(TRASH_DIR_KEY, { handle: trash });
@@ -258,9 +291,63 @@ export class WebFileStore implements FileStore {
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return null;
       console.error('[WebFileStore] Failed to choose root folder:', err);
-      if (typeof alert === 'function') alert('Failed to choose folder.');
+      this.notifyError('Failed to choose folder.');
       return null;
     }
+  }
+
+  /**
+   * If the workouts dir has no .zwo files, copy the bundled defaults in (mirrors
+   * docs/storage.js maybeSeedDefaultWorkouts/copyDefaultWorkoutsToDir, 446-487).
+   * Returns the number of files copied.
+   */
+  private async maybeSeedDefaultWorkouts(dir: FsDirHandle): Promise<number> {
+    if (await this.directoryHasAnyZwoFiles(dir)) return 0;
+    return this.copyDefaultWorkoutsToDir(dir);
+  }
+
+  private async directoryHasAnyZwoFiles(dir: FsDirHandle): Promise<boolean> {
+    try {
+      for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
+        if (entry.kind !== 'file') continue;
+        if (entry.name.toLowerCase().endsWith('.zwo')) return true;
+      }
+    } catch (err) {
+      console.error('[WebFileStore] Failed to inspect workouts folder:', err);
+    }
+    return false;
+  }
+
+  private async copyDefaultWorkoutsToDir(dir: FsDirHandle): Promise<number> {
+    let copied = 0;
+    for (const fileName of DEFAULT_WORKOUT_FILES) {
+      // Skip a file that somehow already exists (mirrors legacy create:false probe).
+      try {
+        await dir.getFileHandle(fileName, { create: false });
+        continue;
+      } catch (err) {
+        if ((err as { name?: string })?.name !== 'NotFoundError') {
+          console.error('[WebFileStore] Could not check workout file:', err);
+          continue;
+        }
+      }
+      try {
+        // The bundled .zwo live in web/public/workouts; the file names are
+        // already URL-encoded on disk, so encodeURI leaves "%20" intact (mirrors
+        // legacy `./workouts/${encodeURI(fileName)}`).
+        const resp = await fetch(`/workouts/${encodeURI(fileName)}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const fileHandle = await dir.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(text);
+        await writable.close();
+        copied += 1;
+      } catch (err) {
+        console.error(`[WebFileStore] Failed to copy default workout "${fileName}":`, err);
+      }
+    }
+    return copied;
   }
 
   async loadSelectedWorkout(): Promise<CanonicalWorkout | null> {
@@ -345,11 +432,17 @@ export class WebFileStore implements FileStore {
 
   async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
     const dir = await this.loadZwoDirHandle();
-    if (!dir) return false;
+    if (!dir) {
+      this.notifyError('Choose a VeloDrive folder first, then save the workout.');
+      return false;
+    }
     // Re-authorize the persisted handle before writing (mirrors legacy
     // saveCanonicalWorkoutToZwoDir → ensureDirPermission). A handle reloaded
     // from IndexedDB is in the "prompt" state in a real browser until this runs.
-    if (!(await ensureDirPermission(dir))) return false;
+    if (!(await ensureDirPermission(dir))) {
+      this.notifyError('Permission to write to the workouts folder was not granted.');
+      return false;
+    }
     const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
     try {
       // Mirror legacy saveCanonicalWorkoutToZwoDir (docs/workout-picker.js
@@ -376,6 +469,7 @@ export class WebFileStore implements FileStore {
       return true;
     } catch (err) {
       console.error('[WebFileStore] saveWorkout failed:', err);
+      this.notifyError('Could not save the workout to the folder.');
       return false;
     }
   }
@@ -626,8 +720,14 @@ export class WebFileStore implements FileStore {
   async saveSchedule(entries: ScheduleEntry[]): Promise<boolean> {
     try {
       const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
-      if (!root) return false;
-      if (!(await ensureDirPermission(root))) return false;
+      if (!root) {
+        this.notifyError('Choose a VeloDrive folder first to save the schedule.');
+        return false;
+      }
+      if (!(await ensureDirPermission(root))) {
+        this.notifyError('Permission to write the schedule was not granted.');
+        return false;
+      }
       const fileHandle = await root.getFileHandle(SCHEDULE_FILE, { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(JSON.stringify(entries || [], null, 2));
@@ -635,16 +735,42 @@ export class WebFileStore implements FileStore {
       return true;
     } catch (err) {
       console.warn('[WebFileStore] saveSchedule failed:', err);
+      this.notifyError('Could not save the schedule.');
       return false;
     }
+  }
+
+  /**
+   * Remove the scheduled entry for a given local day + workout title (matched
+   * case-insensitively on the trimmed title). Mirrors the legacy planner
+   * removeScheduledByTitle → removeScheduledEntryByRef (workout-planner.js:1598)
+   * used by the post-ride follow-up (workout.js:1376-1380): finishing a
+   * scheduled ride clears that day's matching entry. Returns true if an entry
+   * was removed (and persisted), false otherwise.
+   */
+  async removeScheduledByTitle(dateKey: string, title: string): Promise<boolean> {
+    if (!dateKey || !title) return false;
+    const wanted = title.trim().toLowerCase();
+    const entries = await this.loadSchedule();
+    const next = entries.filter(
+      (e) => !(e.date === dateKey && (e.workoutTitle || '').trim().toLowerCase() === wanted),
+    );
+    if (next.length === entries.length) return false;
+    return this.saveSchedule(next);
   }
 
   /** Move a history .fit file to the trash dir (mirrors moveHistoryFileToTrash). */
   async deleteHistoryToTrash(fileName: string): Promise<boolean> {
     const srcDir = await this.loadWorkoutDirHandle();
     const trashDir = await this.loadTrashDirHandle();
-    if (!srcDir || !trashDir) return false;
-    if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) return false;
+    if (!srcDir || !trashDir) {
+      this.notifyError('Choose a VeloDrive folder first to delete this ride.');
+      return false;
+    }
+    if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) {
+      this.notifyError('Permission to move the ride to trash was not granted.');
+      return false;
+    }
     try {
       const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
       const srcFile = await srcFileHandle.getFile?.();
@@ -665,6 +791,7 @@ export class WebFileStore implements FileStore {
       return true;
     } catch (err) {
       console.error('[WebFileStore] deleteHistoryToTrash failed:', err);
+      this.notifyError('Could not move the ride to the trash folder.');
       return false;
     }
   }

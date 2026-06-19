@@ -19,6 +19,7 @@ export interface BeeperLike {
   showResumedOverlay(): void;
   playBeepPattern(): void;
   playDangerDanger(): void;
+  playTextEventTaps(gain?: number): void;
 }
 
 export class Beeper implements BeeperLike {
@@ -92,6 +93,70 @@ export class Beeper implements BeeperLike {
 
   playDangerDanger(): void {
     this.playBeep(500, 660, 0.75);
+  }
+
+  /**
+   * Soft triple-tap cue played once when a text event becomes active during a
+   * ride (port of docs/beeper.js playTextEventTaps, 387). Three layered
+   * triangle+sine taps through a low-pass filter. No-op when sound is disabled
+   * or no AudioContext is available.
+   */
+  playTextEventTaps(gain = 0.6): void {
+    if (!this.enabled) return;
+    const ctx = this.ensureAudioContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const tapSpacing = 0.12;
+      const tapDuration = 0.09;
+
+      const scheduleTap = (startTime: number): void => {
+        const master = ctx.createGain();
+        master.gain.value = 0.0001;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, startTime);
+        filter.Q.setValueAtTime(0.7, startTime);
+        filter.connect(ctx.destination);
+        master.connect(filter);
+
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        osc1.type = 'triangle';
+        osc2.type = 'sine';
+
+        const base1 = 250;
+        const base2 = 370;
+        osc1.frequency.setValueAtTime(base1 * 1.06, startTime);
+        osc1.frequency.linearRampToValueAtTime(base1, startTime + 0.035);
+        osc2.frequency.setValueAtTime(base2 * 1.02, startTime);
+        osc2.frequency.linearRampToValueAtTime(base2, startTime + 0.03);
+
+        osc1.detune.value = -8;
+        osc2.detune.value = 6;
+
+        osc1.connect(master);
+        osc2.connect(master);
+
+        const attack = 0.003;
+        const release = tapDuration;
+        master.gain.setValueAtTime(0.0001, startTime);
+        master.gain.linearRampToValueAtTime(gain, startTime + attack);
+        master.gain.exponentialRampToValueAtTime(0.0001, startTime + release);
+
+        osc1.start(startTime);
+        osc2.start(startTime);
+        osc1.stop(startTime + release + 0.05);
+        osc2.stop(startTime + release + 0.05);
+      };
+
+      for (let i = 0; i < 3; i += 1) {
+        scheduleTap(now + i * tapSpacing);
+      }
+    } catch {
+      /* ignore audio errors */
+    }
   }
 
   private showOverlay(label: string, fontSize: number): void {
