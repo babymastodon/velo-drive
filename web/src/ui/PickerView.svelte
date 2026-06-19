@@ -23,6 +23,7 @@
   } from '../core/metrics.js';
   import { renderMiniWorkoutGraph } from '../core/chart.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
+  import BuilderView, { type BuilderApi } from './BuilderView.svelte';
 
   let {
     store,
@@ -61,6 +62,7 @@
   $effect(() => {
     if (open) {
       expandedTitle = null;
+      builderMode = false;
       void rescan();
     }
   });
@@ -269,15 +271,88 @@
     expandedTitle = copy.workoutTitle || null;
   }
 
-  // DEFERRED (builder host milestone): these render but do nothing yet.
-  function onCreateWorkout(): void {
-    /* deferred: opens the in-picker workout builder */
+  // --------------------------- builder host ---------------------------
+  // The in-picker workout builder. "Create workout" opens a fresh default
+  // workout; per-row "Edit" loads the workout into the builder. "Back" returns
+  // to the library; "Save" validates + writes the .zwo + reopens the library.
+  // Mirrors docs/workout-picker.js enterBuilderMode / exitBuilderMode /
+  // saveCurrentBuilderWorkoutToZwoDir.
+  let builderMode = $state(false);
+  let builderTitle = $state('New Workout');
+  let builderStatusText = $state('');
+  let builderStatusTone = $state('neutral');
+  let builderHasSelection = $state(false);
+  let builderOriginalTitle = $state<string | null>(null);
+  let builderApi = $state<BuilderApi | undefined>(undefined);
+
+  // When entering builder mode, mount the BuilderView; defer init to it.
+  function enterBuilderMode(title: string): void {
+    builderMode = true;
+    builderTitle = title;
+    builderStatusText = '';
+    builderStatusTone = 'neutral';
   }
-  function onEdit(_canonical: CanonicalWorkout): void {
-    /* deferred: opens the workout in the builder */
+  function exitBuilderMode(): void {
+    builderMode = false;
+    builderOriginalTitle = null;
+    builderTitle = 'New Workout';
+  }
+
+  function onCreateWorkout(): void {
+    enterBuilderMode('New Workout');
+    builderOriginalTitle = null;
+    // BuilderView mounts with a default workout already initialized.
+  }
+  function onEdit(canonical: CanonicalWorkout): void {
+    enterBuilderMode(canonical.workoutTitle || 'Edit workout');
+    builderOriginalTitle = canonical.workoutTitle || null;
+    // Load after the BuilderView mounts.
+    requestAnimationFrame(() => {
+      builderApi?.loadCanonicalWorkout(canonical);
+      builderApi?.refreshLayout();
+    });
+  }
+
+  function onBuilderStatusChange(p: { text: string; tone: string }): void {
+    builderStatusText = p.text;
+    builderStatusTone = p.tone;
+  }
+  function onBuilderUiStateChange(p: { hasSelection: boolean }): void {
+    builderHasSelection = p.hasSelection;
+  }
+
+  async function onBuilderBack(): Promise<void> {
+    exitBuilderMode();
+  }
+
+  async function onBuilderSave(): Promise<void> {
+    if (!builderApi) return;
+    const validation = builderApi.validateForSave();
+    if (!validation.ok) return;
+    const canonical = builderApi.getState();
+    if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+      return;
+    }
+    // Title rename: move the old file to trash first (mirrors legacy).
+    const originalTitle = builderOriginalTitle && builderOriginalTitle.trim()
+      ? builderOriginalTitle.trim()
+      : null;
+    const nextTitle = (canonical.workoutTitle || '').trim();
+    if (originalTitle && nextTitle && originalTitle !== nextTitle) {
+      await fileStore.deleteWorkoutToTrash({ ...canonical, workoutTitle: originalTitle });
+    }
+    const saved = await fileStore.saveWorkout(canonical);
+    if (!saved) return;
+    exitBuilderMode();
+    await rescan();
+    expandedTitle = canonical.workoutTitle || null;
   }
 
   function onClose(): void {
+    if (builderMode) {
+      void onBuilderBack();
+      return;
+    }
     ui.close();
   }
 
@@ -295,6 +370,8 @@
 
   function onModalKeydown(e: KeyboardEvent): void {
     if (!open) return;
+    // In builder mode the BuilderView owns the keymap (insert/edit/undo/etc).
+    if (builderMode) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const key = (e.key || '').toLowerCase();
     const target = e.target as HTMLElement | null;
@@ -364,21 +441,40 @@
   <div
     id="workoutPickerModal"
     class="workout-picker-modal"
+    class:workout-picker-modal--builder={builderMode}
     data-testid="picker-modal"
     role="document"
     onkeydown={onModalKeydown}
   >
     <header class="workout-picker-header picker-only">
-      <div class="workout-picker-header-actions"></div>
+      <div class="workout-picker-header-actions">
+        <button
+          id="workoutBuilderBackBtn"
+          class="wb-code-insert-btn picker-back-btn"
+          type="button"
+          data-testid="builder-back"
+          style:display={builderMode ? 'inline-flex' : 'none'}
+          onclick={() => void onBuilderBack()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px; display: block; stroke-width: 1.6;" class="wb-code-icon">
+            <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Back To Library</span>
+        </button>
+      </div>
 
       <div class="workout-picker-header-main">
         <div class="workout-picker-title" id="workoutPickerTitle" data-testid="picker-title">
-          Workout library
+          {builderMode ? builderTitle : 'Workout library'}
         </div>
       </div>
 
       <div class="workout-picker-controls">
-        <div class="picker-search-wrap" class:picker-search-active={!!searchTerm.trim()}>
+        <div
+          class="picker-search-wrap"
+          class:picker-search-active={!!searchTerm.trim()}
+          style:display={builderMode ? 'none' : ''}
+        >
           <svg viewBox="0 0 24 24" class="picker-search-icon" aria-hidden="true">
             <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
             <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -408,6 +504,7 @@
           id="pickerZoneFilter"
           data-testid="picker-zone-filter"
           class:picker-filter-active={!!zoneValue}
+          style:display={builderMode ? 'none' : ''}
           bind:value={zoneValue}
         >
           <option value="">All zones</option>
@@ -422,6 +519,7 @@
           id="pickerDurationFilter"
           data-testid="picker-duration-filter"
           class:picker-filter-active={!!durationValue}
+          style:display={builderMode ? 'none' : ''}
           bind:value={durationValue}
         >
           <option value="">All durations</option>
@@ -441,12 +539,68 @@
           data-testid="picker-add-workout"
           class="picker-add-btn"
           type="button"
+          style:display={builderMode ? 'none' : 'inline-flex'}
           onclick={onCreateWorkout}
         >
           <svg viewBox="0 0 24 24" class="wb-code-icon" aria-hidden="true">
             <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
           <span>Create workout</span>
+        </button>
+
+        <div
+          id="workoutBuilderStatus"
+          class="builder-status builder-status--{builderStatusTone}"
+          data-tone={builderStatusTone}
+          data-testid="builder-status"
+          style:display={builderMode ? 'inline-flex' : 'none'}
+        >{builderStatusText}</div>
+
+        <button
+          id="workoutBuilderTrainerDayBtn"
+          class="wb-code-insert-btn"
+          type="button"
+          title="Load a TrainerDay workout by URL"
+          style:display={builderMode ? 'inline-flex' : 'none'}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+            <path d="M18 3h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M21 3l-9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Import TrainerDay</span>
+        </button>
+
+        <button
+          id="workoutBuilderUploadBtn"
+          class="wb-code-insert-btn"
+          type="button"
+          title="Upload a .zwo or .fit file"
+          style:display={builderMode ? 'inline-flex' : 'none'}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+            <path d="M12 16V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <path d="M8 9l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>Upload File</span>
+        </button>
+
+        <button
+          id="workoutBuilderSaveBtn"
+          class="picker-add-btn picker-save-btn"
+          type="button"
+          title="Save workout to library"
+          data-testid="builder-save"
+          style:display={builderMode ? 'inline-flex' : 'none'}
+          onclick={() => void onBuilderSave()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" style="width: 16px; height: 16px; display: block" class="wb-code-icon">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 3h13l3 3v15H4z" />
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M8 3v6h8V3" />
+            <rect x="7" y="15" width="10" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+          <span>Save</span>
         </button>
 
         <button
@@ -462,6 +616,22 @@
         </button>
       </div>
     </header>
+
+    <div
+      id="workoutBuilderRoot"
+      class="workout-builder-root picker-only"
+      style:display={builderMode ? 'block' : 'none'}
+    >
+      {#if builderMode}
+        <BuilderView
+          getCurrentFtp={() => currentFtp}
+          onRequestBack={() => void onBuilderBack()}
+          onStatusChange={onBuilderStatusChange}
+          onUiStateChange={onBuilderUiStateChange}
+          bind:api={builderApi}
+        />
+      {/if}
+    </div>
 
     <div class="workout-picker-table-wrapper picker-only">
       {#if showEmptyState}
@@ -652,6 +822,25 @@
         <strong>/</strong> to search
       </span>
       <span id="pickerSummary" class="workout-picker-summary" data-testid="picker-summary">{summaryText}</span>
+    </div>
+
+    <div id="builderFooter" class="picker-footer picker-only picker-footer-builder">
+      {#if builderHasSelection}
+        <span id="builderShortcuts">
+          <strong>h l</strong> <strong>← →</strong> adjust duration &bull;
+          <strong>(Shift)</strong> <strong>j k</strong> <strong>↓ ↑</strong> adjust power &bull;
+          <strong>Shift+Click</strong> or <strong>Shift+H/L/←/→</strong> multi-select &bull;
+          <strong>Enter</strong> deselect &bull;
+          <strong>Space</strong> switch side
+        </span>
+      {:else}
+        <span id="builderShortcuts">
+          <strong>h l</strong> <strong>← →</strong> to move &bull;
+          <strong>Enter</strong> to select &bull;
+          <strong>Backspace</strong> delete &bull;
+          <strong>R E T S V A W C I X</strong> insert block
+        </span>
+      {/if}
     </div>
   </div>
 </OverlayModal>

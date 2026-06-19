@@ -571,6 +571,727 @@ export function renderMiniWorkoutGraph(
   container.appendChild(tooltip);
 }
 
+// --------------------------- Builder mini chart ---------------------------
+//
+// Port of docs/workout-chart.js renderBuilderWorkoutGraph: operates on parsed
+// BLOCKS (not flattened rawSegments), draws grid + time ticks, block highlight
+// bands, segment polygons with per-block/seg drag-handle datasets, top/right
+// drag handles, the FTP line, text-event markers, an insert-after dashed line,
+// and the scroll-pinned axis-overlay labels. Geometry/colors/magic numbers are
+// preserved verbatim. The chart is rendered into `container` (an existing host
+// element). Click/hover wiring is attached when callbacks are supplied; the
+// pointer-down drag engine lives in the BuilderView host.
+
+import type { Block, BlockSegment } from './builder-backend.js';
+
+const FREERIDE_POWER_REL_BUILDER = 0.5;
+
+function computeBlockTimings(blocks: Block[]): {
+  timings: { index: number; tStart: number; tEnd: number }[];
+  totalSec: number;
+} {
+  const timings: { index: number; tStart: number; tEnd: number }[] = [];
+  let totalSec = 0;
+  (blocks || []).forEach((block, idx) => {
+    const start = totalSec;
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    for (const seg of segs) {
+      totalSec += Math.max(1, Math.round(seg?.durationSec || 0));
+    }
+    timings.push({ index: idx, tStart: start, tEnd: totalSec });
+  });
+  return { timings, totalSec };
+}
+
+/** Render a single builder segment polygon, returning the element so the caller
+ * can stamp block/seg datasets + classes (mirrors the legacy inline body). */
+function renderBuilderSegmentPolygon(args: {
+  svg: SVGSVGElement & { _freeridePatternIds?: FreeridePatternIds };
+  totalSec: number;
+  width: number;
+  height: number;
+  ftp: number;
+  maxY: number;
+  tStart: number;
+  tEnd: number;
+  pStartRel: number;
+  pEndRel: number;
+  isFreeride: boolean;
+  cadenceRpm: number | null;
+}): SVGPolygonElement | undefined {
+  const {
+    svg,
+    totalSec,
+    width,
+    height,
+    ftp,
+    maxY,
+    tStart,
+    tEnd,
+    pStartRel,
+    pEndRel,
+    isFreeride,
+    cadenceRpm,
+  } = args;
+  if (!svg || totalSec <= 0) return undefined;
+  const w = width;
+  const h = height;
+  const x1 = (tStart / totalSec) * w;
+  const x2 = (tEnd / totalSec) * w;
+
+  const avgRel = (pStartRel + pEndRel) / 2;
+  const zone = isFreeride
+    ? { key: 'Free ride', color: getCssVar('--freeride-fill'), bg: getCssVar('--bg') }
+    : zoneInfoFromRel(avgRel);
+
+  const p0 = pStartRel * ftp;
+  const p1 = pEndRel * ftp;
+  const y0 = h - (Math.max(0, p0) / maxY) * h;
+  const y1 = h - (Math.max(0, p1) / maxY) * h;
+
+  const poly = document.createElementNS(SVG_NS, 'polygon');
+  poly.setAttribute('points', `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`);
+
+  const muted = mixColors(zone.color, zone.bg, 0.3);
+  const hover = mixColors(zone.color, zone.bg, 0.15);
+
+  if (isFreeride) {
+    const patterns = ensureFreeridePatterns(svg);
+    poly.setAttribute('fill', `url(#${patterns.baseId})`);
+    poly.dataset.freeRide = 'true';
+    poly.dataset.color = `url(#${patterns.baseId})`;
+    poly.dataset.mutedColor = `url(#${patterns.baseId})`;
+    poly.dataset.hoverColor = `url(#${patterns.hoverId})`;
+  } else {
+    poly.setAttribute('fill', muted);
+    poly.dataset.color = zone.color;
+    poly.dataset.mutedColor = muted;
+    poly.dataset.hoverColor = hover;
+  }
+
+  poly.setAttribute('fill-opacity', '1');
+  poly.setAttribute('stroke', 'none');
+  poly.setAttribute('shape-rendering', 'crispEdges');
+  poly.classList.add('chart-segment');
+
+  const durSec = Math.max(1, Math.round(tEnd - tStart));
+  const durMin = durSec / 60;
+  poly.dataset.zone = zone.key;
+  poly.dataset.p0 = (pStartRel * 100).toFixed(0);
+  poly.dataset.p1 = (pEndRel * 100).toFixed(0);
+  poly.dataset.durMin = durMin.toFixed(1);
+  poly.dataset.durSec = String(durSec);
+  if (Number.isFinite(cadenceRpm as number)) {
+    poly.dataset.cadence = String(Math.round(cadenceRpm as number));
+  }
+
+  svg.appendChild(poly);
+  return poly;
+}
+
+function renderBuilderTextEventMarkers(args: {
+  svg: SVGSVGElement;
+  textEvents: { offsetSec: number; durationSec: number; text?: string }[];
+  totalSec: number;
+  width: number;
+  height: number;
+  activeIndex: number | null;
+}): void {
+  const { svg, textEvents, totalSec, width, height, activeIndex } = args;
+  if (!svg || !Array.isArray(textEvents) || !textEvents.length) return;
+  const controlHeight = parseFloat(getCssVar('--nav-control-height')) || 36;
+  const iconSize = Math.max(18, Math.round(controlHeight));
+  const tickHeight = Math.max(10, Math.round(iconSize * 0.28));
+  const topOffset = 6;
+  const iconY = Math.max(0, Math.min(height - iconSize - 2, topOffset + tickHeight));
+  const bg = getCssVar('--surface-elevated') || '#f4f4f4';
+  const border = getCssVar('--border-subtle') || '#bdbdbd';
+  const textColor = getCssVar('--text-main') || '#1f1f1f';
+  const activeBg = getCssVar('--hover-medium') || '#e2e2e2';
+
+  textEvents.forEach((evt, idx) => {
+    const offsetSec = Math.max(0, Number(evt?.offsetSec) || 0);
+    const durationSec = Math.max(1, Math.round(Number(evt?.durationSec) || 10));
+    const x = (offsetSec / Math.max(1, totalSec)) * width;
+    const clampedX = Math.max(0, Math.min(width, x));
+
+    const marker = document.createElementNS(SVG_NS, 'g');
+    marker.classList.add('wb-text-event');
+    if (activeIndex === idx) marker.classList.add('is-active');
+    const tooltipText = `${durationSec}s: ${evt?.text || 'Text event'}`;
+    marker.dataset.textEventIndex = String(idx);
+    marker.dataset.dragHandle = 'text-event';
+    marker.dataset.textEventTooltip = tooltipText;
+
+    const tick = document.createElementNS(SVG_NS, 'line');
+    tick.classList.add('wb-text-event-tick');
+    tick.setAttribute('x1', String(clampedX));
+    tick.setAttribute('x2', String(clampedX));
+    tick.setAttribute('y1', '0');
+    tick.setAttribute('y2', String(tickHeight));
+    tick.setAttribute('stroke', border);
+    tick.setAttribute('stroke-width', '1.4');
+    tick.setAttribute('pointer-events', 'none');
+    marker.appendChild(tick);
+
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${clampedX - iconSize / 2}, ${iconY})`);
+    g.style.color = textColor;
+    g.setAttribute('pointer-events', 'all');
+    g.dataset.textEventIndex = String(idx);
+    g.dataset.dragHandle = 'text-event';
+    g.dataset.textEventTooltip = tooltipText;
+
+    const rectStrokeWidth = activeIndex === idx ? 2 : 1;
+    const rectInset = rectStrokeWidth / 2;
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', String(rectInset));
+    rect.setAttribute('y', String(rectInset));
+    rect.setAttribute('width', String(iconSize - rectStrokeWidth));
+    rect.setAttribute('height', String(iconSize - rectStrokeWidth));
+    rect.setAttribute('rx', '4');
+    rect.setAttribute('fill', activeIndex === idx ? activeBg : bg);
+    rect.setAttribute('stroke', border);
+    rect.setAttribute('stroke-width', String(rectStrokeWidth));
+    g.appendChild(rect);
+
+    const iconGroup = document.createElementNS(SVG_NS, 'g');
+    const bubble = document.createElementNS(SVG_NS, 'path');
+    const iconPadding = Math.max(3, Math.round(iconSize * 0.24));
+    const half = 0.5;
+    const left = iconPadding + half;
+    const right = iconSize - iconPadding - half;
+    const top = iconPadding + half;
+    const tailHeight = 2;
+    const bottom = iconSize - iconPadding - tailHeight - 2.5;
+    const tailWidth = 3.5;
+    const bubbleBottom = bottom + tailHeight;
+    const bubbleCenterY = (top + bubbleBottom) / 2;
+    const desiredCenterY = iconSize / 2;
+    const offsetY = Math.round((desiredCenterY - bubbleCenterY) * 2) / 2;
+    if (offsetY) iconGroup.setAttribute('transform', `translate(0 ${offsetY})`);
+    bubble.setAttribute(
+      'd',
+      `M${left} ${top}H${right}V${bottom}H${left + tailWidth}L${left} ${
+        bottom + tailHeight
+      }V${bottom}H${left}Z`,
+    );
+    bubble.setAttribute('fill', 'none');
+    bubble.setAttribute('stroke', 'currentColor');
+    bubble.setAttribute('stroke-width', '1');
+    bubble.setAttribute('stroke-linecap', 'round');
+    bubble.setAttribute('stroke-linejoin', 'round');
+    iconGroup.appendChild(bubble);
+
+    const line1 = document.createElementNS(SVG_NS, 'path');
+    const lineLeft = left + 2;
+    const lineRight = right - 2;
+    const line1Y = top + 2.5;
+    line1.setAttribute('d', `M${lineLeft} ${line1Y}H${lineRight}`);
+    line1.setAttribute('fill', 'none');
+    line1.setAttribute('stroke', 'currentColor');
+    line1.setAttribute('stroke-width', '1');
+    line1.setAttribute('stroke-linecap', 'round');
+    iconGroup.appendChild(line1);
+
+    const line2 = document.createElementNS(SVG_NS, 'path');
+    line2.setAttribute('d', `M${lineLeft} ${top + 4.5}H${right - 4}`);
+    line2.setAttribute('fill', 'none');
+    line2.setAttribute('stroke', 'currentColor');
+    line2.setAttribute('stroke-width', '1');
+    line2.setAttribute('stroke-linecap', 'round');
+    iconGroup.appendChild(line2);
+
+    [top + 6.5, top + 8.5].forEach((y, i) => {
+      const line = document.createElementNS(SVG_NS, 'path');
+      const inset = i + 3;
+      line.setAttribute('d', `M${lineLeft} ${y}H${right - inset}`);
+      line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', 'currentColor');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-linecap', 'round');
+      iconGroup.appendChild(line);
+    });
+
+    g.appendChild(iconGroup);
+    marker.appendChild(g);
+    svg.appendChild(marker);
+  });
+}
+
+export interface BuilderGraphOptions {
+  selectedBlockIndex?: number | null;
+  selectedBlockIndices?: number[] | null;
+  insertAfterBlockIndex?: number | null;
+  textEvents?: { offsetSec: number; durationSec: number; text?: string }[];
+  activeTextEventIndex?: number | null;
+  lockTimelineSec?: number | null;
+  onSelectBlock?: (idx: number | null, opts?: { shiftKey?: boolean }) => void;
+  onSetInsertAfter?: (idx: number) => void;
+  onSetInsertAfterFromSegment?: (idx: number) => void;
+}
+
+/**
+ * Render the builder workout chart into `container`. Port of
+ * docs/workout-chart.js renderBuilderWorkoutGraph (geometry/colors verbatim).
+ * Returns nothing; mutates `container`.
+ */
+export function renderBuilderWorkoutGraph(
+  container: HTMLElement,
+  blocks: Block[],
+  currentFtp: number,
+  options: BuilderGraphOptions = {},
+): void {
+  const {
+    selectedBlockIndex = null,
+    selectedBlockIndices = null,
+    insertAfterBlockIndex = null,
+    textEvents = [],
+    activeTextEventIndex = null,
+    onSelectBlock,
+    onSetInsertAfter,
+    onSetInsertAfterFromSegment,
+    lockTimelineSec = null,
+  } = options;
+
+  container.innerHTML = '';
+  const scrollEl = container.parentElement;
+  const chartCard = container.closest('.wb-chart-card');
+  if (chartCard) {
+    chartCard
+      .querySelectorAll('.wb-chart-axis-overlay')
+      .forEach((node) => node.remove());
+  }
+
+  const safeBlocks = Array.isArray(blocks) ? blocks : [];
+  const ftp = currentFtp || DEFAULT_FTP;
+
+  const { timings, totalSec } = computeBlockTimings(safeBlocks);
+  const segmentTimings: { blockIndex: number; segIndex: number; tStart: number; tEnd: number }[] = [];
+  let segCursor = 0;
+  safeBlocks.forEach((block, blockIndex) => {
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    segs.forEach((seg, segIndex) => {
+      const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+      segmentTimings.push({
+        blockIndex,
+        segIndex,
+        tStart: segCursor,
+        tEnd: segCursor + durSec,
+      });
+      segCursor += durSec;
+    });
+  });
+
+  const rect = container.getBoundingClientRect();
+  let baseWidth = rect.width;
+  let height = rect.height;
+  if (!baseWidth) baseWidth = container.clientWidth || 400;
+  if (!height) height = container.clientHeight || 120;
+
+  const timelineSec = Math.max(3600, totalSec || 0, lockTimelineSec || 0);
+  const width = Math.max(1, Math.round((timelineSec / 3600) * baseWidth));
+
+  const svg = document.createElementNS(SVG_NS, 'svg') as SVGSVGElement & {
+    _freeridePatternIds?: FreeridePatternIds;
+  };
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('picker-graph-svg');
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  svg.style.width = `${width}px`;
+  svg.style.height = `${height}px`;
+
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('x', '0');
+  bg.setAttribute('y', '0');
+  bg.setAttribute('width', String(width));
+  bg.setAttribute('height', String(height));
+  bg.setAttribute('fill', 'transparent');
+  svg.appendChild(bg);
+
+  const maxTarget = safeBlocks.reduce((max, block) => {
+    const segs = Array.isArray(block?.segments) ? block.segments : [];
+    return segs.reduce((segMax, seg) => {
+      const pStartRel = Number(seg?.pStartRel) || 0;
+      const pEndRel = seg?.pEndRel != null ? Number(seg.pEndRel) : pStartRel;
+      return Math.max(segMax, pStartRel * ftp, pEndRel * ftp);
+    }, max);
+  }, 0);
+  const maxY = getScaledMaxY({ ftp, peak: maxTarget, minBase: 200 });
+  const gridStep = 100;
+  const tickStepSec = 600;
+  const hourStepSec = 3600;
+  const tickBaseLen = 24;
+  const tickHourLen = 32;
+
+  for (let yVal = 0; yVal <= maxY; yVal += gridStep) {
+    const y = height - (yVal / maxY) * height;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', '0');
+    line.setAttribute('x2', String(width));
+    line.setAttribute('y1', String(y));
+    line.setAttribute('y2', String(y));
+    line.setAttribute('stroke', getCssVar('--grid-line-subtle'));
+    line.setAttribute('stroke-width', '0.5');
+    line.setAttribute('pointer-events', 'none');
+    svg.appendChild(line);
+  }
+
+  for (let t = tickStepSec; t <= timelineSec; t += tickStepSec) {
+    const x = (t / timelineSec) * width;
+    const isHour = t % hourStepSec === 0;
+    const tickLen = isHour ? tickHourLen : tickBaseLen;
+    const tick = document.createElementNS(SVG_NS, 'line');
+    tick.setAttribute('x1', String(x));
+    tick.setAttribute('x2', String(x));
+    tick.setAttribute('y1', '0');
+    tick.setAttribute('y2', String(tickLen));
+    tick.setAttribute('stroke', getCssVar('--grid-line-subtle'));
+    tick.setAttribute('stroke-width', isHour ? '2' : '1.4');
+    tick.setAttribute('pointer-events', 'none');
+    svg.appendChild(tick);
+
+    const labelInset = 8;
+    const label = document.createElementNS(SVG_NS, 'text');
+    label.setAttribute('x', String(x - labelInset));
+    label.setAttribute('y', '2');
+    label.setAttribute('dominant-baseline', 'hanging');
+    label.setAttribute('font-size', '16');
+    label.setAttribute('font-weight', '300');
+    label.setAttribute('fill', getCssVar('--text-muted'));
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('pointer-events', 'none');
+    label.style.userSelect = 'none';
+    label.textContent = String(Math.round(t / 60));
+    svg.appendChild(label);
+  }
+
+  const ftpY = height - (ftp / maxY) * height;
+
+  const selectedSet = new Set<number>(
+    Array.isArray(selectedBlockIndices)
+      ? selectedBlockIndices
+      : selectedBlockIndex != null
+        ? [selectedBlockIndex]
+        : [],
+  );
+
+  // Block-wide highlight bands.
+  timings.forEach(({ index, tStart, tEnd }) => {
+    const x1 = (tStart / timelineSec) * width;
+    const x2 = (tEnd / timelineSec) * width;
+    const w = Math.max(1, x2 - x1);
+    const band = document.createElementNS(SVG_NS, 'rect');
+    band.setAttribute('x', String(x1));
+    band.setAttribute('y', '0');
+    band.setAttribute('width', String(w));
+    band.setAttribute('height', String(height));
+    band.setAttribute('fill', 'transparent');
+    band.setAttribute('pointer-events', 'none');
+    band.classList.add('wb-block-band');
+    band.dataset.blockIndex = String(index);
+    if (selectedSet.has(index)) band.classList.add('is-active');
+    svg.appendChild(band);
+  });
+
+  const HANDLE_TOP_HEIGHT = 18;
+  const HANDLE_RIGHT_WIDTH = 18;
+  const rightHandles: SVGRectElement[] = [];
+  const topHandles: SVGPolygonElement[] = [];
+
+  let cursor = 0;
+  safeBlocks.forEach((block, idx) => {
+    const segs: BlockSegment[] = Array.isArray(block?.segments) ? block.segments : [];
+    for (let segIndex = 0; segIndex < segs.length; segIndex += 1) {
+      const seg = segs[segIndex]!;
+      const durSec = Math.max(1, Math.round(seg?.durationSec || 0));
+      const pStartRel = seg?.pStartRel || 0;
+      const pEndRel = seg?.pEndRel != null ? seg.pEndRel : pStartRel;
+      const cadenceRpm = Number.isFinite(seg?.cadence as number)
+        ? Number(seg.cadence)
+        : null;
+
+      const x1 = (cursor / timelineSec) * width;
+      const x2 = ((cursor + durSec) / timelineSec) * width;
+      const segWidth = Math.max(1, x2 - x1);
+      const p0 = pStartRel * ftp;
+      const p1 = pEndRel * ftp;
+      const y0 = height - (Math.max(0, p0) / maxY) * height;
+      const y1 = height - (Math.max(0, p1) / maxY) * height;
+
+      const isFreeride = block?.kind === 'freeride' || seg?.isFreeRide || false;
+      const poly = renderBuilderSegmentPolygon({
+        svg,
+        totalSec: timelineSec,
+        width,
+        height,
+        ftp,
+        maxY,
+        tStart: cursor,
+        tEnd: cursor + durSec,
+        pStartRel,
+        pEndRel,
+        isFreeride,
+        cadenceRpm,
+      });
+
+      if (poly) {
+        poly.dataset.blockIndex = String(idx);
+        poly.dataset.segIndex = String(segIndex);
+        poly.dataset.x1 = String(x1);
+        poly.dataset.x2 = String(x2);
+        poly.dataset.y0 = String(y0);
+        poly.dataset.y1 = String(y1);
+        poly.dataset.dragHandle = 'move';
+        poly.classList.add('wb-block-segment');
+        poly.classList.add('wb-drag-handle', 'wb-drag-handle--move');
+        if (selectedSet.has(idx)) poly.classList.add('is-active');
+      }
+
+      let topHandle: SVGPolygonElement | null = null;
+      if (!isFreeride) {
+        topHandle = document.createElementNS(SVG_NS, 'polygon');
+        const clampY = (val: number) => Math.max(0, Math.min(height, val));
+        const y0t = clampY(y0 - HANDLE_TOP_HEIGHT);
+        const y1t = clampY(y1 - HANDLE_TOP_HEIGHT);
+        const y0b = clampY(y0 + HANDLE_TOP_HEIGHT);
+        const y1b = clampY(y1 + HANDLE_TOP_HEIGHT);
+        topHandle.setAttribute('points', `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`);
+        topHandle.setAttribute('fill', 'transparent');
+        topHandle.setAttribute('pointer-events', 'all');
+        topHandle.dataset.blockIndex = String(idx);
+        topHandle.dataset.segIndex = String(segIndex);
+        topHandle.dataset.dragHandle = 'top';
+        topHandle.dataset.x1 = String(x1);
+        topHandle.dataset.x2 = String(x2);
+      }
+
+      const handleBaseWidth = Math.min(HANDLE_RIGHT_WIDTH, Math.max(6, segWidth));
+      const nextSeg =
+        segIndex + 1 < segs.length
+          ? segs[segIndex + 1]
+          : safeBlocks?.[idx + 1]?.segments?.[0];
+      const nextDurationSec = Math.max(0, Math.round(nextSeg?.durationSec || 0));
+      const leftExtend = handleBaseWidth * 0.75;
+      const rightExtend = nextDurationSec > 90 ? handleBaseWidth * 0.5 : handleBaseWidth * 0.25;
+      const handleWidth = leftExtend + rightExtend;
+      const rightHandle = document.createElementNS(SVG_NS, 'rect');
+      rightHandle.setAttribute('x', String(x2 - leftExtend));
+      rightHandle.setAttribute('y', '0');
+      rightHandle.setAttribute('width', String(handleWidth));
+      rightHandle.setAttribute('height', String(height));
+      rightHandle.setAttribute('fill', 'transparent');
+      rightHandle.setAttribute('pointer-events', 'all');
+      rightHandle.dataset.blockIndex = String(idx);
+      rightHandle.dataset.segIndex = String(segIndex);
+      rightHandle.dataset.dragHandle = 'right';
+      rightHandle.classList.add('wb-drag-handle', 'wb-drag-handle--right');
+      rightHandles.push(rightHandle);
+
+      if (topHandle) {
+        topHandle.classList.add('wb-drag-handle', 'wb-drag-handle--top');
+        topHandles.push(topHandle);
+      }
+
+      cursor += durSec;
+    }
+  });
+
+  rightHandles.forEach((handle) => svg.appendChild(handle));
+  topHandles.forEach((handle) => svg.appendChild(handle));
+
+  const ftpLine = document.createElementNS(SVG_NS, 'line');
+  ftpLine.setAttribute('x1', '0');
+  ftpLine.setAttribute('x2', String(width));
+  ftpLine.setAttribute('y1', String(ftpY));
+  ftpLine.setAttribute('y2', String(ftpY));
+  ftpLine.setAttribute('stroke', getCssVar('--ftp-line'));
+  ftpLine.setAttribute('stroke-width', '1.4');
+  ftpLine.setAttribute('pointer-events', 'none');
+  svg.appendChild(ftpLine);
+
+  renderBuilderTextEventMarkers({
+    svg,
+    textEvents,
+    totalSec: timelineSec,
+    width,
+    height,
+    activeIndex: activeTextEventIndex,
+  });
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'picker-tooltip';
+  container.appendChild(svg);
+  container.appendChild(tooltip);
+
+  if (scrollEl && chartCard) {
+    const labelStep = gridStep;
+    const leftOffset = (scrollEl as HTMLElement).offsetLeft;
+    const topOffset = (scrollEl as HTMLElement).offsetTop;
+    const viewWidth = (scrollEl as HTMLElement).clientWidth;
+
+    const yLabels = document.createElement('div');
+    yLabels.className = 'wb-chart-axis-overlay wb-chart-axis-overlay--grid';
+    yLabels.style.height = `${height}px`;
+    yLabels.style.top = `${topOffset}px`;
+    yLabels.style.left = `${leftOffset}px`;
+    yLabels.style.width = `${viewWidth}px`;
+
+    for (let yVal = 0; yVal <= maxY; yVal += labelStep) {
+      const y = height - (yVal / maxY) * height;
+      const labelTop = y - 24;
+      if (labelTop < 0 || labelTop > height - 20) continue;
+      const label = document.createElement('div');
+      label.className = 'wb-chart-axis-label';
+      label.textContent = String(yVal);
+      label.style.top = `${labelTop}px`;
+      yLabels.appendChild(label);
+    }
+
+    const ftpLabel = document.createElement('div');
+    ftpLabel.className = 'wb-chart-axis-label wb-chart-axis-label--ftp';
+    ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
+    const ftpOffset = 24;
+    const ftpLabelTop = Math.max(0, Math.min(height - 20, ftpY - ftpOffset));
+    ftpLabel.style.top = `${ftpLabelTop}px`;
+
+    const ftpLabels = document.createElement('div');
+    ftpLabels.className = 'wb-chart-axis-overlay wb-chart-axis-overlay--ftp';
+    ftpLabels.style.height = `${height}px`;
+    ftpLabels.style.top = `${topOffset}px`;
+    ftpLabels.style.left = `${leftOffset}px`;
+    ftpLabels.style.width = `${viewWidth}px`;
+    ftpLabels.appendChild(ftpLabel);
+
+    const durationSec = totalSec || 0;
+    if (durationSec > 0) {
+      const durationLabel = document.createElement('div');
+      durationLabel.className = 'wb-chart-axis-label wb-chart-axis-label--duration';
+      durationLabel.textContent = formatDurationMinSec(durationSec);
+      const labelHeight = 16;
+      const durationTop = ftpY + 2;
+      if (durationTop >= 0 && durationTop + labelHeight <= height) {
+        durationLabel.style.top = `${durationTop}px`;
+        ftpLabels.appendChild(durationLabel);
+      }
+    }
+
+    chartCard.appendChild(yLabels);
+    chartCard.appendChild(ftpLabels);
+  }
+
+  if (Number.isInteger(insertAfterBlockIndex) && (insertAfterBlockIndex as number) >= -1) {
+    let tInsert = 0;
+    if (timings.length) {
+      tInsert =
+        (insertAfterBlockIndex as number) < 0
+          ? 0
+          : timings[Math.min(insertAfterBlockIndex as number, timings.length - 1)]!.tEnd;
+    }
+    const x = (tInsert / timelineSec) * width;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', String(x));
+    line.setAttribute('x2', String(x));
+    line.setAttribute('y1', '0');
+    line.setAttribute('y2', String(height));
+    line.setAttribute('stroke', getCssVar('--wb-insert-line'));
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '4 4');
+    line.setAttribute('pointer-events', 'none');
+    line.classList.add('wb-insert-line');
+    svg.appendChild(line);
+  }
+
+  // Click wiring (select block / set insert-after). Hover/drag live in the host.
+  if (onSelectBlock || onSetInsertAfter) {
+    svg.addEventListener('mousedown', (e) => {
+      if (e.shiftKey) e.preventDefault();
+    });
+    svg.addEventListener('click', (e) => {
+      const targetBlock =
+        e.target && (e.target as Element).closest
+          ? (e.target as Element).closest('[data-block-index]')
+          : null;
+
+      if (targetBlock && (targetBlock as HTMLElement).dataset.blockIndex != null) {
+        if (typeof onSelectBlock !== 'function') return;
+        const idxNum = Number((targetBlock as HTMLElement).dataset.blockIndex);
+        onSelectBlock(Number.isFinite(idxNum) ? idxNum : null, { shiftKey: e.shiftKey });
+        if (!e.shiftKey && typeof onSetInsertAfterFromSegment === 'function') {
+          const blockIndex = Number((targetBlock as HTMLElement).dataset.blockIndex);
+          const segIndex = Number((targetBlock as HTMLElement).dataset.segIndex);
+          const blockTiming = timings.find((t) => t.index === blockIndex);
+          const block = Number.isFinite(blockIndex) ? safeBlocks[blockIndex] : null;
+          let insertIdx = Number.isFinite(blockIndex) ? blockIndex : -1;
+          const svgRect = svg.getBoundingClientRect();
+          const localX = e.clientX - svgRect.left;
+          const clampedX = Math.max(0, Math.min(width, localX));
+
+          if (block && block.kind === 'intervals' && blockTiming) {
+            if (Number.isFinite(segIndex)) {
+              insertIdx = segIndex % 2 === 0 ? blockIndex - 1 : blockIndex;
+            } else {
+              const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+              const timeSec = (clampedX / width) * timelineSec;
+              insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+            }
+          } else if (Number.isFinite(segIndex) && segmentTimings.length) {
+            const seg = segmentTimings.find(
+              (t) => t.blockIndex === blockIndex && t.segIndex === segIndex,
+            );
+            if (seg) {
+              const mid = (seg.tStart + seg.tEnd) / 2;
+              const timeSec = (clampedX / width) * timelineSec;
+              insertIdx = timeSec < mid ? blockIndex - 1 : blockIndex;
+            }
+          }
+          if (insertIdx < -1) insertIdx = -1;
+          if (insertIdx >= timings.length) insertIdx = timings.length - 1;
+          onSetInsertAfterFromSegment(insertIdx);
+        }
+        return;
+      }
+
+      if (typeof onSetInsertAfter !== 'function' || !timings.length) {
+        if (typeof onSelectBlock === 'function') onSelectBlock(null);
+        return;
+      }
+
+      const svgRect = svg.getBoundingClientRect();
+      const localX = e.clientX - svgRect.left;
+      const clampedX = Math.max(0, Math.min(width, localX));
+      const timeSec = (clampedX / width) * timelineSec;
+      let idx = -1;
+      const blockTiming =
+        timings.find(({ tEnd }) => timeSec <= tEnd) || timings[timings.length - 1]!;
+      const block = blockTiming ? safeBlocks[blockTiming.index] : null;
+      let seg: typeof segmentTimings[number] | null = null;
+      if (segmentTimings.length) {
+        seg = segmentTimings.find((t) => timeSec <= t.tEnd) || segmentTimings[segmentTimings.length - 1]!;
+      }
+      if (block && block.kind === 'intervals') {
+        if (seg && Number.isFinite(seg.segIndex)) {
+          idx = seg.segIndex % 2 === 0 ? blockTiming.index - 1 : blockTiming.index;
+        } else {
+          const mid = (blockTiming.tStart + blockTiming.tEnd) / 2;
+          idx = timeSec < mid ? blockTiming.index - 1 : blockTiming.index;
+        }
+      } else if (seg) {
+        const mid = (seg.tStart + seg.tEnd) / 2;
+        idx = timeSec < mid ? seg.blockIndex - 1 : seg.blockIndex;
+      } else if (blockTiming) {
+        idx = blockTiming.index;
+      }
+      if (idx < -1) idx = -1;
+      if (idx >= timings.length) idx = timings.length - 1;
+      onSetInsertAfter(idx);
+    });
+  }
+}
+
 // --------------------------- Planner: mini history chart ---------------------------
 
 function formatDurationLabel(sec: number): string {
