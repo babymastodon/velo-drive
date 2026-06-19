@@ -6,7 +6,7 @@
 // active overlay, except the Settings logs sub-view returns to the main view
 // first (matching the legacy disposition in docs/settings.js).
 
-export type OverlayId = 'none' | 'welcome' | 'settings' | 'picker';
+export type OverlayId = 'none' | 'welcome' | 'settings' | 'picker' | 'planner';
 
 export class UiStore {
   activeOverlay = $state<OverlayId>('none');

@@ -11,6 +11,7 @@
     hrBatteryPercent,
     onOpenSettings,
     onOpenPicker,
+    onOpenPlanner,
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
@@ -20,6 +21,7 @@
     hrBatteryPercent: number | null;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
+    onOpenPlanner?: () => void;
   } = $props();
 
   const workoutActive = $derived(vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
@@ -127,6 +129,7 @@
       class="playback-button calendar-button"
       class:visible={showCalendar}
       title="Open calendar (C)"
+      onclick={() => onOpenPlanner?.()}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M 7,3 V 6 M 17,3 v 3" />

@@ -7,6 +7,7 @@
   import HudView from './HudView.svelte';
   import SettingsView from './SettingsView.svelte';
   import PickerView from './PickerView.svelte';
+  import PlannerView from './PlannerView.svelte';
   import WelcomeView from './WelcomeView.svelte';
   import Dialog from './Dialog.svelte';
   import { UiStore } from '../state/ui.svelte.js';
@@ -73,6 +74,11 @@
     if (key === 'w') {
       e.preventDefault();
       openPicker();
+      return;
+    }
+    if (key === 'c') {
+      e.preventDefault();
+      openPlanner();
     }
   }
 
@@ -83,6 +89,15 @@
     const vm = ctx.store.vm;
     if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
     ui.open('picker');
+  }
+
+  // Open the planner (calendar), guarded against an active workout (matches the
+  // legacy #calendarBtn / 'c' handlers in docs/workout.js).
+  function openPlanner(): void {
+    if (!ctx) return;
+    const vm = ctx.store.vm;
+    if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
+    ui.open('planner');
   }
 </script>
 
@@ -95,6 +110,7 @@
     transport={ctx.transport}
     onOpenSettings={() => ui.open('settings')}
     onOpenPicker={openPicker}
+    onOpenPlanner={openPlanner}
   />
 
   <SettingsView
@@ -113,6 +129,14 @@
     {ui}
     {dialogs}
     open={ui.activeOverlay === 'picker'}
+  />
+
+  <PlannerView
+    store={ctx.store}
+    fileStore={ctx.fileStore}
+    {ui}
+    {dialogs}
+    open={ui.activeOverlay === 'planner'}
   />
 {/if}
 

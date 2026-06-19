@@ -16,6 +16,7 @@ import {test as base, expect, type Page} from "@playwright/test";
 import {readFileSync, readdirSync} from "node:fs";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
+import {buildFitFile} from "../../src/core/fit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(__dirname, "..", "..");
@@ -58,6 +59,8 @@ export interface HarnessConfig {
   sim?: Record<string, unknown>;
   seedZwo?: Record<string, string>;
   schedule?: unknown;
+  // History .fit files to seed into the history dir: fileName -> base64 bytes.
+  seedHistory?: Record<string, string>;
 }
 
 // Config for the VISUAL comparison: identical for legacy + new so the only
@@ -87,6 +90,97 @@ export const WELCOME_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 // filters, so the only difference a pixel diff can surface is layout/CSS.
 export const PICKER_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 
+// --------------------------- Planner (calendar) fixture ---------------------------
+//
+// The virtualized calendar renders relative to "today" (the VIRTUAL clock) and
+// to seeded history/schedule, so for a stable legacy-vs-new pixel match the
+// harness clock is pinned to a FIXED date and BOTH apps are seeded with the SAME
+// history .fit files + schedule.json. (Today = 2026-06-17; a completed ride on
+// 2026-06-15 and a scheduled workout on 2026-06-20.)
+export const PLANNER_FIXED_MS = Date.UTC(2026, 5, 17, 12, 0, 0); // 2026-06-17 12:00 UTC
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i] as number);
+  return Buffer.from(bin, "binary").toString("base64");
+}
+
+// A deterministic completed ride: 40 min, steady-ish power around the workout
+// target with a couple of efforts, fixed HR/cadence. startedAt fixes the file
+// name (UTC ISO with ":" -> "-") so the planner indexes it onto 2026-06-15.
+const PLANNER_HISTORY_WORKOUT = {
+  workoutTitle: "Morning Tempo",
+  source: "fixture",
+  sourceURL: "",
+  description: "",
+  rawSegments: [
+    [10, 50, 60],
+    [10, 75, 75],
+    [10, 88, 88],
+    [10, 60, 50],
+  ] as [number, number, number][],
+  textEvents: [],
+};
+
+function buildPlannerHistoryFit(): {fileName: string; base64: string} {
+  const startedAt = new Date(Date.UTC(2026, 5, 15, 8, 30, 0)); // 2026-06-15 08:30 UTC
+  const ftp = 250;
+  const samples: {t: number; power: number; hr: number; cadence: number; targetPower: number}[] = [];
+  // Build per-second samples following the rawSegments target with mild noise.
+  let t = 0;
+  for (const seg of PLANNER_HISTORY_WORKOUT.rawSegments) {
+    const [minutes, startPct, endPct] = seg as number[];
+    const dur = Math.round((minutes as number) * 60);
+    for (let i = 0; i < dur; i++) {
+      const frac = dur > 1 ? i / (dur - 1) : 0;
+      const pct = (startPct as number) + ((endPct as number) - (startPct as number)) * frac;
+      const target = Math.round((pct / 100) * ftp);
+      // deterministic pseudo-noise
+      const noise = ((i * 37 + t * 13) % 11) - 5;
+      samples.push({
+        t,
+        power: Math.max(0, target + noise),
+        hr: 120 + Math.round(pct * 0.4),
+        cadence: 88 + ((i % 5) - 2),
+        targetPower: target,
+      });
+      t += 1;
+    }
+  }
+  const endedAt = new Date(startedAt.getTime() + t * 1000);
+  const bytes = buildFitFile({
+    canonicalWorkout: PLANNER_HISTORY_WORKOUT,
+    samples,
+    ftp,
+    startedAt,
+    endedAt,
+    totalElapsedSec: t,
+  });
+  const timestamp = startedAt
+    .toISOString()
+    .replace(/[:]/g, "-")
+    .replace(/\.\d+Z$/, "Z");
+  const fileName = `${timestamp} - Morning Tempo.fit`;
+  return {fileName, base64: toBase64(bytes)};
+}
+
+const PLANNER_HISTORY = buildPlannerHistoryFit();
+
+export const PLANNER_HARNESS_CONFIG: HarnessConfig = {
+  ftp: 250,
+  soundEnabled: false,
+  themeMode: "light",
+  selectedWorkout: SAMPLE_WORKOUT,
+  connectBike: false,
+  connectHr: false,
+  startMs: PLANNER_FIXED_MS,
+  seedZwo: readSeedWorkouts(),
+  seedHistory: {[PLANNER_HISTORY.fileName]: PLANNER_HISTORY.base64},
+  // A scheduled workout on a future day (2026-06-20). The title must exist in
+  // the seeded .zwo library so the planner can hydrate its rawSegments/metrics.
+  schedule: [{date: "2026-06-20", workoutTitle: "Sleepy Spin"}],
+};
+
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;
@@ -114,6 +208,60 @@ export const test = base.extend<{
 
     // 2. Build the env onto window.__VELO_TEST_ENV__ (consumed by velo-shim.js).
     await page.addInitScript({path: PAGE_ENV});
+
+    // 2a. The fake FS dir handle exposes values()/[asyncIterator] but not the
+    // entries() async-iterator the legacy planner-backend uses to list the
+    // history dir (docs/planner-backend.js). Polyfill it on the prototype here
+    // (extending the harness fakes from the fixture, not editing harness/*) so
+    // both apps can enumerate seeded history files identically.
+    await page.addInitScript(() => {
+      const harness = (window as unknown as {
+        __VELO_HARNESS__?: {fs?: {history?: object}};
+      }).__VELO_HARNESS__;
+      const proto = harness?.fs?.history
+        ? Object.getPrototypeOf(harness.fs.history)
+        : null;
+      if (proto && typeof (proto as {entries?: unknown}).entries !== "function") {
+        (proto as {entries: () => AsyncIterable<[string, unknown]>}).entries = function (
+          this: {_files: Map<string, unknown>; _dirs: Map<string, unknown>},
+        ) {
+          const pairs: [string, unknown][] = [
+            ...Array.from(this._files.entries()),
+            ...Array.from(this._dirs.entries()),
+          ];
+          let i = 0;
+          const it = {
+            next: () =>
+              Promise.resolve(
+                i < pairs.length ? {value: pairs[i++], done: false} : {value: undefined, done: true},
+              ),
+            [Symbol.asyncIterator]() {
+              return this;
+            },
+          };
+          return it as AsyncIterable<[string, unknown]>;
+        };
+      }
+    });
+
+    // 2b. Seed history .fit files into the fake FS history dir (page-env only
+    // seeds .zwo + schedule.json). Runs AFTER page-env, so __VELO_HARNESS__.fs
+    // exists. Bytes are passed base64 to survive the init-script boundary.
+    if (harnessConfig.seedHistory) {
+      await page.addInitScript((seed: Record<string, string>) => {
+        const harness = (window as unknown as {
+          __VELO_HARNESS__?: {fs?: {history?: {seedFile: (name: string, bytes: Uint8Array) => void}}};
+        }).__VELO_HARNESS__;
+        const history = harness?.fs?.history;
+        if (!history) return;
+        for (const name of Object.keys(seed)) {
+          const bin = atob(seed[name] as string);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          history.seedFile(name, bytes);
+        }
+      }, harnessConfig.seedHistory);
+    }
 
     // 3. Kill transitions/animations for deterministic snapshots.
     await page.addInitScript(() => {
