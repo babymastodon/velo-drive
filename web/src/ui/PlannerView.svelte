@@ -10,17 +10,19 @@
   // curve + planned-vs-actual chart), the 3/7/30-day totals footer, scheduling a
   // workout on a day, and deleting a ride to trash.
   //
+  // Scheduling a workout on a day re-opens the workout LIBRARY in schedule mode
+  // (ui.openPickerForSchedule → PickerView): the user browses + picks ANY workout
+  // for the day, the picker writes schedule.json and returns to this planner
+  // overlay (faithful to legacy picker.openScheduleMode). See onScheduleDay /
+  // onEditScheduled below.
+  //
   // SIMPLIFICATIONS vs legacy (documented):
   //  * Scrolling renders the fixed legacy initial 16-week window rather than
   //    recycling rows on scroll — the initial render + scroll position is
   //    pixel-identical to legacy; deep scroll just stops instead of paging.
-  //  * The picker<->planner schedule handoff is a self-contained "schedule this
-  //    day" prompt (a Dialog that picks the engine's current workout) which
-  //    writes schedule.json directly, instead of re-opening the picker in a
-  //    schedule mode.
   //  * Drag-and-drop reschedule + the `?`-held hotkey overlay are dropped.
   import OverlayModal from './OverlayModal.svelte';
-  import type { WebFileStore, ScheduleEntry, HistoryPreview } from '../ports/web/WebFileStore.js';
+  import type { WebFileStore, HistoryPreview } from '../ports/web/WebFileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { WorkoutEngine } from '../core/engine.js';
@@ -205,12 +207,22 @@
     }
   });
 
+  // When we hand off to the schedule-mode picker we save the selected day so the
+  // re-opened planner restores it (instead of snapping back to today), matching
+  // the legacy showModal() round-trip which preserved planner state.
+  let pendingScheduleReturnDate: Date | null = null;
+
   async function onOpen(): Promise<void> {
     detail = null;
     today = new Date();
     today.setHours(0, 0, 0, 0);
-    selectedDate = new Date();
-    selectedDate.setHours(0, 0, 0, 0);
+    if (pendingScheduleReturnDate) {
+      selectedDate = pendingScheduleReturnDate;
+      pendingScheduleReturnDate = null;
+    } else {
+      selectedDate = new Date();
+      selectedDate.setHours(0, 0, 0, 0);
+    }
     anchorStart = startOfWeek(selectedDate);
     loaded = false;
     await Promise.all([loadHistory(), loadSchedule()]);
@@ -676,29 +688,17 @@
   const showScheduleBtn = $derived(!detailMode && selectedDate != null && !isPastDate(formatKey(selectedDate)));
 
   // --------------------------- schedule / delete ---------------------------
-  async function onScheduleDay(): Promise<void> {
+  // Open the workout LIBRARY in schedule mode so the user browses + picks ANY
+  // workout for the day (the legacy openScheduleMode flow, G1/G2). The picker
+  // writes schedule.json + returns to the planner overlay (which reloads the
+  // schedule on re-open). Mirrors planner.requestSchedule → picker.openScheduleMode
+  // (workout-planner.js:868-872 / workout.js:1454-1459).
+  function onScheduleDay(): void {
     if (!selectedDate) return;
     const dateKey = formatKey(selectedDate);
-    if (isPastDate(dateKey)) return;
-    const cw = store.vm?.canonicalWorkout;
-    if (!cw || !cw.workoutTitle) {
-      await dialogs.alert('Select a workout on the main screen first, then schedule it.', {
-        title: 'Schedule workout',
-      });
-      return;
-    }
-    const ok = await dialogs.confirm(
-      `Schedule "${cw.workoutTitle}" on ${formatSelectedLabel(selectedDate)}?`,
-      { title: 'Schedule workout', okLabel: 'Schedule' },
-    );
-    if (!ok) return;
-    const entries = await fileStore.loadSchedule();
-    const next: ScheduleEntry[] = entries.filter(
-      (e) => !(e.date === dateKey && e.workoutTitle === cw.workoutTitle),
-    );
-    next.push({ date: dateKey, workoutTitle: cw.workoutTitle });
-    await fileStore.saveSchedule(next);
-    await loadSchedule();
+    if (isPastDate(dateKey)) return; // past-date scheduling rejected (legacy 1497-1504)
+    pendingScheduleReturnDate = selectedDate;
+    ui.openPickerForSchedule(dateKey, null, false);
   }
 
   async function onDeleteScheduled(entry: ScheduledPreview): Promise<void> {
@@ -752,37 +752,13 @@
     ui.close();
   }
 
-  // Edit a scheduled entry (legacy onScheduledEditRequested re-opened the picker
-  // in schedule mode). Minimal-but-real handoff: let the user re-pick the
-  // engine's current workout for this day, or remove the entry. Writes
-  // schedule.json directly (mirrors the simplified onScheduleDay flow).
-  async function onEditScheduled(entry: ScheduledPreview): Promise<void> {
-    const cw = store.vm?.canonicalWorkout;
-    const newTitle = cw?.workoutTitle;
-    // Use the dialog confirm for replace (if a different workout is selected),
-    // otherwise go straight to a remove confirm.
-    let action: 'replace' | 'remove' | null = null;
-    if (newTitle && newTitle !== entry.workoutTitle) {
-      const replace = await dialogs.confirm(
-        `Replace "${entry.workoutTitle}" with the selected workout "${newTitle}" on ${entry.date}?`,
-        { title: 'Edit scheduled workout', okLabel: 'Replace', cancelLabel: 'Remove instead' },
-      );
-      action = replace ? 'replace' : 'remove';
-    } else {
-      const remove = await dialogs.confirm(
-        `Remove the scheduled workout "${entry.workoutTitle}" on ${entry.date}? (Select a different workout on the main screen first to change it.)`,
-        { title: 'Edit scheduled workout', okLabel: 'Remove' },
-      );
-      if (!remove) return;
-      action = 'remove';
-    }
-    const entries = await fileStore.loadSchedule();
-    const next = entries.filter((e) => !(e.date === entry.date && e.workoutTitle === entry.workoutTitle));
-    if (action === 'replace' && newTitle) {
-      next.push({ date: entry.date, workoutTitle: newTitle });
-    }
-    await fileStore.saveSchedule(next);
-    await loadSchedule();
+  // Edit a scheduled entry: re-open the workout LIBRARY in "Edit Schedule" mode
+  // (the entry is pre-targeted; selecting a different workout REPLACES it, the
+  // Unschedule button REMOVES it). Mirrors legacy onScheduledEditRequested →
+  // picker.openScheduleMode({editMode:true}) (workout-planner.js:388-398).
+  function onEditScheduled(entry: ScheduledPreview): void {
+    pendingScheduleReturnDate = keyToDate(entry.date);
+    ui.openPickerForSchedule(entry.date, { date: entry.date, workoutTitle: entry.workoutTitle }, true);
   }
 
   // --------------------------- keyboard (legacy onKeyDown ~1285-1395) ---------------------------
