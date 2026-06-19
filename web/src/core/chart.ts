@@ -17,9 +17,9 @@ import {
   isFreeRideSegment,
   segDurationSec,
 } from './segments.js';
+import { SVG_NS, XHTML_NS, appendEl, appendGridLine, el } from './svg-dom.js';
 
 const GAP_BREAK_SECONDS = 6;
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 let freeridePatternCounter = 0;
 
@@ -147,31 +147,28 @@ function ensureFreeridePatterns(
   const baseId = `freeride-pattern-${++freeridePatternCounter}`;
   const hoverId = `${baseId}-hover`;
 
-  const defs = svg.querySelector('defs') || document.createElementNS(SVG_NS, 'defs');
+  const defs = svg.querySelector('defs') || el('defs');
   if (!defs.parentNode) svg.appendChild(defs);
 
   const buildPattern = (id: string, fill: string, stripeColor: string) => {
-    const pattern = document.createElementNS(SVG_NS, 'pattern');
-    pattern.setAttribute('id', id);
-    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
-    pattern.setAttribute('width', '16');
-    pattern.setAttribute('height', '16');
-    pattern.setAttribute('patternTransform', 'rotate(45)');
+    const pattern = el('pattern', {
+      id,
+      patternUnits: 'userSpaceOnUse',
+      width: '16',
+      height: '16',
+      patternTransform: 'rotate(45)',
+    });
 
-    const rect = document.createElementNS(SVG_NS, 'rect');
-    rect.setAttribute('width', '16');
-    rect.setAttribute('height', '16');
-    rect.setAttribute('fill', fill);
-    pattern.appendChild(rect);
+    appendEl(pattern, 'rect', { width: '16', height: '16', fill });
 
     for (const d of ['M-8 4 Q-4 0 0 4 T8 4 T16 4 T24 4', 'M-8 12 Q-4 8 0 12 T8 12 T16 12 T24 12']) {
-      const wave = document.createElementNS(SVG_NS, 'path');
-      wave.setAttribute('d', d);
-      wave.setAttribute('fill', 'none');
-      wave.setAttribute('stroke', stripeColor);
-      wave.setAttribute('stroke-width', '2.2');
-      wave.setAttribute('stroke-linecap', 'round');
-      pattern.appendChild(wave);
+      appendEl(pattern, 'path', {
+        d,
+        fill: 'none',
+        stroke: stripeColor,
+        'stroke-width': '2.2',
+        'stroke-linecap': 'round',
+      });
     }
     defs.appendChild(pattern);
   };
@@ -220,8 +217,9 @@ function renderSegmentPolygon(args: {
   const y0 = h - (Math.max(0, p0) / maxY) * h;
   const y1 = h - (Math.max(0, p1) / maxY) * h;
 
-  const poly = document.createElementNS(SVG_NS, 'polygon');
-  poly.setAttribute('points', `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`);
+  const poly = el('polygon', {
+    points: `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`,
+  });
 
   const muted = mixColors(zone.color, zone.bg, 0.3);
   const hover = mixColors(zone.color, zone.bg, 0.15);
@@ -290,10 +288,7 @@ function attachSegmentHover(
 
   const lineDots: Partial<Record<'power' | 'hr' | 'cadence', SVGCircleElement>> = {};
   const createLineDot = (color: string): SVGCircleElement => {
-    const dot = document.createElementNS(SVG_NS, 'circle');
-    dot.setAttribute('r', '4');
-    dot.setAttribute('fill', color);
-    dot.setAttribute('pointer-events', 'none');
+    const dot = el('circle', { r: '4', fill: color, 'pointer-events': 'none' });
     dot.style.display = 'none';
     svg.appendChild(dot);
     return dot;
@@ -574,24 +569,20 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     const step = 100;
     for (let yVal = 0; yVal <= maxY; yVal += step) {
       const y = h - (yVal / maxY) * h;
-      const line = document.createElementNS(SVG_NS, 'line');
-      line.setAttribute('x1', '0');
-      line.setAttribute('x2', String(w));
-      line.setAttribute('y1', String(y));
-      line.setAttribute('y2', String(y));
-      line.setAttribute('stroke', getCssVar('--grid-line-subtle'));
-      line.setAttribute('stroke-width', '0.5');
-      line.setAttribute('pointer-events', 'none');
-      svg.appendChild(line);
-
-      const label = document.createElementNS(SVG_NS, 'text');
-      label.setAttribute('x', '4');
-      label.setAttribute('y', String(y - 6));
-      label.setAttribute('font-size', '16');
-      label.setAttribute('fill', getCssVar('--text-muted'));
-      label.setAttribute('pointer-events', 'none');
-      label.textContent = String(yVal);
-      svg.appendChild(label);
+      appendGridLine(svg, {
+        x1: '0',
+        x2: String(w),
+        y: String(y),
+        stroke: getCssVar('--grid-line-subtle'),
+        strokeWidth: '0.5',
+        label: {
+          x: '4',
+          y: String(y - 6),
+          fontSize: '16',
+          fill: getCssVar('--text-muted'),
+          text: String(yVal),
+        },
+      });
     }
   }
 
@@ -630,66 +621,66 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
   // past shade
   if (showProgress && elapsedClamped > 0 && safeTotalSec > 0) {
     const xPast = Math.min(w, (elapsedClamped / safeTotalSec) * w);
-    const rect = document.createElementNS(SVG_NS, 'rect');
-    rect.setAttribute('x', '0');
-    rect.setAttribute('y', '0');
-    rect.setAttribute('width', String(xPast));
-    rect.setAttribute('height', String(h));
-    rect.setAttribute('fill', getCssVar('--shade-bg'));
-    rect.setAttribute('fill-opacity', '0.05');
-    rect.setAttribute('pointer-events', 'none');
-    svg.appendChild(rect);
+    appendEl(svg, 'rect', {
+      x: '0',
+      y: '0',
+      width: String(xPast),
+      height: String(h),
+      fill: getCssVar('--shade-bg'),
+      'fill-opacity': '0.05',
+      'pointer-events': 'none',
+    });
   }
 
   // FTP line + label
   const ftpY = h - (ftpVal / maxY) * h;
   const ftpLineWidth = 1.5;
-  const ftpLine = document.createElementNS(SVG_NS, 'line');
-  ftpLine.setAttribute('x1', '0');
-  ftpLine.setAttribute('x2', String(w));
-  ftpLine.setAttribute('y1', String(ftpY));
-  ftpLine.setAttribute('y2', String(ftpY));
-  ftpLine.setAttribute('stroke', getCssVar('--ftp-line'));
-  ftpLine.setAttribute('stroke-width', String(ftpLineWidth));
-  ftpLine.setAttribute('pointer-events', 'none');
-  svg.appendChild(ftpLine);
+  appendEl(svg, 'line', {
+    x1: '0',
+    x2: String(w),
+    y1: String(ftpY),
+    y2: String(ftpY),
+    stroke: getCssVar('--ftp-line'),
+    'stroke-width': String(ftpLineWidth),
+    'pointer-events': 'none',
+  });
 
   const ftpLabelOffset = 6;
   const ftpFontSize = 16;
-  const ftpLabel = document.createElementNS(SVG_NS, 'text');
-  ftpLabel.setAttribute('x', String(w - 4));
-  ftpLabel.setAttribute('y', String(ftpY - ftpLabelOffset));
-  ftpLabel.setAttribute('text-anchor', 'end');
-  ftpLabel.setAttribute('font-size', String(ftpFontSize));
-  ftpLabel.setAttribute('fill', getCssVar('--ftp-line'));
-  ftpLabel.setAttribute('pointer-events', 'none');
+  const ftpLabel = appendEl(svg, 'text', {
+    x: String(w - 4),
+    y: String(ftpY - ftpLabelOffset),
+    'text-anchor': 'end',
+    'font-size': String(ftpFontSize),
+    fill: getCssVar('--ftp-line'),
+    'pointer-events': 'none',
+  });
   ftpLabel.textContent = `FTP ${Math.round(ftpVal)}`;
-  svg.appendChild(ftpLabel);
 
   if (totalFromStructure > 0) {
-    const durLabel = document.createElementNS(SVG_NS, 'text');
-    durLabel.setAttribute('x', String(w - 4));
-    durLabel.setAttribute('y', String(ftpY + ftpLabelOffset + ftpFontSize - ftpLineWidth * 2));
-    durLabel.setAttribute('text-anchor', 'end');
-    durLabel.setAttribute('font-size', String(ftpFontSize));
-    durLabel.setAttribute('fill', getCssVar('--text-muted'));
-    durLabel.setAttribute('pointer-events', 'none');
+    const durLabel = appendEl(svg, 'text', {
+      x: String(w - 4),
+      y: String(ftpY + ftpLabelOffset + ftpFontSize - ftpLineWidth * 2),
+      'text-anchor': 'end',
+      'font-size': String(ftpFontSize),
+      fill: getCssVar('--text-muted'),
+      'pointer-events': 'none',
+    });
     durLabel.textContent = formatDurationMinSec(totalFromStructure);
-    svg.appendChild(durLabel);
   }
 
   // position cursor
   if (showProgress && elapsedClamped > 0) {
     const xNow = Math.min(w, (elapsedClamped / safeTotalSec) * w);
-    const posLine = document.createElementNS(SVG_NS, 'line');
-    posLine.setAttribute('x1', String(xNow));
-    posLine.setAttribute('x2', String(xNow));
-    posLine.setAttribute('y1', '0');
-    posLine.setAttribute('y2', String(h));
-    posLine.setAttribute('stroke', '#fdd835');
-    posLine.setAttribute('stroke-width', '1.5');
-    posLine.setAttribute('pointer-events', 'none');
-    svg.appendChild(posLine);
+    appendEl(svg, 'line', {
+      x1: String(xNow),
+      x2: String(xNow),
+      y1: '0',
+      y2: String(h),
+      stroke: '#fdd835',
+      'stroke-width': '1.5',
+      'pointer-events': 'none',
+    });
   }
 
   // Active text-event message overlay (legacy drawWorkoutChart ~2081): the LAST
@@ -711,13 +702,14 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
       const maxWidth = Math.max(120, Math.round(w * 0.88));
       const x = Math.round((w - maxWidth) / 2);
       const y = Math.round(h * 0.22);
-      const foreign = document.createElementNS(SVG_NS, 'foreignObject');
-      foreign.setAttribute('x', String(x));
-      foreign.setAttribute('y', String(y));
-      foreign.setAttribute('width', String(maxWidth));
-      foreign.setAttribute('height', String(Math.round(h * 0.5)));
-      foreign.setAttribute('pointer-events', 'none');
-      const div = document.createElementNS('http://www.w3.org/1999/xhtml', 'div') as HTMLDivElement;
+      const foreign = el('foreignObject', {
+        x: String(x),
+        y: String(y),
+        width: String(maxWidth),
+        height: String(Math.round(h * 0.5)),
+        'pointer-events': 'none',
+      });
+      const div = document.createElementNS(XHTML_NS, 'div') as HTMLDivElement;
       div.textContent = active.text;
       div.style.color = getCssVar('--text-main');
       div.style.fontSize = `${fontSize}px`;
@@ -769,13 +761,13 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     const addPaths = (segments: string[], color: string, strokeWidth: number) => {
       for (const d of segments) {
         if (!d) continue;
-        const p = document.createElementNS(SVG_NS, 'path');
-        p.setAttribute('d', d);
-        p.setAttribute('fill', 'none');
-        p.setAttribute('stroke', color);
-        p.setAttribute('stroke-width', String(strokeWidth));
-        p.setAttribute('pointer-events', 'none');
-        svg.appendChild(p);
+        appendEl(svg, 'path', {
+          d,
+          fill: 'none',
+          stroke: color,
+          'stroke-width': String(strokeWidth),
+          'pointer-events': 'none',
+        });
       }
     };
 
@@ -845,13 +837,13 @@ export function renderMiniWorkoutGraph(
   svg.classList.add('picker-graph-svg');
   svg.setAttribute('shape-rendering', 'crispEdges');
 
-  const bg = document.createElementNS(SVG_NS, 'rect');
-  bg.setAttribute('x', '0');
-  bg.setAttribute('y', '0');
-  bg.setAttribute('width', String(width));
-  bg.setAttribute('height', String(height));
-  bg.setAttribute('fill', 'transparent');
-  svg.appendChild(bg);
+  appendEl(svg, 'rect', {
+    x: '0',
+    y: '0',
+    width: String(width),
+    height: String(height),
+    fill: 'transparent',
+  });
 
   const maxTarget = rawSegments.reduce((max, seg) => {
     const startPct = (seg as number[])[1] || 0;
@@ -972,8 +964,9 @@ function renderBuilderSegmentPolygon(args: {
   const y0 = h - (Math.max(0, p0) / maxY) * h;
   const y1 = h - (Math.max(0, p1) / maxY) * h;
 
-  const poly = document.createElementNS(SVG_NS, 'polygon');
-  poly.setAttribute('points', `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`);
+  const poly = el('polygon', {
+    points: `${x1},${h} ${x1},${y0} ${x2},${y1} ${x2},${h}`,
+  });
 
   const muted = mixColors(zone.color, zone.bg, 0.3);
   const hover = mixColors(zone.color, zone.bg, 0.15);
@@ -1067,19 +1060,19 @@ function renderBuilderTextEventMarkers(args: {
 
     const rectStrokeWidth = activeIndex === idx ? 2 : 1;
     const rectInset = rectStrokeWidth / 2;
-    const rect = document.createElementNS(SVG_NS, 'rect');
-    rect.setAttribute('x', String(rectInset));
-    rect.setAttribute('y', String(rectInset));
-    rect.setAttribute('width', String(iconSize - rectStrokeWidth));
-    rect.setAttribute('height', String(iconSize - rectStrokeWidth));
-    rect.setAttribute('rx', '4');
-    rect.setAttribute('fill', activeIndex === idx ? activeBg : bg);
-    rect.setAttribute('stroke', border);
-    rect.setAttribute('stroke-width', String(rectStrokeWidth));
-    g.appendChild(rect);
+    appendEl(g, 'rect', {
+      x: String(rectInset),
+      y: String(rectInset),
+      width: String(iconSize - rectStrokeWidth),
+      height: String(iconSize - rectStrokeWidth),
+      rx: '4',
+      fill: activeIndex === idx ? activeBg : bg,
+      stroke: border,
+      'stroke-width': String(rectStrokeWidth),
+    });
 
-    const iconGroup = document.createElementNS(SVG_NS, 'g');
-    const bubble = document.createElementNS(SVG_NS, 'path');
+    const iconGroup = el('g');
+    const bubble = el('path');
     const iconPadding = Math.max(3, Math.round(iconSize * 0.24));
     const half = 0.5;
     const left = iconPadding + half;
@@ -1106,34 +1099,34 @@ function renderBuilderTextEventMarkers(args: {
     bubble.setAttribute('stroke-linejoin', 'round');
     iconGroup.appendChild(bubble);
 
-    const line1 = document.createElementNS(SVG_NS, 'path');
     const lineLeft = left + 2;
     const lineRight = right - 2;
     const line1Y = top + 2.5;
-    line1.setAttribute('d', `M${lineLeft} ${line1Y}H${lineRight}`);
-    line1.setAttribute('fill', 'none');
-    line1.setAttribute('stroke', 'currentColor');
-    line1.setAttribute('stroke-width', '1');
-    line1.setAttribute('stroke-linecap', 'round');
-    iconGroup.appendChild(line1);
+    appendEl(iconGroup, 'path', {
+      d: `M${lineLeft} ${line1Y}H${lineRight}`,
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1',
+      'stroke-linecap': 'round',
+    });
 
-    const line2 = document.createElementNS(SVG_NS, 'path');
-    line2.setAttribute('d', `M${lineLeft} ${top + 4.5}H${right - 4}`);
-    line2.setAttribute('fill', 'none');
-    line2.setAttribute('stroke', 'currentColor');
-    line2.setAttribute('stroke-width', '1');
-    line2.setAttribute('stroke-linecap', 'round');
-    iconGroup.appendChild(line2);
+    appendEl(iconGroup, 'path', {
+      d: `M${lineLeft} ${top + 4.5}H${right - 4}`,
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1',
+      'stroke-linecap': 'round',
+    });
 
     [top + 6.5, top + 8.5].forEach((y, i) => {
-      const line = document.createElementNS(SVG_NS, 'path');
       const inset = i + 3;
-      line.setAttribute('d', `M${lineLeft} ${y}H${right - inset}`);
-      line.setAttribute('fill', 'none');
-      line.setAttribute('stroke', 'currentColor');
-      line.setAttribute('stroke-width', '1');
-      line.setAttribute('stroke-linecap', 'round');
-      iconGroup.appendChild(line);
+      appendEl(iconGroup, 'path', {
+        d: `M${lineLeft} ${y}H${right - inset}`,
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1',
+        'stroke-linecap': 'round',
+      });
     });
 
     g.appendChild(iconGroup);
@@ -1227,13 +1220,13 @@ export function renderBuilderWorkoutGraph(
   svg.style.width = `${width}px`;
   svg.style.height = `${height}px`;
 
-  const bg = document.createElementNS(SVG_NS, 'rect');
-  bg.setAttribute('x', '0');
-  bg.setAttribute('y', '0');
-  bg.setAttribute('width', String(width));
-  bg.setAttribute('height', String(height));
-  bg.setAttribute('fill', 'transparent');
-  svg.appendChild(bg);
+  appendEl(svg, 'rect', {
+    x: '0',
+    y: '0',
+    width: String(width),
+    height: String(height),
+    fill: 'transparent',
+  });
 
   const maxTarget = safeBlocks.reduce((max, block) => {
     const segs = Array.isArray(block?.segments) ? block.segments : [];
@@ -1252,44 +1245,42 @@ export function renderBuilderWorkoutGraph(
 
   for (let yVal = 0; yVal <= maxY; yVal += gridStep) {
     const y = height - (yVal / maxY) * height;
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', '0');
-    line.setAttribute('x2', String(width));
-    line.setAttribute('y1', String(y));
-    line.setAttribute('y2', String(y));
-    line.setAttribute('stroke', getCssVar('--grid-line-subtle'));
-    line.setAttribute('stroke-width', '0.5');
-    line.setAttribute('pointer-events', 'none');
-    svg.appendChild(line);
+    appendGridLine(svg, {
+      x1: '0',
+      x2: String(width),
+      y: String(y),
+      stroke: getCssVar('--grid-line-subtle'),
+      strokeWidth: '0.5',
+    });
   }
 
   for (let t = tickStepSec; t <= timelineSec; t += tickStepSec) {
     const x = (t / timelineSec) * width;
     const isHour = t % hourStepSec === 0;
     const tickLen = isHour ? tickHourLen : tickBaseLen;
-    const tick = document.createElementNS(SVG_NS, 'line');
-    tick.setAttribute('x1', String(x));
-    tick.setAttribute('x2', String(x));
-    tick.setAttribute('y1', '0');
-    tick.setAttribute('y2', String(tickLen));
-    tick.setAttribute('stroke', getCssVar('--grid-line-subtle'));
-    tick.setAttribute('stroke-width', isHour ? '2' : '1.4');
-    tick.setAttribute('pointer-events', 'none');
-    svg.appendChild(tick);
+    appendEl(svg, 'line', {
+      x1: String(x),
+      x2: String(x),
+      y1: '0',
+      y2: String(tickLen),
+      stroke: getCssVar('--grid-line-subtle'),
+      'stroke-width': isHour ? '2' : '1.4',
+      'pointer-events': 'none',
+    });
 
     const labelInset = 8;
-    const label = document.createElementNS(SVG_NS, 'text');
-    label.setAttribute('x', String(x - labelInset));
-    label.setAttribute('y', '2');
-    label.setAttribute('dominant-baseline', 'hanging');
-    label.setAttribute('font-size', '16');
-    label.setAttribute('font-weight', '300');
-    label.setAttribute('fill', getCssVar('--text-muted'));
-    label.setAttribute('text-anchor', 'end');
-    label.setAttribute('pointer-events', 'none');
+    const label = appendEl(svg, 'text', {
+      x: String(x - labelInset),
+      y: '2',
+      'dominant-baseline': 'hanging',
+      'font-size': '16',
+      'font-weight': '300',
+      fill: getCssVar('--text-muted'),
+      'text-anchor': 'end',
+      'pointer-events': 'none',
+    });
     label.style.userSelect = 'none';
     label.textContent = String(Math.round(t / 60));
-    svg.appendChild(label);
   }
 
   const ftpY = height - (ftp / maxY) * height;
@@ -1307,13 +1298,14 @@ export function renderBuilderWorkoutGraph(
     const x1 = (tStart / timelineSec) * width;
     const x2 = (tEnd / timelineSec) * width;
     const w = Math.max(1, x2 - x1);
-    const band = document.createElementNS(SVG_NS, 'rect');
-    band.setAttribute('x', String(x1));
-    band.setAttribute('y', '0');
-    band.setAttribute('width', String(w));
-    band.setAttribute('height', String(height));
-    band.setAttribute('fill', 'transparent');
-    band.setAttribute('pointer-events', 'none');
+    const band = el('rect', {
+      x: String(x1),
+      y: '0',
+      width: String(w),
+      height: String(height),
+      fill: 'transparent',
+      'pointer-events': 'none',
+    });
     band.classList.add('wb-block-band');
     band.dataset.blockIndex = String(index);
     if (selectedSet.has(index)) band.classList.add('is-active');
@@ -1376,15 +1368,16 @@ export function renderBuilderWorkoutGraph(
 
       let topHandle: SVGPolygonElement | null = null;
       if (!isFreeride) {
-        topHandle = document.createElementNS(SVG_NS, 'polygon');
         const clampY = (val: number) => Math.max(0, Math.min(height, val));
         const y0t = clampY(y0 - HANDLE_TOP_HEIGHT);
         const y1t = clampY(y1 - HANDLE_TOP_HEIGHT);
         const y0b = clampY(y0 + HANDLE_TOP_HEIGHT);
         const y1b = clampY(y1 + HANDLE_TOP_HEIGHT);
-        topHandle.setAttribute('points', `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`);
-        topHandle.setAttribute('fill', 'transparent');
-        topHandle.setAttribute('pointer-events', 'all');
+        topHandle = el('polygon', {
+          points: `${x1},${y0t} ${x2},${y1t} ${x2},${y1b} ${x1},${y0b}`,
+          fill: 'transparent',
+          'pointer-events': 'all',
+        });
         topHandle.dataset.blockIndex = String(idx);
         topHandle.dataset.segIndex = String(segIndex);
         topHandle.dataset.dragHandle = 'top';
@@ -1401,13 +1394,14 @@ export function renderBuilderWorkoutGraph(
       const leftExtend = handleBaseWidth * 0.75;
       const rightExtend = nextDurationSec > 90 ? handleBaseWidth * 0.5 : handleBaseWidth * 0.25;
       const handleWidth = leftExtend + rightExtend;
-      const rightHandle = document.createElementNS(SVG_NS, 'rect');
-      rightHandle.setAttribute('x', String(x2 - leftExtend));
-      rightHandle.setAttribute('y', '0');
-      rightHandle.setAttribute('width', String(handleWidth));
-      rightHandle.setAttribute('height', String(height));
-      rightHandle.setAttribute('fill', 'transparent');
-      rightHandle.setAttribute('pointer-events', 'all');
+      const rightHandle = el('rect', {
+        x: String(x2 - leftExtend),
+        y: '0',
+        width: String(handleWidth),
+        height: String(height),
+        fill: 'transparent',
+        'pointer-events': 'all',
+      });
       rightHandle.dataset.blockIndex = String(idx);
       rightHandle.dataset.segIndex = String(segIndex);
       rightHandle.dataset.dragHandle = 'right';
@@ -1426,15 +1420,15 @@ export function renderBuilderWorkoutGraph(
   rightHandles.forEach((handle) => svg.appendChild(handle));
   topHandles.forEach((handle) => svg.appendChild(handle));
 
-  const ftpLine = document.createElementNS(SVG_NS, 'line');
-  ftpLine.setAttribute('x1', '0');
-  ftpLine.setAttribute('x2', String(width));
-  ftpLine.setAttribute('y1', String(ftpY));
-  ftpLine.setAttribute('y2', String(ftpY));
-  ftpLine.setAttribute('stroke', getCssVar('--ftp-line'));
-  ftpLine.setAttribute('stroke-width', '1.4');
-  ftpLine.setAttribute('pointer-events', 'none');
-  svg.appendChild(ftpLine);
+  appendEl(svg, 'line', {
+    x1: '0',
+    x2: String(width),
+    y1: String(ftpY),
+    y2: String(ftpY),
+    stroke: getCssVar('--ftp-line'),
+    'stroke-width': '1.4',
+    'pointer-events': 'none',
+  });
 
   renderBuilderTextEventMarkers({
     svg,
@@ -1515,15 +1509,16 @@ export function renderBuilderWorkoutGraph(
           : timings[Math.min(insertAfterBlockIndex as number, timings.length - 1)]!.tEnd;
     }
     const x = (tInsert / timelineSec) * width;
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', String(x));
-    line.setAttribute('x2', String(x));
-    line.setAttribute('y1', '0');
-    line.setAttribute('y2', String(height));
-    line.setAttribute('stroke', getCssVar('--wb-insert-line'));
-    line.setAttribute('stroke-width', '2');
-    line.setAttribute('stroke-dasharray', '4 4');
-    line.setAttribute('pointer-events', 'none');
+    const line = el('line', {
+      x1: String(x),
+      x2: String(x),
+      y1: '0',
+      y2: String(height),
+      stroke: getCssVar('--wb-insert-line'),
+      'stroke-width': '2',
+      'stroke-dasharray': '4 4',
+      'pointer-events': 'none',
+    });
     line.classList.add('wb-insert-line');
     svg.appendChild(line);
   }
@@ -1751,14 +1746,14 @@ export function drawMiniHistoryChart(args: DrawMiniHistoryChartArgs): void {
   }
 
   if (step.length) {
-    const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', step.join(''));
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', getCssVar('--power-line') || '#a607a6');
-    path.setAttribute('stroke-width', '1.6');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(path);
+    appendEl(svg, 'path', {
+      d: step.join(''),
+      fill: 'none',
+      stroke: getCssVar('--power-line') || '#a607a6',
+      'stroke-width': '1.6',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    });
   }
 }
 
@@ -1815,91 +1810,91 @@ export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
 
   tickDurations.forEach((dur, idx) => {
     const x = xFor(dur);
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', String(x));
-    line.setAttribute('x2', String(x));
-    line.setAttribute('y1', '0');
-    line.setAttribute('y2', String(h));
-    line.setAttribute('stroke', getCssVar('--border-subtle'));
-    line.setAttribute('stroke-width', '0.7');
-    line.setAttribute('pointer-events', 'none');
-    svg.appendChild(line);
+    appendEl(svg, 'line', {
+      x1: String(x),
+      x2: String(x),
+      y1: '0',
+      y2: String(h),
+      stroke: getCssVar('--border-subtle'),
+      'stroke-width': '0.7',
+      'pointer-events': 'none',
+    });
 
     if (idx === tickDurations.length - 1) return;
-    const label = document.createElementNS(SVG_NS, 'text');
-    label.setAttribute('x', String(x + 4));
-    label.setAttribute('y', String(h - 6));
-    label.setAttribute('fill', getCssVar('--text-muted'));
-    label.setAttribute('font-size', '14');
-    label.setAttribute('pointer-events', 'none');
+    const label = appendEl(svg, 'text', {
+      x: String(x + 4),
+      y: String(h - 6),
+      fill: getCssVar('--text-muted'),
+      'font-size': '14',
+      'pointer-events': 'none',
+    });
     label.textContent = formatDurationLabel(dur);
-    svg.appendChild(label);
   });
 
   for (let p = 100; p <= maxPower; p += 100) {
     const y = yFor(p);
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', '0');
-    line.setAttribute('x2', String(w));
-    line.setAttribute('y1', String(y));
-    line.setAttribute('y2', String(y));
-    line.setAttribute('stroke', getCssVar('--border-subtle'));
-    line.setAttribute('stroke-width', '0.6');
-    line.setAttribute('pointer-events', 'none');
-    svg.appendChild(line);
+    appendEl(svg, 'line', {
+      x1: '0',
+      x2: String(w),
+      y1: String(y),
+      y2: String(y),
+      stroke: getCssVar('--border-subtle'),
+      'stroke-width': '0.6',
+      'pointer-events': 'none',
+    });
 
-    const label = document.createElementNS(SVG_NS, 'text');
-    label.setAttribute('x', '4');
-    label.setAttribute('y', String(y - 4));
-    label.setAttribute('fill', getCssVar('--text-muted'));
-    label.setAttribute('font-size', '12');
-    label.setAttribute('pointer-events', 'none');
+    const label = appendEl(svg, 'text', {
+      x: '4',
+      y: String(y - 4),
+      fill: getCssVar('--text-muted'),
+      'font-size': '12',
+      'pointer-events': 'none',
+    });
     label.textContent = `${p} W`;
-    svg.appendChild(label);
   }
 
   const ftpY = yFor(ftp);
-  const ftpLine = document.createElementNS(SVG_NS, 'line');
-  ftpLine.setAttribute('x1', '0');
-  ftpLine.setAttribute('x2', String(w));
-  ftpLine.setAttribute('y1', String(ftpY));
-  ftpLine.setAttribute('y2', String(ftpY));
-  ftpLine.setAttribute('stroke', getCssVar('--ftp-line'));
-  ftpLine.setAttribute('stroke-width', '2.1');
-  ftpLine.setAttribute('pointer-events', 'none');
-  svg.appendChild(ftpLine);
+  appendEl(svg, 'line', {
+    x1: '0',
+    x2: String(w),
+    y1: String(ftpY),
+    y2: String(ftpY),
+    stroke: getCssVar('--ftp-line'),
+    'stroke-width': '2.1',
+    'pointer-events': 'none',
+  });
 
-  const ftpLabel = document.createElementNS(SVG_NS, 'text');
-  ftpLabel.setAttribute('x', '6');
-  ftpLabel.setAttribute('y', String(ftpY - 6));
-  ftpLabel.setAttribute('fill', getCssVar('--ftp-line'));
-  ftpLabel.setAttribute('font-size', '14');
-  ftpLabel.setAttribute('pointer-events', 'none');
+  const ftpLabel = appendEl(svg, 'text', {
+    x: '6',
+    y: String(ftpY - 6),
+    fill: getCssVar('--ftp-line'),
+    'font-size': '14',
+    'pointer-events': 'none',
+  });
   ftpLabel.textContent = `FTP ${Math.round(ftp)}`;
-  svg.appendChild(ftpLabel);
 
   const hourDur = 3600;
   if (hourDur <= maxDur) {
     const x = xFor(hourDur);
-    const vline = document.createElementNS(SVG_NS, 'line');
-    vline.setAttribute('x1', String(x));
-    vline.setAttribute('x2', String(x));
-    vline.setAttribute('y1', '0');
-    vline.setAttribute('y2', String(h));
-    vline.setAttribute('stroke', getCssVar('--border-strong'));
-    vline.setAttribute('stroke-dasharray', '4 4');
-    vline.setAttribute('stroke-width', '1.4');
-    vline.setAttribute('pointer-events', 'none');
-    svg.appendChild(vline);
+    appendEl(svg, 'line', {
+      x1: String(x),
+      x2: String(x),
+      y1: '0',
+      y2: String(h),
+      stroke: getCssVar('--border-strong'),
+      'stroke-dasharray': '4 4',
+      'stroke-width': '1.4',
+      'pointer-events': 'none',
+    });
 
-    const lbl = document.createElementNS(SVG_NS, 'text');
-    lbl.setAttribute('x', String(x + 6));
-    lbl.setAttribute('y', '16');
-    lbl.setAttribute('fill', getCssVar('--border-strong'));
-    lbl.setAttribute('font-size', '14');
-    lbl.setAttribute('pointer-events', 'none');
+    const lbl = appendEl(svg, 'text', {
+      x: String(x + 6),
+      y: '16',
+      fill: getCssVar('--border-strong'),
+      'font-size': '14',
+      'pointer-events': 'none',
+    });
     lbl.textContent = '1h';
-    svg.appendChild(lbl);
   }
 
   if (!sorted.length) return;
@@ -1911,12 +1906,12 @@ export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
     pathParts.push(`${idx === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`);
   });
 
-  const path = document.createElementNS(SVG_NS, 'path');
-  path.setAttribute('d', pathParts.join(''));
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', getCssVar('--power-line'));
-  path.setAttribute('stroke-width', '2');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  svg.appendChild(path);
+  appendEl(svg, 'path', {
+    d: pathParts.join(''),
+    fill: 'none',
+    stroke: getCssVar('--power-line'),
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  });
 }

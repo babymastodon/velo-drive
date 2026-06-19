@@ -9,7 +9,13 @@
   // Edit buttons open the embedded BuilderView (see onCreateWorkout / onEdit).
   import OverlayModal from './OverlayModal.svelte';
   import type { WorkoutEngine } from '../core/engine.js';
-  import type { WebFileStore, ScheduleEntry } from '../ports/web/WebFileStore.js';
+  import type { FileStore } from '../ports/FileStore.js';
+  import {
+    scheduleWorkoutForDay as scheduleWorkoutForDayRule,
+    unscheduleEntry,
+    type ScheduleEntry,
+  } from '../core/schedule.js';
+  import { parseSearchQuery, matchesSearchQuery } from '../core/calendar.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
@@ -40,7 +46,7 @@
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
-    fileStore: WebFileStore;
+    fileStore: FileStore;
     ui: UiStore;
     dialogs: DialogStore;
     open?: boolean;
@@ -159,58 +165,14 @@
 
     const term = searchTerm.toLowerCase();
     if (term) {
-      const rawTokens = term
-        .split(/\s+/)
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
-      let rangeMin: number | null = null;
-      let rangeMax: number | null = null;
-      const tokens: string[] = [];
-      rawTokens.forEach((tok) => {
-        const compactRange = tok.match(/^(\d+)\s*[-–]\s*(\d+)\s*(m|min)?$/i);
-        if (compactRange) {
-          rangeMin = Number(compactRange[1]);
-          rangeMax = Number(compactRange[2]);
-          return;
-        }
-        const lt = tok.match(/^<\s*(\d+)/);
-        const gt = tok.match(/^>\s*(\d+)/);
-        if (lt) {
-          rangeMax = Number(lt[1]);
-          return;
-        }
-        if (gt) {
-          rangeMin = Number(gt[1]);
-          return;
-        }
-        const approx = tok.match(/^(\d+)\s*(m|min)?$/i);
-        if (approx) {
-          const val = Number(approx[1]);
-          if (Number.isFinite(val)) {
-            rangeMin = rangeMin == null ? val - 5 : rangeMin;
-            rangeMax = rangeMax == null ? val + 5 : rangeMax;
-            return;
-          }
-        }
-        tokens.push(tok);
-      });
-      if (rangeMin != null && rangeMax != null && rangeMin > rangeMax) {
-        const tmp = rangeMin;
-        rangeMin = rangeMax;
-        rangeMax = tmp;
-      }
+      // Search grammar (tokens + duration range) is parsed/matched by the pure
+      // core/calendar helper.
+      const query = parseSearchQuery(term);
       items = items.filter((it) => {
         const haystack = [it.canonical.workoutTitle, it.zone, it.canonical.source || '']
           .join(' ')
           .toLowerCase();
-        const tokensMatch = tokens.every((t) => haystack.includes(t));
-        if (!tokensMatch) return false;
-        if (rangeMin != null || rangeMax != null) {
-          const dur = it.metrics.durationMin;
-          if (rangeMin != null && !(dur >= rangeMin)) return false;
-          if (rangeMax != null && !(dur <= rangeMax)) return false;
-        }
-        return true;
+        return matchesSearchQuery(query, haystack, it.metrics.durationMin);
       });
     }
 
@@ -317,24 +279,7 @@
     const title = canonical.workoutTitle;
     if (!title) return;
     const entries = await fileStore.loadSchedule();
-    const nextEntry: ScheduleEntry = { date: ctx.dateKey, workoutTitle: title };
-    let next: ScheduleEntry[];
-    if (ctx.entry) {
-      // Replace the targeted entry in place (matched by date + title).
-      let replaced = false;
-      next = entries.map((e) => {
-        if (!replaced && e.date === ctx.entry!.date && e.workoutTitle === ctx.entry!.workoutTitle) {
-          replaced = true;
-          return nextEntry;
-        }
-        return e;
-      });
-      if (!replaced) next.push(nextEntry);
-    } else {
-      // Avoid a duplicate (same day + title) but otherwise append.
-      next = entries.filter((e) => !(e.date === ctx.dateKey && e.workoutTitle === title));
-      next.push(nextEntry);
-    }
+    const next = scheduleWorkoutForDayRule(entries, ctx.dateKey, title, ctx.entry);
     await fileStore.saveSchedule(next);
     ui.returnToPlannerFromSchedule();
   }
@@ -345,9 +290,7 @@
     const ctx = scheduleCtx;
     if (!ctx?.entry) return;
     const entries = await fileStore.loadSchedule();
-    const next = entries.filter(
-      (e) => !(e.date === ctx.entry!.date && e.workoutTitle === ctx.entry!.workoutTitle),
-    );
+    const next = unscheduleEntry(entries, ctx.entry);
     await fileStore.saveSchedule(next);
     ui.returnToPlannerFromSchedule();
   }

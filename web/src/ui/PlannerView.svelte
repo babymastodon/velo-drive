@@ -26,7 +26,7 @@
   //    Keyboard day-nav stays within this window and scrolls the selected cell
   //    into view (scrollSelectedIntoView), matching legacy scrollCellIntoView.
   import OverlayModal from './OverlayModal.svelte';
-  import type { WebFileStore, HistoryPreview } from '../ports/web/WebFileStore.js';
+  import type { FileStore } from '../ports/FileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { WorkoutEngine } from '../core/engine.js';
@@ -34,17 +34,15 @@
   import type { CanonicalWorkout, RawSegment } from '../core/model.js';
   import {
     DEFAULT_FTP,
-    computeMetricsFromSamples,
     computeScheduledMetrics,
-    inferZoneFromSegments,
     formatDurationMinSec,
   } from '../core/metrics.js';
   import {
-    buildPowerCurve,
-    computeHrCadStats,
-    POWER_CURVE_DURS,
-    type PowerCurvePoint,
-  } from '../core/planner-analysis.js';
+    buildRideDetail,
+    type HistoryPreview,
+    type RideDetail,
+  } from '../core/history.js';
+  import { buildCalendarWeeks, type DayCell } from '../core/calendar.js';
   import { drawMiniHistoryChart, drawPowerCurveChart, drawWorkoutChart } from '../core/chart.js';
   import { formatDateKey as formatKey } from '../core/date-keys.js';
   import { isEditableTarget } from './dom-utils.js';
@@ -60,7 +58,7 @@
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
-    fileStore: WebFileStore;
+    fileStore: FileStore;
     ui: UiStore;
     dialogs: DialogStore;
     open?: boolean;
@@ -92,14 +90,6 @@
     const [y, m, d] = key.split('-').map((n) => Number(n));
     if (!y || !m || !d) return null;
     return new Date(Date.UTC(y, m - 1, d));
-  }
-  function isSameDay(a: Date | null, b: Date | null): boolean {
-    if (!a || !b) return false;
-    return (
-      a.getFullYear() === b.getFullYear() &&
-      a.getMonth() === b.getMonth() &&
-      a.getDate() === b.getDate()
-    );
   }
   function formatSelectedLabel(date: Date | null): string {
     if (!date) return '';
@@ -152,31 +142,8 @@
   let calendarBodyEl = $state<HTMLDivElement | null>(null);
   let modalEl = $state<HTMLDivElement | null>(null);
 
-  // detail view
-  interface DetailState {
-    fileName: string;
-    workoutTitle: string;
-    durationSec: number;
-    activeDurationSec: number;
-    kj: number | null;
-    ifValue: number | null;
-    tss: number | null;
-    avgPower?: number;
-    normalizedPower?: number | null;
-    vi: number | null;
-    ef: number | null;
-    ftp: number;
-    rawSegments: RawSegment[];
-    samples: { t?: number; power?: number | null; hr?: number | null; cadence?: number | null }[];
-    powerCurve: PowerCurvePoint[];
-    startedAt: Date | null;
-    pausedSec: number;
-    avgHr?: number | null;
-    maxHr?: number | null;
-    avgCadence?: number | null;
-    maxCadence?: number | null;
-    zone: string;
-  }
+  // detail view — the ride-detail model is built by core/history.buildRideDetail.
+  type DetailState = RideDetail;
   let detail = $state<DetailState | null>(null);
   const detailMode = $derived(detail != null);
 
@@ -332,100 +299,12 @@
   }
 
   // --------------------------- weeks model ---------------------------
-  interface DayCell {
-    date: Date;
-    key: string;
-    dayNum: number;
-    monthLabel: string | null;
-    isToday: boolean;
-    classes: string;
-  }
-  const weeks = $derived.by<DayCell[][]>(() => {
-    // recompute when these change
-    void today;
-    void anchorStart;
-    void selectedDate;
-    const rowsBefore = Math.floor(VISIBLE_WEEKS / 2);
-    const firstIndex = -rowsBefore;
-    const out: DayCell[][] = [];
-    // Precompute month meta for boundary classes.
-    const monthMeta = new Map<string, { firstDow: number; lastDow: number }>();
-    const metaFor = (year: number, month: number) => {
-      const k = `${year}-${month}`;
-      let m = monthMeta.get(k);
-      if (!m) {
-        m = {
-          firstDow: new Date(year, month, 1).getDay(),
-          lastDow: new Date(year, month + 1, 0).getDay(),
-        };
-        monthMeta.set(k, m);
-      }
-      return m;
-    };
-    // Build raw cells first.
-    const raw: { date: Date; key: string; month: number; year: number; dow: number; cell: DayCell }[][] = [];
-    for (let w = 0; w < VISIBLE_WEEKS; w += 1) {
-      const start = addDays(anchorStart, (firstIndex + w) * 7);
-      const row: typeof raw[number] = [];
-      for (let i = 0; i < 7; i += 1) {
-        const date = addDays(start, i);
-        const key = formatKey(date);
-        const isFirstOfMonth = date.getDate() === 1;
-        const isToday = isSameDay(date, today);
-        let monthLabel: string | null = null;
-        if (isFirstOfMonth || isToday) {
-          monthLabel = isToday
-            ? 'Today'
-            : (() => {
-                try {
-                  return date.toLocaleString(undefined, { month: 'long' });
-                } catch {
-                  return String(date.getMonth() + 1);
-                }
-              })();
-        }
-        const cell: DayCell = {
-          date,
-          key,
-          dayNum: date.getDate(),
-          monthLabel,
-          isToday,
-          classes: '',
-        };
-        row.push({ date, key, month: date.getMonth(), year: date.getFullYear(), dow: date.getDay(), cell });
-      }
-      raw.push(row);
-    }
-    // Compute classes (selected/today/month-label + boundaries).
-    raw.forEach((row, rowIdx) => {
-      row.forEach((c, colIdx) => {
-        const classes: string[] = ['planner-day'];
-        if (c.cell.monthLabel != null) classes.push('has-month-label');
-        if (c.cell.isToday) classes.push('is-today');
-        if (selectedDate && isSameDay(c.date, selectedDate)) classes.push('is-selected');
-        const meta = metaFor(c.year, c.month);
-        if (colIdx > 0) {
-          const prev = row[colIdx - 1];
-          if (prev && prev.month !== c.month) classes.push('month-left-boundary');
-        }
-        if (rowIdx > 0) {
-          const above = raw[rowIdx - 1]?.[colIdx];
-          if (above && above.month !== c.month && c.dow >= meta.firstDow) {
-            classes.push('month-top-boundary');
-          }
-        }
-        if (rowIdx < raw.length - 1) {
-          const below = raw[rowIdx + 1]?.[colIdx];
-          if (below && below.month !== c.month && meta.lastDow !== 6 && c.dow <= meta.lastDow) {
-            classes.push('month-bottom-boundary');
-          }
-        }
-        c.cell.classes = classes.join(' ');
-      });
-    });
-    raw.forEach((row) => out.push(row.map((c) => c.cell)));
-    return out;
-  });
+  // The calendar grid (geometry + month-boundary classes) is built by the pure
+  // core/calendar.buildCalendarWeeks; this derivation just wires the reactive
+  // anchor/today/selection in.
+  const weeks = $derived.by<DayCell[][]>(() =>
+    buildCalendarWeeks(anchorStart, today, selectedDate, VISIBLE_WEEKS),
+  );
 
   // --------------------------- aggregates ---------------------------
   const agg = $derived.by(() => {
@@ -580,64 +459,17 @@
   }
 
   async function openDetail(p: HistoryPreview): Promise<void> {
-    // Re-read the FIT for full samples/meta (matches legacy openDetailView).
+    // Re-read the FIT for full samples/meta (matches legacy openDetailView), then
+    // delegate the VI/EF/paused/HR-cad ride-detail math to core/history.
     const entries = await fileStore.listHistory();
     const match = entries.find((e) => e.fileName === p.fileName) || null;
     if (!match) return;
-    const parsed = match.parsed;
-    const cw = parsed.canonicalWorkout || ({} as CanonicalWorkout);
-    const meta = parsed.meta || {};
-    const samples = parsed.samples || [];
-    const ftp = meta.ftp || DEFAULT_FTP;
-    const lastSample = samples.length ? samples[samples.length - 1] : null;
-    const durationSecHint =
-      meta.totalTimerSec != null
-        ? Math.max(1, Math.round(meta.totalTimerSec))
-        : meta.startedAt && meta.endedAt
-          ? Math.max(1, Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000))
-          : Math.max(1, Math.round(lastSample?.t || 0));
-    const metrics = computeMetricsFromSamples(samples, ftp, durationSecHint);
-    const totalTimerSec = meta.totalTimerSec || metrics.durationSec || durationSecHint || 0;
-    const totalElapsedSec =
-      meta.totalElapsedSec ||
-      (meta.startedAt && meta.endedAt
-        ? Math.max(0, Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000))
-        : totalTimerSec);
-    const pausedSec = Math.max(0, totalElapsedSec - totalTimerSec);
-    const hrStats = computeHrCadStats(samples);
-    const curvePoints = buildPowerCurve(metrics.perSecondPower || [], POWER_CURVE_DURS);
-    const activeDurationSec =
-      totalTimerSec || Math.max(0, (metrics.durationSec || durationSecHint || 0) - pausedSec);
-    const vi =
-      metrics.avgPower && metrics.avgPower > 0 && metrics.normalizedPower
-        ? metrics.normalizedPower / metrics.avgPower
-        : null;
-    const ef = metrics.avgHr && metrics.avgHr > 0 ? (metrics.normalizedPower || 0) / metrics.avgHr : null;
-
-    detail = {
-      fileName: p.fileName,
-      workoutTitle: cw.workoutTitle || p.workoutTitle,
-      durationSec: metrics.durationSec || durationSecHint || 0,
-      activeDurationSec,
-      kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
-      ifValue: metrics.ifValue,
-      tss: metrics.tss,
-      avgPower: metrics.avgPower,
-      normalizedPower: metrics.normalizedPower,
-      vi,
-      ef,
-      ftp,
-      rawSegments: cw.rawSegments || [],
-      samples,
-      powerCurve: curvePoints,
-      startedAt: meta.startedAt || p.startedAt || utcDateKeyToLocalDate(formatKey(today)),
-      pausedSec,
-      avgHr: hrStats.avgHr,
-      maxHr: hrStats.maxHr,
-      avgCadence: hrStats.avgCadence,
-      maxCadence: hrStats.maxCadence,
-      zone: p.zone || inferZoneFromSegments(cw.rawSegments || []),
-    };
+    detail = buildRideDetail(p.fileName, match.parsed, {
+      workoutTitle: p.workoutTitle,
+      startedAt: p.startedAt,
+      startedAtFallback: utcDateKeyToLocalDate(formatKey(today)),
+      zone: p.zone,
+    });
   }
 
   function exitDetail(): void {
