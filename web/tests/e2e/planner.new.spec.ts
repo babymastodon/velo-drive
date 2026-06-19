@@ -399,6 +399,130 @@ test.describe("Planner (new Svelte app) — behavior", () => {
     ).toHaveCount(0);
   });
 
+  // Simulate an HTML5 drag of a scheduled card onto a target day cell, sharing a
+  // single DataTransfer across dragstart→dragover→drop (Playwright's dragTo does
+  // not carry getData reliably). Returns nothing; assert via readSchedule.
+  async function dragScheduledCard(page: Page, fromDate: string, toDate: string): Promise<void> {
+    await page.evaluate(
+      ({fromDate, toDate}) => {
+        const card = document.querySelector<HTMLElement>(
+          `.planner-day[data-date="${fromDate}"] .planner-scheduled-card`,
+        );
+        const target = document.querySelector<HTMLElement>(`.planner-day[data-date="${toDate}"]`);
+        if (!card || !target) throw new Error("drag source/target not found");
+        const dt = new DataTransfer();
+        const fire = (el: Element, type: string) => {
+          const ev = new DragEvent(type, {bubbles: true, cancelable: true, dataTransfer: dt});
+          el.dispatchEvent(ev);
+        };
+        fire(card, "dragstart");
+        fire(target, "dragover");
+        fire(target, "drop");
+        fire(card, "dragend");
+      },
+      {fromDate, toDate},
+    );
+  }
+
+  test("drag-and-drop reschedule moves a scheduled card to a future day (schedule.json updated)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // Seeded: "Sleepy Spin" on 2026-06-20. Drag it onto 2026-06-23 (future).
+    await expect(
+      page.locator('.planner-day[data-date="2026-06-20"] .planner-scheduled-card').first(),
+    ).toBeVisible();
+    await dragScheduledCard(page, "2026-06-20", "2026-06-23");
+
+    await expect
+      .poll(async () => {
+        const s = await readSchedule(page);
+        return s.some((e) => e.date === "2026-06-23" && e.workoutTitle === "Sleepy Spin");
+      })
+      .toBe(true);
+    const schedule = await readSchedule(page);
+    expect(schedule.some((e) => e.date === "2026-06-20")).toBe(false);
+    // The card re-renders on the new day.
+    await expect(
+      page.locator('.planner-day[data-date="2026-06-23"] .planner-scheduled-card').first(),
+    ).toBeVisible();
+  });
+
+  test("drag-and-drop reschedule onto a PAST day is rejected (schedule unchanged)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    // Drag the 2026-06-20 scheduled card onto a PAST day (2026-06-15) → rejected.
+    await dragScheduledCard(page, "2026-06-20", "2026-06-15");
+    await page.waitForTimeout(80);
+
+    const schedule = await readSchedule(page);
+    expect(schedule.some((e) => e.date === "2026-06-20" && e.workoutTitle === "Sleepy Spin")).toBe(true);
+    expect(schedule.some((e) => e.date === "2026-06-15")).toBe(false);
+  });
+
+  test("holding '?' reveals the hotkey list and hides the aggregates; release restores", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    const list = page.getByTestId("planner-hotkey-list");
+    const agg = page.getByTestId("planner-agg-3");
+    await expect(list).toBeHidden();
+    await expect(agg).toBeVisible();
+
+    // Hold '?' (Shift+/): the list shows, the aggregates hide.
+    await page.keyboard.down("Shift");
+    await page.keyboard.down("/");
+    await expect(list).toBeVisible();
+    await expect(agg).toBeHidden();
+
+    // Release: the footer restores.
+    await page.keyboard.up("/");
+    await page.keyboard.up("Shift");
+    await expect(list).toBeHidden();
+    await expect(agg).toBeVisible();
+  });
+
+  test("keyboard day-nav keeps the selected cell scrolled into view", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPlanner(page);
+
+    await page.locator(".planner-day").first(); // ensure render
+    // Press ArrowUp (k = -7 days) several times to walk the selection toward the
+    // top of the rendered window, then assert the selected cell is within the
+    // visible calendar-body viewport (scrolled into view, legacy 8px pad).
+    for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(120);
+
+    const inView = await page.evaluate(() => {
+      const body = document.querySelector<HTMLElement>("#plannerCalendarBody");
+      const cell = document.querySelector<HTMLElement>(".planner-day.is-selected");
+      if (!body || !cell) return false;
+      const b = body.getBoundingClientRect();
+      const c = cell.getBoundingClientRect();
+      // Cell must be at least partially within the body's vertical viewport.
+      return c.bottom > b.top && c.top < b.bottom;
+    });
+    expect(inView).toBe(true);
+
+    // And again navigating downward past the start position.
+    for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(120);
+    const inView2 = await page.evaluate(() => {
+      const body = document.querySelector<HTMLElement>("#plannerCalendarBody");
+      const cell = document.querySelector<HTMLElement>(".planner-day.is-selected");
+      if (!body || !cell) return false;
+      const b = body.getBoundingClientRect();
+      const c = cell.getBoundingClientRect();
+      return c.bottom > b.top && c.top < b.bottom;
+    });
+    expect(inView2).toBe(true);
+  });
+
   test("the stats cache means a second planner open re-parses nothing", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);

@@ -785,6 +785,41 @@ export class WebFileStore implements FileStore {
     return this.saveSchedule(next);
   }
 
+  /**
+   * Move a scheduled entry from one day to another (drag-and-drop reschedule).
+   * Mirrors the legacy planner moveScheduledEntry (workout-planner.js:223-258):
+   * a same-day move is a no-op (true), a move onto a PAST day is rejected
+   * (false), and only the FIRST matching {fromDate, title} entry is moved. The
+   * matched entry keeps its other fields and just gets the new date appended at
+   * the end of the list (matching legacy slice+concat order). Returns true when
+   * the move succeeded (or was a no-op same-day), false otherwise.
+   */
+  async moveScheduledEntry(
+    fromDate: string,
+    title: string,
+    toDate: string,
+  ): Promise<boolean> {
+    if (!fromDate || !toDate || !title) return false;
+    if (fromDate === toDate) return true;
+    // Reject moving onto a past day (legacy isPastDate guard). Day key compared
+    // against local midnight, matching PlannerView.isPastDate.
+    const [y, m, d] = toDate.split('-').map((n) => Number(n));
+    if (y && m && d) {
+      const target = new Date(y, m - 1, d).getTime();
+      const midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+      if (target < midnight.getTime()) return false;
+    }
+    const entries = await this.loadSchedule();
+    const idx = entries.findIndex((e) => e.date === fromDate && e.workoutTitle === title);
+    if (idx === -1) return false;
+    const next = entries
+      .slice(0, idx)
+      .concat(entries.slice(idx + 1))
+      .concat([{ ...entries[idx], date: toDate } as ScheduleEntry]);
+    return this.saveSchedule(next);
+  }
+
   /** Move a history .fit file to the trash dir (mirrors moveHistoryFileToTrash). */
   async deleteHistoryToTrash(fileName: string): Promise<boolean> {
     const srcDir = await this.loadWorkoutDirHandle();
