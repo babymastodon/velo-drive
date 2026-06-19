@@ -24,6 +24,9 @@
   import { renderMiniWorkoutGraph } from '../core/chart.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
+  import { parseTrainerDayUrl } from '../core/scrapers.js';
+  import { parseFitFile } from '../core/fit.js';
+  import { parseZwoXmlToCanonicalWorkout } from '../core/zwo.js';
 
   let {
     store,
@@ -58,12 +61,66 @@
   let sortDir = $state<'asc' | 'desc'>('asc');
   let expandedTitle = $state<string | null>(null);
 
+  // pickerState persistence (search + zone + duration + sort) across opens.
+  // Mirrors docs/storage.js STORAGE_PICKER_STATE + workout-picker.js
+  // load/savePickerState. We suppress the auto-save effect while restoring so the
+  // restore itself doesn't immediately re-persist defaults.
+  const PICKER_STATE_KEY = 'pickerState';
+  interface PickerState {
+    searchTerm?: string;
+    zone?: string;
+    duration?: string;
+    sortKey?: SortKey;
+    sortDir?: 'asc' | 'desc';
+  }
+  const VALID_DURATIONS = new Set([
+    '', '1-30', '31-45', '46-60', '61-75', '76-90', '91-120', '121-180', '181-240', '>240',
+  ]);
+  let pickerStateReady = $state(false);
+
+  async function restorePickerState(): Promise<void> {
+    pickerStateReady = false;
+    const saved = await fileStore.getSetting<PickerState | null>(PICKER_STATE_KEY, null);
+    if (saved) {
+      searchTerm = saved.searchTerm || '';
+      zoneValue = saved.zone || '';
+      durationValue = VALID_DURATIONS.has(saved.duration || '') ? saved.duration || '' : '';
+      if (saved.sortKey) sortKey = saved.sortKey;
+      if (saved.sortDir === 'asc' || saved.sortDir === 'desc') sortDir = saved.sortDir;
+    }
+    pickerStateReady = true;
+  }
+
+  function persistPickerState(): void {
+    void fileStore.putSetting(PICKER_STATE_KEY, {
+      searchTerm,
+      zone: zoneValue,
+      duration: durationValue,
+      sortKey,
+      sortDir,
+    } satisfies PickerState);
+  }
+
+  // Persist on every filter/sort change once the picker is open + restored.
+  $effect(() => {
+    // Track the persisted fields reactively.
+    void searchTerm;
+    void zoneValue;
+    void durationValue;
+    void sortKey;
+    void sortDir;
+    if (open && pickerStateReady && !builderMode) persistPickerState();
+  });
+
   // Rescan the library whenever the picker is opened.
   $effect(() => {
     if (open) {
       expandedTitle = null;
       builderMode = false;
-      void rescan();
+      void (async () => {
+        await restorePickerState();
+        await rescan();
+      })();
     }
   });
 
@@ -285,6 +342,91 @@
   let builderOriginalTitle = $state<string | null>(null);
   let builderApi = $state<BuilderApi | undefined>(undefined);
 
+  // --------------------------- builder dirty-tracking + draft ---------------------------
+  // Baseline = the canonical workout the builder was loaded with; the builder is
+  // "dirty" when getState() no longer equals it. Mirrors docs/workout-picker.js
+  // canonicalEquals / handleBuilderChange / setBuilderBaselineFromCurrent. The
+  // in-progress draft is persisted under STORAGE_WORKOUT_BUILDER_STATE so an
+  // accidental close can be recovered on the next builder open.
+  const BUILDER_STATE_KEY = 'workoutBuilderState';
+  let builderBaseline = $state<CanonicalWorkout | null>(null);
+  let hasUnsavedBuilderChanges = $state(false);
+  let suppressBuilderDirty = false;
+
+  function canonicalEquals(a: CanonicalWorkout | null, b: CanonicalWorkout | null): boolean {
+    if (!a || !b) return false;
+    if (
+      (a.workoutTitle || '') !== (b.workoutTitle || '') ||
+      (a.source || '') !== (b.source || '') ||
+      (a.sourceURL || '') !== (b.sourceURL || '') ||
+      (a.description || '') !== (b.description || '')
+    ) {
+      return false;
+    }
+    const arrA = Array.isArray(a.rawSegments) ? a.rawSegments : [];
+    const arrB = Array.isArray(b.rawSegments) ? b.rawSegments : [];
+    if (arrA.length !== arrB.length) return false;
+    for (let i = 0; i < arrA.length; i += 1) {
+      const segA = (arrA[i] || []) as unknown[];
+      const segB = (arrB[i] || []) as unknown[];
+      if (segA.length !== segB.length) return false;
+      for (let j = 0; j < segA.length; j += 1) {
+        const aVal = segA[j];
+        const bVal = segB[j];
+        if (typeof aVal === 'string' || typeof bVal === 'string') {
+          if (String(aVal) !== String(bVal)) return false;
+        } else if (Number(aVal) !== Number(bVal)) {
+          return false;
+        }
+      }
+    }
+    const eventsA = Array.isArray(a.textEvents) ? a.textEvents : [];
+    const eventsB = Array.isArray(b.textEvents) ? b.textEvents : [];
+    if (eventsA.length !== eventsB.length) return false;
+    for (let i = 0; i < eventsA.length; i += 1) {
+      const aEvt = eventsA[i] || ({} as { offsetSec?: number; durationSec?: number; text?: string });
+      const bEvt = eventsB[i] || ({} as { offsetSec?: number; durationSec?: number; text?: string });
+      if (Number(aEvt.offsetSec) !== Number(bEvt.offsetSec)) return false;
+      if (Number(aEvt.durationSec) !== Number(bEvt.durationSec)) return false;
+      if (String(aEvt.text || '') !== String(bEvt.text || '')) return false;
+    }
+    return true;
+  }
+
+  function setBuilderBaselineFromCurrent(): void {
+    if (!builderApi) return;
+    builderBaseline = builderApi.getState();
+    hasUnsavedBuilderChanges = false;
+  }
+
+  // Fired by BuilderView after every model mutation. Recompute dirty + persist
+  // the draft so an accidental close can be recovered.
+  function onBuilderChange(): void {
+    if (!builderApi || suppressBuilderDirty || !builderMode) return;
+    const current = builderApi.getState();
+    hasUnsavedBuilderChanges = !builderBaseline || !canonicalEquals(current, builderBaseline);
+    void fileStore.putSetting(BUILDER_STATE_KEY, current);
+  }
+
+  async function clearPersistedBuilderState(): Promise<void> {
+    await fileStore.putSetting(BUILDER_STATE_KEY, null);
+  }
+
+  // Confirm-on-leave when the builder has unsaved edits (legacy
+  // maybeHandleUnsavedBeforeLeave). Returns true if it's safe to leave.
+  async function maybeHandleUnsavedBeforeLeave(): Promise<boolean> {
+    if (!builderMode || !hasUnsavedBuilderChanges) return true;
+    const ok = await dialogs.confirm('Discard unsaved changes?', {
+      title: 'Unsaved changes',
+      okLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    });
+    if (!ok) return false;
+    await clearPersistedBuilderState();
+    hasUnsavedBuilderChanges = false;
+    return true;
+  }
+
   // When entering builder mode, mount the BuilderView; defer init to it.
   function enterBuilderMode(title: string): void {
     builderMode = true;
@@ -296,21 +438,165 @@
     builderMode = false;
     builderOriginalTitle = null;
     builderTitle = 'New Workout';
+    builderBaseline = null;
+    hasUnsavedBuilderChanges = false;
   }
 
   function onCreateWorkout(): void {
     enterBuilderMode('New Workout');
     builderOriginalTitle = null;
-    // BuilderView mounts with a default workout already initialized.
+    // BuilderView mounts with a default workout already initialized. Try to
+    // restore an in-progress draft (legacy restorePersistedStateOrDefault),
+    // else baseline against the default.
+    requestAnimationFrame(() => {
+      void restoreBuilderDraftOrDefault();
+    });
   }
   function onEdit(canonical: CanonicalWorkout): void {
     enterBuilderMode(canonical.workoutTitle || 'Edit workout');
     builderOriginalTitle = canonical.workoutTitle || null;
     // Load after the BuilderView mounts.
     requestAnimationFrame(() => {
+      suppressBuilderDirty = true;
       builderApi?.loadCanonicalWorkout(canonical);
       builderApi?.refreshLayout();
+      setBuilderBaselineFromCurrent();
+      suppressBuilderDirty = false;
     });
+  }
+
+  // Restore a persisted draft if present (and non-trivial), else take the
+  // default-workout baseline. Mirrors legacy restorePersistedStateOrDefault.
+  async function restoreBuilderDraftOrDefault(): Promise<void> {
+    const draft = await fileStore.getSetting<CanonicalWorkout | null>(BUILDER_STATE_KEY, null);
+    suppressBuilderDirty = true;
+    try {
+      if (draft && Array.isArray(draft.rawSegments) && draft.rawSegments.length) {
+        builderApi?.loadCanonicalWorkout(draft);
+        builderApi?.refreshLayout();
+        builderTitle = draft.workoutTitle || 'New Workout';
+      }
+      setBuilderBaselineFromCurrent();
+    } finally {
+      suppressBuilderDirty = false;
+    }
+  }
+
+  // Load a scraped/uploaded workout into the builder (TrainerDay / file upload).
+  function loadIntoBuilder(canonical: CanonicalWorkout, fallbackTitle: string): void {
+    suppressBuilderDirty = true;
+    try {
+      builderApi?.loadCanonicalWorkout(canonical);
+      builderApi?.refreshLayout();
+      builderOriginalTitle = null;
+      builderBaseline = canonical;
+      hasUnsavedBuilderChanges = true;
+      builderTitle = canonical.workoutTitle || fallbackTitle;
+      void fileStore.putSetting(BUILDER_STATE_KEY, canonical);
+    } finally {
+      suppressBuilderDirty = false;
+    }
+  }
+
+  // --------------------------- import: TrainerDay URL ---------------------------
+  async function onImportTrainerDay(): Promise<void> {
+    if (!builderApi) return;
+    const url = await dialogs.prompt(
+      'Paste TrainerDay workout URL.\nExample: https://app.trainerday.com/workouts/vo2-max-1-8x4min-120',
+      { title: 'Import TrainerDay', okLabel: 'Import' },
+    );
+    if (!url) return;
+    const [canonical, error] = await parseTrainerDayUrl(url.trim());
+    if (!canonical) {
+      if (error) await dialogs.alert(error, { title: 'Import failed' });
+      return;
+    }
+    loadIntoBuilder(canonical, 'TrainerDay Workout');
+  }
+
+  // --------------------------- import: file upload (.zwo/.fit) ---------------------------
+  let uploadInputEl = $state<HTMLInputElement | null>(null);
+
+  function onUploadFileClick(): void {
+    if (!builderApi) return;
+    uploadInputEl?.click();
+  }
+
+  async function onUploadFileChange(): Promise<void> {
+    if (!builderApi || !uploadInputEl) return;
+    const file = uploadInputEl.files && uploadInputEl.files[0];
+    uploadInputEl.value = '';
+    if (!file) return;
+    const name = file.name || '';
+    const ext = (name.toLowerCase().split('.').pop() || '');
+    let canonical: CanonicalWorkout | null = null;
+    try {
+      if (ext === 'fit') {
+        const buf = await file.arrayBuffer();
+        const parsed = parseFitFile(buf);
+        canonical = parsed?.canonicalWorkout || null;
+      } else {
+        const text = await file.text();
+        canonical = parseZwoXmlToCanonicalWorkout(text);
+      }
+    } catch (err) {
+      console.warn('[PickerView] Upload parse failed:', err);
+      canonical = null;
+    }
+    if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+      await dialogs.alert('Unable to load workout file.', { title: 'Upload failed' });
+      return;
+    }
+    loadIntoBuilder(normalizeUploadedWorkout(canonical, name), 'Uploaded Workout');
+  }
+
+  // Default title/source/description for an uploaded file (legacy
+  // normalizeUploadedWorkout + buildSegmentDescription).
+  function normalizeUploadedWorkout(canonical: CanonicalWorkout, fileName: string): CanonicalWorkout {
+    const next: CanonicalWorkout = {
+      ...canonical,
+      rawSegments: Array.isArray(canonical.rawSegments) ? canonical.rawSegments : [],
+      textEvents: Array.isArray(canonical.textEvents) ? canonical.textEvents : [],
+    };
+    const baseName = String(fileName || '').replace(/\.[^/.]+$/, '');
+    if (!next.workoutTitle || !String(next.workoutTitle).trim()) {
+      next.workoutTitle = baseName || 'Uploaded Workout';
+    }
+    if (!next.source || !String(next.source).trim()) {
+      next.source = baseName ? `Uploaded ${baseName}` : 'Uploaded file';
+    }
+    if (!next.description || !String(next.description).trim()) {
+      next.description = buildSegmentDescription(next.rawSegments);
+    }
+    return next;
+  }
+
+  function buildSegmentDescription(rawSegments: CanonicalWorkout['rawSegments']): string {
+    if (!Array.isArray(rawSegments) || !rawSegments.length) return 'Workout loaded from file.';
+    let totalSec = 0;
+    let rampCount = 0;
+    let steadyCount = 0;
+    let freeRideCount = 0;
+    rawSegments.forEach((seg) => {
+      if (!Array.isArray(seg)) return;
+      const minutes = Number(seg[0]) || 0;
+      totalSec += Math.max(1, Math.round(minutes * 60));
+      if (seg[3] === 'freeride') {
+        freeRideCount += 1;
+        return;
+      }
+      const start = Number(seg[1]) || 0;
+      const end = seg[2] != null ? Number(seg[2]) : start;
+      if (Math.abs(start - end) > 1e-6) rampCount += 1;
+      else steadyCount += 1;
+    });
+    const parts = [`${formatDurationMinSec(totalSec)} workout`];
+    const detail: string[] = [];
+    if (steadyCount) detail.push(`${steadyCount} steady`);
+    if (rampCount) detail.push(`${rampCount} ramp${rampCount === 1 ? '' : 's'}`);
+    if (freeRideCount) detail.push(`${freeRideCount} freeride`);
+    if (detail.length) parts.push(`with ${detail.join(', ')}`);
+    return parts.join(' ') + '.';
   }
 
   function onBuilderStatusChange(p: { text: string; tone: string }): void {
@@ -322,6 +608,9 @@
   }
 
   async function onBuilderBack(): Promise<void> {
+    const safe = await maybeHandleUnsavedBeforeLeave();
+    if (!safe) return;
+    await clearPersistedBuilderState();
     exitBuilderMode();
   }
 
@@ -343,6 +632,8 @@
     }
     const saved = await fileStore.saveWorkout(canonical);
     if (!saved) return;
+    await clearPersistedBuilderState();
+    hasUnsavedBuilderChanges = false;
     exitBuilderMode();
     await rescan();
     expandedTitle = canonical.workoutTitle || null;
@@ -367,12 +658,33 @@
   }
 
   let searchInputEl = $state<HTMLInputElement | null>(null);
+  let zoneSelectEl = $state<HTMLSelectElement | null>(null);
+  let durationSelectEl = $state<HTMLSelectElement | null>(null);
+  let selectBtnEl = $state<HTMLButtonElement | null>(null);
 
-  function onModalKeydown(e: KeyboardEvent): void {
-    if (!open) return;
+  // Focus a filter <select> and open its native dropdown if the browser allows
+  // it (legacy used el.showPicker()). showPicker() requires a user gesture and
+  // can throw / steal focus when called outside one, so it's best-effort and
+  // deferred so it never clobbers the focus() we just set.
+  function focusAndOpenSelect(el: HTMLSelectElement | null): void {
+    if (!el) return;
+    el.focus();
+    const sp = (el as unknown as { showPicker?: () => void }).showPicker;
+    if (typeof sp === 'function') {
+      requestAnimationFrame(() => {
+        try { sp.call(el); } catch { /* not user-gesture; ignore */ }
+      });
+    }
+  }
+
+  // The picker keymap. Routed here by the App overlay-key hook while the picker
+  // overlay is open (registered below). Returns true if it consumed the key.
+  // Mirrors docs/workout-picker.js setupHotkeys (1310-1492).
+  function handlePickerKey(e: KeyboardEvent): boolean {
+    if (!open) return false;
     // In builder mode the BuilderView owns the keymap (insert/edit/undo/etc).
-    if (builderMode) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (builderMode) return false;
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
     const key = (e.key || '').toLowerCase();
     const target = e.target as HTMLElement | null;
     const tag = target?.tagName;
@@ -381,7 +693,7 @@
       e.preventDefault();
       searchInputEl.focus();
       searchInputEl.select();
-      return;
+      return true;
     }
     if (target === searchInputEl) {
       if (key === 'enter') {
@@ -389,33 +701,101 @@
         searchInputEl?.blur();
         const results = visibleItems;
         if (results.length) expandedTitle = results[0]!.canonical.workoutTitle;
-      } else if (key === 'escape') {
-        e.preventDefault();
-        searchTerm = '';
-        searchInputEl?.blur();
+        // Legacy focuses the Select button so a second Enter rides the workout.
+        requestAnimationFrame(() => selectBtnEl?.focus());
+        return true;
       }
-      return;
+      if (key === 'escape') {
+        // Clear search if it has text; else fall through to let Escape close.
+        if (searchTerm) {
+          e.preventDefault();
+          searchTerm = '';
+          return true;
+        }
+        searchInputEl?.blur();
+        return false;
+      }
+      return false;
     }
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // z / d → focus + open the zone / duration filter (legacy 1402-1414). Allow
+    // these even when another SELECT is focused (so you can hop between them).
+    if (key === 'z') {
+      e.preventDefault();
+      focusAndOpenSelect(zoneSelectEl);
+      return true;
+    }
+    if (key === 'd') {
+      e.preventDefault();
+      focusAndOpenSelect(durationSelectEl);
+      return true;
+    }
+
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
+
+    if (key === 'escape') {
+      // Not handled here → App closes the overlay (matches legacy close()).
+      return false;
+    }
+
+    // e → open the expanded workout in the builder (legacy 1468-1478).
+    if (key === 'e') {
+      const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
+      if (expanded) {
+        e.preventDefault();
+        onEdit(expanded.canonical);
+        return true;
+      }
+      return false;
+    }
 
     if (key === 'enter') {
       const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
       if (expanded) {
         e.preventDefault();
-        e.stopPropagation();
         doSelect(expanded.canonical);
+        return true;
       }
-      return;
+      return false;
     }
     if (key === 'arrowdown' || key === 'j') {
       e.preventDefault();
       movePickerExpansion(1);
-      return;
+      return true;
     }
     if (key === 'arrowup' || key === 'k') {
       e.preventDefault();
       movePickerExpansion(-1);
-      return;
+      return true;
+    }
+    return false;
+  }
+
+  // Register the picker keymap with the App overlay-key router whenever the
+  // picker overlay is the active one (the App suppresses global hotkeys and
+  // routes keys here). Mirrors the Wave-1 overlayKeyHandlers convention.
+  $effect(() => {
+    if (open) {
+      ui.registerOverlayKeyHandler('picker', handlePickerKey);
+      return () => ui.registerOverlayKeyHandler('picker', null);
+    }
+    return undefined;
+  });
+
+  // Keep the modal-scoped keydown too, so keys typed while focus is inside an
+  // input/select (which the window handler also sees) still reach the keymap.
+  // The App routes window keydowns; this catches the same event harmlessly
+  // (handler is idempotent + guards on `open`). We forward to the same handler.
+  function onModalKeydown(e: KeyboardEvent): void {
+    // Escape inside the search box clears it; that case is handled by
+    // handlePickerKey returning true (preventDefault). Everything else is
+    // already handled by the App-level router, so do nothing here to avoid
+    // double-processing — except we must still clear search on Escape because
+    // the App routes Escape to ui.handleEscape() (which closes the overlay).
+    if ((e.key || '').toLowerCase() === 'escape' && e.target === searchInputEl && searchTerm) {
+      e.preventDefault();
+      e.stopPropagation();
+      searchTerm = '';
     }
   }
 
@@ -505,6 +885,7 @@
           data-testid="picker-zone-filter"
           class:picker-filter-active={!!zoneValue}
           style:display={builderMode ? 'none' : ''}
+          bind:this={zoneSelectEl}
           bind:value={zoneValue}
         >
           <option value="">All zones</option>
@@ -520,6 +901,7 @@
           data-testid="picker-duration-filter"
           class:picker-filter-active={!!durationValue}
           style:display={builderMode ? 'none' : ''}
+          bind:this={durationSelectEl}
           bind:value={durationValue}
         >
           <option value="">All durations</option>
@@ -560,8 +942,10 @@
           id="workoutBuilderTrainerDayBtn"
           class="wb-code-insert-btn"
           type="button"
+          data-testid="builder-trainerday"
           title="Load a TrainerDay workout by URL"
           style:display={builderMode ? 'inline-flex' : 'none'}
+          onclick={() => void onImportTrainerDay()}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
             <path d="M18 3h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -571,12 +955,22 @@
           <span>Import TrainerDay</span>
         </button>
 
+        <input
+          bind:this={uploadInputEl}
+          type="file"
+          accept=".zwo,.fit"
+          data-testid="builder-upload-input"
+          style="display: none"
+          onchange={() => void onUploadFileChange()}
+        />
         <button
           id="workoutBuilderUploadBtn"
           class="wb-code-insert-btn"
           type="button"
+          data-testid="builder-upload"
           title="Upload a .zwo or .fit file"
           style:display={builderMode ? 'inline-flex' : 'none'}
+          onclick={onUploadFileClick}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
             <path d="M12 16V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -628,6 +1022,7 @@
           onRequestBack={() => void onBuilderBack()}
           onStatusChange={onBuilderStatusChange}
           onUiStateChange={onBuilderUiStateChange}
+          onChange={onBuilderChange}
           bind:api={builderApi}
         />
       {/if}
@@ -746,6 +1141,7 @@
                           class="select-workout-btn"
                           data-testid="picker-select"
                           title="Use this workout on the workout page."
+                          bind:this={selectBtnEl}
                           onclick={(e) => { e.stopPropagation(); doSelect(item.canonical); }}
                         >
                           Select workout

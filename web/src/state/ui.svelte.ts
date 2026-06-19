@@ -8,8 +8,26 @@
 
 export type OverlayId = 'none' | 'welcome' | 'settings' | 'picker' | 'planner';
 
+/**
+ * An overlay's keydown handler. Returns true if it consumed the key (so the
+ * shell can preventDefault/stopPropagation). Overlays register themselves here
+ * on mount; the App keymap (overlayKeyHandlers hook) routes keys to the active
+ * overlay's handler. Mirrors the legacy per-view document keydown listeners.
+ */
+export type OverlayKeyHandler = (e: KeyboardEvent) => boolean;
+
 export class UiStore {
   activeOverlay = $state<OverlayId>('none');
+
+  // Per-overlay keydown handlers, populated by the overlay components (picker
+  // wave). Not reactive state — read by the App keymap on each keypress.
+  overlayKeyHandlers: Partial<Record<OverlayId, OverlayKeyHandler>> = {};
+
+  /** Register (or clear) an overlay's keydown handler. */
+  registerOverlayKeyHandler(id: OverlayId, handler: OverlayKeyHandler | null): void {
+    if (handler) this.overlayKeyHandlers[id] = handler;
+    else delete this.overlayKeyHandlers[id];
+  }
 
   // Settings has an internal logs sub-view; Escape returns here first.
   settingsLogsOpen = $state(false);

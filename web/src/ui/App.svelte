@@ -69,8 +69,9 @@
   // suppressed and the keydown is routed to that overlay's handler instead
   // (picker/planner/builder register their own in later waves). A handler
   // returns true if it consumed the key. This is the single routing convention
-  // the other waves hook into — they only need to populate this map.
-  const overlayKeyHandlers: Partial<Record<typeof ui.activeOverlay, (e: KeyboardEvent) => boolean>> = {};
+  // the other waves hook into — overlays populate ui.overlayKeyHandlers on mount
+  // (see UiStore.registerOverlayKeyHandler / PickerView).
+  const overlayKeyHandlers = ui.overlayKeyHandlers;
 
   function onKeydown(e: KeyboardEvent): void {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
