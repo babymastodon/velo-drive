@@ -7,6 +7,8 @@
 // active-state persistence, and the history dir handle (for FIT output).
 
 import type { CanonicalWorkout } from '../core/model.js';
+import type { HistoryPreview, HistoryFitEntry } from '../core/history.js';
+import type { ScheduleEntry } from '../core/schedule.js';
 
 export interface ActiveState {
   [key: string]: unknown;
@@ -61,4 +63,24 @@ export interface FileStore {
   deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean>;
   /** Serialize + write a CanonicalWorkout into the workouts dir (used by clone). */
   saveWorkout(canonical: CanonicalWorkout): Promise<boolean>;
+
+  // ---- Planner: history (.fit) ----
+  /** List + parse every .fit file in the history dir (full samples/meta). */
+  listHistory(): Promise<HistoryFitEntry[]>;
+  /** List the history dir and return a computed (cached) preview per .fit. */
+  listHistoryPreviews(): Promise<HistoryPreview[]>;
+  /** Drop a file from the in-memory + persisted ride-stats cache. */
+  invalidateHistoryStats(fileName: string): Promise<void>;
+  /** Move a history .fit file to the trash dir. */
+  deleteHistoryToTrash(fileName: string): Promise<boolean>;
+
+  // ---- Planner: schedule.json ----
+  /** Read schedule.json (a flat array); [] if absent. */
+  loadSchedule(): Promise<ScheduleEntry[]>;
+  /** Persist schedule.json. */
+  saveSchedule(entries: ScheduleEntry[]): Promise<boolean>;
+  /** Remove a scheduled entry for a day + title (case-insensitive). */
+  removeScheduledByTitle(dateKey: string, title: string): Promise<boolean>;
+  /** Move a scheduled entry from one day to another (drag-and-drop reschedule). */
+  moveScheduledEntry(fromDate: string, title: string, toDate: string): Promise<boolean>;
 }

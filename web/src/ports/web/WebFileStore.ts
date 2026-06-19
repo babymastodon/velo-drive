@@ -17,17 +17,23 @@ import {
 } from '../../core/zwo.js';
 import { parseFitFile, type ParseFitResult } from '../../core/fit.js';
 import type { RawSegment } from '../../core/model.js';
+import type { PowerInterval } from '../../core/planner-analysis.js';
 import {
-  DEFAULT_FTP,
-  computeMetricsFromSamples,
-  inferZoneFromSegments,
-  type Sample,
-} from '../../core/metrics.js';
+  buildHistoryPreview,
+  type HistoryPreview,
+  type HistoryFitEntry,
+} from '../../core/history.js';
 import {
-  buildPowerSegments,
-  powerMaxFromIntervals,
-  type PowerInterval,
-} from '../../core/planner-analysis.js';
+  removeScheduledByTitle as removeScheduledByTitleRule,
+  moveScheduledEntry as moveScheduledEntryRule,
+  type ScheduleEntry,
+} from '../../core/schedule.js';
+
+// Re-export the domain types from core so existing importers (UI + tests) keep
+// working while the canonical declarations live in core/ (dependency points
+// downward).
+export type { HistoryPreview, HistoryFitEntry } from '../../core/history.js';
+export type { ScheduleEntry } from '../../core/schedule.js';
 
 const DB_NAME = 'velo-drive';
 const DB_VERSION = 1;
@@ -65,31 +71,9 @@ const DEFAULT_WORKOUT_FILES = [
   'Sleepy%20Spin.zwo',
 ];
 
-/** A raw FIT history file entry (name + parsed contents). */
-export interface HistoryFitEntry {
-  fileName: string;
-  parsed: ParseFitResult;
-}
-
-/**
- * A computed per-ride history preview (the planner calendar card model). Built
- * by listHistoryPreviews from a parsed FIT + cached by file name so repeat opens
- * skip the parse + metric/segment math. `startedAt` is serialized as an ISO
- * string in the cache and rehydrated to a Date here.
- */
-export interface HistoryPreview {
-  fileName: string;
-  workoutTitle: string;
-  durationSec: number;
-  kj: number | null;
-  ifValue: number | null;
-  tss: number | null;
-  startedAt: Date | null;
-  rawSegments: RawSegment[];
-  powerSegments: PowerInterval[];
-  powerMax: number;
-  zone: string;
-}
+// The HistoryFitEntry + computed HistoryPreview models now live in
+// core/history.ts
+// (buildHistoryPreview); WebFileStore keeps the file/cache I/O around it.
 
 // On-disk cache entry (startedAt as ISO string, everything else JSON-friendly).
 interface StatsCacheEntry {
@@ -109,11 +93,7 @@ interface StatsCache {
   entries: Record<string, StatsCacheEntry>;
 }
 
-/** A persisted schedule entry (schedule.json is a flat array of these). */
-export interface ScheduleEntry {
-  date: string; // YYYY-MM-DD
-  workoutTitle: string;
-}
+// ScheduleEntry now lives in core/schedule.ts (re-exported above).
 
 /** Injective title -> file-safe base name (mirrors docs/workout-picker.js). */
 function sanitizeZwoFileName(title: string): string {
@@ -629,35 +609,9 @@ export class WebFileStore implements FileStore {
   }
 
   private buildPreview(fileName: string, parsed: ParseFitResult): HistoryPreview {
-    const cw = parsed.canonicalWorkout || ({} as CanonicalWorkout);
-    const meta = parsed.meta || {};
-    const ftp = meta.ftp || DEFAULT_FTP;
-    // FitSample lacks the index signature Sample carries; the fields used are
-    // identical, so widen for the metric/segment helpers (same call PlannerView
-    // makes against parsed.samples).
-    const samples = (parsed.samples || []) as Sample[];
-    const lastSample = samples.length ? samples[samples.length - 1] : null;
-    const durationSecHint =
-      meta.totalTimerSec != null
-        ? Math.max(1, Math.round(meta.totalTimerSec))
-        : meta.startedAt && meta.endedAt
-          ? Math.max(1, Math.round((meta.endedAt.getTime() - meta.startedAt.getTime()) / 1000))
-          : Math.max(1, Math.round(lastSample?.t || 0));
-    const metrics = computeMetricsFromSamples(samples, ftp, durationSecHint);
-    const powerSegments = buildPowerSegments(samples, durationSecHint).intervals;
-    return {
-      fileName,
-      workoutTitle: cw.workoutTitle || fileName.replace(/\.fit$/i, ''),
-      durationSec: metrics.durationSec || durationSecHint || 0,
-      kj: meta.totalWorkJ != null ? meta.totalWorkJ / 1000 : metrics.kj,
-      ifValue: metrics.ifValue,
-      tss: metrics.tss,
-      startedAt: meta.startedAt || null,
-      rawSegments: cw.rawSegments || [],
-      powerSegments,
-      powerMax: powerMaxFromIntervals(powerSegments),
-      zone: inferZoneFromSegments(cw.rawSegments || []),
-    };
+    // Pure ride-analytics now live in core/history.ts; this adapter only owns
+    // the file read + the stats-cache I/O around it.
+    return buildHistoryPreview(fileName, parsed);
   }
 
   private cacheEntryFromPreview(p: HistoryPreview): StatsCacheEntry {
@@ -775,13 +729,9 @@ export class WebFileStore implements FileStore {
    * was removed (and persisted), false otherwise.
    */
   async removeScheduledByTitle(dateKey: string, title: string): Promise<boolean> {
-    if (!dateKey || !title) return false;
-    const wanted = title.trim().toLowerCase();
     const entries = await this.loadSchedule();
-    const next = entries.filter(
-      (e) => !(e.date === dateKey && (e.workoutTitle || '').trim().toLowerCase() === wanted),
-    );
-    if (next.length === entries.length) return false;
+    const next = removeScheduledByTitleRule(entries, dateKey, title);
+    if (next === null) return false;
     return this.saveSchedule(next);
   }
 
@@ -801,23 +751,11 @@ export class WebFileStore implements FileStore {
   ): Promise<boolean> {
     if (!fromDate || !toDate || !title) return false;
     if (fromDate === toDate) return true;
-    // Reject moving onto a past day (legacy isPastDate guard). Day key compared
-    // against local midnight, matching PlannerView.isPastDate.
-    const [y, m, d] = toDate.split('-').map((n) => Number(n));
-    if (y && m && d) {
-      const target = new Date(y, m - 1, d).getTime();
-      const midnight = new Date();
-      midnight.setHours(0, 0, 0, 0);
-      if (target < midnight.getTime()) return false;
-    }
     const entries = await this.loadSchedule();
-    const idx = entries.findIndex((e) => e.date === fromDate && e.workoutTitle === title);
-    if (idx === -1) return false;
-    const next = entries
-      .slice(0, idx)
-      .concat(entries.slice(idx + 1))
-      .concat([{ ...entries[idx], date: toDate } as ScheduleEntry]);
-    return this.saveSchedule(next);
+    const result = moveScheduledEntryRule(entries, fromDate, title, toDate);
+    if (result.kind === 'noop') return true;
+    if (result.kind === 'reject') return false;
+    return this.saveSchedule(result.entries);
   }
 
   /** Move a history .fit file to the trash dir (mirrors moveHistoryFileToTrash). */
