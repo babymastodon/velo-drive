@@ -32,6 +32,14 @@ export class UiStore {
   // Settings has an internal logs sub-view; Escape returns here first.
   settingsLogsOpen = $state(false);
 
+  // The picker hosts an in-place workout builder. While the builder is showing,
+  // the BuilderView owns ALL keys (including Escape, which deselects a block or
+  // goes Back — it must NOT close the picker). The App's global key router
+  // checks this to suppress global hotkeys + the close-on-Escape disposition
+  // while the builder is open. Mirrors legacy picker.isBuilderMode()
+  // (docs/workout.js:1748-1750 — Escape returns early in builder mode).
+  pickerBuilderMode = $state(false);
+
   // The boot-time auto-open (startupNeedsAttention) can force a help section
   // open when it auto-opens Settings (mirrors settings.js showHelpSectionById).
   // SettingsView reads + clears this on open. null = no forced section.

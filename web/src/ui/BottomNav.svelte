@@ -4,6 +4,7 @@
   import type { DialogStore } from '../state/dialog.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import { CadenceCoach, computeCoachingTitle } from './hud-coaching.js';
+  import { isWebBluetoothAvailable } from '../app/compat.js';
 
   let {
     vm,
@@ -73,10 +74,23 @@
     if (!sure) return;
     await engine.endWorkout();
   }
-  function onConnectBike(): void {
+  // Warn + open Settings when Web Bluetooth is unavailable (mirrors legacy
+  // docs/workout.js:1525-1565). When available, the picker connect runs; a
+  // user cancel/failure is handled inside the transport (status → idle/error).
+  async function ensureBluetooth(): Promise<boolean> {
+    if (isWebBluetoothAvailable()) return true;
+    await dialogs.alert(
+      "Your browser doesn't support Bluetooth. Let's open Settings for options.",
+    );
+    onOpenSettings?.();
+    return false;
+  }
+  async function onConnectBike(): Promise<void> {
+    if (!(await ensureBluetooth())) return;
     transport.connectBikeViaPicker().catch(() => {});
   }
-  function onConnectHr(): void {
+  async function onConnectHr(): Promise<void> {
+    if (!(await ensureBluetooth())) return;
     transport.connectHrViaPicker().catch(() => {});
   }
   function onSetMode(m: 'erg' | 'resistance'): void {

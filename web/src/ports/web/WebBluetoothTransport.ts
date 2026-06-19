@@ -323,6 +323,10 @@ export class WebBluetoothTransport implements TrainerTransport {
         } catch {
           /* ignore */
         }
+      } else if (!wasConnected) {
+        // Nothing was connected and the user cancelled the chooser — return the
+        // status dot to idle (we set 'connecting' above), NOT an error color.
+        this.updateBikeStatus('idle');
       }
       throw err;
     }
@@ -359,6 +363,9 @@ export class WebBluetoothTransport implements TrainerTransport {
         } catch {
           /* ignore */
         }
+      } else if (!wasConnected) {
+        // User cancelled the chooser with nothing connected — back to idle.
+        this.updateHrStatus('idle');
       }
       throw err;
     }
@@ -735,11 +742,17 @@ export class WebBluetoothTransport implements TrainerTransport {
     return '';
   }
 
-  private updateBikeStatus(state: 'connecting' | 'connected' | 'error', message?: string): void {
+  private updateBikeStatus(
+    state: 'idle' | 'connecting' | 'connected' | 'error',
+    message?: string,
+  ): void {
     this.emit('bikeStatus', { state, message: message ?? this.defaultStatusMessage('bike', state) });
   }
 
-  private updateHrStatus(state: 'connecting' | 'connected' | 'error', message?: string): void {
+  private updateHrStatus(
+    state: 'idle' | 'connecting' | 'connected' | 'error',
+    message?: string,
+  ): void {
     this.emit('hrStatus', {
       state,
       message: message ?? this.defaultStatusMessage('heart-rate monitor', state),

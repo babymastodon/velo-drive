@@ -209,6 +209,18 @@ export const test = base.extend<{
     // 2. Build the env onto window.__VELO_TEST_ENV__ (consumed by velo-shim.js).
     await page.addInitScript({path: PAGE_ENV});
 
+    // 2.0 Seed the "welcome seen" flag into the fake IndexedDB settings store so
+    // the new app's boot-time welcome gating (App.svelte maybeShowWelcome) does
+    // NOT show the first-run tour in the (already-configured) hermetic state. A
+    // fresh REAL user has no such flag and DOES see welcome. This extends the
+    // page-env seed from the fixture (not by editing harness/*).
+    await page.addInitScript(() => {
+      const harness = (window as unknown as {
+        __VELO_HARNESS__?: {settingsStore?: Map<string, {key: string; value: unknown}>};
+      }).__VELO_HARNESS__;
+      harness?.settingsStore?.set("hasSeenWelcome", {key: "hasSeenWelcome", value: true});
+    });
+
     // 2a. The fake FS dir handle exposes values()/[asyncIterator] but not the
     // entries() async-iterator the legacy planner-backend uses to list the
     // history dir (docs/planner-backend.js). Polyfill it on the prototype here

@@ -312,6 +312,61 @@ test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
     expect(await selectedBands(page).count()).toBeGreaterThan(1);
   });
 
+  // Bug #6: Escape in the builder must DESELECT the block, NOT close the picker
+  // (legacy docs/workout.js:1748-1750 returns early in builder mode). A second
+  // Escape (no selection) goes Back to the library — it still does NOT close the
+  // whole picker overlay.
+  test("Escape in the builder deselects the block and keeps the builder open", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openBuilder(page);
+
+    // Select the first block.
+    await chartSegments(page).first().click();
+    await page.waitForTimeout(40);
+    expect(await selectedBands(page).count()).toBe(1);
+    await expect(page.getByTestId("wb-block-editor")).toBeVisible();
+
+    // Escape deselects the block but the builder/picker stays open.
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(60);
+    expect(await selectedBands(page).count()).toBe(0);
+    await expect(page.locator("#workoutPickerModal.workout-picker-modal--builder")).toBeVisible();
+    await expect(page.getByTestId("builder-save")).toBeVisible();
+
+    // A second Escape (no selection) goes Back to the library, NOT close. The
+    // picker overlay remains open; the builder chrome is gone.
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(60);
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+    await expect(page.locator("#workoutPickerModal.workout-picker-modal--builder")).toHaveCount(0);
+  });
+
+  // Bug #6 (general): global HUD hotkeys must NOT fire while the builder owns the
+  // keymap. 's' is an insert shortcut (threshold) in the builder, NOT the
+  // global "open Settings" hotkey — pressing it inserts a block and the Settings
+  // overlay never appears.
+  test("global hotkeys are suppressed while the builder is open", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openBuilder(page);
+    const before = await chartSegments(page).count();
+    expect(before).toBeGreaterThan(0);
+
+    // Select a block so focus is on the chart (not a meta input), then 's'.
+    await chartSegments(page).first().click();
+    await page.waitForTimeout(40);
+    await page.keyboard.press("Escape"); // deselect (builder stays open)
+    await page.waitForTimeout(40);
+
+    // 's' is the builder insert-threshold key, NOT the global "open Settings"
+    // hotkey: Settings must NOT open, and a block is inserted instead.
+    await page.keyboard.press("s");
+    await page.waitForTimeout(80);
+    await expect(page.getByTestId("settings-modal")).toHaveCount(0);
+    expect(await chartSegments(page).count()).toBe(before + 1);
+  });
+
   test("Cmd/Ctrl+A moves the insertion cursor to start (no selection)", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);

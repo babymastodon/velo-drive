@@ -13,7 +13,10 @@ export interface BikeSample {
 }
 
 export interface DeviceStatus {
-  state: 'connecting' | 'connected' | 'error';
+  // 'idle' is emitted when a connect attempt is cancelled by the user (the
+  // device chooser AbortError) and nothing was previously connected — the dot
+  // returns to its neutral/idle color rather than showing a connect error.
+  state: 'idle' | 'connecting' | 'connected' | 'error';
   message: string;
 }
 

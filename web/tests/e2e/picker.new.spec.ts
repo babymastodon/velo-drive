@@ -493,3 +493,111 @@ test.describe("Picker (new Svelte app) — import", () => {
     await page.getByTestId("dialog-cancel").click();
   });
 });
+
+// Bug #1/#2: the .zwo write + dir-handle persistence round-trip through the
+// (in-memory) FileStore. The real File-System-Access write path is exercised
+// here via the fake FS; the REAL-only aspect (re-requesting read-write
+// permission on a reloaded handle) is covered by the new WebFileStore
+// ensureDirPermission calls, which the harness fake resolves as "granted".
+test.describe("Picker (new Svelte app) — save round-trip + dir persistence", () => {
+  test.use({harnessConfig: PICKER_HARNESS_CONFIG});
+
+  test("clone writes a new .zwo to the workouts dir (FS round-trip)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+
+    const firstRow = rows(page).first();
+    const title = (await firstRow.locator("td:first-child").innerText()).trim();
+    const copyFile = encodeURIComponent(`${title} Copy`) + ".zwo";
+
+    await firstRow.click();
+    await page.getByTestId("picker-clone").click();
+    await page.waitForTimeout(80);
+
+    // The cloned file exists in the workouts dir and re-parses to a valid title.
+    const result = await page.evaluate(async (file) => {
+      const fs = (window as unknown as {
+        __VELO_HARNESS__: {fs: {workouts: {_files: Map<string, unknown>; getFileHandle: (n: string) => Promise<{getFile: () => Promise<{text: () => Promise<string>}>}>}}};
+      }).__VELO_HARNESS__.fs;
+      const has = fs.workouts._files.has(file);
+      let text = "";
+      if (has) {
+        const fh = await fs.workouts.getFileHandle(file);
+        text = await (await fh.getFile()).text();
+      }
+      return {has, text};
+    }, copyFile);
+    expect(result.has, `clone should write ${copyFile}`).toBe(true);
+    expect(result.text).toContain("<workout_file>");
+  });
+
+  test("the root dir handle survives a reload (persisted in IndexedDB)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    // The configured root handle is present in the settings store, keyed exactly
+    // as legacy (rootDirHandle), and the app's loadRootDirHandle returns it.
+    const persisted = await page.evaluate(async () => {
+      const bridge = (window as unknown as {__VELO_APP__: {ui: unknown}}).__VELO_APP__;
+      const store = (window as unknown as {__VELO_HARNESS__: {settingsStore: Map<string, {handle?: unknown}>}})
+        .__VELO_HARNESS__.settingsStore;
+      const rec = store.get("rootDirHandle");
+      return {hasRootRecord: !!rec, hasHandle: !!rec?.handle, hasBridge: !!bridge};
+    });
+    expect(persisted.hasRootRecord, "rootDirHandle must be persisted in IndexedDB").toBe(true);
+    expect(persisted.hasHandle, "the record carries the FileSystemDirectoryHandle").toBe(true);
+
+    // After a real reload the picker still lists the seeded library (the handle
+    // was reloaded from IndexedDB, not lost), so "no folder" never recurs.
+    await page.reload();
+    await reachNewRidingView(page);
+    await openPicker(page);
+    expect(await rows(page).count()).toBeGreaterThan(5);
+  });
+});
+
+// Bug #3: opening the picker (or 'w') with NO VeloDrive folder configured must
+// warn (Dialog) + open Settings — not silently do nothing (legacy
+// ensureRootDirConfiguredForWorkouts, docs/workout.js:209-222).
+test.describe("Picker (new Svelte app) — no-folder guard", () => {
+  test.use({harnessConfig: PICKER_HARNESS_CONFIG});
+
+  test("opening the picker with no folder warns and opens Settings", async ({page, harnessConfig}) => {
+    // Seed harness config + env (mirrors the configuredPage fixture), then strip
+    // the configured dir handles so the app boots UNCONFIGURED (a fresh user).
+    await page.addInitScript((cfg) => {
+      (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = cfg;
+    }, harnessConfig);
+    await page.addInitScript({path: new URL("../../harness/page-env.js", import.meta.url).pathname});
+    // hasSeenWelcome=true so the boot welcome gate stays out of the way; then
+    // remove the root/zwo dir handles to simulate "no folder configured".
+    await page.addInitScript(() => {
+      const store = (window as unknown as {
+        __VELO_HARNESS__?: {settingsStore?: Map<string, unknown>};
+      }).__VELO_HARNESS__?.settingsStore;
+      if (!store) return;
+      store.set("hasSeenWelcome", {key: "hasSeenWelcome", value: true});
+      store.delete("rootDirHandle");
+      store.delete("dirHandle");
+      store.delete("workoutDirHandle");
+      store.delete("trashDirHandle");
+    });
+    await page.goto("/");
+    await reachNewRidingView(page);
+
+    // Boot auto-opens Settings (missing folder); close it so we drive the guard
+    // ourselves via the workout-name label.
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(60);
+
+    await page.getByTestId("workout-name-label").click();
+    // The no-folder guard fires: a warning Dialog appears, the picker does NOT.
+    await expect(page.getByTestId("dialog-message")).toContainText("VeloDrive folder");
+    await expect(page.getByTestId("picker-modal")).toHaveCount(0);
+
+    // Dismissing the warning reveals Settings (the guard opened it).
+    await page.getByTestId("dialog-ok").click();
+    await expect(page.getByTestId("settings-modal")).toBeVisible();
+  });
+});

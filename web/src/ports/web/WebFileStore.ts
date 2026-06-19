@@ -110,6 +110,40 @@ interface HandleRecord {
   handle: unknown;
 }
 
+// FSA permission surface (present on real FileSystemHandle, faked granted in the
+// harness). A persisted handle reloaded from IndexedDB comes back in the
+// "prompt" state in a REAL browser, so reads/writes fail until we re-request
+// read-write permission (mirrors docs/storage.js ensureDirPermission). The
+// harness fake always resolves "granted", so this is a no-op in tests.
+interface FsPermissionHandle {
+  queryPermission?(opts: { mode: 'readwrite' | 'read' }): Promise<PermissionState | string>;
+  requestPermission?(opts: { mode: 'readwrite' | 'read' }): Promise<PermissionState | string>;
+}
+
+/**
+ * Re-authorize a persisted directory handle for read-write access. Mirrors
+ * docs/storage.js ensureDirPermission: query first, short-circuit on
+ * granted/denied, otherwise prompt. Returns true only when read-write access is
+ * granted. requestPermission must run in a user gesture in a real browser.
+ */
+async function ensureDirPermission(handle: unknown): Promise<boolean> {
+  const h = handle as FsPermissionHandle | null;
+  if (!h || typeof h.queryPermission !== 'function' || typeof h.requestPermission !== 'function') {
+    // No permission API (older/unsupported) — assume usable rather than block.
+    return true;
+  }
+  try {
+    let p = await h.queryPermission({ mode: 'readwrite' });
+    if (p === 'granted') return true;
+    if (p === 'denied') return false;
+    p = await h.requestPermission({ mode: 'readwrite' });
+    return p === 'granted';
+  } catch (err) {
+    console.warn('[WebFileStore] ensureDirPermission failed:', err);
+    return false;
+  }
+}
+
 export class WebFileStore implements FileStore {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private workoutDirHandle: FsDirHandle | null = null;
@@ -198,13 +232,27 @@ export class WebFileStore implements FileStore {
     }
     try {
       const root = await picker();
-      // Persist the root handle and ensure the standard subdirs exist
-      // (mirrors docs/storage.js pickRootDir).
+      // Re-authorize read-write before touching the folder (mirrors
+      // docs/storage.js pickRootDir → ensureDirPermission). In a real browser
+      // showDirectoryPicker() grants on selection, but be explicit.
+      const ok = await ensureDirPermission(root);
+      if (!ok) {
+        if (typeof alert === 'function') {
+          alert('Permission was not granted to the selected folder.');
+        }
+        return null;
+      }
+      // Persist the root + the three standard subdir handles so they survive a
+      // reload (mirrors docs/storage.js saveRootDirHandle/saveZwoDirHandle/
+      // saveWorkoutDirHandle/saveTrashDirHandle). Persisting the subdir handles
+      // (not just root) matches legacy and avoids re-deriving them every load.
       await this.setSetting(ROOT_DIR_KEY, { handle: root });
+      const workouts = await root.getDirectoryHandle('workouts', { create: true });
       const history = await root.getDirectoryHandle('history', { create: true });
-      await root.getDirectoryHandle('workouts', { create: true });
-      await root.getDirectoryHandle('trash', { create: true });
+      const trash = await root.getDirectoryHandle('trash', { create: true });
+      await this.setSetting(ZWO_DIR_KEY, { handle: workouts });
       await this.setSetting(WORKOUT_DIR_KEY, { handle: history });
+      await this.setSetting(TRASH_DIR_KEY, { handle: trash });
       this.workoutDirHandle = history;
       return root;
     } catch (err) {
@@ -269,6 +317,9 @@ export class WebFileStore implements FileStore {
   async listWorkouts(): Promise<CanonicalWorkout[]> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return [];
+    // Re-authorize the reloaded handle (legacy rescanWorkouts → ensureDirPermission).
+    // Runs in the gesture that opened the picker, so the prompt is allowed.
+    await ensureDirPermission(dir);
     const out: CanonicalWorkout[] = [];
     try {
       for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
@@ -295,6 +346,10 @@ export class WebFileStore implements FileStore {
   async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return false;
+    // Re-authorize the persisted handle before writing (mirrors legacy
+    // saveCanonicalWorkoutToZwoDir → ensureDirPermission). A handle reloaded
+    // from IndexedDB is in the "prompt" state in a real browser until this runs.
+    if (!(await ensureDirPermission(dir))) return false;
     const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
     try {
       // Mirror legacy saveCanonicalWorkoutToZwoDir (docs/workout-picker.js
@@ -334,6 +389,7 @@ export class WebFileStore implements FileStore {
     const srcDir = await this.loadZwoDirHandle();
     const trashDir = await this.loadTrashDirHandle();
     if (!srcDir || !trashDir) return false;
+    if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) return false;
     try {
       const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
       const srcFile = await srcFileHandle.getFile?.();
@@ -571,6 +627,7 @@ export class WebFileStore implements FileStore {
     try {
       const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
       if (!root) return false;
+      if (!(await ensureDirPermission(root))) return false;
       const fileHandle = await root.getFileHandle(SCHEDULE_FILE, { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(JSON.stringify(entries || [], null, 2));
@@ -587,6 +644,7 @@ export class WebFileStore implements FileStore {
     const srcDir = await this.loadWorkoutDirHandle();
     const trashDir = await this.loadTrashDirHandle();
     if (!srcDir || !trashDir) return false;
+    if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) return false;
     try {
       const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
       const srcFile = await srcFileHandle.getFile?.();
