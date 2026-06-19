@@ -202,9 +202,18 @@ export class WebFileStore implements FileStore {
 
   private async setSetting(key: string, value: unknown): Promise<void> {
     const db = await this.getDb();
+    // De-proxy before persisting. Values arrive as Svelte 5 $state PROXIES (e.g.
+    // a selected workout from the picker's $state list, or the active-ride
+    // snapshot). A real browser's IDBObjectStore.put runs the structured-clone
+    // algorithm, which throws DataCloneError on a Proxy — so the write silently
+    // FAILED and the state was lost on reload. Every settings value here is plain
+    // JSON-safe data (FSA handles use saveHandle, NOT this path), so a JSON
+    // round-trip yields a clone-safe plain object. (The hermetic fake IndexedDB
+    // does a plain Map.set with no clone, which is why this slipped past tests.)
+    const plain = value === undefined ? undefined : JSON.parse(JSON.stringify(value));
     return new Promise<void>((resolve, reject) => {
       const tx = db.transaction(SETTINGS_STORE, 'readwrite');
-      tx.objectStore(SETTINGS_STORE).put({ key, value });
+      tx.objectStore(SETTINGS_STORE).put({ key, value: plain });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
