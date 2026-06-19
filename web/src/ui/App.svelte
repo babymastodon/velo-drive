@@ -13,6 +13,7 @@
   import Dialog from './Dialog.svelte';
   import { UiStore } from '../state/ui.svelte.js';
   import { DialogStore } from '../state/dialog.svelte.js';
+  import { isPlatformIncompatible, isWebBluetoothAvailable } from '../app/compat.js';
 
   let ctx = $state<AppContext | null>(null);
   const ui = new UiStore();
@@ -45,7 +46,9 @@
       },
     })
       .then((c) => {
-        if (!cancelled) ctx = c;
+        if (cancelled) return;
+        ctx = c;
+        void maybeAutoOpenSettings(c);
       })
       .catch((err) => {
         console.error('[App] boot failed:', err);
@@ -54,6 +57,30 @@
       cancelled = true;
     };
   });
+
+  // Boot-time auto-open (mirrors docs/settings.js startupNeedsAttention +
+  // shouldAutoOpen): if the root data folder is missing, OR Web Bluetooth is
+  // unavailable, OR the platform/browser is unsupported, auto-open Settings to
+  // the relevant help section. In the hermetic tests the root dir is seeded,
+  // the FTMS sim provides navigator.bluetooth.getDevices, and the runner is
+  // Chromium — so all three conditions are false and this never fires.
+  async function maybeAutoOpenSettings(c: AppContext): Promise<void> {
+    let missingRootDir = false;
+    try {
+      const root = await c.fileStore.loadRootDirHandle();
+      missingRootDir = !root;
+    } catch {
+      missingRootDir = true;
+    }
+    const missingBt = !isWebBluetoothAvailable();
+    const incompatible = isPlatformIncompatible();
+
+    if (!missingRootDir && !missingBt && !incompatible) return;
+    // Force the most relevant help section open, then open Settings.
+    if (missingRootDir) ui.forceHelpSection = 'settingsFoldersHelp';
+    else if (missingBt) ui.forceHelpSection = 'settingsEnvHelp';
+    ui.open('settings');
+  }
 
   // Hide the HUD behind the welcome overlay exactly like legacy
   // (`body.welcome-active .page-root/.bottom-nav { visibility:hidden }`).
@@ -203,6 +230,7 @@
     engine={ctx.engine}
     fileStore={ctx.fileStore}
     beeper={ctx.beeper}
+    logs={ctx.logs}
     {ui}
     open={ui.activeOverlay === 'settings'}
   />

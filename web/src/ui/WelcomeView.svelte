@@ -7,6 +7,7 @@
   import { onMount, tick } from 'svelte';
   import type { UiStore } from '../state/ui.svelte.js';
   import { createScene } from './welcome-scene.js';
+  import type { OverlayKeyHandler } from '../state/ui.svelte.js';
 
   let { ui, open = false }: { ui: UiStore; open?: boolean } = $props();
 
@@ -144,6 +145,53 @@
     if (t.closest('.welcome-nav') || t.closest('.welcome-close-btn')) return;
     goNext();
   }
+
+  // Welcome keyboard navigation (mirrors docs/welcome.js keydown 718-747).
+  // Registered via the App overlay-key router so it runs while welcome is the
+  // active overlay (the App suppresses all global hotkeys then). In splash mode,
+  // nav keys are swallowed (consumed, no effect) so app shortcuts never leak.
+  const handleWelcomeKey: OverlayKeyHandler = (e: KeyboardEvent): boolean => {
+    if (e.key === 'Escape') {
+      close();
+      return true;
+    }
+    if (splashMode) {
+      // Splash swallows nav keys without acting (matches legacy splash bail).
+      if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowLeft' ||
+        e.key === 'PageDown' ||
+        e.key === 'PageUp' ||
+        e.key === ' ' ||
+        e.key === 'Enter' ||
+        e.key === 'Spacebar'
+      ) {
+        return true;
+      }
+      return false;
+    }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      goNext();
+      return true;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      goPrev();
+      return true;
+    }
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+      goNext();
+      return true;
+    }
+    return false;
+  };
+
+  $effect(() => {
+    if (open) {
+      ui.registerOverlayKeyHandler('welcome', handleWelcomeKey);
+      return () => ui.registerOverlayKeyHandler('welcome', null);
+    }
+    return undefined;
+  });
 </script>
 
 {#if open}

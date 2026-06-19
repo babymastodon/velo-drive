@@ -91,4 +91,28 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#welcomeOverlay")).toHaveCount(0);
   });
+
+  test("ArrowRight advances the slide; Escape closes (keyboard nav)", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    // Open on the trainers slide (index 1, a non-splash slide so nav is live).
+    await openWelcomeAt(page, 1);
+    await expect(page.getByTestId("welcome-title")).toHaveText(
+      "Ride structured workouts on your smart trainer",
+    );
+
+    // ArrowRight -> next slide (offline).
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("welcome-title")).toHaveText("Local data. Offline workouts.");
+
+    // ArrowLeft -> back to trainers.
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByTestId("welcome-title")).toHaveText(
+      "Ride structured workouts on your smart trainer",
+    );
+
+    // Escape closes the welcome overlay.
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#welcomeOverlay")).toHaveCount(0);
+  });
 });
