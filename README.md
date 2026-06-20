@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://velodrive.bike/">
-    <img src="docs/icons/logo.svg" alt="VeloDrive logo" height="128">
+    <img src="legacy/icons/logo.svg" alt="VeloDrive logo" height="128">
   </a>
 </p>
 
@@ -15,8 +15,8 @@ You can open the app directly at:
 The PWA works offline, installs locally, and runs entirely in the browser with no accounts or backend.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
-  <img alt="Workout Interface" src="docs/screenshots/hero.png">
+  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/hero-dark.png">
+  <img alt="Workout Interface" src="legacy/screenshots/hero.png">
 </picture>
 
 ## Installation
@@ -31,8 +31,8 @@ In **Google Chrome**, you’ll see an **Install** icon in the address bar.
 Click it to install VeloDrive as an app. It will appear in your system’s app launcher and can run offline once installed.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/install_dark.png">
-  <img alt="PWA Install Instructions" src="docs/screenshots/install_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/install_dark.png">
+  <img alt="PWA Install Instructions" src="legacy/screenshots/install_light.png">
 </picture>
 
 ### Chrome extension (optional)
@@ -45,8 +45,8 @@ and
 [TrainerRoad](https://www.trainerroad.com/app/cycling/workouts).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/extension_dark.png">
-  <img alt="Extension Install Instructions" src="docs/screenshots/extension_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/extension_dark.png">
+  <img alt="Extension Install Instructions" src="legacy/screenshots/extension_light.png">
 </picture>
 
 
@@ -73,8 +73,8 @@ To install:
 * Works fully offline as a PWA
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/selector-dark.png">
-  <img alt="Workout Selector Interface" src="docs/screenshots/selector-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/selector-dark.png">
+  <img alt="Workout Selector Interface" src="legacy/screenshots/selector-light.png">
 </picture>
 
 ## Platform support

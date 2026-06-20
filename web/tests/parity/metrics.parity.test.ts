@@ -3,14 +3,14 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import * as legacyZwoNs from '../../../docs/zwo.js';
-import * as legacyMetricsNs from '../../../docs/workout-metrics.js';
+import * as legacyZwoNs from '../../../legacy/zwo.js';
+import * as legacyMetricsNs from '../../../legacy/workout-metrics.js';
 const legacyZwo: any = legacyZwoNs;
 const legacyMetrics: any = legacyMetricsNs;
 import * as newMetrics from '../../src/core/metrics.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const WORKOUTS_DIR = join(__dirname, '../../../docs/workouts');
+const WORKOUTS_DIR = join(__dirname, '../../../legacy/workouts');
 
 function loadCorpus(): { name: string; segments: any[] }[] {
   const files = readdirSync(WORKOUTS_DIR).filter((f) => f.endsWith('.zwo'));

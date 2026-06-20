@@ -1,0 +1,47 @@
+<?xml version="1.0" ?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Basefire Waves</name>
+  <description>Settle into an hour of shifting energy, where calm valleys meet brief sparks of momentum. This ride invites you to explore your endurance like a landscape—steady, colorful, and always changing. Let the gentle sections ground you, let the short surges wake something bright inside you, and let the whole flow reshape what “base” can feel like.</description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="360" PowerLow="0.50" PowerHigh="0.60" Cadence="90">
+      <textevent timeoffset="60" message="Ease into the basefire—50–60% FTP, quiet shoulders, smooth 88–90 rpm."/>
+    </Warmup>
+    <SteadyState Duration="120" Power="0.60" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.68" Cadence="92"/>
+    <SteadyState Duration="120" Power="0.58" Cadence="86"/>
+    <SteadyState Duration="120" Power="0.72" Cadence="94">
+      <textevent timeoffset="825" message="Wave crest ahead—60s at ~90%. Light cadence, tall posture."/>
+    </SteadyState>
+    <SteadyState Duration="60" Power="0.90" Cadence="95"/>
+    <SteadyState Duration="120" Power="0.65" Cadence="88"/>
+    <SteadyState Duration="180" Power="0.55" Cadence="85"/>
+    <SteadyState Duration="120" Power="0.70" Cadence="90"/>
+    <SteadyState Duration="60" Power="0.80" Cadence="95"/>
+    <SteadyState Duration="180" Power="0.62" Cadence="88">
+      <textevent timeoffset="1440" message="Settle into the long swell—smooth circles, steady breath, stay patient."/>
+    </SteadyState>
+    <SteadyState Duration="120" Power="0.74" Cadence="94"/>
+    <SteadyState Duration="60" Power="0.59" Cadence="86"/>
+    <SteadyState Duration="180" Power="0.68" Cadence="92">
+      <textevent timeoffset="1905" message="High spark ahead—60s at ~95%. Quick feet, calm grip."/>
+    </SteadyState>
+    <SteadyState Duration="60" Power="0.95" Cadence="98"/>
+    <SteadyState Duration="120" Power="0.63" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.71" Cadence="92"/>
+    <SteadyState Duration="120" Power="0.57" Cadence="86"/>
+    <SteadyState Duration="60" Power="0.73" Cadence="92"/>
+    <SteadyState Duration="180" Power="0.66" Cadence="90"/>
+    <SteadyState Duration="180" Power="0.60" Cadence="88"/>
+    <SteadyState Duration="120" Power="0.75" Cadence="94"/>
+    <SteadyState Duration="120" Power="0.58" Cadence="86"/>
+    <SteadyState Duration="120" Power="0.70" Cadence="90"/>
+    <SteadyState Duration="240" Power="0.65" Cadence="88"/>
+    <Cooldown Duration="240" PowerLow="0.65" PowerHigh="0.45" Cadence="82">
+      <textevent timeoffset="3375" message="Fade the embers—glide toward mid-40s FTP, long exhale, soft spin."/>
+    </Cooldown>
+  </workout>
+</workout_file>

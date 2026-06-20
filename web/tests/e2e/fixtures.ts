@@ -20,7 +20,9 @@ import {buildFitFile} from "../../src/core/fit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(__dirname, "..", "..");
-const DOCS_WORKOUTS = resolve(WEB_ROOT, "..", "docs", "workouts");
+// The legacy app (formerly docs/, now relocated so docs/ can hold the built
+// new app for GitHub Pages) is the seed-workout + parity oracle.
+const DOCS_WORKOUTS = resolve(WEB_ROOT, "..", "legacy", "workouts");
 const PAGE_ENV = join(WEB_ROOT, "harness", "page-env.js");
 
 /** Read all 41 .zwo from docs/workouts as {filename: text}. */

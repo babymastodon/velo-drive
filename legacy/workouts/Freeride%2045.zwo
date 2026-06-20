@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Freeride 45</name>
+  <description><![CDATA[A clean 45-minute free ride—no targets, just time on the bike. Keep it easy, build steady, play with cadence, or follow the terrain and your mood. The only goal: finish smoother than you started.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <FreeRide Duration="2700">
+      <textevent timeoffset="225" message="Roll-out: soft spins, find your rhythm before the road invites more." />
+      <textevent timeoffset="900" message="Let curiosity steer—nudge cadence toward 95 and see how it feels." />
+      <textevent timeoffset="1575" message="Middle miles: build a gentle wave, maybe a minute of zip, then float." />
+      <textevent timeoffset="2250" message="If it feels right, wake the legs for a few high-cadence ripples, then exhale." />
+      <textevent timeoffset="2565" message="Home stretch—smoothest pedals of the day, finish lighter than you started." />
+    </FreeRide>
+  </workout>
+</workout_file>
