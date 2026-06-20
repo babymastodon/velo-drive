@@ -11,7 +11,7 @@
 //   bit2  instantaneous cadence present (uint16, 1/2 rpm)
 //   bit3  average cadence present (uint16)          -- not emitted
 //   bit4  total distance present (uint24)           -- not emitted
-//   bit5  resistance level present (sint16/uint8?)  -- legacy skips 1 byte
+//   bit5  resistance level present (sint16, 2 bytes) -- not emitted (SENS-E1)
 //   bit6  instantaneous power present (sint16, watts)
 //   bit7  average power present (sint16)            -- not emitted
 //   bit8  expended energy present (5 bytes)         -- not emitted
@@ -127,7 +127,10 @@ export function decodeIndoorBikeData(dataView: DataView): DecodedBikeSample | nu
   }
   if (flags & (1 << 3)) index += 2;
   if (flags & (1 << 4)) index += 3;
-  if (flags & (1 << 5)) index += 1;
+  // SENS-E1: Resistance Level is SINT16 (2 bytes) per spec; spec-correct here to
+  // match the real transport (the encoder never emits this field, so no frame in
+  // the self-test exercises it either way).
+  if (flags & (1 << 5)) index += 2;
   if (flags & (1 << 6)) {
     if (dataView.byteLength >= index + 2) {
       out.power = dataView.getInt16(index, true);
