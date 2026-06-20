@@ -80,26 +80,31 @@
   // level. Persists both soundVolume (the level the beeper scales by) and
   // soundEnabled (the on/off flag app.ts reads on boot) so muting via the slider
   // is a real off. Default audible (legacy default true; J-CFG-15).
-  let soundVolume = $state(100); // 0..100
+  // The slider is 0–100% in 10% steps; 70% maps to the reference gain (1.0 —
+  // today's loudness) so the stored soundVolume of 1.0 shows as 70% and the
+  // default is 70%. Above 70% is a modest boost (capped in the beeper).
+  const REF_PCT = 70;
+  let soundVolume = $state(REF_PCT); // 0..100 (slider position)
   $effect(() => {
     if (open) {
       void Promise.all([
         fileStore.getSetting<boolean>('soundEnabled', true),
         fileStore.getSetting<number>('soundVolume', 1),
       ]).then(([enabled, vol]) => {
-        const clamped = Math.max(0, Math.min(1, Number.isFinite(vol) ? vol : 1));
-        soundVolume = enabled === false ? 0 : Math.round(clamped * 100);
+        const gain = Math.max(0, Math.min(1.5, Number.isFinite(vol) ? vol : 1));
+        // gain 1.0 → 70%; snap to the 10% steps.
+        soundVolume = enabled === false ? 0 : Math.round((gain * REF_PCT) / 10) * 10;
       });
     }
   });
   function onVolumeChange(e: Event): void {
     const pct = Number((e.target as HTMLInputElement).value);
     soundVolume = pct;
-    const vol01 = Math.max(0, Math.min(1, pct / 100));
-    const on = vol01 > 0;
-    beeper.setVolume(vol01);
+    const gain = pct / REF_PCT; // 70% → 1.0 reference loudness
+    const on = pct > 0;
+    beeper.setVolume(gain);
     beeper.setEnabled(on);
-    void fileStore.putSetting('soundVolume', vol01);
+    void fileStore.putSetting('soundVolume', gain);
     void fileStore.putSetting('soundEnabled', on);
   }
 
@@ -443,7 +448,7 @@
                   type="range"
                   min="0"
                   max="100"
-                  step="1"
+                  step="10"
                   data-testid="sound-volume"
                   aria-label="Sound volume"
                   value={soundVolume}

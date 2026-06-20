@@ -69,7 +69,10 @@ export class Beeper implements BeeperLike {
   }
 
   setVolume(v: number): void {
-    this.volume = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
+    // Gain multiplier where 1.0 is the reference loudness (the settings slider's
+    // 70% mark). Allow a modest boost above 1.0; playBeep caps the final gain at
+    // 1.0 so the boost never clips.
+    this.volume = Math.max(0, Math.min(1.5, Number.isFinite(v) ? v : 1));
   }
 
   private playBeep(durationMs: number, freq: number, gain: number): void {
@@ -85,7 +88,7 @@ export class Beeper implements BeeperLike {
       osc.type = 'square';
       osc.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.linearRampToValueAtTime(gain * this.volume, now + attack);
+      g.gain.linearRampToValueAtTime(Math.min(1, gain * this.volume), now + attack);
       g.gain.linearRampToValueAtTime(0.0001, now + durSec);
       osc.connect(g);
       g.connect(ctx.destination);
