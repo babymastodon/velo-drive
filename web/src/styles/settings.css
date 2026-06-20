@@ -305,54 +305,76 @@
   transform: translateX(20px);
 }
 
-/* Sound volume slider — same visual language as the toggle (rounded pill track,
-   round thumb, checked-color fill up to the current level via --vol). */
+/* Sound volume slider — % label on the left, slider on the right. A THICK pill
+   track filled to the current level (--vol) with the accent color, and a round
+   thumb whose diameter EQUALS the track height so it fills the slot cleanly (no
+   track haloing above/below the circle). */
 .settings-volume {
   display: inline-flex;
   align-items: center;
   gap: 10px;
 }
 
+/* Speaker volume icon — same stroke style as the row icon (.settings-icon svg). */
+.settings-volume-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--text-muted);
+}
+
+/* Track + thumb are 16px (== --font-size-base) so the control reads at the same
+   height as the row text. */
 .settings-volume-range {
   -webkit-appearance: none;
   appearance: none;
-  width: 120px;
-  height: 20px;
+  width: 132px;
+  height: 16px;
   margin: 0;
   background: transparent;
   cursor: pointer;
 }
 
 .settings-volume-range::-webkit-slider-runnable-track {
-  height: 20px;
+  height: 16px;
   border-radius: 999px;
+  /* The thumb center travels from 8px (its radius) to width-8px, so the fill
+     boundary must too — otherwise the blue/grey edge drifts off the circle's
+     centerline. --vol is a 0..1 fraction; 8px = thumb radius. */
   background: linear-gradient(
     to right,
-    var(--toggle-checked) 0 var(--vol, 100%),
-    var(--toggle-track) var(--vol, 100%) 100%
+    var(--toggle-checked) 0 calc(8px + var(--vol, 0.7) * (100% - 16px)),
+    var(--toggle-track) calc(8px + var(--vol, 0.7) * (100% - 16px)) 100%
   );
 }
 
+/* Thumb diameter == track height (16px), so margin-top is 0 (it fills the slot). */
 .settings-volume-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
-  margin-top: 2px;
-  border: none;
+  margin-top: 0;
+  border: 2px solid var(--toggle-track);
   border-radius: 50%;
   background: var(--toggle-thumb);
   box-shadow: 0 1px 3px var(--toggle-thumb-shadow);
+  box-sizing: border-box;
 }
 
 .settings-volume-range::-moz-range-track {
-  height: 20px;
+  height: 16px;
   border-radius: 999px;
   background: var(--toggle-track);
 }
 
 .settings-volume-range::-moz-range-progress {
-  height: 20px;
+  height: 16px;
   border-radius: 999px;
   background: var(--toggle-checked);
 }
@@ -360,20 +382,11 @@
 .settings-volume-range::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  border: none;
+  border: 2px solid var(--toggle-track);
   border-radius: 50%;
   background: var(--toggle-thumb);
   box-shadow: 0 1px 3px var(--toggle-thumb-shadow);
-}
-
-.settings-volume-value {
-  /* Fixed width (fits "100%") so the digit count never shifts the slider. */
-  flex: 0 0 auto;
-  width: 44px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--text-muted);
+  box-sizing: border-box;
 }
 
 /* Logs view */

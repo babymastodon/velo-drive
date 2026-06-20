@@ -107,6 +107,11 @@
     void fileStore.putSetting('soundVolume', gain);
     void fileStore.putSetting('soundEnabled', on);
   }
+  // Speaker icon level: 0 = muted (shown as the speaker + X), else 1/2/3 sound
+  // waves for low / mid / high — same speaker glyph + stroke as the row icon.
+  const volumeLevel = $derived(
+    soundVolume <= 0 ? 0 : soundVolume <= 33 ? 1 : soundVolume <= 70 ? 2 : 3,
+  );
 
   // ---- Theme ----
   let themeMode = $state<ThemeMode>('auto');
@@ -441,7 +446,17 @@
               </div>
             </div>
             <div class="settings-row-right">
-              <div class="settings-volume" style="--vol: {soundVolume}%">
+              <div class="settings-volume" style="--vol: {soundVolume / 100}">
+                <svg class="settings-volume-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 10v4h3l4 4V6l-4 4H5z" />
+                  {#if volumeLevel === 0}
+                    <path d="M16 9l5 5M21 9l-5 5" />
+                  {:else}
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    {#if volumeLevel >= 2}<path d="M17.66 6.34a8 8 0 0 1 0 11.31" />{/if}
+                    {#if volumeLevel >= 3}<path d="M19.78 4.22a11 11 0 0 1 0 15.56" />{/if}
+                  {/if}
+                </svg>
                 <input
                   id="settingsSoundVolume"
                   class="settings-volume-range"
@@ -454,7 +469,6 @@
                   value={soundVolume}
                   oninput={onVolumeChange}
                 />
-                <span class="settings-volume-value" aria-hidden="true">{soundVolume}%</span>
               </div>
             </div>
           </div>
