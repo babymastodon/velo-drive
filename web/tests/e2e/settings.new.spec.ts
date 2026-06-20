@@ -102,10 +102,11 @@ test.describe("Settings (new Svelte app) — behavior", () => {
     expect(muted.enabled).toBe(false);
     expect(muted.volume).toBe(0);
 
-    await volume.fill("50");
-    const half = await readSound();
-    expect(half.enabled).toBe(true);
-    expect(half.volume).toBeCloseTo(0.5);
+    // 70% maps to the reference gain 1.0 (today's loudness).
+    await volume.fill("70");
+    const ref = await readSound();
+    expect(ref.enabled).toBe(true);
+    expect(ref.volume).toBeCloseTo(1.0);
   });
 
   test("Escape closes settings; logs sub-view returns to main first", async ({configuredPage}) => {

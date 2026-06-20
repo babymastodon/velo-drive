@@ -367,7 +367,9 @@
 }
 
 .settings-volume-value {
-  min-width: 34px;
+  /* Fixed width (fits "100%") so the digit count never shifts the slider. */
+  flex: 0 0 auto;
+  width: 44px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
