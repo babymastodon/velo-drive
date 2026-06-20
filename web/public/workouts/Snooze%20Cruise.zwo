@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Snooze Cruise</name>
+  <description><![CDATA[A mostly easy recovery ride built around smooth cruising (~50–60% FTP) with little “wake-up” moments sprinkled throughout. You’ll float through 5×1-min gentle pick-ups, a short 3×90-sec lift set, 6×40-sec brighter surges, and 3×20-sec tiny sparks—always with plenty of soft spinning between—then settle back into calm, unhurried miles to finish.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="180" PowerLow="0.35" PowerHigh="0.55" Cadence="90">
+      <textevent timeoffset="60" message="Ease in, sleepy legs waking at 40-50% FTP, hum along at cozy 88-90 rpm." />
+    </Warmup>
+    <SteadyState Duration="480" Power="0.55" Cadence="88">
+      <textevent timeoffset="645" message="Wake-up set ahead: five bright 1-min ripples—like sunrise on calm water." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="60" OffDuration="60" OnPower="0.72" OffPower="0.55" Cadence="95" CadenceResting="88" />
+    <SteadyState Duration="360" Power="0.55">
+      <textevent timeoffset="1605" message="Settle into ten minutes of hush near mid-60s FTP, drifting like a lazy river." />
+    </SteadyState>
+    <SteadyState Duration="600" Power="0.65" Cadence="94" />
+    <SteadyState Duration="420" Power="0.55" Cadence="88">
+      <textevent timeoffset="2625" message="Three 90s nudges ahead—tall spine, quiet shoulders, smooth 90 rpm." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="90" OffDuration="60" OnPower="0.90" OffPower="0.55" />
+    <SteadyState Duration="360" Power="0.55">
+      <textevent timeoffset="3435" message="Leg-speed sparks next—six 40s flickers, light feet, easy breath." />
+    </SteadyState>
+    <IntervalsT Repeat="6" OnDuration="40" OffDuration="60" OnPower="0.80" OffPower="0.40" Cadence="110" CadenceResting="85" />
+    <SteadyState Duration="480" Power="0.55" Cadence="88">
+      <textevent timeoffset="4515" message="Tiny 20s burners next—pop, then float; keep feet light." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="20" OffDuration="90" OnPower="1.10" OffPower="0.40" Cadence="100" CadenceResting="85" />
+    <SteadyState Duration="300" Power="0.55" />
+    <SteadyState Duration="480" Power="0.60" Cadence="92" />
+    <SteadyState Duration="420" Power="0.50" Cadence="88">
+      <textevent timeoffset="6045" message="Five final 30s kisses next—upright, tidy, cruise home." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="30" OffDuration="60" OnPower="0.90" OffPower="0.55" Cadence="95" CadenceResting="88" />
+    <SteadyState Duration="420" Power="0.50" Cadence="85">
+      <textevent timeoffset="6915" message="Exhale into the fade—soften the grip, let the cadence drift." />
+    </SteadyState>
+    <Cooldown Duration="270" PowerLow="0.50" PowerHigh="0.40" Cadence="85" />
+  </workout>
+</workout_file>

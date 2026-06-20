@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Cinder Edge</name>
+  <description><![CDATA[Cinder Edge opens with a hot, steady glow, then you pace a razor-lit rim: 8x45s crackles and 5x30s shatters. The path narrows, the embers rise, and you keep your wheel on the edge without looking down.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.40" PowerHigh="0.80" Cadence="90" >
+      <textevent timeoffset="60" duration="10" message="Set the glow—smooth to 80%, quiet shoulders, steady 90 rpm." />
+    </Warmup>
+    <SteadyState Duration="300" Power="0.80" Cadence="92" >
+    </SteadyState>
+    <SteadyState Duration="165" Power="0.60" Cadence="88" >
+      <textevent timeoffset="690" duration="10" message="Edge snaps next—8x45s. Strike clean, quick feet, control the recoveries." />
+    </SteadyState>
+    <IntervalsT Repeat="8" OnDuration="45" OffDuration="45" OnPower="1.20" OffPower="0.60" Cadence="100" CadenceResting="88" />
+    <Warmup Duration="15" PowerLow="0.60" PowerHigh="0.65" />
+    <SteadyState Duration="330" Power="0.65" Cadence="90" >
+      <textevent timeoffset="1755" duration="10" message="Shatter set next—5x30s. Hold the line, then flash and return smooth." />
+    </SteadyState>
+    <IntervalsT Repeat="5" OnDuration="30" OffDuration="30" OnPower="1.50" OffPower="0.65" Cadence="102" CadenceResting="90" >
+    </IntervalsT>
+    <Warmup Duration="120" PowerLow="0.65" PowerHigh="0.75" />
+    <SteadyState Duration="300" Power="0.75" Cadence="92" >
+      <textevent timeoffset="2475" duration="10" message="Cooldown next—stay tall, keep the cadence smooth, then let it fade." />
+    </SteadyState>
+    <Cooldown Duration="210" PowerLow="0.75" PowerHigh="0.45" Cadence="85" >
+    </Cooldown>
+  </workout>
+</workout_file>

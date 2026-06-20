@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Steel the Line</name>
+  <description><![CDATA[Steel the Line layers two clean sets at the edge: 2x5:00 near threshold, then another 2x5:00 a touch higher. Short recoveries test your resolve—keep the line straight when the road tilts.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.50" PowerHigh="0.95" Cadence="90" >
+      <textevent timeoffset="60" duration="10" message="Set the line—smooth to 95%, quiet shoulders, steady 88–90 rpm." />
+    </Warmup>
+    <SteadyState Duration="60" Power="0.95" Cadence="94" />
+    <SteadyState Duration="180" Power="0.70" Cadence="92" >
+      <textevent timeoffset="465" duration="10" message="First 2x5:00 set next—steady breath, even pressure." />
+    </SteadyState>
+    <IntervalsT Repeat="2" OnDuration="300" OffDuration="120" OnPower="0.95" OffPower="0.80" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="780" duration="10" message="Hold each 5:00—smooth power on, calm reset off." />
+    </IntervalsT>
+    <Warmup Duration="60" PowerLow="0.80" PowerHigh="0.85" />
+    <SteadyState Duration="120" Power="0.85" Cadence="94" >
+      <textevent timeoffset="1485" duration="10" message="Second 2x5:00 set next—stay tall, keep cadence smooth." />
+    </SteadyState>
+    <IntervalsT Repeat="2" OnDuration="300" OffDuration="150" OnPower="1.00" OffPower="0.85" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="2385" duration="10" message="Cooldown next—soften the grip, long exhales, easy 85 rpm." />
+    </IntervalsT>
+    <Cooldown Duration="300" PowerLow="0.85" PowerHigh="0.53" Cadence="85" />
+  </workout>
+</workout_file>

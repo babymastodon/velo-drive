@@ -23,13 +23,50 @@ import {WebFileStore} from "../../src/ports/web/WebFileStore.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_WORKOUTS = resolve(__dirname, "..", "..", "public", "workouts");
 
+// The full bundled starter library seeded on a fresh folder pick (mirrors
+// WebFileStore.DEFAULT_WORKOUT_FILES — the complete docs/workouts/ set).
 const DEFAULT_NAMES = [
+  "Airforge.zwo",
+  "Ashen%20Surge.zwo",
   "Basefire%20Waves.zwo",
+  "Blackglass%20Gauntlet.zwo",
   "Breath%20of%20Power.zwo",
+  "Breath%20Spark.zwo",
+  "Cinder%20Edge.zwo",
+  "Crestline%20Endurance.zwo",
+  "Deep%20Current.zwo",
+  "Dreamwake.zwo",
+  "Endless%20Rhythm.zwo",
+  "Endurance%20Drift.zwo",
+  "Endurance%20Espresso.zwo",
+  "Endure%20the%20Climb.zwo",
+  "Freeride%2030.zwo",
+  "Freeride%2045.zwo",
+  "Freeride%2060.zwo",
+  "Freeride%2075.zwo",
+  "Freeride%2090.zwo",
+  "Hard%20Road%2C%20Steady%20Heart.zwo",
   "Into%20the%20Black.zwo",
   "Keep%20Turning.zwo",
+  "Long%20Rollers.zwo",
+  "Lullaby%20Legs.zwo",
+  "Lungfire.zwo",
+  "Mellow%20Matchsticks.zwo",
+  "Nocturne%20Strain.zwo",
+  "Obsidian%20Pulse.zwo",
+  "Open%20Road%20Pulse.zwo",
+  "Pillow%20Pops.zwo",
+  "Quick%20Turn.zwo",
+  "Relentless%20Rise.zwo",
   "Rise%20Against%20the%20Odds.zwo",
+  "Rolling%20Crests.zwo",
+  "Short%20Resolve.zwo",
   "Sleepy%20Spin.zwo",
+  "Snooze%20Cruise.zwo",
+  "Steady%20Carousel.zwo",
+  "Steel%20the%20Line.zwo",
+  "Velvet%20Cadence.zwo",
+  "Windline.zwo",
 ];
 
 function installEnv(root: FakeFileSystemDirectoryHandle): void {
@@ -115,6 +152,29 @@ describe("WebFileStore.pickRootDir default-workout seeding (J-CFG-17)", () => {
 
     const names = await listZwoNames(workouts);
     expect(names).toEqual(["Existing.zwo"]);
+  });
+
+  it("resumes an INTERRUPTED seed: backfills the stranded tail (incl. Sleepy Spin)", async () => {
+    // Reproduces the real-world bug: the first seed pass was interrupted partway
+    // (tab closed / blip), leaving the folder with only the alphabetical HEAD of
+    // the defaults + the in-progress marker still set. The folder is now
+    // non-empty, so the legacy "bail if any .zwo exists" would have stranded the
+    // tail (e.g. "Sleepy Spin", ~36/41) forever. The marker must let it resume.
+    const workouts = await root.getDirectoryHandle("workouts", {create: true});
+    for (const name of ["Airforge.zwo", "Ashen%20Surge.zwo", "Basefire%20Waves.zwo"]) {
+      workouts.seedFile(name, "<workout_file></workout_file>");
+    }
+    // Re-seed IndexedDB with the in-progress marker (overrides beforeEach's env).
+    const {indexedDB} = createFakeIndexedDB({
+      defaultWorkoutsSeedInProgress: {key: "defaultWorkoutsSeedInProgress", value: true},
+    });
+    (globalThis as unknown as {indexedDB: unknown}).indexedDB = indexedDB;
+
+    await new WebFileStore().pickRootDir();
+
+    const names = await listZwoNames(workouts);
+    expect(names).toEqual([...DEFAULT_NAMES].sort()); // backfilled to the full library
+    expect(names).toContain("Sleepy%20Spin.zwo");
   });
 });
 

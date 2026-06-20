@@ -67,9 +67,12 @@ test.describe("default-workout seeding on folder pick", () => {
     },
   });
 
-  test("picking the folder seeds the 6 starter workouts into an empty library", async ({configuredPage}) => {
+  test("picking the folder seeds the full starter library into an empty library", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
+
+    // The bundled starter library = the complete docs/workouts/ set (41 files).
+    const expectedNames = Object.keys(readSeedWorkouts()).sort();
 
     // Library starts empty.
     const before = await page.evaluate(() =>
@@ -92,23 +95,14 @@ test.describe("default-workout seeding on folder pick", () => {
             ).length,
         ),
       )
-      .toBe(6);
+      .toBe(expectedNames.length);
 
     const after = await page.evaluate(() =>
       Array.from((window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.fs.workouts._files.keys()).filter((n) =>
         n.toLowerCase().endsWith(".zwo"),
       ),
     );
-    expect(after.sort()).toEqual(
-      [
-        "Basefire%20Waves.zwo",
-        "Breath%20of%20Power.zwo",
-        "Into%20the%20Black.zwo",
-        "Keep%20Turning.zwo",
-        "Rise%20Against%20the%20Odds.zwo",
-        "Sleepy%20Spin.zwo",
-      ].sort(),
-    );
+    expect(after.sort()).toEqual(expectedNames);
   });
 });
 
