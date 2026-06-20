@@ -70,6 +70,8 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   // Default audible (legacy default true; J-CFG-15) — SettingsView agrees.
   const soundEnabled = await fileStore.getSetting<boolean>('soundEnabled', true);
   beeper.setEnabled(!!soundEnabled);
+  // Volume level (0..1) for the settings slider; independent of the on/off flag.
+  beeper.setVolume(await fileStore.getSetting<number>('soundVolume', 1));
   engine.setFtpInitial(ftp);
 
   // Apply the persisted theme to <html> (mirrors legacy initThemeFromStorage).

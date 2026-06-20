@@ -249,7 +249,9 @@ test.describe("sound default", () => {
     await cp.locator("#settingsBtn").click();
     await expect(cp.locator("#settingsModal")).toBeVisible();
     await settle(cp);
-    await expect(cp.getByTestId("sound-checkbox")).toBeChecked();
+    // Defaults audible: no stored preference → soundEnabled true + soundVolume 1,
+    // so the volume slider sits at full (100%).
+    await expect(cp.getByTestId("sound-volume")).toHaveValue("100");
   });
 });
 
