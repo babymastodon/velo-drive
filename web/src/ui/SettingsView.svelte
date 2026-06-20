@@ -76,21 +76,31 @@
   }
 
   // ---- Sound ----
-  // Default audible — agrees with the boot default in app.ts (legacy default
-  // true; J-CFG-15).
-  let soundEnabled = $state(true);
+  // A single horizontal volume slider (0–100). 0 = muted; >0 = audible at that
+  // level. Persists both soundVolume (the level the beeper scales by) and
+  // soundEnabled (the on/off flag app.ts reads on boot) so muting via the slider
+  // is a real off. Default audible (legacy default true; J-CFG-15).
+  let soundVolume = $state(100); // 0..100
   $effect(() => {
     if (open) {
-      void fileStore.getSetting<boolean>('soundEnabled', true).then((v) => {
-        soundEnabled = !!v;
+      void Promise.all([
+        fileStore.getSetting<boolean>('soundEnabled', true),
+        fileStore.getSetting<number>('soundVolume', 1),
+      ]).then(([enabled, vol]) => {
+        const clamped = Math.max(0, Math.min(1, Number.isFinite(vol) ? vol : 1));
+        soundVolume = enabled === false ? 0 : Math.round(clamped * 100);
       });
     }
   });
-  function onSoundChange(e: Event): void {
-    const enabled = (e.target as HTMLInputElement).checked;
-    soundEnabled = enabled;
-    beeper.setEnabled(enabled);
-    void fileStore.putSetting('soundEnabled', enabled);
+  function onVolumeChange(e: Event): void {
+    const pct = Number((e.target as HTMLInputElement).value);
+    soundVolume = pct;
+    const vol01 = Math.max(0, Math.min(1, pct / 100));
+    const on = vol01 > 0;
+    beeper.setVolume(vol01);
+    beeper.setEnabled(on);
+    void fileStore.putSetting('soundVolume', vol01);
+    void fileStore.putSetting('soundEnabled', on);
   }
 
   // ---- Theme ----
@@ -426,16 +436,21 @@
               </div>
             </div>
             <div class="settings-row-right">
-              <label class="settings-toggle-switch">
+              <div class="settings-volume" style="--vol: {soundVolume}%">
                 <input
-                  id="settingsSoundCheckbox"
-                  type="checkbox"
-                  data-testid="sound-checkbox"
-                  checked={soundEnabled}
-                  onchange={onSoundChange}
+                  id="settingsSoundVolume"
+                  class="settings-volume-range"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  data-testid="sound-volume"
+                  aria-label="Sound volume"
+                  value={soundVolume}
+                  oninput={onVolumeChange}
                 />
-                <span class="settings-toggle-slider"></span>
-              </label>
+                <span class="settings-volume-value" aria-hidden="true">{soundVolume}%</span>
+              </div>
             </div>
           </div>
 

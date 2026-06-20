@@ -126,6 +126,10 @@ export class WorkoutEngine {
   private liveSamples: LiveSample[] = [];
   private workoutTicker: number | null = null;
   private saveStateTimer: number | null = null;
+  // Idempotency guard for endWorkout (it awaits the FIT save, so the ticker
+  // auto-finalizing can race a user Stop and double-save).
+  private ending = false;
+  private activeStateSaveFailed = false;
 
   private onStateChanged: (vm: EngineViewModel) => void = () => {};
   private onLog: (msg: string) => void = () => {};
@@ -236,19 +240,6 @@ export class WorkoutEngine {
     return { segment: null, target: null, index: -1 };
   }
 
-  /** True when the segment at the current ride time is a free-ride in resistance mode. */
-  private isResistanceFreeRideActive(): boolean {
-    if (this.freeRideMode !== 'resistance') return false;
-    const t = this.workoutRunning || this.elapsedSec > 0 ? this.elapsedSec : 0;
-    return !!this.getCurrentSegmentAtTime(t).segment?.isFreeRide;
-  }
-
-  private getCurrentTargetPower(): number | null {
-    if (!this.canonicalWorkout) return null;
-    const t = this.workoutRunning || this.elapsedSec > 0 ? this.elapsedSec : 0;
-    return this.getCurrentSegmentAtTime(t).target;
-  }
-
   private desiredTrainerState(): TrainerState | null {
     const t = this.workoutRunning || this.elapsedSec > 0 ? this.elapsedSec : 0;
     const { segment, target } = this.getCurrentSegmentAtTime(t);
@@ -277,7 +268,19 @@ export class WorkoutEngine {
   }
 
   private persistActiveState(): Promise<void> {
-    return this.fileStore.saveActiveState(this.buildActiveSnapshot());
+    // PERS-E4: surface a silent active-state write failure (structured-clone /
+    // quota) instead of losing the in-progress ride invisibly. Logged once per
+    // failure streak (cleared on the next successful save) to avoid log spam.
+    return this.fileStore.saveActiveState(this.buildActiveSnapshot()).then(
+      () => {
+        this.activeStateSaveFailed = false;
+      },
+      (err) => {
+        if (this.activeStateSaveFailed) return;
+        this.activeStateSaveFailed = true;
+        this.log('Failed to persist active workout state (will retry next tick): ' + err);
+      },
+    );
   }
 
   private buildActiveSnapshot(): ActiveState {
@@ -435,6 +438,15 @@ export class WorkoutEngine {
   }
 
   private async tick(): Promise<void> {
+    // NOTE (ACT-E1): tick() awaits a real BLE write, so a >1s stall can let the
+    // 1s interval fire an overlapping tick. The serious symptom of that — a
+    // double FIT save / double onWorkoutEnded if two ticks both auto-finalize —
+    // is handled by endWorkout()'s `ending` idempotency guard. We deliberately
+    // do NOT add a skip-guard here: the engine counts ride time in ticks (P6),
+    // and the virtual-clock harness fires interval callbacks synchronously, so
+    // a skip-guard would drop legitimate ticks and desync elapsedSec. The only
+    // residual is a possible duplicate sample during a genuine multi-second BLE
+    // stall — cosmetic in the FIT.
     this.lastTickWallMs = this.now();
     // TODO(P6, known limitation — do not "fix" casually): ride time is COUNTED IN
     // TICKS (elapsedSec += 1 per fired interval), not derived from wall-clock.
@@ -499,15 +511,19 @@ export class WorkoutEngine {
     if (this.workoutRunning && this.workoutPaused) {
       const now = this.now();
       const autoResumeBlocked = now < this.manualPauseAutoResumeBlockedUntilMs;
-      const currentTarget = this.getCurrentTargetPower();
-      // P1: a RESISTANCE free-ride has no numeric ERG target (currentTarget is
-      // null), so the ERG ">=0.9*target" rule never fires and the rider stays
-      // trapped after an auto-pause. For that case auto-resume on any positive
-      // power; keep the ERG rule for ERG/structured segments.
-      const resistanceFreeRide = currentTarget == null && this.isResistanceFreeRideActive();
-      const shouldAutoResume = resistanceFreeRide
-        ? !!this.lastSamplePower && this.lastSamplePower > 0
-        : !!currentTarget && !!this.lastSamplePower && this.lastSamplePower >= 0.9 * currentTarget;
+      const { segment, target: currentTarget } = this.getCurrentSegmentAtTime(this.elapsedSec);
+      const tgt = currentTarget ?? 0;
+      const hasPower = !!this.lastSamplePower && this.lastSamplePower > 0;
+      // Normal structured segments auto-resume at >=90% of target. But that
+      // threshold is unreachable from a dead stop for (a) ANY free-ride —
+      // resistance (no numeric target, P1) OR a high manual-ERG free-ride
+      // (ACT-E2) — and (b) a segment whose target rounds to <=0W (AUTO-E3).
+      // Those would trap the rider on the pause overlay, so resume on any
+      // positive power instead.
+      const shouldAutoResume =
+        segment?.isFreeRide || tgt <= 0
+          ? hasPower
+          : hasPower && this.lastSamplePower! >= 0.9 * tgt;
       if (!autoResumeBlocked && shouldAutoResume) {
         this.log('Auto-resume: power high vs target (>=90%).');
         this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
@@ -532,6 +548,14 @@ export class WorkoutEngine {
 
   private emitStateChanged(): void {
     this.maybePlayTextEvent();
+    // Keep the trainer's target synced with the current selection even before
+    // the workout starts: selecting a workout — or connecting the bike while one
+    // is already selected (the first bikeSample lands here) — pushes its starting
+    // power to the device. This is the single sync point, not per-event triggers.
+    // During a ride the tick loop drives sends instead (so we don't double-drive
+    // or fight the paused/grace logic); the transport dedupes idle re-emits, and
+    // desiredTrainerState() is null with no workout selected (so nothing is sent).
+    if (!this.workoutRunning) void this.sendTrainerState(false);
     this.onStateChanged(this.getViewModel());
   }
 
@@ -655,6 +679,10 @@ export class WorkoutEngine {
   }
 
   private async beginRun(): Promise<void> {
+    // LIFE-E1: the start-countdown's onDone lands here ~3s after startWorkout.
+    // If the ride was ended/cancelled during the countdown, workoutStarting was
+    // cleared — bail so we never resurrect a ghost ride.
+    if (!this.workoutStarting) return;
     this.liveSamples = [];
     this.elapsedSec = 0;
     const first = this.canonicalWorkout!.rawSegments[0];
@@ -680,6 +708,20 @@ export class WorkoutEngine {
   }
 
   async endWorkout(): Promise<void> {
+    // Idempotent (LIFE-E2 / ACT-E1): endWorkout awaits the FIT save, so it can be
+    // entered twice — e.g. the ticker auto-finalizing at the same instant the
+    // user confirms Stop — which would double-save the FIT and fire
+    // onWorkoutEnded twice. The second entrant is a no-op.
+    if (this.ending) return;
+    this.ending = true;
+    try {
+      await this.endWorkoutInner();
+    } finally {
+      this.ending = false;
+    }
+  }
+
+  private async endWorkoutInner(): Promise<void> {
     this.log('Ending workout, stopping ticker, then writing FIT if samples exist.');
     this.autoStartSuppressed = true;
 

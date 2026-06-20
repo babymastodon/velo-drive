@@ -86,19 +86,26 @@ test.describe("Settings (new Svelte app) — behavior", () => {
     });
     expect(persistedTheme).toBe("dark");
 
-    // --- Sound toggle: checkbox flips + persisted ---
-    const sound = page.getByTestId("sound-checkbox");
-    const before = await sound.isChecked();
-    // The toggle slider span overlays the checkbox; click it via the label.
-    await sound.click({force: true});
-    expect(await sound.isChecked()).toBe(!before);
-    const persistedSound = await page.evaluate(async () => {
-      const store = (window as unknown as {__VELO_HARNESS__: {settingsStore: Map<string, unknown>}})
-        .__VELO_HARNESS__.settingsStore;
-      const rec = store.get("soundEnabled") as {value?: boolean} | undefined;
-      return rec?.value;
-    });
-    expect(persistedSound).toBe(!before);
+    // --- Sound volume slider: 0 mutes (soundEnabled=false + soundVolume=0),
+    //     a positive level re-enables. Persists both. ---
+    const readSound = () =>
+      page.evaluate(async () => {
+        const store = (window as unknown as {__VELO_HARNESS__: {settingsStore: Map<string, unknown>}})
+          .__VELO_HARNESS__.settingsStore;
+        const en = store.get("soundEnabled") as {value?: boolean} | undefined;
+        const vol = store.get("soundVolume") as {value?: number} | undefined;
+        return {enabled: en?.value, volume: vol?.value};
+      });
+    const volume = page.getByTestId("sound-volume");
+    await volume.fill("0");
+    const muted = await readSound();
+    expect(muted.enabled).toBe(false);
+    expect(muted.volume).toBe(0);
+
+    await volume.fill("50");
+    const half = await readSound();
+    expect(half.enabled).toBe(true);
+    expect(half.volume).toBeCloseTo(0.5);
   });
 
   test("Escape closes settings; logs sub-view returns to main first", async ({configuredPage}) => {

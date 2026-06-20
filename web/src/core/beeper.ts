@@ -24,6 +24,7 @@ export interface BeeperLike {
 
 export class Beeper implements BeeperLike {
   private enabled = false;
+  private volume = 1; // 0..1, scales beep gain (0 = silent)
   private audioCtx: AudioContext | null = null;
   private timeouts: number[] = [];
   private countdownRunning = false;
@@ -37,7 +38,12 @@ export class Beeper implements BeeperLike {
 
   setEnabled(flag: boolean): void {
     this.enabled = !!flag;
-    if (!flag) this.stopAll();
+    // AUDIO-E1 / AUDIO-R4: muting must NOT tear down an in-flight start
+    // countdown. playBeep() already early-returns when disabled, so future beeps
+    // go silent on their own. Calling stopAll() here would clearTimeouts() the
+    // countdown's chained steps so its onDone never fires — soft-locking the
+    // engine in workoutStarting (Start dead until reload). Muting only silences
+    // sound; it must never abort the ride start.
   }
 
   private addTimeout(fn: () => void, ms: number): void {
@@ -62,8 +68,12 @@ export class Beeper implements BeeperLike {
     return this.audioCtx;
   }
 
+  setVolume(v: number): void {
+    this.volume = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 1));
+  }
+
   private playBeep(durationMs: number, freq: number, gain: number): void {
-    if (!this.enabled) return;
+    if (!this.enabled || this.volume <= 0) return;
     const ctx = this.ensureAudioContext();
     if (!ctx) return;
     try {
@@ -75,7 +85,7 @@ export class Beeper implements BeeperLike {
       osc.type = 'square';
       osc.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.linearRampToValueAtTime(gain, now + attack);
+      g.gain.linearRampToValueAtTime(gain * this.volume, now + attack);
       g.gain.linearRampToValueAtTime(0.0001, now + durSec);
       osc.connect(g);
       g.connect(ctx.destination);

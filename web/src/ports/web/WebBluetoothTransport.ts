@@ -109,9 +109,11 @@ export class WebBluetoothTransport implements TrainerTransport {
   private bikeServer: BtServer | null = null;
   private hrServer: BtServer | null = null;
 
-  // Suppress auto-reconnect once after a MANUAL disconnect (re-pairing).
-  private bikeSuppressAutoReconnectOnce = false;
-  private hrSuppressAutoReconnectOnce = false;
+  // Suppress auto-reconnect for the SPECIFIC server we manually tear down when
+  // re-pairing (BLE-E2). Binding to the server (not a global boolean) means a
+  // real hardware drop racing the manual teardown can't mis-consume the flag.
+  private bikeSuppressReconnectServer: BtServer | null = null;
+  private hrSuppressReconnectServer: BtServer | null = null;
 
   // Disconnect listeners (so we can detach a previous connection's handler).
   private bikeDisconnectHandler: (() => void) | null = null;
@@ -317,7 +319,7 @@ export class WebBluetoothTransport implements TrainerTransport {
       // Re-pair was cancelled: tear down the old connection, suppressing the
       // resulting disconnect's auto-reconnect once (legacy behavior).
       if (wasConnected && this.bikeServer?.connected) {
-        this.bikeSuppressAutoReconnectOnce = true;
+        this.bikeSuppressReconnectServer = this.bikeServer;
         try {
           this.bikeServer.disconnect();
         } catch {
@@ -357,7 +359,7 @@ export class WebBluetoothTransport implements TrainerTransport {
     } catch (err) {
       this.log('HR picker cancelled or failed: ' + err);
       if (wasConnected && this.hrServer?.connected) {
-        this.hrSuppressAutoReconnectOnce = true;
+        this.hrSuppressReconnectServer = this.hrServer;
         try {
           this.hrServer.disconnect();
         } catch {
@@ -413,9 +415,9 @@ export class WebBluetoothTransport implements TrainerTransport {
       });
       await indoorChar.startNotifications();
 
-      this.bikeControlPointChar = cpChar;
-
-      // requestControl + startOrResume handshake (both fatal on failure)
+      // requestControl + startOrResume handshake (both fatal on failure). Uses
+      // the LOCAL cpChar; this.bikeControlPointChar is committed only after the
+      // stale-id check below (BLE-E1).
       await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.requestControl, null);
       await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.startOrResume, null);
       this.log('FTMS requestControl + startOrResume sent.');
@@ -443,10 +445,14 @@ export class WebBluetoothTransport implements TrainerTransport {
           /* ignore */
         }
       }
-      const handler = (): void => this.onBikeDisconnect(friendlyName);
+      const handler = (): void => this.onBikeDisconnect(friendlyName, server);
       this.bikeDisconnectHandler = handler;
       device.addEventListener('gattserverdisconnected', handler);
 
+      // BLE-E1: commit the control-point char only here, AFTER the stale-id
+      // check, so a re-pair that lands mid-connect can't leave ERG writes
+      // pointed at a torn-down GATT char.
+      this.bikeControlPointChar = cpChar;
       this.bikeServer = server;
       this.bikeConnected = true;
       this.updateBikeStatus('connected', `Connected to "${friendlyName}".`);
@@ -466,15 +472,14 @@ export class WebBluetoothTransport implements TrainerTransport {
     }
   }
 
-  private onBikeDisconnect(friendlyName = 'bike'): void {
+  private onBikeDisconnect(friendlyName = 'bike', server: BtServer | null = null): void {
     this.bikeConnected = false;
     this.bikeControlPointChar = null;
     this.bikeServer = null;
 
-    const willRetry =
-      this.autoReconnectEnabled &&
-      !this.bikeSuppressAutoReconnectOnce &&
-      !!this.bikeDesiredDeviceId;
+    // Suppress auto-reconnect only for the exact server we manually tore down.
+    const suppressed = server != null && server === this.bikeSuppressReconnectServer;
+    const willRetry = this.autoReconnectEnabled && !suppressed && !!this.bikeDesiredDeviceId;
     this.updateBikeStatus(
       'error',
       willRetry
@@ -487,11 +492,11 @@ export class WebBluetoothTransport implements TrainerTransport {
 
     // Resume regular auto-reconnect with reset backoff (unless suppressed once).
     this.bikeReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
-    if (!this.bikeSuppressAutoReconnectOnce) {
-      this.scheduleBikeAutoReconnect(true);
+    if (suppressed) {
+      this.bikeSuppressReconnectServer = null;
+      this.log('Bike auto-reconnect suppressed for the manually torn-down connection.');
     } else {
-      this.bikeSuppressAutoReconnectOnce = false;
-      this.log('Bike auto-reconnect suppressed once after manual disconnect.');
+      this.scheduleBikeAutoReconnect(true);
     }
   }
 
@@ -589,7 +594,7 @@ export class WebBluetoothTransport implements TrainerTransport {
           /* ignore */
         }
       }
-      const handler = (): void => this.onHrDisconnect(friendlyName);
+      const handler = (): void => this.onHrDisconnect(friendlyName, server);
       this.hrDisconnectHandler = handler;
       device.addEventListener('gattserverdisconnected', handler);
 
@@ -612,12 +617,12 @@ export class WebBluetoothTransport implements TrainerTransport {
     }
   }
 
-  private onHrDisconnect(friendlyName = 'heart-rate monitor'): void {
+  private onHrDisconnect(friendlyName = 'heart-rate monitor', server: BtServer | null = null): void {
     this.hrConnected = false;
     this.hrServer = null;
 
-    const willRetry =
-      this.autoReconnectEnabled && !this.hrSuppressAutoReconnectOnce && !!this.hrDesiredDeviceId;
+    const suppressed = server != null && server === this.hrSuppressReconnectServer;
+    const willRetry = this.autoReconnectEnabled && !suppressed && !!this.hrDesiredDeviceId;
     this.updateHrStatus(
       'error',
       willRetry
@@ -629,11 +634,11 @@ export class WebBluetoothTransport implements TrainerTransport {
     this.emit('hrSample', null);
 
     this.hrReconnectDelayMs = MIN_RECONNECT_DELAY_MS;
-    if (!this.hrSuppressAutoReconnectOnce) {
-      this.scheduleHrAutoReconnect(true);
+    if (suppressed) {
+      this.hrSuppressReconnectServer = null;
+      this.log('HR auto-reconnect suppressed for the manually torn-down connection.');
     } else {
-      this.hrSuppressAutoReconnectOnce = false;
-      this.log('HR auto-reconnect suppressed once after manual disconnect.');
+      this.scheduleHrAutoReconnect(true);
     }
   }
 
@@ -670,19 +675,23 @@ export class WebBluetoothTransport implements TrainerTransport {
     await fn.call(cpChar, buffer);
   }
 
-  private async sendErgSetpointRaw(targetWatts: number): Promise<void> {
-    if (!this.bikeControlPointChar) return;
+  // Return whether the write actually landed, so setTrainerState only commits
+  // dedupe state on success (ERG-E2): a swallowed GATT failure must be retried.
+  private async sendErgSetpointRaw(targetWatts: number): Promise<boolean> {
+    if (!this.bikeControlPointChar) return false;
     const val = Math.max(0, Math.min(2000, targetWatts | 0));
     try {
       await this.writeFtmsControlPoint(this.bikeControlPointChar, FTMS_OPCODES.setTargetPower, val);
       this.log(`ERG target → ${val} W`);
+      return true;
     } catch (err) {
       this.log('Failed to set ERG target: ' + err);
+      return false;
     }
   }
 
-  private async sendResistanceLevelRaw(level: number): Promise<void> {
-    if (!this.bikeControlPointChar) return;
+  private async sendResistanceLevelRaw(level: number): Promise<boolean> {
+    if (!this.bikeControlPointChar) return false;
     const clamped = Math.max(0, Math.min(100, Math.round(level)));
     const tenth = clamped * 10;
     try {
@@ -692,14 +701,19 @@ export class WebBluetoothTransport implements TrainerTransport {
         tenth,
       );
       this.log(`Resistance target → ${clamped}`);
+      return true;
     } catch (err) {
       this.log('Failed to set resistance target: ' + err);
+      return false;
     }
   }
 
   async setTrainerState(state: TrainerState, opts?: { force?: boolean }): Promise<void> {
     const force = opts?.force ?? false;
     if (!this.bikeConnected || !this.bikeControlPointChar) return;
+    // ERG-E4: drop a non-finite target rather than coercing it to 0 W (which
+    // `targetWatts | 0` would do) and busy-looping the dedupe (NaN !== NaN).
+    if (!Number.isFinite(state.value)) return;
     const tNow = this.nowSec();
 
     if (state.kind === 'erg') {
@@ -710,10 +724,15 @@ export class WebBluetoothTransport implements TrainerTransport {
         this.lastErgTargetSent !== target ||
         tNow - this.lastErgSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
       if (needsSend) {
-        await this.sendErgSetpointRaw(target);
-        this.lastTrainerMode = 'erg';
-        this.lastErgTargetSent = target;
-        this.lastErgSendTs = tNow;
+        // ERG-E2: only record the target as sent when the write actually landed,
+        // so a swallowed GATT failure is retried on the next tick rather than
+        // deduped away (trainer left at the wrong watts for up to 10 s).
+        const ok = await this.sendErgSetpointRaw(target);
+        if (ok) {
+          this.lastTrainerMode = 'erg';
+          this.lastErgTargetSent = target;
+          this.lastErgSendTs = tNow;
+        }
       }
     } else if (state.kind === 'resistance') {
       const target = Math.round(state.value);
@@ -723,10 +742,12 @@ export class WebBluetoothTransport implements TrainerTransport {
         this.lastResistanceSent !== target ||
         tNow - this.lastResistanceSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
       if (needsSend) {
-        await this.sendResistanceLevelRaw(target);
-        this.lastTrainerMode = 'resistance';
-        this.lastResistanceSent = target;
-        this.lastResistanceSendTs = tNow;
+        const ok = await this.sendResistanceLevelRaw(target);
+        if (ok) {
+          this.lastTrainerMode = 'resistance';
+          this.lastResistanceSent = target;
+          this.lastResistanceSendTs = tNow;
+        }
       }
     }
   }

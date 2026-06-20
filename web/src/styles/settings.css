@@ -305,6 +305,75 @@
   transform: translateX(20px);
 }
 
+/* Sound volume slider — same visual language as the toggle (rounded pill track,
+   round thumb, checked-color fill up to the current level via --vol). */
+.settings-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-volume-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-volume-range::-webkit-slider-runnable-track {
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--toggle-checked) 0 var(--vol, 100%),
+    var(--toggle-track) var(--vol, 100%) 100%
+  );
+}
+
+.settings-volume-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 50%;
+  background: var(--toggle-thumb);
+  box-shadow: 0 1px 3px var(--toggle-thumb-shadow);
+}
+
+.settings-volume-range::-moz-range-track {
+  height: 20px;
+  border-radius: 999px;
+  background: var(--toggle-track);
+}
+
+.settings-volume-range::-moz-range-progress {
+  height: 20px;
+  border-radius: 999px;
+  background: var(--toggle-checked);
+}
+
+.settings-volume-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--toggle-thumb);
+  box-shadow: 0 1px 3px var(--toggle-thumb-shadow);
+}
+
+.settings-volume-value {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* Logs view */
 
 .settings-logs-header {
