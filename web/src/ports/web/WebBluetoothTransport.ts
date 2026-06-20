@@ -522,7 +522,11 @@ export class WebBluetoothTransport implements TrainerTransport {
     }
     if (flags & (1 << 3)) index += 2;
     if (flags & (1 << 4)) index += 3;
-    if (flags & (1 << 5)) index += 1;
+    // SENS-E1: Instantaneous Resistance Level is SINT16 (2 bytes) per the FTMS
+    // Indoor Bike Data spec. Legacy advanced only 1 byte, which misaligns the
+    // following fields (power/HR) for any trainer that sets this flag. Fixed to
+    // 2 (intentional divergence from the legacy parity oracle).
+    if (flags & (1 << 5)) index += 2;
     if (flags & (1 << 6)) {
       if (dataView.byteLength >= index + 2) {
         const power = dataView.getInt16(index, true);

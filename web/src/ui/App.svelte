@@ -17,8 +17,11 @@
   import { isPlatformIncompatible, isWebBluetoothAvailable } from '../app/compat.js';
   import { formatDateKey } from '../core/date-keys.js';
   import { isEditableTarget } from './dom-utils.js';
+  import { ScreenWakeLock } from './wake-lock.js';
 
   let ctx = $state<AppContext | null>(null);
+  // Keep the screen awake while a ride is in progress (AUDIO-E3).
+  const wakeLock = new ScreenWakeLock();
   const ui = new UiStore();
   const dialogs = new DialogStore();
 
@@ -43,6 +46,13 @@
   (window as unknown as { __VELO_APP__: unknown }).__VELO_APP__ = appBridge;
 
   const welcomeActive = $derived(ui.activeOverlay === 'welcome');
+
+  // Hold a screen wake lock whenever a ride is in progress (running, the 3-2-1
+  // countdown, or an auto/manual pause). Released automatically when idle.
+  $effect(() => {
+    const vm = ctx?.store.vm;
+    wakeLock.setWanted(!!(vm?.workoutRunning || vm?.workoutStarting || vm?.workoutPaused));
+  });
 
   $effect(() => {
     let cancelled = false;
