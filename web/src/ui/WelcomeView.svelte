@@ -64,9 +64,17 @@
   // Splash hides text for 1000ms on first render (legacy behavior).
   let textHidden = $state(false);
   let firstRenderDone = false;
+  // During that same first-render window the nav arrows + close button stay
+  // hidden, then fade in — the legacy splash "boot reveal" (docs/welcome.js
+  // 514-528 hid prev/next/close for 1000ms). The prev arrow stays hidden beyond
+  // it because the splash is the first slide (nothing to go back to).
+  const splashBooting = $derived(slide.id === 'splash' && textHidden);
 
   let sceneEl = $state<HTMLDivElement | null>(null);
+  let slideEl = $state<HTMLDivElement | null>(null);
   let activeScene: SVGElement | null = null;
+  // Guards the in/out slide transition so rapid next/prev can't interleave.
+  let isAnimating = false;
 
   async function renderScene(slideId: string): Promise<void> {
     if (!sceneEl) return;
@@ -94,25 +102,127 @@
     firstRenderDone = true;
   }
 
-  async function goToIndex(i: number): Promise<void> {
+  function prefersReducedMotion(): boolean {
+    try {
+      return (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Skip the slide animation when motion is off. Checks the element's COMPUTED
+  // transition-duration rather than relying on matchMedia alone: the e2e harness
+  // stubs matchMedia (for theme) and kills transitions via
+  // `transition:none!important`, which would otherwise leave the animation
+  // awaiting a fallback timer on the harness's virtual clock and never advance.
+  // A real reduced-motion user is honored via prefersReducedMotion().
+  function animationsDisabled(el: HTMLElement): boolean {
+    if (prefersReducedMotion()) return true;
+    const dur = getComputedStyle(el).transitionDuration;
+    return !dur || parseFloat(dur) === 0;
+  }
+
+  // Resolve when the slide's CSS transition ends, or after `ms` as a fallback.
+  // (The e2e harness disables transitions, so transitionend never fires there —
+  // but reduced-motion also short-circuits the animation before this is reached.)
+  function waitSlideTransition(el: HTMLElement, ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        el.removeEventListener('transitionend', onEnd);
+        resolve();
+      };
+      const onEnd = (e: TransitionEvent): void => {
+        if (e.target === el) finish();
+      };
+      el.addEventListener('transitionend', onEnd);
+      setTimeout(finish, ms);
+    });
+  }
+
+  async function swapContent(i: number): Promise<void> {
     currentIndex = i;
     applyTextReveal(SLIDES[i]);
     await tick();
     await renderScene(SLIDES[i].id);
   }
 
+  // Port of docs/welcome.js animateSlideChange (541-603): slide the current panel
+  // out toward the travel direction, swap content at the midpoint, then slide the
+  // new panel in from the opposite edge — 330ms each leg, matching the legacy
+  // welcome-slide--animating-{out,in}-{forward,backward} CSS. The nav arrows live
+  // outside .welcome-slide, so they don't travel with it (legacy parity).
+  async function animateSlideChange(target: number, goingPrev: boolean): Promise<void> {
+    const el = slideEl;
+    if (!el) {
+      await swapContent(target);
+      return;
+    }
+    isAnimating = true;
+    const outClass = goingPrev
+      ? 'welcome-slide--animating-out-backward'
+      : 'welcome-slide--animating-out-forward';
+    const inClass = goingPrev
+      ? 'welcome-slide--animating-in-backward'
+      : 'welcome-slide--animating-in-forward';
+
+    // 1. Animate the current slide out.
+    el.classList.add('welcome-slide--animating', outClass);
+    await waitSlideTransition(el, 330);
+
+    // 2. Swap content at the midpoint (title/body/scene + arrow visibility).
+    await swapContent(target);
+
+    // 3. Park the new slide at the opposite edge with transitions off, force a
+    //    reflow so that start state applies, then animate it in.
+    el.classList.remove(outClass);
+    el.style.transition = 'none';
+    el.style.transform = goingPrev ? 'translateX(-8%)' : 'translateX(8%)';
+    el.style.opacity = '0.1';
+    void el.offsetWidth; // force reflow
+    el.style.transition = '';
+    el.classList.add(inClass);
+
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    el.classList.add('welcome-slide--active');
+    el.style.transform = 'translateX(0)';
+    el.style.opacity = '1';
+    await waitSlideTransition(el, 330);
+
+    // 4. Cleanup: drop the animation hooks and inline overrides.
+    el.classList.remove(inClass, 'welcome-slide--active', 'welcome-slide--animating');
+    el.style.transform = '';
+    el.style.opacity = '';
+    el.style.transition = '';
+    isAnimating = false;
+  }
+
+  async function goToIndex(i: number, direction?: 'next' | 'prev'): Promise<void> {
+    if (direction && slideEl && i !== currentIndex && !isAnimating && !animationsDisabled(slideEl)) {
+      await animateSlideChange(i, direction === 'prev');
+    } else {
+      await swapContent(i);
+    }
+  }
+
   function goNext(): void {
-    if (splashMode) return;
+    if (splashMode || isAnimating) return;
     if (currentIndex >= SLIDES.length - 1) {
       ui.close();
       return;
     }
-    void goToIndex(currentIndex + 1);
+    void goToIndex(currentIndex + 1, 'next');
   }
   function goPrev(): void {
-    if (splashMode) return;
+    if (splashMode || isAnimating) return;
     if (currentIndex <= 0) return;
-    void goToIndex(currentIndex - 1);
+    void goToIndex(currentIndex - 1, 'prev');
   }
   function close(): void {
     ui.close();
@@ -225,6 +335,7 @@
       <button
         id="welcomeCloseBtn"
         class="welcome-close-btn"
+        class:welcome-nav-hidden={splashBooting}
         type="button"
         aria-label="Skip intro"
         data-testid="welcome-close"
@@ -242,6 +353,7 @@
         class:welcome-slide--icon-only={slide.kind === 'splash'}
         class:welcome-text-hidden={textHidden}
         class:welcome-text-visible={!textHidden && slide.id === 'splash'}
+        bind:this={slideEl}
       >
         <header class="welcome-header">
           <h1 id="welcomeTitle" class="welcome-title" data-testid="welcome-title">{slide.title}</h1>
@@ -260,7 +372,7 @@
       <button
         id="welcomePrevBtn"
         class="welcome-nav welcome-nav-prev"
-        class:welcome-nav-hidden={currentIndex === 0}
+        class:welcome-nav-hidden={currentIndex === 0 || splashBooting}
         type="button"
         aria-label="Previous"
         data-testid="welcome-prev"
@@ -275,6 +387,7 @@
       <button
         id="welcomeNextBtn"
         class="welcome-nav welcome-nav-next"
+        class:welcome-nav-hidden={splashBooting}
         type="button"
         aria-label="Next"
         data-testid="welcome-next"

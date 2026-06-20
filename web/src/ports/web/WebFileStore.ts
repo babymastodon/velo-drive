@@ -57,18 +57,62 @@ const TRASH_DIR_KEY = 'trashDirHandle';
 const ROOT_DIR_KEY = 'rootDirHandle';
 const SCHEDULE_FILE = 'schedule.json';
 
-// The bundled default workout library (mirrors docs/storage.js
-// DEFAULT_WORKOUT_FILES, 35-42). On a fresh folder pick, if the workouts/ dir is
-// empty, these 6 starters are fetched from /workouts/<name> (bundled in
-// web/public/workouts) and written into the folder so a new user is never left
-// with an empty library.
+// Marker set before a default-seed pass and cleared only once every default is
+// present. Lets an INTERRUPTED seed (tab closed / network blip mid-copy) resume
+// and backfill its tail on the next folder pick, instead of being stranded
+// because the now-non-empty folder looks "already seeded". See
+// maybeSeedDefaultWorkouts.
+const SEED_IN_PROGRESS_KEY = 'defaultWorkoutsSeedInProgress';
+
+// The bundled default workout library. On a fresh folder pick, if the workouts/
+// dir is empty, every file here is fetched from /workouts/<name> (bundled in
+// web/public/workouts) and written into the folder so a new user gets the full
+// starter library — short spins through long endurance + free-rides, not an
+// arbitrary 60-min-ish subset. This is the complete docs/workouts/ set (41
+// files); the legacy app shipped all of these as assets but only seeded 6, which
+// left new users with a tiny, duration-skewed library.
 const DEFAULT_WORKOUT_FILES = [
+  'Airforge.zwo',
+  'Ashen%20Surge.zwo',
   'Basefire%20Waves.zwo',
+  'Blackglass%20Gauntlet.zwo',
   'Breath%20of%20Power.zwo',
+  'Breath%20Spark.zwo',
+  'Cinder%20Edge.zwo',
+  'Crestline%20Endurance.zwo',
+  'Deep%20Current.zwo',
+  'Dreamwake.zwo',
+  'Endless%20Rhythm.zwo',
+  'Endurance%20Drift.zwo',
+  'Endurance%20Espresso.zwo',
+  'Endure%20the%20Climb.zwo',
+  'Freeride%2030.zwo',
+  'Freeride%2045.zwo',
+  'Freeride%2060.zwo',
+  'Freeride%2075.zwo',
+  'Freeride%2090.zwo',
+  'Hard%20Road%2C%20Steady%20Heart.zwo',
   'Into%20the%20Black.zwo',
   'Keep%20Turning.zwo',
+  'Long%20Rollers.zwo',
+  'Lullaby%20Legs.zwo',
+  'Lungfire.zwo',
+  'Mellow%20Matchsticks.zwo',
+  'Nocturne%20Strain.zwo',
+  'Obsidian%20Pulse.zwo',
+  'Open%20Road%20Pulse.zwo',
+  'Pillow%20Pops.zwo',
+  'Quick%20Turn.zwo',
+  'Relentless%20Rise.zwo',
   'Rise%20Against%20the%20Odds.zwo',
+  'Rolling%20Crests.zwo',
+  'Short%20Resolve.zwo',
   'Sleepy%20Spin.zwo',
+  'Snooze%20Cruise.zwo',
+  'Steady%20Carousel.zwo',
+  'Steel%20the%20Line.zwo',
+  'Velvet%20Cadence.zwo',
+  'Windline.zwo',
 ];
 
 // The HistoryFitEntry + computed HistoryPreview models now live in
@@ -308,8 +352,34 @@ export class WebFileStore implements FileStore {
    * Returns the number of files copied.
    */
   private async maybeSeedDefaultWorkouts(dir: FsDirHandle): Promise<number> {
-    if (await this.directoryHasAnyZwoFiles(dir)) return 0;
-    return this.copyDefaultWorkoutsToDir(dir);
+    const empty = !(await this.directoryHasAnyZwoFiles(dir));
+    const inProgress = await this.getSettingRaw<boolean>(SEED_IN_PROGRESS_KEY, false);
+    // Seed a fresh (empty) library, OR resume a previously-interrupted seed whose
+    // tail never landed (the folder has SOME .zwo but a prior pass didn't finish
+    // — this is what stranded late-alphabet defaults like "Sleepy Spin"). A
+    // non-empty folder with no in-progress marker is treated as the user's own
+    // library and left untouched (legacy behavior; respects deleted defaults).
+    if (!empty && !inProgress) return 0;
+
+    await this.setSetting(SEED_IN_PROGRESS_KEY, true);
+    const copied = await this.copyDefaultWorkoutsToDir(dir);
+    // Clear the marker only once every default is actually present, so a partial
+    // failure retries + backfills on the next pick rather than being stranded.
+    if (await this.allDefaultsPresent(dir)) {
+      await this.setSetting(SEED_IN_PROGRESS_KEY, false);
+    }
+    return copied;
+  }
+
+  private async allDefaultsPresent(dir: FsDirHandle): Promise<boolean> {
+    for (const fileName of DEFAULT_WORKOUT_FILES) {
+      try {
+        await dir.getFileHandle(fileName, { create: false });
+      } catch {
+        return false;
+      }
+    }
+    return true;
   }
 
   private async directoryHasAnyZwoFiles(dir: FsDirHandle): Promise<boolean> {
@@ -325,16 +395,24 @@ export class WebFileStore implements FileStore {
   }
 
   private async copyDefaultWorkoutsToDir(dir: FsDirHandle): Promise<number> {
+    // Copy in bounded-parallel rather than one-at-a-time: 41 sequential
+    // fetch+write round-trips left a multi-second window in which an interrupt
+    // stranded the tail (and a concurrent listWorkouts saw a partial library).
+    // Idempotent — a file that already exists is skipped, so this also serves as
+    // the backfill path for a resumed seed.
+    const CONCURRENCY = 6;
+    const queue = [...DEFAULT_WORKOUT_FILES];
     let copied = 0;
-    for (const fileName of DEFAULT_WORKOUT_FILES) {
-      // Skip a file that somehow already exists (mirrors legacy create:false probe).
+
+    const copyOne = async (fileName: string): Promise<void> => {
+      // Skip a file that already exists (mirrors legacy create:false probe).
       try {
         await dir.getFileHandle(fileName, { create: false });
-        continue;
+        return;
       } catch (err) {
         if ((err as { name?: string })?.name !== 'NotFoundError') {
           console.error('[WebFileStore] Could not check workout file:', err);
-          continue;
+          return;
         }
       }
       try {
@@ -348,11 +426,20 @@ export class WebFileStore implements FileStore {
         const writable = await fileHandle.createWritable();
         await writable.write(text);
         await writable.close();
-        copied += 1;
+        copied += 1; // single-threaded between awaits — increment is safe
       } catch (err) {
         console.error(`[WebFileStore] Failed to copy default workout "${fileName}":`, err);
       }
-    }
+    };
+
+    const worker = async (): Promise<void> => {
+      for (let fileName = queue.shift(); fileName; fileName = queue.shift()) {
+        await copyOne(fileName);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker()),
+    );
     return copied;
   }
 

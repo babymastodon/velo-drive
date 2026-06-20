@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Relentless Rise</name>
+  <description><![CDATA[Relentless Rise starts with 4x5:00 at steady threshold, then leans into 2x8:00 longer pushes. The climb gets quieter but heavier—stay tall and keep the wheel turning.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="240" PowerLow="0.50" PowerHigh="0.90" Cadence="90" >
+      <textevent timeoffset="60" duration="10" message="Set the climb rhythm—smooth to 90%, quiet shoulders, steady 88–90 rpm." />
+    </Warmup>
+    <SteadyState Duration="60" Power="0.90" Cadence="94" />
+    <SteadyState Duration="240" Power="0.65" Cadence="92" >
+      <textevent timeoffset="525" duration="10" message="4x5:00 climbs next—steady breath, tall posture, even pressure." />
+    </SteadyState>
+    <Warmup Duration="60" PowerLow="0.65" PowerHigh="0.90" />
+    <IntervalsT Repeat="4" OnDuration="300" OffDuration="180" OnPower="0.90" OffPower="0.65" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="1260" duration="10" message="Hold the line through 4x5:00—smooth power on, calm reset off." />
+    </IntervalsT>
+    <Warmup Duration="60" PowerLow="0.65" PowerHigh="0.75" />
+    <SteadyState Duration="120" Power="0.75" Cadence="94" >
+      <textevent timeoffset="2685" duration="10" message="Two long 8:00 pushes next—keep cadence steady and breathing deep." />
+    </SteadyState>
+    <IntervalsT Repeat="2" OnDuration="480" OffDuration="240" OnPower="0.95" OffPower="0.75" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="4125" duration="10" message="Cooldown next—soften the grip, long exhales, easy 85 rpm." />
+    </IntervalsT>
+    <Cooldown Duration="360" PowerLow="0.75" PowerHigh="0.55" Cadence="85" />
+  </workout>
+</workout_file>
