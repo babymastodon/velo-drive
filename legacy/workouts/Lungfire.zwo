@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive</author>
+  <name>Lungfire</name>
+  <description><![CDATA[Lungfire builds heat with 4x1:00 primers, 3x5:00 heavy breaths, and 4x2:00 consolidators. Breathe long, keep form calm, and let the fire do the work.]]></description>
+  <sportType>bike</sportType>
+  <tags>
+  </tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.50" PowerHigh="0.75" Cadence="90" >
+      <textevent timeoffset="60" duration="10" message="Spark the fire—smooth to 75%, quiet shoulders, steady 90 rpm." />
+    </Warmup>
+    <SteadyState Duration="120" Power="0.75" Cadence="92" >
+      <textevent timeoffset="405" duration="10" message="1:00 primers next—breathe deep, quick feet on the surges." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="60" OffDuration="60" OnPower="1.05" OffPower="0.90" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="720" duration="10" message="Hit each 1:00 clean—quick feet, calm breath, float the recoveries." />
+    </IntervalsT>
+    <SteadyState Duration="360" Power="0.60" Cadence="90" >
+      <textevent timeoffset="1245" duration="10" message="3x5:00 grinders next—stay tall, steady pressure." />
+    </SteadyState>
+    <IntervalsT Repeat="3" OnDuration="300" OffDuration="300" OnPower="1.10" OffPower="0.60" Cadence="98" CadenceResting="90" >
+      <textevent timeoffset="1860" duration="10" message="Hold the fire through 3x5:00—smooth power on, calm reset off." />
+    </IntervalsT>
+    <SteadyState Duration="180" Power="0.60" Cadence="88" >
+      <textevent timeoffset="3225" duration="10" message="2:00 efforts next—reset posture, stay light on the bars." />
+    </SteadyState>
+    <IntervalsT Repeat="4" OnDuration="120" OffDuration="120" OnPower="1.05" OffPower="0.80" Cadence="96" CadenceResting="92" >
+      <textevent timeoffset="3600" duration="10" message="4x2:00 steadies—smooth power, even breathing, stay tall." />
+    </IntervalsT>
+    <Cooldown Duration="120" PowerLow="0.80" PowerHigh="0.60" />
+    <SteadyState Duration="750" Power="0.60" Cadence="94" >
+      <textevent timeoffset="4320" duration="10" message="Let the fire dim—steady 60%, long exhales, smooth spin." />
+    </SteadyState>
+    <Cooldown Duration="330" PowerLow="0.60" PowerHigh="0.45" Cadence="85" />
+  </workout>
+</workout_file>

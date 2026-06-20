@@ -11,8 +11,8 @@
 import { describe, it, expect } from 'vitest';
 
 // Legacy ORACLEs (do not modify docs/).
-import * as legacyBackendNs from '../../../docs/builder-backend.js';
-import * as legacyZwoNs from '../../../docs/zwo.js';
+import * as legacyBackendNs from '../../../legacy/builder-backend.js';
+import * as legacyZwoNs from '../../../legacy/zwo.js';
 const legacyBackend: any = legacyBackendNs;
 const legacyZwo: any = legacyZwoNs;
 

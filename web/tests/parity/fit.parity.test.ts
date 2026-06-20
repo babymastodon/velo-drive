@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import * as legacyFitNs from '../../../docs/fit-file.js';
+import * as legacyFitNs from '../../../legacy/fit-file.js';
 const legacyFit: any = legacyFitNs;
 import * as newFit from '../../src/core/fit.js';
 

@@ -4,13 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 // Legacy ORACLE (do not modify docs/) — typed `any`: tests assert runtime equality.
-import * as legacyZwoNs from '../../../docs/zwo.js';
+import * as legacyZwoNs from '../../../legacy/zwo.js';
 const legacyZwo: any = legacyZwoNs;
 // New port
 import * as newZwo from '../../src/core/zwo.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const WORKOUTS_DIR = join(__dirname, '../../../docs/workouts');
+const WORKOUTS_DIR = join(__dirname, '../../../legacy/workouts');
 
 function loadCorpus(): { name: string; xml: string }[] {
   const files = readdirSync(WORKOUTS_DIR).filter((f) => f.endsWith('.zwo'));
