@@ -258,7 +258,7 @@ test.describe("HUD (new Svelte app) — chart hover tooltip", () => {
     await expect(tooltip).toBeHidden();
   });
 
-  test("hovering the live power trace during a ride shows the interpolated value", async ({
+  test("hovering the live power trace during a ride snaps to the nearest data point", async ({
     configuredPage,
   }) => {
     const page = configuredPage;
@@ -284,9 +284,14 @@ test.describe("HUD (new Svelte app) — chart hover tooltip", () => {
     const box = await svg.boundingBox();
     expect(box).not.toBeNull();
 
-    // The 200 W trace sits near the elapsed cursor (far left). Sweep vertically
-    // across the early-time column so the 16px line-hit band catches the trace.
-    const x = box!.x + box!.width * 0.02;
+    // The hover snaps to the nearest data point (X-weighted), so aim at a real
+    // sample column inside the live trace (~60% of the elapsed time) rather than
+    // just past its end, then sweep vertically so the snap catches the 200 W line.
+    const vm = await page.evaluate(
+      () => (window as unknown as { __VELO_APP__: { getVm: () => { elapsedSec: number; workoutTotalSec: number } | null } }).__VELO_APP__.getVm(),
+    );
+    const traceFrac = vm && vm.workoutTotalSec ? (vm.elapsedSec * 0.6) / vm.workoutTotalSec : 0.01;
+    const x = box!.x + box!.width * Math.max(0.005, traceFrac);
     let lineText = "";
     for (let i = 0; i <= 40; i += 1) {
       const y = box!.y + (box!.height * i) / 40;

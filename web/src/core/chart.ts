@@ -281,7 +281,7 @@ function attachSegmentHover(
   ftp: number,
   options: HoverOptions,
 ): void {
-  const { liveSamples, totalSec, width, height, maxY, gapBreakSeconds } = options;
+  const { liveSamples, totalSec, width, height, maxY } = options;
 
   const prevCleanup = hoverCleanupMap.get(svg);
   if (prevCleanup) prevCleanup();
@@ -334,38 +334,6 @@ function attachSegmentHover(
     tooltipEl.style.top = `${ty}px`;
   };
 
-  const findSamplesAroundForKey = (
-    targetT: number,
-    key: 'power' | 'hr' | 'cadence',
-  ): { prev: LiveSample | null; next: LiveSample | null } => {
-    if (!liveSamples.length) return { prev: null, next: null };
-    let lo = 0;
-    let hi = liveSamples.length - 1;
-    while (lo < hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      const t = Number(liveSamples[mid]?.t);
-      if (!Number.isFinite(t) || t < targetT) lo = mid + 1;
-      else hi = mid;
-    }
-
-    let prevIdx = lo;
-    while (prevIdx >= 0) {
-      const s = liveSamples[prevIdx];
-      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) break;
-      prevIdx -= 1;
-    }
-    let nextIdx = lo;
-    while (nextIdx < liveSamples.length) {
-      const s = liveSamples[nextIdx];
-      if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) break;
-      nextIdx += 1;
-    }
-    return {
-      prev: prevIdx >= 0 ? liveSamples[prevIdx]! : null,
-      next: nextIdx < liveSamples.length ? liveSamples[nextIdx]! : null,
-    };
-  };
-
   interface LineHover {
     x: number;
     y: number;
@@ -382,13 +350,25 @@ function attachSegmentHover(
     const relX = clientX - rect.left;
     const relY = clientY - rect.top;
     if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null;
-    const svgX = (relX / rect.width) * width;
-    const svgY = (relY / rect.height) * height;
-    const targetT = (svgX / width) * totalSec;
+    if (!liveSamples.length || !(totalSec > 0) || !(maxY > 0)) return null;
 
-    // Horizontal hit tolerance (~16 svg-units of time) so the leading/trailing
-    // edge of a line still hovers.
-    const tHit = width > 0 && totalSec > 0 ? (16 / width) * totalSec : 0;
+    // Snap to the nearest actual DATA POINT by an X-WEIGHTED screen distance,
+    // rather than reading the line value at the mouse-X (the legacy crosshair —
+    // which the findSamplesAroundForKey "prev==next" quirk turned into "snap to
+    // the next sample's Y at the mouse X", so on a steep spike/dip the dot's Y
+    // was far from the cursor and the vertical hit-test missed). Nearest-point
+    // snapping nails spikes/dips (the extremum sample is the closest point when
+    // you hover near it), snaps to the first/last sample at the trace ends, skips
+    // real gaps (no sample within the radius), and ignores a metric until it has
+    // data. Weighting X heavier keeps the snap tracking the cursor's TIME so it
+    // can't jump to a vertically-near but time-distant point.
+    const HIT_PX = 16; // snap radius (screen px); isotropic, unlike svg units
+    const HIT2 = HIT_PX * HIT_PX;
+    const X_WEIGHT2 = 2.5 * 2.5; // X penalised 2.5× vs Y
+    const targetT = (relX / rect.width) * totalSec;
+    const pxPerSec = totalSec > 0 ? rect.width / totalSec : 0;
+    // X reach (time): the most a qualifying sample can be from the cursor in X.
+    const tWin = pxPerSec > 0 ? HIT_PX / 2.5 / pxPerSec : 0;
 
     const keys: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string }[] = [
       { key: 'power', label: 'Power', unit: 'W' },
@@ -396,80 +376,44 @@ function attachSegmentHover(
       { key: 'cadence', label: 'Cadence', unit: 'rpm' },
     ];
 
-    const HIT_PX = 16;
-    // `dotT` is the (clamped) time the dot snaps to — may differ from targetT.
+    const winStartT = targetT - tWin;
+    const winEndT = targetT + tWin;
+    let lo = 0;
+    let hi = liveSamples.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const t = Number(liveSamples[mid]?.t);
+      if (!Number.isFinite(t) || t < winStartT) lo = mid + 1;
+      else hi = mid;
+    }
+
     let best:
-      | { key: 'power' | 'hr' | 'cadence'; label: string; unit: string; val: number; y: number; dist: number; dotT: number }
+      | { key: 'power' | 'hr' | 'cadence'; label: string; unit: string; val: number; t: number; d2: number }
       | null = null;
-
-    for (const { key, label, unit } of keys) {
-      // Each metric has its OWN drawn extent: HR may connect mid-ride (empty
-      // until then), a sensor may drop out at the end, or there may be gaps. So
-      // compute this line's first/last VALID sample rather than the global range.
-      let firstIdx = -1;
-      for (let i = 0; i < liveSamples.length; i++) {
-        const s = liveSamples[i];
-        if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) {
-          firstIdx = i;
-          break;
-        }
+    for (let i = lo; i < liveSamples.length; i++) {
+      const s = liveSamples[i];
+      const t = Number(s?.t);
+      if (!Number.isFinite(t)) continue;
+      if (t > winEndT) break;
+      const dx = (t / totalSec) * rect.width - relX;
+      const wdx2 = dx * dx * X_WEIGHT2;
+      if (wdx2 > HIT2) continue; // outside the X reach → skip the whole sample
+      for (const { key, label, unit } of keys) {
+        const val = Number(s?.[key]);
+        if (!Number.isFinite(val)) continue;
+        const yVal = Math.min(maxY, Math.max(0, val));
+        const dy = (1 - yVal / maxY) * rect.height - relY;
+        const d2 = wdx2 + dy * dy;
+        if (d2 > HIT2) continue;
+        if (!best || d2 < best.d2) best = { key, label, unit, val, t, d2 };
       }
-      if (firstIdx < 0) continue; // this metric has no data at all → no line
-      let lastIdx = firstIdx;
-      for (let i = liveSamples.length - 1; i > firstIdx; i--) {
-        const s = liveSamples[i];
-        if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) {
-          lastIdx = i;
-          break;
-        }
-      }
-      const kFirstT = Number(liveSamples[firstIdx]!.t);
-      const kLastT = Number(liveSamples[lastIdx]!.t);
-
-      // Beyond this line's extent (past the small margin) → no hover for it.
-      if (targetT < kFirstT - tHit || targetT > kLastT + tHit) continue;
-      // Within the margin → clamp so the dot SNAPS to the endpoint sample instead
-      // of floating past the last/first data point.
-      const effT = Math.min(kLastT, Math.max(kFirstT, targetT));
-
-      const { prev, next } = findSamplesAroundForKey(effT, key);
-      const prevT = Number(prev?.t);
-      const nextT = Number(next?.t);
-      const prevVal = prev ? Number(prev[key]) : null;
-      const nextVal = next ? Number(next[key]) : null;
-      let val: number | null = null;
-
-      if (Number.isFinite(prevT) && Number.isFinite(nextT)) {
-        // Don't draw a hover across a real data gap.
-        if (gapBreakSeconds && nextT - prevT > gapBreakSeconds && effT > prevT && effT < nextT) {
-          continue;
-        }
-        const span = nextT - prevT;
-        if (span > 0 && Number.isFinite(prevVal as number) && Number.isFinite(nextVal as number)) {
-          const t = (effT - prevT) / span;
-          val = (prevVal as number) + ((nextVal as number) - (prevVal as number)) * t;
-        } else if (Number.isFinite(prevVal as number) && effT <= prevT) {
-          val = prevVal;
-        } else if (Number.isFinite(nextVal as number) && effT >= nextT) {
-          val = nextVal;
-        }
-      } else if (Number.isFinite(prevVal as number)) {
-        val = prevVal;
-      } else if (Number.isFinite(nextVal as number)) {
-        val = nextVal;
-      }
-
-      if (!Number.isFinite(val as number)) continue;
-      const yVal = Math.min(maxY, Math.max(0, val as number));
-      const y = height - (yVal / maxY) * height;
-      const dist = Math.abs(y - svgY);
-      if (dist > HIT_PX) continue;
-      if (!best || dist < best.dist) best = { key, label, unit, val: val as number, y, dist, dotT: effT };
     }
 
     if (!best) return null;
-    const x = Math.min(width, Math.max(0, (best.dotT / totalSec) * width));
-    return { x, y: best.y, label: best.label, unit: best.unit, val: best.val, key: best.key };
+    const x = Math.min(width, Math.max(0, (best.t / totalSec) * width));
+    const bestY = Math.min(maxY, Math.max(0, best.val));
+    const y = height - (bestY / maxY) * height;
+    return { x, y, label: best.label, unit: best.unit, val: best.val, key: best.key };
   };
 
   const applyHoverAtClientPos = (clientX: number, clientY: number): void => {
