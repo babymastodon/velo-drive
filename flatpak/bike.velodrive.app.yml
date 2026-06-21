@@ -1,0 +1,49 @@
+# Flatpak manifest for VeloDrive (Linux distribution target).
+#
+# Packages the PREBUILT native binary (which embeds the web/ frontend), so this
+# doesn't need the offline cargo/node source generators a build-from-source
+# Flatpak would. Build the binary first, then flatpak-builder:
+#
+#   npm --prefix ../web run build
+#   cargo build --release --manifest-path ../src-tauri/Cargo.toml
+#   flatpak-builder --user --install --force-clean build-dir flatpak/bike.velodrive.app.yml
+#
+# The runtime version may need bumping to one you have installed
+# (`flatpak install flathub org.gnome.Platform//47 org.gnome.Sdk//47`).
+
+app-id: bike.velodrive.app
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: velodrive
+
+finish-args:
+  # Display + GPU for the webview.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Network: TrainerDay import + (future) update checks.
+  - --share=network
+  # Bluetooth LE: talk to the system BlueZ service (trainer + HRM).
+  - --system-talk-name=org.bluez
+  # The user-picked VeloDrive workout/history folder (read-write).
+  - --filesystem=home
+
+modules:
+  - name: velodrive
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 velodrive /app/bin/velodrive
+      - install -Dm644 bike.velodrive.app.desktop /app/share/applications/bike.velodrive.app.desktop
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/bike.velodrive.app.png
+      - install -Dm644 bike.velodrive.app.metainfo.xml /app/share/metainfo/bike.velodrive.app.metainfo.xml
+    sources:
+      - type: file
+        path: ../src-tauri/target/release/velodrive
+      - type: file
+        path: bike.velodrive.app.desktop
+      - type: file
+        path: bike.velodrive.app.metainfo.xml
+      - type: file
+        path: ../src-tauri/icons/icon.png
+        dest-filename: icon.png
