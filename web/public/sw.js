@@ -1,7 +1,7 @@
 // sw.js — minimal offline service worker for the VeloDrive PWA.
 //
-// The Vite build hashes asset file names, so a static precache list (like the
-// legacy docs/service-worker.js) does not apply here. Instead this SW does
+// The Vite build hashes asset file names, so a static precache list does not
+// apply here. Instead this SW does
 // RUNTIME caching: navigations are network-first with a cached-index fallback,
 // and same-origin GET assets are cache-first with a background refresh. The app
 // shell + hashed assets therefore become available offline after the first

@@ -1,4 +1,4 @@
-// New (Svelte) app Settings behavior.
+// Settings behavior.
 
 import {test, expect, reachNewRidingView} from "./fixtures.js";
 
@@ -11,7 +11,7 @@ async function openSettings(page: import("@playwright/test").Page) {
   });
 }
 
-test.describe("Settings (new Svelte app) — behavior", () => {
+test.describe("Settings — behavior", () => {
   test("FTP +10 persists, theme toggles to dark, sound toggles", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);

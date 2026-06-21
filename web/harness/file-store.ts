@@ -182,10 +182,9 @@ function makeRequest<T>(resolveWith: () => T) {
 }
 
 class FakeObjectStore {
-  constructor(private store: Map<string, SettingsRecord>, private tx: FakeTransaction) {}
+  constructor(private store: Map<string, SettingsRecord>) {}
   put(record: SettingsRecord) {
     this.store.set(record.key, record);
-    this.tx._markWrite();
     return makeRequest(() => record.key);
   }
   get(key: string) {
@@ -193,7 +192,6 @@ class FakeObjectStore {
   }
   delete(key: string) {
     this.store.delete(key);
-    this.tx._markWrite();
     return makeRequest(() => undefined);
   }
 }
@@ -202,7 +200,6 @@ class FakeTransaction {
   oncomplete: (() => void) | null = null;
   onerror: (() => void) | null = null;
   error: unknown = null;
-  private wrote = false;
   constructor(private store: Map<string, SettingsRecord>) {
     // Complete on a microtask after the synchronous tx body runs.
     Promise.resolve().then(() => {
@@ -215,10 +212,7 @@ class FakeTransaction {
     });
   }
   objectStore(_name: string): FakeObjectStore {
-    return new FakeObjectStore(this.store, this);
-  }
-  _markWrite(): void {
-    this.wrote = true;
+    return new FakeObjectStore(this.store);
   }
 }
 

@@ -22,7 +22,7 @@ const FREERIDE_CONFIG: HarnessConfig = {
   connectHr: false,
 };
 
-test.describe("HUD (new Svelte app) — behavior", () => {
+test.describe("HUD — behavior", () => {
   test("runs a ride: countdown -> running, target interpolates, elapsed advances, ERG setpoints recorded", async ({
     configuredPage,
   }) => {
@@ -177,7 +177,7 @@ test.describe("HUD (new Svelte app) — behavior", () => {
   });
 });
 
-test.describe("HUD (new Svelte app) — chart hover tooltip", () => {
+test.describe("HUD — chart hover tooltip", () => {
   test("hovering a workout segment shows #chartTooltip with zone/power/duration text", async ({
     configuredPage,
   }) => {
@@ -262,7 +262,7 @@ test.describe("HUD (new Svelte app) — chart hover tooltip", () => {
   });
 });
 
-test.describe("HUD (new Svelte app) — free-ride manual controls", () => {
+test.describe("HUD — free-ride manual controls", () => {
   test.use({harnessConfig: FREERIDE_CONFIG});
 
   test("manual input commit reaches the engine (free-ride ERG config)", async ({configuredPage}) => {

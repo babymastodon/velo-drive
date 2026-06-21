@@ -20,7 +20,7 @@ async function settle(page: import("@playwright/test").Page): Promise<void> {
   });
 }
 
-test.describe("BLE (new Svelte app) — auto-reconnect on load", () => {
+test.describe("BLE — auto-reconnect on load", () => {
   test.use({harnessConfig: CONNECT_CONFIG});
 
   test("seeded lastBikeDeviceId reconnects on load: bike status dot is connected", async ({
@@ -59,7 +59,7 @@ test.describe("BLE (new Svelte app) — auto-reconnect on load", () => {
   });
 });
 
-test.describe("BLE (new Svelte app) — connection logs", () => {
+test.describe("BLE — connection logs", () => {
   test.use({harnessConfig: CONNECT_CONFIG});
 
   test("transport log events appear in the settings logs sub-view", async ({configuredPage}) => {
@@ -79,7 +79,7 @@ test.describe("BLE (new Svelte app) — connection logs", () => {
   });
 });
 
-test.describe("BLE (new Svelte app) — boot auto-open guard", () => {
+test.describe("BLE — boot auto-open guard", () => {
   test.use({harnessConfig: CONNECT_CONFIG});
 
   test("settings does NOT auto-open in the configured/supported hermetic state", async ({
@@ -100,7 +100,7 @@ test.describe("BLE (new Svelte app) — boot auto-open guard", () => {
 // Clicking Bike/HRM connect when Web Bluetooth is unavailable must warn
 // (Dialog) + open Settings; and cancelling the device chooser (AbortError) must
 // return the status dot to IDLE — not error or connected.
-test.describe("BLE (new Svelte app) — unavailable warning + cancel status", () => {
+test.describe("BLE — unavailable warning + cancel status", () => {
   test.use({harnessConfig: {...CONNECT_CONFIG, connectBike: false}});
 
   test("connect with no Web Bluetooth warns and opens Settings", async ({configuredPage}) => {

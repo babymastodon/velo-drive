@@ -9,10 +9,10 @@
     <link rel="apple-touch-icon" href="icons/icon192.png" />
     <link rel="manifest" href="velodrive.webmanifest" />
     <!-- Dynamic theme colors: browser chrome follows the OS theme instead of a
-         static dark #222 (mirrors docs/index.html; J-DARK-11). -->
+         static dark #222. -->
     <meta name="theme-color" content="#f4f4f4" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#222222" media="(prefers-color-scheme: dark)" />
-    <!-- Anti-FOUC: sync, runs before paint (mirrors legacy theme-init.js). Must stay inline in <head>. -->
+    <!-- Anti-FOUC: sync, runs before paint. Must stay inline in <head>. -->
     <script>
       (function applyInitialTheme() {
         try {

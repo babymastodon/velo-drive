@@ -77,10 +77,8 @@ export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
   seedZwo: readSeedWorkouts(),
 };
 
-// Settings + Welcome share the same matched-state config as the HUD. (The
-// settings modal + welcome overlay are theme/FTP/folder dependent, all of which
-// are seeded here.)
-export const SETTINGS_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
+// Welcome shares the same matched-state config as the HUD. (The welcome overlay
+// is theme/FTP/folder dependent, all of which are seeded here.)
 export const WELCOME_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 
 // Picker shares the same matched-state config (the seeded .zwo library). The
@@ -180,32 +178,6 @@ export const PLANNER_HARNESS_CONFIG: HarnessConfig = {
 
 // --------------------------- DARK-mode variants ---------------------------
 //
-// The same matched-state configs as the light ones above, but forcing
-// themeMode:"dark" so the app boots the forced-dark palette (:root.theme-dark).
-// Used by the dark-mode behavior tests (theme-switch chart redraw, etc.).
-export const VISUAL_HARNESS_CONFIG_DARK: HarnessConfig = {
-  ...VISUAL_HARNESS_CONFIG,
-  themeMode: "dark",
-};
-export const SETTINGS_HARNESS_CONFIG_DARK: HarnessConfig = VISUAL_HARNESS_CONFIG_DARK;
-export const PICKER_HARNESS_CONFIG_DARK: HarnessConfig = VISUAL_HARNESS_CONFIG_DARK;
-export const PLANNER_HARNESS_CONFIG_DARK: HarnessConfig = {
-  ...PLANNER_HARNESS_CONFIG,
-  themeMode: "dark",
-};
-// No workout selected, bike connected -> the chart empty-state shows
-// "Select a workout" (the noWorkout state). Bike connected so the app reaches
-// this state regardless of the bike-vs-workout precedence.
-export const NO_WORKOUT_DARK: HarnessConfig = {
-  ...VISUAL_HARNESS_CONFIG_DARK,
-  selectedWorkout: undefined,
-  connectBike: true,
-};
-export const NO_WORKOUT_LIGHT: HarnessConfig = {
-  ...NO_WORKOUT_DARK,
-  themeMode: "light",
-};
-
 export const test = base.extend<{
   harnessConfig: HarnessConfig;
   configuredPage: Page;
@@ -235,7 +207,7 @@ export const test = base.extend<{
     await page.addInitScript({path: PAGE_ENV});
 
     // 2.0 Seed the "welcome seen" flag into the fake IndexedDB settings store so
-    // the new app's boot-time welcome gating (App.svelte maybeShowWelcome) does
+    // the app's boot-time welcome gating (App.svelte maybeShowWelcome) does
     // NOT show the first-run tour in the (already-configured) hermetic state. A
     // fresh REAL user has no such flag and DOES see welcome. This extends the
     // page-env seed from the fixture (not by editing harness/*).
@@ -318,8 +290,7 @@ export const test = base.extend<{
 /**
  * Reach the riding (HUD) view: wait for the app to boot (the harness control API
  * to be present), settle the engine init timers, and confirm the HUD is
- * mounted. The app has no welcome gate here, so this is simpler than
- * reachRidingView.
+ * mounted.
  */
 export async function reachNewRidingView(page: Page): Promise<void> {
   await page.waitForLoadState("load");
@@ -335,78 +306,6 @@ export async function reachNewRidingView(page: Page): Promise<void> {
     await h.settle();
   });
 
-  await expect(page.locator("#stat-power")).toBeVisible();
-}
-
-/**
- * Reach the configured riding (HUD) view: wait for the app to settle, dismiss
- * the welcome overlay if it appeared, and confirm the HUD is visible.
- */
-export async function reachRidingView(page: Page): Promise<void> {
-  // Let the app boot + the welcome gate resolve.
-  await page.waitForLoadState("load");
-  await page.waitForFunction(() => !!(window as unknown as {__VELO_HARNESS__?: unknown}).__VELO_HARNESS__);
-
-  // Settle microtasks/timers the engine init kicked off.
-  await page.evaluate(async () => {
-    const h = (window as unknown as {__VELO_HARNESS__: {settle: () => Promise<void>}}).__VELO_HARNESS__;
-    await h.settle();
-  });
-
-  // The welcome overlay is force-shown in headless (not running as a PWA), so
-  // dismiss it via its close button. It becomes visible on a requestAnimationFrame
-  // (real time), then hides via a window.setTimeout fallback (VIRTUAL time), so
-  // we wait for it to appear, click close, then advance the clock to finish the
-  // hide animation.
-  const overlay = page.locator("#welcomeOverlay");
-  const closeBtn = page.locator("#welcomeCloseBtn");
-
-  const isVisible = () =>
-    overlay
-      .evaluate((el) => {
-        const cs = getComputedStyle(el);
-        return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0;
-      })
-      .catch(() => false);
-
-  if (await overlay.count()) {
-    // Give the overlay's rAF a moment to mark it visible; bounded so a
-    // gated-off overlay doesn't stall the test.
-    try {
-      await page.waitForFunction(
-        () => {
-          const el = document.getElementById("welcomeOverlay");
-          if (!el) return true;
-          const cs = getComputedStyle(el);
-          const visible = cs.display !== "none" && Number(cs.opacity) > 0;
-          // resolve once it's either clearly visible or clearly hidden+settled
-          return visible || cs.display === "none";
-        },
-        undefined,
-        {timeout: 3000},
-      );
-    } catch {
-      /* fall through and check directly */
-    }
-
-    if (await isVisible()) {
-      await closeBtn.click({force: true}).catch(() => {});
-      // The welcome close relies on a CSS transitionend to finalize; with
-      // animations disabled (for deterministic screenshots) that event never
-      // fires, so force-hide the overlay deterministically and reveal the
-      // riding view (welcome gets its own test later).
-      await page.evaluate(() => {
-        document.body.classList.remove("welcome-active");
-        const o = document.getElementById("welcomeOverlay");
-        if (o) {
-          o.style.display = "none";
-          o.setAttribute("aria-hidden", "true");
-        }
-      });
-    }
-  }
-
-  // HUD must be visible.
   await expect(page.locator("#stat-power")).toBeVisible();
 }
 

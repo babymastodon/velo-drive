@@ -9,7 +9,7 @@
 import { DEFAULT_FTP } from './metrics.js';
 import { buildFitFile, type FitSample } from './fit.js';
 import { getRawCadence, isFreeRideSegment, segDurationSec } from './segments.js';
-import type { CanonicalWorkout, RawSegment } from './model.js';
+import type { CanonicalWorkout } from './model.js';
 import type { TrainerTransport, BikeSample, TrainerState } from '../ports/TrainerTransport.js';
 import type { FileStore, ActiveState } from '../ports/FileStore.js';
 import type { BeeperLike } from './beeper.js';
