@@ -67,15 +67,28 @@ cargo run --bin hrm-spike 15         # scan 15s
 Scans for the Heart Rate service (`0x180D`), connects to the first HRM found,
 subscribes to HR Measurement (`0x2A37`) notifications, and prints live BPM until
 Ctrl-C. **Power on the HRM and wear it / damp the electrodes first**, and make sure
-it isn't already connected to a phone or another app.
+it isn't already connected to a phone or another app. If it doesn't advertise the
+HR service, pass its name or address: `cargo run --bin hrm-spike "TICKR"`.
+
+## Run the trainer (FTMS) spike
+
+```sh
+cargo run --bin ftms-spike            # read-only: stream power/cadence/speed (safe)
+cargo run --bin ftms-spike "KICKR"    # target by name substring
+cargo run --bin ftms-spike "KICKR" 120  # ERG: take control + hold 120 W
+```
+
+Connects an FTMS trainer (`0x1826`), subscribes to Indoor Bike Data (`0x2AD2`), and
+— only if you pass a wattage — writes the Control Point (`0x2AD9`) to set ERG target
+power. Pedal a turn first to wake the trainer.
 
 ---
 
 ## Roadmap (this crate)
 
-1. ✅ HRM spike — prove `btleplug` ↔ BlueZ ↔ hardware on Linux.
-2. Trainer spike — FTMS (`0x1826`): connect, subscribe to Indoor Bike Data
-   (`0x2AD2`), write the Control Point (`0x2AD9`) for ERG/resistance.
+1. ✅ HRM spike — proven on real hardware (Wahoo TICKR FIT streaming live BPM).
+2. ✅ Trainer spike built — FTMS connect + Indoor Bike Data + Control Point ERG
+   write. *(Awaiting a hardware run.)*
 3. Wrap the BLE module in Tauri commands/events; add `fs`/`dialog`/`updater`.
 4. Implement `web/src/ports/native/{NativeTrainerTransport,NativeFileStore}.ts`
    against the IPC; select native vs web ports at boot.
