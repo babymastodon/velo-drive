@@ -180,6 +180,14 @@ async function ensureDirPermission(handle: unknown): Promise<boolean> {
   }
 }
 
+/** Folder (at the workouts root) for an imported workout's source; '' = root. */
+function sourceSubfolder(source: string): string {
+  const s = (source || '').toLowerCase();
+  if (s.includes('whatsonzwift')) return 'WhatsOnZwift';
+  if (s.includes('trainerday')) return 'TrainerDay';
+  return '';
+}
+
 export class WebFileStore implements FileStore {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private workoutDirHandle: FsDirHandle | null = null;
@@ -548,24 +556,29 @@ export class WebFileStore implements FileStore {
       return false;
     }
     const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    // Imported workouts land in a folder named for their source (at the workouts
+    // root); user-built workouts stay at the root.
+    const relDir = sourceSubfolder(canonical.source);
+    const relPath = relDir ? `${relDir}/${fileName}` : fileName;
     try {
+      const targetDir = relDir ? await dir.getDirectoryHandle(relDir, { create: true }) : dir;
       // If a same-name .zwo already exists, move it to trash BEFORE writing so
       // there is always a recoverable copy (no silent overwrite). If the trash
       // move fails, abort the save rather than risk data loss.
       let overwriting = false;
       try {
-        await dir.getFileHandle(fileName, { create: false });
+        await targetDir.getFileHandle(fileName, { create: false });
         overwriting = true;
       } catch {
         overwriting = false;
       }
       if (overwriting) {
-        const moved = await this.moveZwoFileToTrash(fileName);
+        const moved = await this.moveZwoFileToTrash(relPath);
         if (!moved) return false;
       }
 
       const xml = canonicalWorkoutToZwoXml(canonical);
-      const fileHandle = await dir.getFileHandle(fileName, { create: true });
+      const fileHandle = await targetDir.getFileHandle(fileName, { create: true });
       const writable = await fileHandle.createWritable();
       await writable.write(xml);
       await writable.close();
@@ -589,7 +602,7 @@ export class WebFileStore implements FileStore {
 
   async importZwoZip(
     url: string,
-    subfolder = 'Zwift Workouts',
+    subfolder = '',
   ): Promise<{ added: number; error: string | null }> {
     const root = await this.loadZwoDirHandle();
     if (!root) return { added: 0, error: 'Choose a VeloDrive folder first.' };
@@ -615,13 +628,21 @@ export class WebFileStore implements FileStore {
       console.error('[WebFileStore] importZwoZip unzip failed:', err);
       return { added: 0, error: 'The downloaded file was not a valid zip.' };
     }
-    const base = await root.getDirectoryHandle(subfolder, { create: true });
+    // Keep the .zwo entries (skip macOS metadata + dir entries).
+    const entries = Object.entries(files).filter(
+      ([p, d]) => p.toLowerCase().endsWith('.zwo') && !p.includes('__MACOSX') && !!d && d.length > 0,
+    );
+    // Strip a single common top-level folder the zip wraps everything in, so the
+    // chosen wrapper subfolder holds the individual workout folders directly.
+    const top = entries.length ? (entries[0]![0].split('/')[0] ?? '') : '';
+    const commonRoot =
+      top && entries[0]![0].includes('/') && entries.every(([p]) => p.startsWith(top + '/')) ? top : '';
+    const prefix = subfolder ? subfolder.replace(/\/+$/, '') + '/' : '';
     let added = 0;
-    for (const [path, data] of Object.entries(files)) {
-      if (!path.toLowerCase().endsWith('.zwo')) continue;
-      if (path.includes('__MACOSX') || !data || data.length === 0) continue;
+    for (const [path, data] of entries) {
+      const rel = commonRoot ? path.slice(commonRoot.length + 1) : path;
       try {
-        const handle = await this.ensureNestedFile(base, path);
+        const handle = await this.ensureNestedFile(root, prefix + rel);
         if (!handle) continue;
         const writable = await handle.createWritable();
         await writable.write(new TextDecoder().decode(data));
