@@ -8,6 +8,7 @@ import type {
   ActiveState,
   FsDirHandle,
   FsHandle,
+  FsFileHandle,
 } from '../FileStore.js';
 import type { CanonicalWorkout } from '../../core/model.js';
 import {
@@ -17,6 +18,8 @@ import {
 import { parseFitFile, type ParseFitResult } from '../../core/fit.js';
 import type { RawSegment } from '../../core/model.js';
 import type { PowerInterval } from '../../core/planner-analysis.js';
+import { httpGetBytes } from '../../core/net.js';
+import { unzipSync } from 'fflate';
 import {
   buildHistoryPreview,
   type HistoryPreview,
@@ -482,6 +485,24 @@ export class WebFileStore implements FileStore {
     return handle || null;
   }
 
+  /** Recursively yield every .zwo file handle + its path relative to the dir. */
+  private async *walkZwo(
+    dir: FsDirHandle,
+    prefix: string,
+    depth: number,
+  ): AsyncGenerator<{ handle: FsFileHandle; relPath: string }> {
+    if (depth > 8) return; // guard against deep/cyclic trees
+    for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
+      const childPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.kind === 'directory') {
+        const sub = await dir.getDirectoryHandle(entry.name, { create: false });
+        yield* this.walkZwo(sub, childPath, depth + 1);
+      } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zwo')) {
+        yield { handle: await dir.getFileHandle(entry.name), relPath: childPath };
+      }
+    }
+  }
+
   async listWorkouts(): Promise<CanonicalWorkout[]> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return [];
@@ -490,15 +511,15 @@ export class WebFileStore implements FileStore {
     await ensureDirPermission(dir);
     const out: CanonicalWorkout[] = [];
     try {
-      for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
-        if (entry.kind !== 'file') continue;
-        if (!entry.name.toLowerCase().endsWith('.zwo')) continue;
-        const fileHandle = await dir.getFileHandle(entry.name);
-        const file = await fileHandle.getFile?.();
+      // Scan the workouts dir AND any nested subfolders.
+      for await (const { handle, relPath } of this.walkZwo(dir, '', 0)) {
+        const file = await handle.getFile?.();
         if (!file) continue;
-        const text = await file.text();
-        const canonical = parseZwoXmlToCanonicalWorkout(text);
-        if (canonical) out.push(canonical);
+        const canonical = parseZwoXmlToCanonicalWorkout(await file.text());
+        if (canonical) {
+          canonical.sourcePath = relPath;
+          out.push(canonical);
+        }
       }
     } catch (err) {
       console.error('[WebFileStore] listWorkouts failed:', err);
@@ -507,8 +528,11 @@ export class WebFileStore implements FileStore {
   }
 
   async deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean> {
-    const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
-    return this.moveZwoFileToTrash(fileName);
+    // Prefer the exact source path (handles nested workouts); fall back to the
+    // title-derived name at the dir root.
+    const path =
+      canonical.sourcePath || sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
+    return this.moveZwoFileToTrash(path);
   }
 
   async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
@@ -553,17 +577,82 @@ export class WebFileStore implements FileStore {
     }
   }
 
+  /** Get/create a file handle at a (possibly nested) path under `root`. */
+  private async ensureNestedFile(root: FsDirHandle, relPath: string): Promise<FsFileHandle | null> {
+    const segs = relPath.split('/').filter((s) => s && s !== '.' && s !== '..');
+    const fileName = segs.pop();
+    if (!fileName) return null;
+    let dir = root;
+    for (const seg of segs) dir = await dir.getDirectoryHandle(seg, { create: true });
+    return dir.getFileHandle(fileName, { create: true });
+  }
+
+  async importZwoZip(
+    url: string,
+    subfolder = 'Zwift Workouts',
+  ): Promise<{ added: number; error: string | null }> {
+    const root = await this.loadZwoDirHandle();
+    if (!root) return { added: 0, error: 'Choose a VeloDrive folder first.' };
+    if (!(await ensureDirPermission(root))) {
+      return { added: 0, error: 'Permission to write to the workouts folder was not granted.' };
+    }
+    let bytes: Uint8Array;
+    try {
+      const r = await httpGetBytes(url);
+      if (!r.ok) return { added: 0, error: `Download failed (HTTP ${r.status}).` };
+      bytes = r.bytes;
+    } catch (err) {
+      console.error('[WebFileStore] importZwoZip download failed:', err);
+      return {
+        added: 0,
+        error: 'Could not download the workouts (network/CORS). The desktop app can import directly.',
+      };
+    }
+    let files: Record<string, Uint8Array>;
+    try {
+      files = unzipSync(bytes);
+    } catch (err) {
+      console.error('[WebFileStore] importZwoZip unzip failed:', err);
+      return { added: 0, error: 'The downloaded file was not a valid zip.' };
+    }
+    const base = await root.getDirectoryHandle(subfolder, { create: true });
+    let added = 0;
+    for (const [path, data] of Object.entries(files)) {
+      if (!path.toLowerCase().endsWith('.zwo')) continue;
+      if (path.includes('__MACOSX') || !data || data.length === 0) continue;
+      try {
+        const handle = await this.ensureNestedFile(base, path);
+        if (!handle) continue;
+        const writable = await handle.createWritable();
+        await writable.write(new TextDecoder().decode(data));
+        await writable.close();
+        added += 1;
+      } catch (err) {
+        console.warn('[WebFileStore] importZwoZip: failed to write', path, err);
+      }
+    }
+    if (added === 0) return { added: 0, error: 'No .zwo workouts were found in the download.' };
+    return { added, error: null };
+  }
+
   /**
-   * Move an existing library .zwo (by exact file name) to the trash dir with a
+   * Move an existing library .zwo (by relative path) to the trash dir with a
    * timestamped name. Shared by deleteWorkoutToTrash + the pre-overwrite trash
    * move in saveWorkout.
    */
-  private async moveZwoFileToTrash(fileName: string): Promise<boolean> {
-    const srcDir = await this.loadZwoDirHandle();
+  private async moveZwoFileToTrash(relPath: string): Promise<boolean> {
+    const rootSrc = await this.loadZwoDirHandle();
     const trashDir = await this.loadTrashDirHandle();
-    if (!srcDir || !trashDir) return false;
-    if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) return false;
+    if (!rootSrc || !trashDir) return false;
+    if (!(await ensureDirPermission(rootSrc)) || !(await ensureDirPermission(trashDir))) return false;
     try {
+      // Navigate any subfolders to the file's containing dir.
+      const segs = relPath.split('/').filter(Boolean);
+      const fileName = segs.pop() ?? relPath;
+      let srcDir = rootSrc;
+      for (const seg of segs) {
+        srcDir = await srcDir.getDirectoryHandle(seg, { create: false });
+      }
       const srcFileHandle = await srcDir.getFileHandle(fileName, { create: false });
       const srcFile = await srcFileHandle.getFile?.();
       const text = srcFile ? await srcFile.text() : '';

@@ -58,6 +58,11 @@ export interface CanonicalWorkout {
   description: string;
   /** Optional text events aligned to workout timeline */
   textEvents?: TextEvent[];
+  /**
+   * Path of this workout's .zwo relative to the workouts dir (set when listing;
+   * supports workouts nested in subfolders). Runtime-only — not serialized.
+   */
+  sourcePath?: string;
 }
 
 /**

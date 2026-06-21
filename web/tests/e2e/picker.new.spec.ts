@@ -479,9 +479,10 @@ test.describe("Picker — import", () => {
     await page.getByTestId("picker-add-workout").click();
     await page.waitForTimeout(60);
 
-    // The button is wired: clicking it opens the URL prompt dialog. (The actual
-    // fetch cannot be made deterministic in the e2e harness — see the
+    // Open the Import menu, then the "From a URL…" item opens the prompt dialog.
+    // (The actual fetch can't be made deterministic in the e2e harness — see the
     // core/scrapers Vitest unit test for the parser coverage.)
+    await page.getByTestId("builder-import").click();
     await page.getByTestId("builder-import-url").click();
     await expect(page.getByTestId("dialog-input")).toBeVisible();
     await page.getByTestId("dialog-cancel").click();

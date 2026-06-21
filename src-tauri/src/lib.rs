@@ -109,6 +109,7 @@ pub fn run() {
             files::fs_remove,
             files::fs_exists,
             net::http_get,
+            net::http_get_bytes,
             set_keep_awake,
         ])
         .manage(KeepAwake::default())
