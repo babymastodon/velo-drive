@@ -87,8 +87,9 @@ power. Pedal a turn first to wake the trainer.
 ## Roadmap (this crate)
 
 1. ✅ HRM spike — proven on real hardware (Wahoo TICKR FIT streaming live BPM).
-2. ✅ Trainer spike built — FTMS connect + Indoor Bike Data + Control Point ERG
-   write. *(Awaiting a hardware run.)*
+2. ✅ Trainer spike — proven on real hardware (Wahoo KICKR: live power/cadence/
+   speed **and** ERG control-point write holding the 110 W target). Connects can
+   be flaky (BlueZ "service discovery timed out"); both spikes retry 3×.
 3. Wrap the BLE module in Tauri commands/events; add `fs`/`dialog`/`updater`.
 4. Implement `web/src/ports/native/{NativeTrainerTransport,NativeFileStore}.ts`
    against the IPC; select native vs web ports at boot.

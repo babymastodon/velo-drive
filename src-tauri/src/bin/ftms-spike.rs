@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
         chosen.name.clone()
     };
     println!("[spike] connecting to '{label}' ({})…", chosen.addr);
-    chosen.p.connect().await.context("connect")?;
+    connect_with_retry(&chosen.p).await?;
     chosen
         .p
         .discover_services()
@@ -187,6 +187,24 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// BLE connects are flaky (BlueZ "service discovery timed out" on a stale cache is
+/// common right after a prior session) — retry a few times. The production
+/// NativeTrainerTransport will do the same with backoff.
+async fn connect_with_retry(p: &Peripheral) -> Result<()> {
+    let mut last = None;
+    for attempt in 1..=3 {
+        match p.connect().await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                eprintln!("[spike] connect attempt {attempt}/3 failed: {e}; retrying…");
+                last = Some(e);
+                tokio::time::sleep(Duration::from_millis(800)).await;
+            }
+        }
+    }
+    Err(anyhow!(last.unwrap())).context("connect (after 3 retries)")
 }
 
 async fn cp_write(p: &Peripheral, cp: &btleplug::api::Characteristic, bytes: &[u8]) -> Result<()> {
