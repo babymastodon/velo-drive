@@ -31,13 +31,33 @@ export class ScreenWakeLock {
     return wl && typeof wl.request === 'function' ? wl : null;
   }
 
+  private get isNative(): boolean {
+    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  }
+
   /** Declare whether the screen should stay awake (e.g. a ride is in progress). */
   setWanted(wanted: boolean): void {
     this.ensureVisibilityHook();
     if (wanted === this.wanted) return;
     this.wanted = wanted;
+    // In the native shell, navigator.wakeLock isn't available — keep the display
+    // awake through Rust instead (the OS inhibitor doesn't need a visible tab,
+    // so there's no visibilitychange dance).
+    if (this.isNative) {
+      void this.setNative(wanted);
+      return;
+    }
     if (wanted) void this.acquire();
     else void this.release();
+  }
+
+  private async setNative(on: boolean): Promise<void> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('set_keep_awake', { on });
+    } catch {
+      /* best effort */
+    }
   }
 
   private async acquire(): Promise<void> {

@@ -4,10 +4,33 @@
 mod ble;
 mod files;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ble::{Ble, DeviceInfo, Role};
 use tauri::{Manager, RunEvent, State};
+
+/// Holds a keep-awake guard while a ride is in progress (dropping it releases).
+#[derive(Default)]
+struct KeepAwake(Mutex<Option<keepawake::KeepAwake>>);
+
+#[tauri::command]
+fn set_keep_awake(state: State<'_, KeepAwake>, on: bool) -> Result<(), String> {
+    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
+    if on {
+        if guard.is_none() {
+            let awake = keepawake::Builder::default()
+                .display(true)
+                .reason("VeloDrive ride in progress")
+                .app_name("VeloDrive")
+                .create()
+                .map_err(|e| e.to_string())?;
+            *guard = Some(awake);
+        }
+    } else {
+        *guard = None;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 async fn ble_scan(ble: State<'_, Arc<Ble>>, secs: Option<u64>) -> Result<Vec<DeviceInfo>, String> {
@@ -84,7 +107,9 @@ pub fn run() {
             files::fs_mkdir,
             files::fs_remove,
             files::fs_exists,
+            set_keep_awake,
         ])
+        .manage(KeepAwake::default())
         .setup(|app| {
             // Init the BLE manager up front so events can fire as soon as the UI
             // calls reconnect/connect.
