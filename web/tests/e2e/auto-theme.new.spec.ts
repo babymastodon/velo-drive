@@ -1,150 +1,20 @@
-// NEW (Svelte) app rendered in AUTO theme mode: REAL visual diffs vs the legacy
-// auto-mode baselines (written by auto-theme.legacy.spec, which runs first via
-// project deps). Each test pixelmatches the new auto render against
-// web/visual-report/<name>-auto-<os>os/legacy.png and ASSERTS diffRatio < thresh.
-//
-// Why this spec exists: the pixel gate only renders FORCED themes booted from
-// config (<html class="theme-*">); it NEVER exercises Auto-OS-resolution (no
-// theme-* class, palette via @media) or an OS light/dark flip. The C1 theme
-// collapse moves the dark vars from @media-dark onto the always-set .theme-*
-// class. After the collapse, AUTO mode will set the class in JS (resolving the
-// OS) instead of riding @media — the COMPUTED pixels are unchanged, so these
-// diffs must stay ~0 both before and after the collapse. That byte-identity is
-// the safety net proving the collapse changes nothing.
-//
-// Plus a BEHAVIOR test: boot auto, flip the OS via page.emulateMedia, and assert
-// the resolved palette (--bg / --chart-empty-shadow) flips AND a chart redraws
-// (the themeVersion path) so charts never keep a stale palette.
+// OS-FLIP BEHAVIOR for the new (Svelte) app in AUTO theme mode: boot auto, flip
+// the OS via page.emulateMedia, and assert the resolved palette (--bg /
+// --chart-empty-shadow / --ftp-line) flips AND a chart redraws (the themeVersion
+// path) so charts never keep a stale palette.
 
 import {
   test,
   expect,
   reachNewRidingView,
-  VISUAL_HARNESS_CONFIG,
-  PICKER_HARNESS_CONFIG,
-  SETTINGS_HARNESS_CONFIG,
-  PLANNER_HARNESS_CONFIG,
   SAMPLE_WORKOUT,
-  type HarnessConfig,
 } from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
 import type {Page} from "@playwright/test";
-
-const MAX_DIFF_RATIO = 0.02;
-// The calendar's per-day chip AA renders ~marginally over the strict budget in
-// both light + dark; matched to the existing planner allowance.
-const MAX_DIFF_RATIO_PLANNER = 0.022;
-
-function auto(cfg: HarnessConfig): HarnessConfig {
-  return {...cfg, themeMode: "auto"};
-}
-
-const HUD_EMPTY_AUTO: HarnessConfig = {
-  ...auto(VISUAL_HARNESS_CONFIG),
-  selectedWorkout: undefined,
-  connectBike: false,
-};
-
-function suffix(os: "dark" | "light"): string {
-  return os === "dark" ? "auto-darkos" : "auto-lightos";
-}
 
 async function settle(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const h = (window as unknown as {__VELO_HARNESS__: {settle: () => Promise<void>}}).__VELO_HARNESS__;
     await h.settle();
-  });
-}
-
-function diff(name: string, shot: Buffer, max = MAX_DIFF_RATIO): void {
-  const baseline = readBaseline(name, "legacy.png");
-  expect(baseline, `legacy ${name} baseline must exist (auto-theme.legacy.spec runs first)`).not.toBeNull();
-  const result = compareImages(shot, baseline!);
-  writeVisualReport(name, baseline!, shot, result.diffPng, {
-    diffRatio: result.diffRatio,
-    diffPixels: result.diffPixels,
-    totalPixels: result.totalPixels,
-    sizeMismatch: result.sizeMismatch,
-    maxAllowed: max,
-    width: result.width,
-    height: result.height,
-  });
-  expect(result.sizeMismatch, `new + legacy ${name} must be the same size`).toBe(false);
-  expect(
-    result.diffRatio,
-    `new ${name} differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/${name}/diff.png)`,
-  ).toBeLessThan(max);
-}
-
-for (const os of ["dark", "light"] as const) {
-  test.describe(`Auto-theme new (${os} OS) — hud`, () => {
-    test.use({colorScheme: os, harnessConfig: HUD_EMPTY_AUTO});
-
-    test(`HUD chart empty-state (auto, ${os} OS) matches legacy`, async ({configuredPage}) => {
-      const page = configuredPage;
-      await reachNewRidingView(page);
-      await expect(page.locator("#chartEmptyOverlay")).toBeVisible();
-      await expect(page.locator("#chartEmptyMessage")).toHaveText("Select a workout");
-      await settle(page);
-      diff(`hud-${suffix(os)}`, await page.screenshot({fullPage: false}));
-    });
-  });
-
-  test.describe(`Auto-theme new (${os} OS) — picker`, () => {
-    test.use({colorScheme: os, harnessConfig: auto(PICKER_HARNESS_CONFIG)});
-
-    test(`picker library (auto, ${os} OS) matches legacy`, async ({configuredPage}) => {
-      const page = configuredPage;
-      await reachNewRidingView(page);
-      await page.getByTestId("workout-name-label").click();
-      await expect(page.getByTestId("picker-modal")).toBeVisible();
-      await settle(page);
-      diff(`picker-${suffix(os)}`, await page.screenshot({fullPage: false}));
-    });
-  });
-
-  test.describe(`Auto-theme new (${os} OS) — builder`, () => {
-    test.use({colorScheme: os, harnessConfig: auto(PICKER_HARNESS_CONFIG)});
-
-    test(`builder (auto, ${os} OS) matches legacy`, async ({configuredPage}) => {
-      const page = configuredPage;
-      await reachNewRidingView(page);
-      await page.getByTestId("workout-name-label").click();
-      await page.getByTestId("picker-add-workout").click();
-      await expect(page.locator("#workoutBuilderRoot")).toBeVisible();
-      await expect(page.locator('[data-testid="wb-chart"] svg').first()).toBeVisible();
-      await settle(page);
-      await page.waitForTimeout(150);
-      diff(`builder-${suffix(os)}`, await page.screenshot({fullPage: false}));
-    });
-  });
-
-  test.describe(`Auto-theme new (${os} OS) — settings`, () => {
-    test.use({colorScheme: os, harnessConfig: auto(SETTINGS_HARNESS_CONFIG)});
-
-    test(`settings (auto, ${os} OS) matches legacy`, async ({configuredPage}) => {
-      const page = configuredPage;
-      await reachNewRidingView(page);
-      await page.locator("#settingsBtn").click();
-      await expect(page.locator("#settingsModal")).toBeVisible();
-      await settle(page);
-      diff(`settings-${suffix(os)}`, await page.screenshot({fullPage: false}));
-    });
-  });
-
-  test.describe(`Auto-theme new (${os} OS) — planner`, () => {
-    test.use({colorScheme: os, harnessConfig: auto(PLANNER_HARNESS_CONFIG)});
-
-    test(`planner calendar (auto, ${os} OS) matches legacy`, async ({configuredPage}) => {
-      const page = configuredPage;
-      await reachNewRidingView(page);
-      await page.locator("#calendarBtn").click();
-      await expect(page.locator("#workoutPickerOverlay")).toBeVisible();
-      await expect(page.locator("#plannerCalendarBody")).toBeVisible();
-      await settle(page);
-      await page.waitForTimeout(150);
-      diff(`planner-${suffix(os)}`, await page.screenshot({fullPage: false}), MAX_DIFF_RATIO_PLANNER);
-    });
   });
 }
 

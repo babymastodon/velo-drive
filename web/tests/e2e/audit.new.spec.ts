@@ -34,7 +34,7 @@ import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SHOT_DIR = resolve(__dirname, "..", "..", "visual-report", "audit");
+const SHOT_DIR = resolve(__dirname, "..", "..", "test-results", "audit");
 
 function saveShot(name: string, buf: Buffer): void {
   mkdirSync(SHOT_DIR, {recursive: true});

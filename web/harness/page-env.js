@@ -6,7 +6,7 @@
 //   * an in-memory File System Access dir tree + fake IndexedDB (settings)
 //   * an FTMS trainer simulator (fake navigator.bluetooth)
 //   * an audio recorder (fake AudioContext)
-// then installs them on `window.__VELO_TEST_ENV__` (consumed by velo-shim.js)
+// then installs them on `window.__VELO_TEST_ENV__` (consumed by the app shim)
 // and exposes a control API on `window.__VELO_HARNESS__` so tests can drive a
 // ride (advance time, emit BLE samples, inspect control-point writes, etc.).
 //

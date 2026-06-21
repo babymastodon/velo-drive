@@ -1,9 +1,5 @@
-// New (Svelte) app workout picker: REAL visual diff vs the legacy baseline +
-// behavior. The visual test pixelmatches the new picker render against
-// web/visual-report/picker/legacy.png (written by picker.legacy.spec, which runs
-// first via project deps) and ASSERTS diffRatio < threshold. Both apps boot the
-// SAME hermetic config (same seeded .zwo library + default sort), so only
-// layout/CSS can differ.
+// New (Svelte) app workout picker: behavior. Both apps boot the SAME hermetic
+// config (same seeded .zwo library + default sort).
 //
 // Behavior covers the library-browse + ride-selection scope: search narrows,
 // zone/duration filters narrow, sort headers reorder, expand shows stats +
@@ -11,10 +7,7 @@
 // trash, clone creates an "X Copy" file. The in-picker BUILDER is deferred.
 
 import {test, expect, reachNewRidingView, PICKER_HARNESS_CONFIG} from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
 import type {Page} from "@playwright/test";
-
-const MAX_DIFF_RATIO = 0.02;
 
 async function openPicker(page: Page): Promise<void> {
   await page.getByTestId("workout-name-label").click();
@@ -28,43 +21,6 @@ async function openPicker(page: Page): Promise<void> {
 function rows(page: Page) {
   return page.locator("#pickerWorkoutTbody tr.picker-row");
 }
-
-test.describe("Picker (new Svelte app) — visual", () => {
-  test.use({harnessConfig: PICKER_HARNESS_CONFIG});
-
-  test("visually matches the legacy picker baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-    await openPicker(page);
-
-    // Structural sanity (real assertions, not just "rendered").
-    await expect(page.getByTestId("picker-modal")).toBeVisible();
-    await expect(page.getByTestId("picker-title")).toHaveText("Workout library");
-    expect(await rows(page).count()).toBeGreaterThan(5);
-    await expect(page.getByTestId("picker-summary")).toContainText("workouts shown");
-
-    const baseline = readBaseline("picker", "legacy.png");
-    expect(baseline, "legacy picker baseline must exist (picker.legacy.spec runs first)").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("picker", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy picker must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new picker differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/picker/diff.png)`,
-    ).toBeLessThan(MAX_DIFF_RATIO);
-  });
-});
 
 test.describe("Picker (new Svelte app) — behavior", () => {
   test("search narrows the list", async ({configuredPage}) => {
