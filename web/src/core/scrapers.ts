@@ -48,7 +48,7 @@ async function fetchJson(url: string, options: RequestInit = {}): Promise<unknow
     const online = typeof navigator === 'undefined' ? true : navigator.onLine;
     if (err instanceof TypeError && online) {
       const corsErr = new Error(
-        'Request was blocked by the browser (CORS / site access).',
+        'Request was blocked by the browser (CORS / cross-origin).',
       ) as FetchError;
       corsErr.isCorsError = true;
       corsErr.url = url;
@@ -138,7 +138,7 @@ async function importTrainerDayFromPathAndSource(
     if (err && err.isCorsError) {
       return [
         null,
-        'TrainerDay blocked this request. In Chrome, allow VeloDrive access to trainerday.com in Extensions → Site Access.',
+        'TrainerDay blocked this request (CORS). Download the workout as a .zwo file and import it instead.',
       ];
     }
     if (err && err.isNetworkError) {

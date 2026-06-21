@@ -22,7 +22,6 @@ if (
   !isHarness &&
   typeof navigator !== 'undefined' &&
   'serviceWorker' in navigator &&
-  window.location.protocol !== 'chrome-extension:' &&
   (window.isSecureContext ?? window.location.protocol === 'https:')
 ) {
   window.addEventListener('load', () => {
