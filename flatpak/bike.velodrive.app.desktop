@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=VeloDrive
+Comment=Indoor cycling workouts on FTMS smart trainers
+Exec=velodrive
+Icon=bike.velodrive.app
+Terminal=false
+Categories=Sports;
