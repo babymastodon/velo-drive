@@ -385,6 +385,24 @@ function attachSegmentHover(
     const svgX = (relX / rect.width) * width;
     const svgY = (relY / rect.height) * height;
     const targetT = (svgX / width) * totalSec;
+
+    // Reject hovers horizontally beyond the live trace. Past the last sample,
+    // findSamplesAroundForKey returns that sample as both prev and next, so the
+    // value gets flat-extrapolated into the empty right of the chart — making a
+    // phantom hover appear when the mouse is far to the right of the ride (with
+    // no line nearby). Allow a small tolerance (~16 svg-units of time) so the
+    // leading/trailing edge of the trace still hovers.
+    const firstT = Number(liveSamples[0]?.t);
+    const lastT = Number(liveSamples[liveSamples.length - 1]?.t);
+    const tHit = width > 0 && totalSec > 0 ? (16 / width) * totalSec : 0;
+    if (
+      Number.isFinite(firstT) &&
+      Number.isFinite(lastT) &&
+      (targetT < firstT - tHit || targetT > lastT + tHit)
+    ) {
+      return null;
+    }
+
     const keys: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string }[] = [
       { key: 'power', label: 'Power', unit: 'W' },
       { key: 'hr', label: 'Heart Rate', unit: 'bpm' },
