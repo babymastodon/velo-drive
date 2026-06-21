@@ -42,6 +42,12 @@
             }}
           />
         {/if}
+        {#if req.kind === 'prompt' && req.example}
+          <div class="dialog-example">
+            <span class="dialog-example-label">Example</span>
+            <code class="dialog-example-url">{req.example}</code>
+          </div>
+        {/if}
         <div class="dialog-actions">
           {#if req.kind === 'confirm' || req.kind === 'prompt'}
             <button
@@ -65,21 +71,61 @@
 
 <style>
   .dialog-modal {
-    width: min(420px, 80vw);
+    /* Size to content so a long example URL fits on one line, capped so short
+       alerts don't sprawl. */
+    width: max-content;
+    min-width: min(340px, 90vw);
+    max-width: min(560px, 92vw);
     height: auto;
-    max-height: 60vh;
+    max-height: 70vh;
   }
   .dialog-message {
-    margin: 0 0 16px;
-    line-height: 1.5;
+    margin: 0 0 14px;
+    line-height: 1.55;
     white-space: pre-line;
+    color: var(--text-main);
   }
   .dialog-input {
     width: 100%;
     box-sizing: border-box;
-    margin: 0 0 16px;
-    padding: 8px 10px;
+    margin: 0 0 12px;
+    padding: 9px 11px;
     font: inherit;
+    color: var(--text-main);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .dialog-input::placeholder {
+    color: var(--text-muted);
+  }
+  .dialog-input:focus {
+    outline: none;
+    border-color: var(--text-muted);
+  }
+  .dialog-example {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0 0 16px;
+  }
+  .dialog-example-label {
+    font-size: 0.72em;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .dialog-example-url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82em;
+    color: var(--text-muted);
+    background: var(--surface-muted);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 7px 9px;
+    overflow-wrap: anywhere;
+    user-select: all;
   }
   .dialog-actions {
     display: flex;

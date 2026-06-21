@@ -520,8 +520,13 @@
   async function onImportTrainerDay(): Promise<void> {
     if (!builderApi) return;
     const url = await dialogs.prompt(
-      'Paste TrainerDay workout URL.\nExample: https://app.trainerday.com/workouts/vo2-max-1-8x4min-120',
-      { title: 'Import TrainerDay', okLabel: 'Import' },
+      'Paste a TrainerDay workout URL to load it into the builder.',
+      {
+        title: 'Import TrainerDay',
+        okLabel: 'Import',
+        placeholder: 'https://app.trainerday.com/workouts/…',
+        example: 'https://app.trainerday.com/workouts/vo2-max-1-8x4min-120',
+      },
     );
     if (!url) return;
     const [canonical, error] = await parseTrainerDayUrl(url.trim());
