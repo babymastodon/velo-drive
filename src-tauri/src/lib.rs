@@ -14,6 +14,12 @@ use tauri::{Manager, RunEvent, State};
 #[derive(Default)]
 struct KeepAwake(Mutex<Option<keepawake::KeepAwake>>);
 
+/// Open a URL (or path) in the system default app/browser.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    opener::open(&url).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn set_keep_awake(state: State<'_, KeepAwake>, on: bool) -> Result<(), String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
@@ -110,6 +116,7 @@ pub fn run() {
             files::fs_exists,
             net::http_get,
             net::http_get_bytes,
+            open_external,
             set_keep_awake,
         ])
         .manage(KeepAwake::default())

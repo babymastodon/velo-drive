@@ -85,6 +85,19 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/** Open a URL in the system browser — native opener in the app, window.open in the PWA. */
+export async function openExternal(url: string): Promise<void> {
+  if (isTauri()) {
+    try {
+      await (await import('@tauri-apps/api/core')).invoke('open_external', { url });
+      return;
+    } catch {
+      /* fall through to window.open */
+    }
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
 export function compatMessage(): string {
   // The native shell drives Bluetooth through Rust — browser checks don't apply.
   if (isTauri()) return '';

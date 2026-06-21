@@ -30,6 +30,10 @@
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
   import { parseWorkoutUrl } from '../core/scrapers.js';
+  import { openExternal } from '../app/compat.js';
+
+  const TRAINERDAY_SEARCH_URL = 'https://app.trainerday.com/search?sortBy=popularity';
+  const WHATSONZWIFT_BROWSE_URL = 'https://whatsonzwift.com/workouts';
   import { parseFitFile } from '../core/fit.js';
   import { parseZwoXmlToCanonicalWorkout } from '../core/zwo.js';
   import { isEditableTarget } from './dom-utils.js';
@@ -520,7 +524,7 @@
   async function onImportUrl(): Promise<void> {
     if (!builderApi) return;
     const url = await dialogs.prompt(
-      'Paste a TrainerDay or WhatsOnZwift workout URL to load it into the builder.',
+      'Open a workout on TrainerDay or WhatsOnZwift, copy its URL from your browser, and paste it here.',
       {
         title: 'Import from URL',
         okLabel: 'Import',
@@ -1117,8 +1121,15 @@
                 data-testid="builder-import-url"
                 onclick={() => void pickImport('url')}
               >
-                <span>From a URL…</span><small>TrainerDay or WhatsOnZwift</small>
+                <span>From a URL…</span><small>paste a TrainerDay or WhatsOnZwift link</small>
               </button>
+              <div class="wb-import-browse">
+                New here? Browse
+                <button type="button" class="wb-import-link" onclick={() => void openExternal(TRAINERDAY_SEARCH_URL)}>TrainerDay</button>
+                or
+                <button type="button" class="wb-import-link" onclick={() => void openExternal(WHATSONZWIFT_BROWSE_URL)}>WhatsOnZwift</button>,
+                open a workout, copy its URL, then choose “From a URL…”.
+              </div>
               <button
                 class="wb-import-item"
                 type="button"
@@ -1261,7 +1272,7 @@
                             type="button"
                             class="wb-code-insert-btn visit-website-btn"
                             title="Open the workout's website in a new tab."
-                            onclick={(e) => { e.stopPropagation(); window.open(item.canonical.sourceURL, '_blank'); }}
+                            onclick={(e) => { e.stopPropagation(); void openExternal(item.canonical.sourceURL); }}
                           >
                             <svg viewBox="0 0 24 24" class="wb-code-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                               <path d="M18 3h3v3" /><path d="M21 3l-9 9" />
