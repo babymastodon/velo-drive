@@ -249,9 +249,9 @@ test.describe("sound default", () => {
     await cp.locator("#settingsBtn").click();
     await expect(cp.locator("#settingsModal")).toBeVisible();
     await settle(cp);
-    // Defaults audible: no stored preference → soundEnabled true + soundVolume 1
-    // (the reference gain), which the slider shows at its 70% default.
-    await expect(cp.getByTestId("sound-volume")).toHaveValue("70");
+    // Defaults audible: no stored preference → soundEnabled true + the default
+    // soundVolume (50/70 gain), which the slider shows at its 50% default.
+    await expect(cp.getByTestId("sound-volume")).toHaveValue("50");
   });
 });
 

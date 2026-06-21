@@ -81,17 +81,19 @@
   // soundEnabled (the on/off flag app.ts reads on boot) so muting via the slider
   // is a real off. Default audible (legacy default true; J-CFG-15).
   // The slider is 0–100% in 10% steps; 70% maps to the reference gain (1.0 —
-  // today's loudness) so the stored soundVolume of 1.0 shows as 70% and the
-  // default is 70%. Above 70% is a modest boost (capped in the beeper).
+  // today's loudness), so a stored soundVolume of 1.0 shows as 70%. The default
+  // (nothing stored) is 50%, i.e. a moderate level below the reference. Above
+  // 70% is a modest boost (capped in the beeper).
   const REF_PCT = 70;
-  let soundVolume = $state(REF_PCT); // 0..100 (slider position)
+  const DEFAULT_GAIN = 50 / REF_PCT; // 50% slider position
+  let soundVolume = $state(50); // 0..100 (slider position)
   $effect(() => {
     if (open) {
       void Promise.all([
         fileStore.getSetting<boolean>('soundEnabled', true),
-        fileStore.getSetting<number>('soundVolume', 1),
+        fileStore.getSetting<number>('soundVolume', DEFAULT_GAIN),
       ]).then(([enabled, vol]) => {
-        const gain = Math.max(0, Math.min(1.5, Number.isFinite(vol) ? vol : 1));
+        const gain = Math.max(0, Math.min(1.5, Number.isFinite(vol) ? vol : DEFAULT_GAIN));
         // gain 1.0 → 70%; snap to the 10% steps.
         soundVolume = enabled === false ? 0 : Math.round((gain * REF_PCT) / 10) * 10;
       });
