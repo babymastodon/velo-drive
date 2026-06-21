@@ -537,6 +537,36 @@
     loadIntoBuilder(canonical, canonical.workoutTitle || 'Imported Workout');
   }
 
+  // --------------------------- import: workout packs (zip → library) ---------------------------
+  const ZWIFT_PACK_URL =
+    'https://forums.zwift.com/uploads/short-url/kfwBnOg1iFvfNh65haAupeMIuav.zip';
+
+  async function onImportPack(url: string, subfolder: string, label: string): Promise<void> {
+    const ok = await dialogs.confirm(`Download ${label} into your library? This can take a moment.`, {
+      title: 'Import workout pack',
+      okLabel: 'Import',
+    });
+    if (!ok) return;
+    const prev = builderStatusText;
+    builderStatusText = `Importing ${label}…`;
+    const { added, error } = await fileStore.importZwoZip(url, subfolder);
+    builderStatusText = prev;
+    if (error) {
+      await dialogs.alert(error, { title: 'Import failed' });
+      return;
+    }
+    await rescan();
+    await dialogs.alert(`Imported ${added} workouts into “${subfolder}”.`, { title: 'Import complete' });
+  }
+
+  let importMenuOpen = $state(false);
+  async function pickImport(kind: 'url' | 'upload' | 'zwift'): Promise<void> {
+    importMenuOpen = false;
+    if (kind === 'url') await onImportUrl();
+    else if (kind === 'upload') onUploadFileClick();
+    else await onImportPack(ZWIFT_PACK_URL, 'Zwift Workouts', 'the Zwift workout collection');
+  }
+
   // --------------------------- import: file upload (.zwo/.fit) ---------------------------
   let uploadInputEl = $state<HTMLInputElement | null>(null);
 
@@ -1044,23 +1074,6 @@
           style:display={builderMode ? 'inline-flex' : 'none'}
         >{builderStatusText}</div>
 
-        <button
-          id="workoutBuilderImportUrlBtn"
-          class="wb-code-insert-btn"
-          type="button"
-          data-testid="builder-import-url"
-          title="Import a TrainerDay or WhatsOnZwift workout by URL"
-          style:display={builderMode ? 'inline-flex' : 'none'}
-          onclick={() => void onImportUrl()}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
-            <path d="M18 3h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M21 3l-9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span>Import from URL</span>
-        </button>
-
         <input
           bind:this={uploadInputEl}
           type="file"
@@ -1069,22 +1082,72 @@
           style="display: none"
           onchange={() => void onUploadFileChange()}
         />
-        <button
-          id="workoutBuilderUploadBtn"
-          class="wb-code-insert-btn"
-          type="button"
-          data-testid="builder-upload"
-          title="Upload a .zwo or .fit file"
-          style:display={builderMode ? 'inline-flex' : 'none'}
-          onclick={onUploadFileClick}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
-            <path d="M12 16V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            <path d="M8 9l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          <span>Upload File</span>
-        </button>
+
+        <!-- All import sources under one menu, instead of a row of buttons. -->
+        <div class="wb-import" style:display={builderMode ? 'inline-flex' : 'none'}>
+          <button
+            id="workoutBuilderImportBtn"
+            class="wb-code-insert-btn"
+            type="button"
+            data-testid="builder-import"
+            title="Import workouts"
+            aria-haspopup="menu"
+            aria-expanded={importMenuOpen}
+            onclick={() => (importMenuOpen = !importMenuOpen)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
+              <path d="M12 3v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>Import ▾</span>
+          </button>
+          {#if importMenuOpen}
+            <button
+              class="wb-import-backdrop"
+              type="button"
+              aria-label="Close import menu"
+              onclick={() => (importMenuOpen = false)}
+            ></button>
+            <div class="wb-import-menu" role="menu">
+              <button
+                class="wb-import-item"
+                type="button"
+                role="menuitem"
+                data-testid="builder-import-url"
+                onclick={() => void pickImport('url')}
+              >
+                <span>From a URL…</span><small>TrainerDay or WhatsOnZwift</small>
+              </button>
+              <button
+                class="wb-import-item"
+                type="button"
+                role="menuitem"
+                data-testid="builder-upload"
+                onclick={() => pickImport('upload')}
+              >
+                <span>Upload a file…</span><small>.zwo or .fit</small>
+              </button>
+              <div class="wb-import-sep"></div>
+              <div class="wb-import-group-label">Workout packs</div>
+              <button
+                class="wb-import-item"
+                type="button"
+                role="menuitem"
+                data-testid="builder-import-zwift"
+                onclick={() => void pickImport('zwift')}
+              >
+                <span>Zwift collection</span><small>200+ official workouts → library</small>
+              </button>
+              <div class="wb-import-sep"></div>
+              <p class="wb-import-hint">
+                Tip: you can also drop <code>.zwo</code> files (in folders too)
+                straight into your VeloDrive <strong>workouts</strong> folder — they
+                appear here next time you open the library.
+              </p>
+            </div>
+          {/if}
+        </div>
 
         <button
           id="workoutBuilderSaveBtn"
