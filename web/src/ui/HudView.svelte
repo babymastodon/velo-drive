@@ -47,6 +47,8 @@
     {activeOverlay}
     bikeStatus={store.bikeStatus}
     hrStatus={store.hrStatus}
+    bikeStatusMessage={store.bikeStatusMessage}
+    hrStatusMessage={store.hrStatusMessage}
     hrBatteryPercent={store.hrBatteryPercent}
   />
 {/if}

@@ -13,6 +13,8 @@
     dialogs,
     bikeStatus,
     hrStatus,
+    bikeStatusMessage = '',
+    hrStatusMessage = '',
     hrBatteryPercent,
     onOpenSettings,
     onOpenPicker,
@@ -25,6 +27,8 @@
     dialogs: DialogStore;
     bikeStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrStatus: 'connecting' | 'connected' | 'error' | 'idle';
+    bikeStatusMessage?: string;
+    hrStatusMessage?: string;
     hrBatteryPercent: number | null;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
@@ -165,7 +169,13 @@
 
 <nav class="bottom-nav">
   <div class="nav-left">
-    <button class="device-group" id="bikeConnectBtn" data-testid="bike-connect" onclick={onConnectBike}>
+    <button
+      class="device-group"
+      id="bikeConnectBtn"
+      data-testid="bike-connect"
+      title={bikeStatusMessage}
+      onclick={onConnectBike}
+    >
       <div class="icon-box">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -177,7 +187,13 @@
       <div class="device-label"><span>Bike</span></div>
     </button>
 
-    <button class="device-group" id="hrConnectBtn" data-testid="hr-connect" onclick={onConnectHr}>
+    <button
+      class="device-group"
+      id="hrConnectBtn"
+      data-testid="hr-connect"
+      title={hrStatusMessage}
+      onclick={onConnectHr}
+    >
       <div class="icon-box">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
