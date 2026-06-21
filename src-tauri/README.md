@@ -110,7 +110,12 @@ Access API, which isn't in the webview yet — that's the next milestone
 3. ✅ Tauri shell + BLE module behind Tauri commands/events (src/lib.rs, src/ble.rs).
 4. ✅ `NativeTrainerTransport` over the IPC; native-vs-web port selected at boot.
    Robust connector: error events, remember + reconnect-on-start, multi-app-polite.
-5. `NativeFileStore` — workout folder + history via Tauri `fs`/`dialog` plugins
-   (replaces the File System Access API).
-6. Flatpak manifest (bundle id `bike.velodrive.app`, `--system-talk-name=org.bluez`)
-   + Flathub/self-hosted repo; `keep-awake` for rides.
+5. ✅ `NativeFileStore` — workout folder + .zwo library + .fit history + schedule
+   + trash over native fs commands (path-backed FsDirHandle reusing WebFileStore).
+6. ✅ Native keep-awake during rides (`keepawake` inhibitor via `set_keep_awake`).
+7. ✅ Flatpak manifest scaffold — bundle id `bike.velodrive.app`,
+   `--system-talk-name=org.bluez` for BLE; see [`../flatpak/`](../flatpak/).
+
+The Linux native app is feature-complete (Bluetooth, workout library/history/
+planner, rides, keep-awake). Follow-ups: route the TrainerDay URL import through
+Rust to bypass webview CORS; then the other desktop + mobile targets.
