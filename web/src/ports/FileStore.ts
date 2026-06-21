@@ -63,7 +63,8 @@ export interface FileStore {
   deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean>;
   /** Serialize + write a CanonicalWorkout into the workouts dir (used by clone). */
   saveWorkout(canonical: CanonicalWorkout): Promise<boolean>;
-  /** Download a .zwo workout pack (a zip URL) into a library subfolder. */
+  /** Download a .zwo workout pack (a zip URL) into a wrapper subfolder of the
+   * workouts dir (the zip's redundant top-level folder is stripped). */
   importZwoZip(
     url: string,
     subfolder?: string,
