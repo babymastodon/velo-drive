@@ -6,7 +6,7 @@
 
 # VeloDrive
 
-VeloDrive is a lightweight **Progressive Web App (PWA)** and optional **Chrome extension** for creating, organizing, and riding structured cycling workouts on FTMS-compatible smart trainers like the [Wahoo Kickr](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) or [Tacx Neo](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/)
+VeloDrive is a lightweight **Progressive Web App (PWA)** for creating, organizing, and riding structured cycling workouts on FTMS-compatible smart trainers like the [Wahoo Kickr](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) or [Tacx Neo](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/)
 
 You can open the app directly at:
 
@@ -21,8 +21,6 @@ The PWA works offline, installs locally, and runs entirely in the browser with n
 
 ## Installation
 
-### Web App (recommended)
-
 Open:
 
 **https://velodrive.bike/**
@@ -34,32 +32,6 @@ Click it to install VeloDrive as an app. It will appear in your system’s app l
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/install_dark.png">
   <img alt="PWA Install Instructions" src="media/screenshots/install_light.png">
 </picture>
-
-### Chrome extension (optional)
-
-The extension is not required for riding workouts.
-It simply makes it easier to **download workouts** as .zwo files directly from
-[WhatsOnZwift](https://whatsonzwift.com/workouts#zwift-workout-collections),
-[TrainerDay](https://app.trainerday.com/search),
-and
-[TrainerRoad](https://www.trainerroad.com/app/cycling/workouts).
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/extension_dark.png">
-  <img alt="Extension Install Instructions" src="media/screenshots/extension_light.png">
-</picture>
-
-
-To install:
-
-1. Clone the repo:
-```sh
-   git clone https://github.com/babymastodon/velo-drive.git
-````
-
-2. Chrome → `chrome://extensions`
-3. Enable **Developer mode**
-4. Choose **Load unpacked…** and select the `docs` folder
 
 ## Features
 
