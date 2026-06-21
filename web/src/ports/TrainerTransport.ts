@@ -41,4 +41,11 @@ export interface TrainerTransport {
   setTrainerState(state: TrainerState, opts?: { force?: boolean }): Promise<void>;
   on<T extends TransportEventType>(type: T, fn: (payload: TransportEvents[T]) => void): () => void;
   off<T extends TransportEventType>(type: T, fn: (payload: TransportEvents[T]) => void): void;
+  // Set by the composition root: which saved devices to auto-reconnect on init,
+  // and how to persist a newly connected device id for next-load reconnect.
+  setSavedDeviceIds(ids: { bikeId?: string | null; hrId?: string | null }): void;
+  setPersistDeviceIds(cb: {
+    saveBikeId: (id: string | null) => void;
+    saveHrId: (id: string | null) => void;
+  }): void;
 }
