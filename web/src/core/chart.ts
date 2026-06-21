@@ -386,22 +386,9 @@ function attachSegmentHover(
     const svgY = (relY / rect.height) * height;
     const targetT = (svgX / width) * totalSec;
 
-    // Reject hovers horizontally beyond the live trace. Past the last sample,
-    // findSamplesAroundForKey returns that sample as both prev and next, so the
-    // value gets flat-extrapolated into the empty right of the chart — making a
-    // phantom hover appear when the mouse is far to the right of the ride (with
-    // no line nearby). Allow a small tolerance (~16 svg-units of time) so the
-    // leading/trailing edge of the trace still hovers.
-    const firstT = Number(liveSamples[0]?.t);
-    const lastT = Number(liveSamples[liveSamples.length - 1]?.t);
+    // Horizontal hit tolerance (~16 svg-units of time) so the leading/trailing
+    // edge of a line still hovers.
     const tHit = width > 0 && totalSec > 0 ? (16 / width) * totalSec : 0;
-    if (
-      Number.isFinite(firstT) &&
-      Number.isFinite(lastT) &&
-      (targetT < firstT - tHit || targetT > lastT + tHit)
-    ) {
-      return null;
-    }
 
     const keys: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string }[] = [
       { key: 'power', label: 'Power', unit: 'W' },
@@ -410,11 +397,42 @@ function attachSegmentHover(
     ];
 
     const HIT_PX = 16;
-    let best: { key: 'power' | 'hr' | 'cadence'; label: string; unit: string; val: number; y: number; dist: number } | null =
-      null;
+    // `dotT` is the (clamped) time the dot snaps to — may differ from targetT.
+    let best:
+      | { key: 'power' | 'hr' | 'cadence'; label: string; unit: string; val: number; y: number; dist: number; dotT: number }
+      | null = null;
+
     for (const { key, label, unit } of keys) {
-      const { prev, next } = findSamplesAroundForKey(targetT, key);
-      if (!prev && !next) continue;
+      // Each metric has its OWN drawn extent: HR may connect mid-ride (empty
+      // until then), a sensor may drop out at the end, or there may be gaps. So
+      // compute this line's first/last VALID sample rather than the global range.
+      let firstIdx = -1;
+      for (let i = 0; i < liveSamples.length; i++) {
+        const s = liveSamples[i];
+        if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) {
+          firstIdx = i;
+          break;
+        }
+      }
+      if (firstIdx < 0) continue; // this metric has no data at all → no line
+      let lastIdx = firstIdx;
+      for (let i = liveSamples.length - 1; i > firstIdx; i--) {
+        const s = liveSamples[i];
+        if (Number.isFinite(s?.t) && Number.isFinite(s?.[key] as number)) {
+          lastIdx = i;
+          break;
+        }
+      }
+      const kFirstT = Number(liveSamples[firstIdx]!.t);
+      const kLastT = Number(liveSamples[lastIdx]!.t);
+
+      // Beyond this line's extent (past the small margin) → no hover for it.
+      if (targetT < kFirstT - tHit || targetT > kLastT + tHit) continue;
+      // Within the margin → clamp so the dot SNAPS to the endpoint sample instead
+      // of floating past the last/first data point.
+      const effT = Math.min(kLastT, Math.max(kFirstT, targetT));
+
+      const { prev, next } = findSamplesAroundForKey(effT, key);
       const prevT = Number(prev?.t);
       const nextT = Number(next?.t);
       const prevVal = prev ? Number(prev[key]) : null;
@@ -422,21 +440,17 @@ function attachSegmentHover(
       let val: number | null = null;
 
       if (Number.isFinite(prevT) && Number.isFinite(nextT)) {
-        if (
-          gapBreakSeconds &&
-          nextT - prevT > gapBreakSeconds &&
-          targetT > prevT &&
-          targetT < nextT
-        ) {
+        // Don't draw a hover across a real data gap.
+        if (gapBreakSeconds && nextT - prevT > gapBreakSeconds && effT > prevT && effT < nextT) {
           continue;
         }
         const span = nextT - prevT;
         if (span > 0 && Number.isFinite(prevVal as number) && Number.isFinite(nextVal as number)) {
-          const t = (targetT - prevT) / span;
+          const t = (effT - prevT) / span;
           val = (prevVal as number) + ((nextVal as number) - (prevVal as number)) * t;
-        } else if (Number.isFinite(prevVal as number) && targetT <= prevT) {
+        } else if (Number.isFinite(prevVal as number) && effT <= prevT) {
           val = prevVal;
-        } else if (Number.isFinite(nextVal as number) && targetT >= nextT) {
+        } else if (Number.isFinite(nextVal as number) && effT >= nextT) {
           val = nextVal;
         }
       } else if (Number.isFinite(prevVal as number)) {
@@ -450,11 +464,11 @@ function attachSegmentHover(
       const y = height - (yVal / maxY) * height;
       const dist = Math.abs(y - svgY);
       if (dist > HIT_PX) continue;
-      if (!best || dist < best.dist) best = { key, label, unit, val: val as number, y, dist };
+      if (!best || dist < best.dist) best = { key, label, unit, val: val as number, y, dist, dotT: effT };
     }
 
     if (!best) return null;
-    const x = Math.min(width, Math.max(0, (targetT / totalSec) * width));
+    const x = Math.min(width, Math.max(0, (best.dotT / totalSec) * width));
     return { x, y: best.y, label: best.label, unit: best.unit, val: best.val, key: best.key };
   };
 
