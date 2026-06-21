@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core capability: the app shell + our own BLE commands/events.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
