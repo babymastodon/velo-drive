@@ -1,11 +1,6 @@
-// New (Svelte) app HUD: behavior + REAL visual diff vs the legacy baseline.
-// The visual test pixelmatches the new render against web/visual-report/hud/
-// legacy.png (written by hud.legacy.spec, which runs first via project deps) and
-// ASSERTS the diffRatio is under threshold — it FAILS on visual divergence and
-// writes legacy/new/diff.png for review. Both apps boot the SAME hermetic config.
+// New (Svelte) app HUD: behavior tests. Both apps boot the SAME hermetic config.
 
-import {test, expect, reachNewRidingView, VISUAL_HARNESS_CONFIG, type HarnessConfig} from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
+import {test, expect, reachNewRidingView, type HarnessConfig} from "./fixtures.js";
 
 // A workout that STARTS in a free-ride (ERG) segment so the manual controls +
 // e/r/j/k hotkeys are active from the first tick (seg[3] === "freeride").
@@ -26,48 +21,6 @@ const FREERIDE_CONFIG: HarnessConfig = {
   connectBike: true,
   connectHr: false,
 };
-
-// Fidelity budget: the new Svelte DOM reproduces the legacy classes + the same
-// re-hosted CSS, so a faithful render diffs only by sub-pixel AA. Keep this
-// strict; raise only with a reviewed justification.
-const MAX_DIFF_RATIO = 0.02;
-
-test.describe("HUD (new Svelte app) — visual", () => {
-  test.use({harnessConfig: VISUAL_HARNESS_CONFIG});
-
-  test("visually matches the legacy HUD baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-
-    // Structural sanity (real assertions, not just "rendered").
-    await expect(page.locator(".top-panel")).toBeVisible();
-    await expect(page.getByTestId("stat-power")).toBeVisible();
-    await expect(page.getByTestId("stat-target-power")).toBeVisible();
-    await expect(page.locator("#chartSvg")).toBeVisible();
-    await expect(page.locator(".bottom-nav")).toBeVisible();
-
-    const baseline = readBaseline("hud", "legacy.png");
-    expect(baseline, "legacy HUD baseline must exist (hud.legacy.spec runs first)").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("hud", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy HUD must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new HUD differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/hud/diff.png)`,
-    ).toBeLessThan(MAX_DIFF_RATIO);
-  });
-});
 
 test.describe("HUD (new Svelte app) — behavior", () => {
   test("runs a ride: countdown -> running, target interpolates, elapsed advances, ERG setpoints recorded", async ({

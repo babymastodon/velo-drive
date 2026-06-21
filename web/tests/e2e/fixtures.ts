@@ -1,15 +1,15 @@
 // tests/e2e/fixtures.ts
 //
 // Playwright fixtures that inject the hermetic test env (virtual clock +
-// in-memory FS seeded CONFIGURED + FTMS sim + audio recorder) BEFORE the legacy
-// app loads, then expose helpers to reach the configured riding view and to
-// drive a ride from test code.
+// in-memory FS seeded CONFIGURED + FTMS sim + audio recorder) BEFORE the app
+// loads, then expose helpers to reach the configured riding view and to drive a
+// ride from test code.
 //
 // Mechanics:
 //   * `__VELO_HARNESS_CONFIG__` is set first (carries FTP / sound / theme /
 //     selectedWorkout / seeded .zwo). Then `harness/page-env.js` runs and builds
-//     the env onto `window.__VELO_TEST_ENV__`, which `velo-shim.js` (first
-//     script in the shimmed index.html) reads to swap the platform providers.
+//     the env onto `window.__VELO_TEST_ENV__`, which the app's platform shim
+//     (installed first in main.ts) reads to swap the platform providers.
 //   * Both init scripts run before any app code, so the app boots fully faked.
 
 import {test as base, expect, type Page} from "@playwright/test";
@@ -20,17 +20,16 @@ import {buildFitFile} from "../../src/core/fit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = resolve(__dirname, "..", "..");
-// The legacy app (formerly docs/, now relocated so docs/ can hold the built
-// new app for GitHub Pages) is the seed-workout + parity oracle.
-const DOCS_WORKOUTS = resolve(WEB_ROOT, "..", "legacy", "workouts");
+// The bundled workout library (shipped in the PWA at public/workouts).
+const SEED_WORKOUTS = resolve(WEB_ROOT, "public", "workouts");
 const PAGE_ENV = join(WEB_ROOT, "harness", "page-env.js");
 
-/** Read all 41 .zwo from docs/workouts as {filename: text}. */
+/** Read all bundled .zwo workouts as {filename: text}. */
 export function readSeedWorkouts(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const name of readdirSync(DOCS_WORKOUTS)) {
+  for (const name of readdirSync(SEED_WORKOUTS)) {
     if (!name.toLowerCase().endsWith(".zwo")) continue;
-    out[name] = readFileSync(join(DOCS_WORKOUTS, name), "utf8");
+    out[name] = readFileSync(join(SEED_WORKOUTS, name), "utf8");
   }
   return out;
 }
@@ -240,7 +239,7 @@ export const test = base.extend<{
       (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = cfg;
     }, harnessConfig);
 
-    // 2. Build the env onto window.__VELO_TEST_ENV__ (consumed by velo-shim.js).
+    // 2. Build the env onto window.__VELO_TEST_ENV__ (consumed by the app shim).
     await page.addInitScript({path: PAGE_ENV});
 
     // 2.0 Seed the "welcome seen" flag into the fake IndexedDB settings store so

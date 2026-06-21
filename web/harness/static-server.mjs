@@ -2,18 +2,18 @@
 // harness/static-server.mjs
 //
 // A tiny zero-dependency static file server with correct MIME types, used by
-// Playwright's `webServer` to serve `legacy-shimmed/`.
+// Playwright's `webServer` to serve the built app (`dist/`).
 //
 //   node harness/static-server.mjs <rootDir> [port]
 //
-// Defaults: root = ./legacy-shimmed, port = $PORT || 4178.
+// Defaults: root = ./dist, port = $PORT || 4179.
 
 import {createServer} from "node:http";
 import {readFile, stat} from "node:fs/promises";
 import {join, normalize, extname, resolve} from "node:path";
 
-const root = resolve(process.argv[2] || "legacy-shimmed");
-const port = Number(process.argv[3] || process.env.PORT || 4178);
+const root = resolve(process.argv[2] || "dist");
+const port = Number(process.argv[3] || process.env.PORT || 4179);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",

@@ -1,9 +1,4 @@
-// New (Svelte) app workout BUILDER: REAL visual diff vs the legacy baseline +
-// behavior. The visual test pixelmatches the new builder render against
-// web/visual-report/builder/legacy.png (written by builder.legacy.spec, which
-// runs first via project deps) and ASSERTS diffRatio < threshold. Both apps
-// boot the SAME hermetic config and enter the builder on the SAME deterministic
-// default new-workout blocks, so only layout/CSS can differ.
+// New (Svelte) app workout BUILDER: behavior coverage.
 //
 // Behavior covers the create/edit scope: insert a block (toolbar + key) changes
 // the block count / chart; a stepper edit changes the value; undo reverts;
@@ -11,10 +6,7 @@
 // (asserted via the fake FS) and returns to the library.
 
 import {test, expect, reachNewRidingView, PICKER_HARNESS_CONFIG} from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
 import type {Page} from "@playwright/test";
-
-const MAX_DIFF_RATIO = 0.02;
 
 async function openBuilder(page: Page): Promise<void> {
   await page.getByTestId("workout-name-label").click();
@@ -33,43 +25,6 @@ async function openBuilder(page: Page): Promise<void> {
 function chartSegments(page: Page) {
   return page.locator('[data-testid="wb-chart"] svg polygon.wb-block-segment');
 }
-
-test.describe("Builder (new Svelte app) — visual", () => {
-  test.use({harnessConfig: PICKER_HARNESS_CONFIG});
-
-  test("visually matches the legacy builder baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-    await openBuilder(page);
-
-    // Structural sanity (real assertions, not just "rendered").
-    await expect(page.locator("#workoutBuilderRoot")).toBeVisible();
-    await expect(page.getByTestId("builder-back")).toBeVisible();
-    await expect(page.locator('[data-testid="wb-chart"] svg').first()).toBeVisible();
-    expect(await page.getByTestId("wb-toolbar-buttons").locator(".wb-code-insert-btn").count()).toBe(11);
-
-    const baseline = readBaseline("builder", "legacy.png");
-    expect(baseline, "legacy builder baseline must exist (builder.legacy.spec runs first)").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("builder", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy builder must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new builder differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/builder/diff.png)`,
-    ).toBeLessThan(MAX_DIFF_RATIO);
-  });
-});
 
 test.describe("Builder (new Svelte app) — behavior", () => {
   test("inserting a block via the toolbar changes the chart segment count", async ({configuredPage}) => {

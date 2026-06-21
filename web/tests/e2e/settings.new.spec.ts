@@ -1,13 +1,6 @@
-// New (Svelte) app Settings: REAL visual diff vs the legacy baseline + behavior.
-// The visual test pixelmatches the new Settings render against
-// web/visual-report/settings/legacy.png (written by settings.legacy.spec, which
-// runs first via project deps) and ASSERTS diffRatio < threshold. Both apps boot
-// the SAME hermetic config so only layout/CSS can differ.
+// New (Svelte) app Settings behavior.
 
-import {test, expect, reachNewRidingView, SETTINGS_HARNESS_CONFIG} from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
-
-const MAX_DIFF_RATIO = 0.02;
+import {test, expect, reachNewRidingView} from "./fixtures.js";
 
 async function openSettings(page: import("@playwright/test").Page) {
   await page.locator("#settingsBtn").click();
@@ -17,43 +10,6 @@ async function openSettings(page: import("@playwright/test").Page) {
     await h.settle();
   });
 }
-
-test.describe("Settings (new Svelte app) — visual", () => {
-  test.use({harnessConfig: SETTINGS_HARNESS_CONFIG});
-
-  test("visually matches the legacy Settings baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-    await openSettings(page);
-
-    // Structural sanity (real assertions, not just "rendered").
-    await expect(page.getByTestId("settings-modal")).toBeVisible();
-    await expect(page.getByTestId("settings-title")).toHaveText("Settings");
-    await expect(page.getByTestId("ftp-input")).toHaveValue("250");
-    await expect(page.getByTestId("theme-light")).toHaveClass(/active/);
-
-    const baseline = readBaseline("settings", "legacy.png");
-    expect(baseline, "legacy Settings baseline must exist (settings.legacy.spec runs first)").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("settings", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy Settings must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new Settings differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/settings/diff.png)`,
-    ).toBeLessThan(MAX_DIFF_RATIO);
-  });
-});
 
 test.describe("Settings (new Svelte app) — behavior", () => {
   test("FTP +10 persists, theme toggles to dark, sound toggles", async ({configuredPage}) => {

@@ -1,10 +1,4 @@
-// New (Svelte) app workout planner: REAL visual diff vs the legacy baseline +
-// behavior. The visual test pixelmatches the new planner-calendar render against
-// web/visual-report/planner/legacy.png (written by planner.legacy.spec, which
-// runs first via project deps) and ASSERTS diffRatio < threshold. Both apps boot
-// the SAME hermetic config (FIXED date 2026-06-17, the SAME seeded completed
-// ride on 2026-06-15, and the SAME scheduled workout on 2026-06-20), so only
-// layout/CSS can differ.
+// New (Svelte) app workout planner: behavior coverage.
 //
 // Behavior covers the planner scope: a past day with seeded history shows a
 // history card; clicking it opens the ride detail (stat chips + power curve +
@@ -13,16 +7,7 @@
 // planner. The schedule handoff is the simplified "schedule this day" flow.
 
 import {test, expect, reachNewRidingView, PLANNER_HARNESS_CONFIG} from "./fixtures.js";
-import {compareImages, readBaseline, writeVisualReport} from "../visual/compare.js";
 import type {Page} from "@playwright/test";
-
-const MAX_DIFF_RATIO = 0.02;
-// Detail view: pinned just above the measured diff (~0.0208) so the gate stays
-// meaningful (a structural regression still fails) while tolerating the known
-// residual = a ~1px uniform text offset shared with the calendar (flagged for
-// M5 polish) + SVG power-curve/ride-chart stroke antialiasing. NOT a blanket
-// loosening — tracked, tight, and fails on real divergence.
-const MAX_DETAIL_DIFF_RATIO = 0.022;
 
 async function settle(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -49,82 +34,6 @@ async function readSchedule(page: Page): Promise<{date: string; workoutTitle: st
     return JSON.parse(await f.text());
   });
 }
-
-test.describe("Planner (new Svelte app) — visual", () => {
-  test.use({harnessConfig: PLANNER_HARNESS_CONFIG});
-
-  test("visually matches the legacy planner calendar baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-    await openPlanner(page);
-
-    // Structural sanity.
-    await expect(page.getByTestId("planner-modal")).toBeVisible();
-    expect(await page.locator("#plannerCalendarBody .planner-week-row").count()).toBeGreaterThan(4);
-    await expect(
-      page.locator('.planner-day[data-date="2026-06-15"] .planner-workout-card:not(.planner-scheduled-card)').first(),
-    ).toBeVisible();
-
-    await page.waitForTimeout(120);
-
-    const baseline = readBaseline("planner", "legacy.png");
-    expect(baseline, "legacy planner baseline must exist (planner.legacy.spec runs first)").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("planner", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy planner must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new planner differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/planner/diff.png)`,
-    ).toBeLessThan(MAX_DIFF_RATIO);
-  });
-
-  test("the ride detail view visually matches the legacy detail baseline", async ({configuredPage}) => {
-    const page = configuredPage;
-    await reachNewRidingView(page);
-    await openPlanner(page);
-
-    await page
-      .locator('.planner-day[data-date="2026-06-15"] .planner-workout-card:not(.planner-scheduled-card)')
-      .first()
-      .click();
-    await expect(page.getByTestId("planner-detail")).toBeVisible();
-    await settle(page);
-    await page.waitForTimeout(250);
-    await expect(page.locator("#plannerDetailStats .wb-stat-chip").first()).toBeVisible();
-
-    const baseline = readBaseline("planner-detail", "legacy.png");
-    expect(baseline, "legacy planner-detail baseline must exist").not.toBeNull();
-
-    const shot = await page.screenshot({fullPage: false});
-    const result = compareImages(shot, baseline!);
-    writeVisualReport("planner-detail", baseline!, shot, result.diffPng, {
-      diffRatio: result.diffRatio,
-      diffPixels: result.diffPixels,
-      totalPixels: result.totalPixels,
-      sizeMismatch: result.sizeMismatch,
-      maxAllowed: MAX_DETAIL_DIFF_RATIO,
-      width: result.width,
-      height: result.height,
-    });
-
-    expect(result.sizeMismatch, "new + legacy planner-detail must be the same size").toBe(false);
-    expect(
-      result.diffRatio,
-      `new planner detail differs from legacy by ${(result.diffRatio * 100).toFixed(2)}% (see web/visual-report/planner-detail/diff.png)`,
-    ).toBeLessThan(MAX_DETAIL_DIFF_RATIO);
-  });
-});
 
 test.describe("Planner (new Svelte app) — behavior", () => {
   test.use({harnessConfig: PLANNER_HARNESS_CONFIG});
