@@ -1,4 +1,4 @@
-// New (Svelte) app Welcome tour: behavior + boot gating. The new app does NOT
+// Welcome tour: behavior + boot gating. The app does NOT
 // show welcome on boot, so the harness opens it for the test via
 // __VELO_APP__.ui.openWelcome.
 
@@ -17,7 +17,7 @@ async function openWelcomeAt(page: import("@playwright/test").Page, index: numbe
   await page.waitForTimeout(150);
 }
 
-test.describe("Welcome (new Svelte app) — behavior", () => {
+test.describe("Welcome — behavior", () => {
   test("next/prev navigate slides; close + Escape dismiss", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -83,7 +83,7 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
 // Boot-time welcome gating. A fresh REAL user (no hasSeenWelcome flag) sees the
 // welcome tour on boot; a configured user who has seen it does NOT.
 // (shouldForceFullWelcome/maybeShowWelcome.)
-test.describe("Welcome (new Svelte app) — boot gating", () => {
+test.describe("Welcome — boot gating", () => {
   test.use({harnessConfig: WELCOME_HARNESS_CONFIG});
 
   test("first-run (no hasSeenWelcome flag) shows the welcome tour on boot", async ({page, harnessConfig}) => {

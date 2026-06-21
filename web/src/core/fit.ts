@@ -364,9 +364,6 @@ export function buildFitFile({
   const powerVals = samples
     .map((s) => s.power)
     .filter((v): v is number => v != null && Number.isFinite(v));
-  const hrVals = samples
-    .map((s) => s.hr)
-    .filter((v): v is number => v != null && Number.isFinite(v));
   const cadVals = samples
     .map((s) => s.cadence)
     .filter((v): v is number => v != null && Number.isFinite(v));
@@ -385,7 +382,6 @@ export function buildFitFile({
     arr.length ? Math.max(...arr) : null;
 
   const avgPower = avg(powerVals);
-  const avgHr = avg(hrVals);
   const avgCadence = avg(cadVals);
   const maxPower = max(powerVals);
   const maxCadence = max(cadVals);

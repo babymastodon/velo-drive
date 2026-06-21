@@ -1,4 +1,4 @@
-// New (Svelte) app workout planner: behavior coverage.
+// Workout planner: behavior coverage.
 //
 // Behavior covers the planner scope: a past day with seeded history shows a
 // history card; clicking it opens the ride detail (stat chips + power curve +
@@ -35,7 +35,7 @@ async function readSchedule(page: Page): Promise<{date: string; workoutTitle: st
   });
 }
 
-test.describe("Planner (new Svelte app) — behavior", () => {
+test.describe("Planner — behavior", () => {
   test.use({harnessConfig: PLANNER_HARNESS_CONFIG});
 
   test("a past day with seeded history shows a history card", async ({configuredPage}) => {

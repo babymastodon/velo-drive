@@ -1,4 +1,4 @@
-// New (Svelte) app workout BUILDER: behavior coverage.
+// Workout BUILDER: behavior coverage.
 //
 // Behavior covers the create/edit scope: insert a block (toolbar + key) changes
 // the block count / chart; a stepper edit changes the value; undo reverts;
@@ -26,7 +26,7 @@ function chartSegments(page: Page) {
   return page.locator('[data-testid="wb-chart"] svg polygon.wb-block-segment');
 }
 
-test.describe("Builder (new Svelte app) — behavior", () => {
+test.describe("Builder — behavior", () => {
   test("inserting a block via the toolbar changes the chart segment count", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -181,7 +181,7 @@ function selectedBands(page: Page) {
   return page.locator('[data-testid="wb-chart"] svg rect.wb-block-band.is-active');
 }
 
-test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
+test.describe("Builder — clipboard + multi-select", () => {
   test("copy a block then paste duplicates it (block count + segment count grow)", async ({configuredPage}) => {
     const page = configuredPage;
     await grantClipboard(page);

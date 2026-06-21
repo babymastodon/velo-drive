@@ -22,7 +22,7 @@ function rows(page: Page) {
   return page.locator("#pickerWorkoutTbody tr.picker-row");
 }
 
-test.describe("Picker (new Svelte app) — behavior", () => {
+test.describe("Picker — behavior", () => {
   test("search narrows the list", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -202,7 +202,7 @@ test.describe("Picker (new Svelte app) — behavior", () => {
 
 // --------------------------- Wave 2: keymap, persistence, builder guard, import ---------------------------
 
-test.describe("Picker (new Svelte app) — keymap", () => {
+test.describe("Picker — keymap", () => {
   test("'/' focuses the search input", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -317,7 +317,7 @@ test.describe("Picker (new Svelte app) — keymap", () => {
   });
 });
 
-test.describe("Picker (new Svelte app) — filter/sort persistence", () => {
+test.describe("Picker — filter/sort persistence", () => {
   test("filters + sort restore on reopen", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -341,7 +341,7 @@ test.describe("Picker (new Svelte app) — filter/sort persistence", () => {
   });
 });
 
-test.describe("Picker (new Svelte app) — saveWorkout trash-then-write", () => {
+test.describe("Picker — saveWorkout trash-then-write", () => {
   test("overwriting a clone trashes the old file before writing", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -387,7 +387,7 @@ test.describe("Picker (new Svelte app) — saveWorkout trash-then-write", () => 
   });
 });
 
-test.describe("Picker (new Svelte app) — builder unsaved-changes guard", () => {
+test.describe("Picker — builder unsaved-changes guard", () => {
   test("Back while dirty shows the discard dialog", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -421,7 +421,7 @@ test.describe("Picker (new Svelte app) — builder unsaved-changes guard", () =>
   });
 });
 
-test.describe("Picker (new Svelte app) — import", () => {
+test.describe("Picker — import", () => {
   test("uploading a .zwo file loads it into the builder", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -493,7 +493,7 @@ test.describe("Picker (new Svelte app) — import", () => {
 // fake FS; the REAL-only aspect (re-requesting read-write permission on a
 // reloaded handle) is covered by the WebFileStore ensureDirPermission calls,
 // which the harness fake resolves as "granted".
-test.describe("Picker (new Svelte app) — save round-trip + dir persistence", () => {
+test.describe("Picker — save round-trip + dir persistence", () => {
   test.use({harnessConfig: PICKER_HARNESS_CONFIG});
 
   test("clone writes a new .zwo to the workouts dir (FS round-trip)", async ({configuredPage}) => {
@@ -554,7 +554,7 @@ test.describe("Picker (new Svelte app) — save round-trip + dir persistence", (
 // Opening the picker (or 'w') with NO VeloDrive folder configured must warn
 // (Dialog) + open Settings — not silently do nothing
 // (ensureRootDirConfiguredForWorkouts).
-test.describe("Picker (new Svelte app) — no-folder guard", () => {
+test.describe("Picker — no-folder guard", () => {
   test.use({harnessConfig: PICKER_HARNESS_CONFIG});
 
   test("opening the picker with no folder warns and opens Settings", async ({page, harnessConfig}) => {
