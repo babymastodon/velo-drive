@@ -340,7 +340,7 @@ export class WebFileStore implements FileStore {
    * If the workouts dir has no .zwo files, copy the bundled defaults in. Returns
    * the number of files copied.
    */
-  private async maybeSeedDefaultWorkouts(dir: FsDirHandle): Promise<number> {
+  protected async maybeSeedDefaultWorkouts(dir: FsDirHandle): Promise<number> {
     const empty = !(await this.directoryHasAnyZwoFiles(dir));
     const inProgress = await this.getSettingRaw<boolean>(SEED_IN_PROGRESS_KEY, false);
     // Seed a fresh (empty) library, OR resume a previously-interrupted seed whose
