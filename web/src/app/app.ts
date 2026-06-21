@@ -51,6 +51,8 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const fileStore: WebFileStore = isTauri
     ? new (await import('../ports/native/NativeFileStore.js')).NativeFileStore()
     : new WebFileStore();
+  // In the native shell, route workout-URL imports through Rust (no CORS).
+  if (isTauri) (await import('../ports/native/native-http.js')).installNativeHttp();
   const beeper = new Beeper();
   const store = new EngineStore();
   const logs = new LogsStore();

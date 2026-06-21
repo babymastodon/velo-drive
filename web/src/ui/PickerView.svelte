@@ -29,7 +29,7 @@
   import { themeAutoVersion } from '../state/theme.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
-  import { parseTrainerDayUrl } from '../core/scrapers.js';
+  import { parseWorkoutUrl } from '../core/scrapers.js';
   import { parseFitFile } from '../core/fit.js';
   import { parseZwoXmlToCanonicalWorkout } from '../core/zwo.js';
   import { isEditableTarget } from './dom-utils.js';
@@ -516,25 +516,25 @@
     }
   }
 
-  // --------------------------- import: TrainerDay URL ---------------------------
-  async function onImportTrainerDay(): Promise<void> {
+  // --------------------------- import: workout URL ---------------------------
+  async function onImportUrl(): Promise<void> {
     if (!builderApi) return;
     const url = await dialogs.prompt(
-      'Paste a TrainerDay workout URL to load it into the builder.',
+      'Paste a TrainerDay or WhatsOnZwift workout URL to load it into the builder.',
       {
-        title: 'Import TrainerDay',
+        title: 'Import from URL',
         okLabel: 'Import',
-        placeholder: 'https://app.trainerday.com/workouts/…',
-        example: 'https://app.trainerday.com/workouts/vo2-max-1-8x4min-120',
+        placeholder: 'https://…',
+        example: 'https://whatsonzwift.com/workouts/zwift-academy/finale-workout',
       },
     );
     if (!url) return;
-    const [canonical, error] = await parseTrainerDayUrl(url.trim());
+    const [canonical, error] = await parseWorkoutUrl(url.trim());
     if (!canonical) {
       if (error) await dialogs.alert(error, { title: 'Import failed' });
       return;
     }
-    loadIntoBuilder(canonical, 'TrainerDay Workout');
+    loadIntoBuilder(canonical, canonical.workoutTitle || 'Imported Workout');
   }
 
   // --------------------------- import: file upload (.zwo/.fit) ---------------------------
@@ -1045,20 +1045,20 @@
         >{builderStatusText}</div>
 
         <button
-          id="workoutBuilderTrainerDayBtn"
+          id="workoutBuilderImportUrlBtn"
           class="wb-code-insert-btn"
           type="button"
-          data-testid="builder-trainerday"
-          title="Load a TrainerDay workout by URL"
+          data-testid="builder-import-url"
+          title="Import a TrainerDay or WhatsOnZwift workout by URL"
           style:display={builderMode ? 'inline-flex' : 'none'}
-          onclick={() => void onImportTrainerDay()}
+          onclick={() => void onImportUrl()}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
             <path d="M18 3h3v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             <path d="M21 3l-9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <span>Import TrainerDay</span>
+          <span>Import from URL</span>
         </button>
 
         <input
