@@ -99,6 +99,7 @@
         id="stat-cadence-indicator"
         data-testid="stat-cadence-indicator"
         class="stat-cadence-indicator"
+        style="color: {color}"
         class:stat-cadence-indicator--visible={!!indicator}>{indicator}</span
       >
     </div>

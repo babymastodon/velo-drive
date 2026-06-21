@@ -29,6 +29,38 @@ export class Beeper implements BeeperLike {
   private timeouts: number[] = [];
   private countdownRunning = false;
 
+  constructor() {
+    this.installAudioPrimer();
+  }
+
+  /**
+   * Warm/resume the AudioContext on the first user gesture and whenever the tab
+   * returns to the foreground, mirroring legacy primeAudioContext. Browsers
+   * start an AudioContext SUSPENDED until a gesture resumes it, so without this
+   * the first countdown/cue beep (often fired from a tick, not a click) is
+   * silently dropped. Best-effort + harness-safe (no AudioContext → no-op).
+   */
+  private installAudioPrimer(): void {
+    if (typeof window === 'undefined') return;
+    const prime = (): void => this.warmUp();
+    try {
+      window.addEventListener('pointerdown', prime, { passive: true });
+      window.addEventListener('keydown', prime);
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') this.warmUp();
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** Create (if needed) and resume the AudioContext. Safe to call repeatedly. */
+  warmUp(): void {
+    this.ensureAudioContext();
+  }
+
   private get statusOverlay(): HTMLElement | null {
     return document.getElementById('statusOverlay');
   }
@@ -57,15 +89,27 @@ export class Beeper implements BeeperLike {
   }
 
   private ensureAudioContext(): AudioContext | null {
-    if (this.audioCtx) return this.audioCtx;
-    const Ctor = (window as unknown as { AudioContext?: AudioContextCtor }).AudioContext;
-    if (!Ctor) return null;
-    try {
-      this.audioCtx = new Ctor();
-    } catch {
-      this.audioCtx = null;
+    if (!this.audioCtx) {
+      const Ctor = (window as unknown as { AudioContext?: AudioContextCtor }).AudioContext;
+      if (!Ctor) return null;
+      try {
+        this.audioCtx = new Ctor();
+      } catch {
+        this.audioCtx = null;
+      }
     }
-    return this.audioCtx;
+    const ctx = this.audioCtx;
+    // Browsers create the context SUSPENDED under the autoplay policy (and
+    // re-suspend it when the tab is hidden). Resume so a beep fired from a tick
+    // (not a click) — or after backgrounding — isn't silently dropped (AUDIO-R1/E2).
+    if (ctx && ctx.state === 'suspended') {
+      try {
+        void (ctx as { resume?: () => Promise<void> }).resume?.();
+      } catch {
+        /* ignore */
+      }
+    }
+    return ctx;
   }
 
   setVolume(v: number): void {
@@ -100,8 +144,16 @@ export class Beeper implements BeeperLike {
   }
 
   playBeepPattern(): void {
-    // 3 short beeps; primitive cue only (no precise scheduling needed for HUD).
-    for (let i = 0; i < 3; i++) this.playBeep(120, 880, 0.75);
+    // 3-2-1 countdown into an interval change: 3 short beeps spaced 1s apart,
+    // then a longer "go" beep at the change (legacy beeper.js playBeepPattern).
+    // Scheduled via timers (not a synchronous loop, which stacked all three into
+    // a single audible blip) so each beep also re-checks `enabled` — muting
+    // mid-pattern silences the rest.
+    const spacingMs = 1000;
+    for (let i = 0; i < 3; i++) {
+      this.addTimeout(() => this.playBeep(120, 880, 0.75), i * spacingMs);
+    }
+    this.addTimeout(() => this.playBeep(500, 660, 0.75), 3 * spacingMs);
   }
 
   playDangerDanger(): void {
