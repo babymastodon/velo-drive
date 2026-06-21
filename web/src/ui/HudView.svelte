@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { EngineStore } from '../state/engine.svelte.js';
   import type { WorkoutEngine } from '../core/engine.js';
-  import type { WebBluetoothTransport } from '../ports/web/WebBluetoothTransport.js';
+  import type { TrainerTransport } from '../ports/TrainerTransport.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
   import StatCards from './StatCards.svelte';
   import LiveChart from './LiveChart.svelte';
@@ -19,7 +19,7 @@
   }: {
     store: EngineStore;
     engine: WorkoutEngine;
-    transport: WebBluetoothTransport;
+    transport: TrainerTransport;
     dialogs: DialogStore;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;

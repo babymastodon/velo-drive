@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { EngineViewModel, WorkoutEngine } from '../core/engine.js';
-  import type { WebBluetoothTransport } from '../ports/web/WebBluetoothTransport.js';
+  import type { TrainerTransport } from '../ports/TrainerTransport.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import { CadenceCoach, computeCoachingTitle } from './hud-coaching.js';
@@ -23,7 +23,7 @@
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
-    transport: WebBluetoothTransport;
+    transport: TrainerTransport;
     dialogs: DialogStore;
     bikeStatus: 'connecting' | 'connected' | 'error' | 'idle';
     hrStatus: 'connecting' | 'connected' | 'error' | 'idle';

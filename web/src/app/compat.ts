@@ -80,7 +80,14 @@ export function detectBrowser(): DetectResult {
 /**
  * The compatibility-alert message (empty string when supported).
  */
+/** Running inside the Tauri native shell (native BLE; no browser constraints). */
+export function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 export function compatMessage(): string {
+  // The native shell drives Bluetooth through Rust — browser checks don't apply.
+  if (isTauri()) return '';
   const os = detectOs();
   const browser = detectBrowser();
   if (!os.supported) {
@@ -97,8 +104,9 @@ export function isPlatformIncompatible(): boolean {
   return compatMessage() !== '';
 }
 
-/** Web Bluetooth (getDevices) availability. */
+/** Bluetooth availability: native in Tauri, else Web Bluetooth (getDevices). */
 export function isWebBluetoothAvailable(): boolean {
+  if (isTauri()) return true;
   return (
     typeof navigator !== 'undefined' &&
     !!(navigator as Navigator & { bluetooth?: { getDevices?: unknown } }).bluetooth &&

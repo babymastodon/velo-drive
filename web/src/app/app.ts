@@ -7,6 +7,7 @@
 
 import { WebBluetoothTransport } from '../ports/web/WebBluetoothTransport.js';
 import { WebFileStore } from '../ports/web/WebFileStore.js';
+import type { TrainerTransport } from '../ports/TrainerTransport.js';
 import { Beeper } from '../core/beeper.js';
 import { WorkoutEngine } from '../core/engine.js';
 import { EngineStore } from '../state/engine.svelte.js';
@@ -17,7 +18,7 @@ import { applyThemeMode, loadThemeMode } from './theme.js';
 export interface AppContext {
   store: EngineStore;
   engine: WorkoutEngine;
-  transport: WebBluetoothTransport;
+  transport: TrainerTransport;
   fileStore: WebFileStore;
   beeper: Beeper;
   logs: LogsStore;
@@ -37,7 +38,13 @@ export interface BootOptions {
 }
 
 export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
-  const transport = new WebBluetoothTransport();
+  // In a Tauri window, drive Bluetooth through the native Rust connector; in a
+  // browser/PWA, use Web Bluetooth. The native module is lazy-imported so the
+  // PWA bundle stays free of the Tauri API.
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  const transport: TrainerTransport = isTauri
+    ? new (await import('../ports/native/NativeTrainerTransport.js')).NativeTrainerTransport()
+    : new WebBluetoothTransport();
   const fileStore = new WebFileStore();
   const beeper = new Beeper();
   const store = new EngineStore();
