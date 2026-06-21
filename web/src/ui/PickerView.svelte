@@ -1231,7 +1231,7 @@
           </tr>
         </thead>
         <tbody id="pickerWorkoutTbody" data-testid="picker-tbody">
-          {#each visibleItems as item (item.canonical.workoutTitle)}
+          {#each visibleItems as item (item.canonical.sourcePath ?? item.canonical.workoutTitle)}
             {@const title = item.canonical.workoutTitle}
             {@const zone = item.zone}
             {@const m = item.metrics}
