@@ -1,14 +1,12 @@
 // core/scrapers.ts
 //
-// Pure TypeScript port of the TrainerDay-URL scraper from docs/scrapers.js. Turns
-// a TrainerDay workout URL into a CanonicalWorkout. Uses the global `fetch`
-// (the e2e/unit harness can stub it). Returns a [workout, errorMessage] tuple:
+// The TrainerDay-URL scraper. Turns a TrainerDay workout URL into a
+// CanonicalWorkout. Uses the global `fetch` (the e2e/unit harness can stub it).
+// Returns a [workout, errorMessage] tuple:
 //   - on success: [canonical, null]
 //   - on failure: [null, "user-friendly error message"]
 //
-// Only the TrainerDay path is ported here (the picker's "Import TrainerDay"
-// button). The TrainerRoad / WhatsOnZwift page scrapers are page-context-only and
-// are not used by the re-hosted picker.
+// Only the TrainerDay path lives here (the picker's "Import TrainerDay" button).
 
 import type { CanonicalWorkout, RawSegment } from './model.js';
 
@@ -26,8 +24,8 @@ interface FetchError extends Error {
 }
 
 /**
- * fetchJson with basic CORS / offline detection (mirrors docs/scrapers.js). HTTP
- * errors carry a `status`; CORS/offline failures carry `isCorsError`/`isNetworkError`.
+ * fetchJson with basic CORS / offline detection. HTTP errors carry a `status`;
+ * CORS/offline failures carry `isCorsError`/`isNetworkError`.
  */
 async function fetchJson(url: string, options: RequestInit = {}): Promise<unknown> {
   try {
@@ -71,7 +69,7 @@ async function fetchTrainerDayWorkoutBySlug(slug: string): Promise<unknown> {
   return fetchJson(url, { credentials: 'omit' });
 }
 
-/** Plain-text-ify HTML descriptions (mirrors docs/scrapers.js toPlainText). */
+/** Plain-text-ify HTML descriptions. */
 function toPlainText(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value

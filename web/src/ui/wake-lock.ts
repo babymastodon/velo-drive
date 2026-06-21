@@ -1,4 +1,4 @@
-// wake-lock.ts — keep the screen awake during a ride (AUDIO-E3).
+// wake-lock.ts — keep the screen awake during a ride.
 //
 // During an indoor ride the user isn't touching the device, so the OS dims/sleeps
 // the display and the live HUD goes dark. navigator.wakeLock.request('screen')

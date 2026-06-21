@@ -1,5 +1,5 @@
-// New (Svelte) app workout picker: behavior. Both apps boot the SAME hermetic
-// config (same seeded .zwo library + default sort).
+// Workout picker behavior. Boots the hermetic config (the seeded .zwo library +
+// default sort).
 //
 // Behavior covers the library-browse + ride-selection scope: search narrows,
 // zone/duration filters narrow, sort headers reorder, expand shows stats +
@@ -263,7 +263,7 @@ test.describe("Picker (new Svelte app) — keymap", () => {
     await reachNewRidingView(page);
     await openPicker(page);
 
-    // Focus the zone filter via the 'z' hotkey (matches legacy z→showPicker).
+    // Focus the zone filter via the 'z' hotkey.
     await page.getByTestId("picker-modal").click();
     await page.keyboard.press("z");
     const zone = page.getByTestId("picker-zone-filter");
@@ -273,8 +273,7 @@ test.describe("Picker (new Svelte app) — keymap", () => {
     // Drive a keydown on the focused <select>. NOTE: Playwright's synthetic
     // keyboard.press() to a focused native <select> is swallowed by Chromium's
     // built-in select keyboard handling and never reaches the JS keydown handler
-    // (this is the SAME harness limitation the events audit hit with legacy —
-    // "on the harness Chromium `j` left the value unchanged"). So we dispatch the
+    // (on the harness Chromium `j` leaves the value unchanged). So we dispatch the
     // keydown the way a real keyboard would on the focused element.
     const pressOnSelect = (key: string) =>
       page.evaluate((k) => {
@@ -489,11 +488,11 @@ test.describe("Picker (new Svelte app) — import", () => {
   });
 });
 
-// Bug #1/#2: the .zwo write + dir-handle persistence round-trip through the
-// (in-memory) FileStore. The real File-System-Access write path is exercised
-// here via the fake FS; the REAL-only aspect (re-requesting read-write
-// permission on a reloaded handle) is covered by the new WebFileStore
-// ensureDirPermission calls, which the harness fake resolves as "granted".
+// The .zwo write + dir-handle persistence round-trip through the (in-memory)
+// FileStore. The real File-System-Access write path is exercised here via the
+// fake FS; the REAL-only aspect (re-requesting read-write permission on a
+// reloaded handle) is covered by the WebFileStore ensureDirPermission calls,
+// which the harness fake resolves as "granted".
 test.describe("Picker (new Svelte app) — save round-trip + dir persistence", () => {
   test.use({harnessConfig: PICKER_HARNESS_CONFIG});
 
@@ -531,8 +530,8 @@ test.describe("Picker (new Svelte app) — save round-trip + dir persistence", (
     const page = configuredPage;
     await reachNewRidingView(page);
 
-    // The configured root handle is present in the settings store, keyed exactly
-    // as legacy (rootDirHandle), and the app's loadRootDirHandle returns it.
+    // The configured root handle is present in the settings store, keyed
+    // rootDirHandle, and the app's loadRootDirHandle returns it.
     const persisted = await page.evaluate(async () => {
       const bridge = (window as unknown as {__VELO_APP__: {ui: unknown}}).__VELO_APP__;
       const store = (window as unknown as {__VELO_HARNESS__: {settingsStore: Map<string, {handle?: unknown}>}})
@@ -552,14 +551,14 @@ test.describe("Picker (new Svelte app) — save round-trip + dir persistence", (
   });
 });
 
-// Bug #3: opening the picker (or 'w') with NO VeloDrive folder configured must
-// warn (Dialog) + open Settings — not silently do nothing (legacy
-// ensureRootDirConfiguredForWorkouts, docs/workout.js:209-222).
+// Opening the picker (or 'w') with NO VeloDrive folder configured must warn
+// (Dialog) + open Settings — not silently do nothing
+// (ensureRootDirConfiguredForWorkouts).
 test.describe("Picker (new Svelte app) — no-folder guard", () => {
   test.use({harnessConfig: PICKER_HARNESS_CONFIG});
 
   test("opening the picker with no folder warns and opens Settings", async ({page, harnessConfig}) => {
-    // Seed harness config + env (mirrors the configuredPage fixture), then strip
+    // Seed harness config + env (as the configuredPage fixture does), then strip
     // the configured dir handles so the app boots UNCONFIGURED (a fresh user).
     await page.addInitScript((cfg) => {
       (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = cfg;

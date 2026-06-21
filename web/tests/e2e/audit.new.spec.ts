@@ -1,19 +1,15 @@
 // tests/e2e/audit.new.spec.ts
 //
-// NEW-METHOD visual audit: ABSOLUTE-correctness checks for the forced-dark bug
-// class the legacy diff-gate is blind to.
+// Absolute-correctness checks for the forced-dark CSS bug class. Rather than
+// comparing against a baseline, this spec judges each element on its OWN
+// computed style, so a bug that is uniformly present still fails.
 //
-// Why this spec exists (and why the old gate missed these):
-//   * The old gate DIFFS new-vs-legacy. Bugs present in BOTH diff to ~0. This
-//     spec judges each element on its OWN computed style, no baseline.
-//   * The old gate DISABLES animations (fixtures.ts injects
-//     `*{transition:none;animation:none}`). This spec renders with animations
-//     ENABLED so a redraw flash is observable.
-//   * The old gate only renders seeded/boot-settled states. This spec renders
-//     empty-library, no-workout, dropdown-open, and runtime-toggle states.
-//   * The bug class is FORCED dark: <html class="theme-dark"> on a LIGHT OS, so
-//     @media(prefers-color-scheme:dark) overrides do NOT apply. We force the
-//     OS to light (colorScheme:'light') AND set theme-dark — exactly the broken
+// It deliberately exercises conditions ordinary screenshot tests miss:
+//   * animations ENABLED (so a redraw flash is observable),
+//   * unusual states: empty-library, no-workout, dropdown-open, runtime-toggle,
+//   * FORCED dark: <html class="theme-dark"> on a LIGHT OS, so
+//     @media(prefers-color-scheme:dark) overrides do NOT apply. We force the OS
+//     to light (colorScheme:'light') AND set theme-dark — exactly the broken
 //     combo — so any rule that relied only on @media-dark is exposed.
 //
 // The assertion: NO element that renders over a dark surface may compute a
@@ -219,8 +215,8 @@ const ALLOW = [".toggle-thumb", ".switch-thumb", "input", "textarea", ".settings
 
 // Theme-reactive CSS vars that MUST flip with the active forced theme. Each var
 // has a light value and a dark value; a missing :root.theme-* twin (or a missing
-// @media-dark entry) leaves the var stuck on the wrong palette. These were the
-// freeride/shade/insert-line gaps the diff-gate was blind to.
+// @media-dark entry) leaves the var stuck on the wrong palette (e.g. the
+// freeride/shade/insert-line gaps).
 const THEME_VARS_LIGHT: Record<string, string> = {
   "--freeride-fill": "#d8d8d8",
   "--freeride-stripe": "#b0b0b0",

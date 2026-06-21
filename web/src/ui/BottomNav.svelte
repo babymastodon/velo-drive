@@ -39,7 +39,7 @@
   const workoutActive = $derived(vm.workoutRunning || vm.workoutPaused || vm.workoutStarting);
   const freeRideUiActive = $derived(workoutActive && vm.isFreeRideActive);
 
-  // Playback button visibility (ported from updatePlaybackButtons).
+  // Playback button visibility.
   const showCalendar = $derived(!workoutActive);
   const showStart = $derived(!vm.workoutRunning && !!vm.canonicalWorkout);
   const showStop = $derived(vm.workoutRunning);
@@ -51,9 +51,9 @@
 
   // Live coaching title: per-segment instruction ("Maintain N watts for D at C
   // RPM" / "Ramp up/down to N watts" / "Free ride at N watts"), the "In N - "
-  // lookahead, and "Speed up/Slow down" cadence coaching (ported from
-  // docs/workout.js updateWorkoutTitleUI). The CadenceCoach accrues off-cadence
-  // seconds across renders, so it persists outside the $derived.
+  // lookahead, and "Speed up/Slow down" cadence coaching. The CadenceCoach
+  // accrues off-cadence seconds across renders, so it persists outside the
+  // $derived.
   const coach = new CadenceCoach();
   const coaching = $derived(computeCoachingTitle(vm, coach));
   // Plain string for the title= tooltip / the simple-text branch.
@@ -72,15 +72,15 @@
   function onStartLike(): void {
     engine.startWorkout();
   }
-  // Stop must confirm before ending + saving (legacy docs/workout.js:1647).
+  // Stop must confirm before ending + saving.
   async function onStop(): Promise<void> {
     const sure = await dialogs.confirm('End current workout and save it?');
     if (!sure) return;
     await engine.endWorkout();
   }
-  // Warn + open Settings when Web Bluetooth is unavailable (mirrors legacy
-  // docs/workout.js:1525-1565). When available, the picker connect runs; a
-  // user cancel/failure is handled inside the transport (status → idle/error).
+  // Warn + open Settings when Web Bluetooth is unavailable. When available, the
+  // picker connect runs; a user cancel/failure is handled inside the transport
+  // (status → idle/error).
   async function ensureBluetooth(): Promise<boolean> {
     if (isWebBluetoothAvailable()) return true;
     await dialogs.alert(
@@ -110,10 +110,10 @@
   );
   const manualUnit = $derived(vm.freeRideMode === 'erg' ? 'W' : '%');
 
-  // Manual input commit (legacy handleManualInputSave / normalise* ~996-1043).
-  // Parse the typed value, clamp it (ERG: [50, ftp*2.5]; resistance [0,100]),
-  // and push the diff to the engine. Reverts the input to the current value if
-  // unchanged (the engine is the source of truth for the displayed number).
+  // Manual input commit. Parse the typed value, clamp it (ERG: [50, ftp*2.5];
+  // resistance [0,100]), and push the diff to the engine. Reverts the input to
+  // the current value if unchanged (the engine is the source of truth for the
+  // displayed number).
   function normaliseErg(raw: string): number {
     const n = Number(raw);
     if (!Number.isFinite(n)) return vm.manualErgTarget || vm.currentFtp || DEFAULT_FTP;
@@ -156,7 +156,7 @@
   }
 
   // Sync the displayed value from the engine, but never overwrite while the
-  // user is typing (legacy applyModeUI ~971-987 / D15).
+  // user is typing.
   let manualInputEl = $state<HTMLInputElement | null>(null);
   $effect(() => {
     const v = manualValue; // track

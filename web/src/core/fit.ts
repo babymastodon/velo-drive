@@ -1,13 +1,8 @@
 // fit.ts
 //
-// TypeScript port of docs/fit-file.js — minimal FIT read/write helpers.
-// Focused on the subset of messages VeloDrive emits: file_id, device_info,
-// session/lap, workout/workout_step, records, and developer data for targets +
-// canonical metadata.
-//
-// Behavior is preserved EXACTLY from the legacy module. Differential tests
-// build a FIT from deterministic inputs (explicit startedAt/endedAt) and assert
-// byte-equality with the legacy builder, plus a parse round-trip.
+// Minimal FIT read/write helpers. Focused on the subset of messages VeloDrive
+// emits: file_id, device_info, session/lap, workout/workout_step, records, and
+// developer data for targets + canonical metadata.
 
 import type { CanonicalWorkout } from './model.js';
 

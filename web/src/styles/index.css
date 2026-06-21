@@ -1,6 +1,5 @@
-/* Re-hosted legacy design — global & verbatim (the design IS this CSS).
-   Order preserved from legacy docs/index.html. New Svelte components reproduce
-   the same class names + semantic DOM so the cascade applies unchanged.
+/* Global design CSS (the design IS this CSS). The Svelte components use the same
+   class names + semantic DOM so the cascade applies unchanged.
    Only genuinely component-local rules belong in scoped <style> blocks. */
 @import './workout-base.css';
 @import './workout-planner.css';
@@ -9,10 +8,10 @@
 @import './welcome.css';
 
 /* The Svelte mount point must not interpose a layout box between <body> and
-   .page-root — legacy renders .page-root as a direct child of <body>, and its
-   full-viewport flex/grid layout collapses (content squished to a centered
-   ~600px column) if #app generates its own box. `display: contents` makes #app
-   transparent to layout so the re-hosted CSS behaves exactly as in legacy. */
+   .page-root — .page-root is a direct child of <body>, and its full-viewport
+   flex/grid layout collapses (content squished to a centered ~600px column) if
+   #app generates its own box. `display: contents` makes #app transparent to
+   layout so the CSS behaves as intended. */
 #app {
   display: contents;
 }

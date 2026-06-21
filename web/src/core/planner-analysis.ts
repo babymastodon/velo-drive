@@ -1,9 +1,8 @@
 // planner-analysis.ts
 //
-// TypeScript port of the pure (non-DOM) helpers from docs/planner-analysis.js:
-// the "actual power" interval builder for the day mini-charts, the
-// power-duration curve builder for the ride detail view, and HR/cadence stats.
-// Behavior is preserved verbatim from the legacy module.
+// Pure (non-DOM) planner analysis helpers: the "actual power" interval builder
+// for the day mini-charts, the power-duration curve builder for the ride detail
+// view, and HR/cadence stats.
 
 import type { Sample } from './metrics.js';
 

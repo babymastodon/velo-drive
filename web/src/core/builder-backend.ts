@@ -1,11 +1,9 @@
 // builder-backend.ts
 //
-// DOM-free TypeScript port of docs/builder-backend.js — the workout builder's
-// MODEL. Blocks <-> rawSegments, block mutations, selection, undo/redo
-// snapshots, and text-event anchoring. Geometry/clamping/grouping rules are
-// preserved verbatim so a built workout serializes (via core/zwo.ts) to the
-// same .zwo the legacy backend+zwo would produce. Parity is asserted in
-// builder-backend.test.ts.
+// DOM-free MODEL for the workout builder. Blocks <-> rawSegments, block
+// mutations, selection, undo/redo snapshots, and text-event anchoring. The
+// geometry/clamping/grouping rules determine how a built workout serializes
+// (via core/zwo.ts) to .zwo.
 
 import {
   computeMetricsFromSegments,
@@ -142,8 +140,7 @@ export interface SelectionSnapshot {
 
 // --------------------------- clipboard codec ---------------------------
 //
-// Pure encode/decode for the builder clipboard payload. The legacy builder
-// (docs/workout-builder.js copySelectionToClipboard/pasteFromClipboard) writes
+// Pure encode/decode for the builder clipboard payload. The builder writes
 // either ZWO XML (for a block selection) or a `VELO_TEXT_EVENTS:{json}` string
 // (for a lone text-event selection) via navigator.clipboard. These two pure
 // functions own that wire format so it can be unit-tested without a real
@@ -156,9 +153,9 @@ export type ClipboardPayload =
   | { kind: 'textEvents'; textEvents: TextEvent[] };
 
 /**
- * Encode block rawSegments (+ their text events) to ZWO XML for the clipboard.
- * Mirrors the legacy copy path: a "Clipboard" canonical workout serialized via
- * core/zwo canonicalWorkoutToZwoXml.
+ * Encode block rawSegments (+ their text events) to ZWO XML for the clipboard:
+ * a "Clipboard" canonical workout serialized via core/zwo
+ * canonicalWorkoutToZwoXml.
  */
 export function encodeClipboard(
   rawSegments: RawSegment[],
@@ -176,9 +173,8 @@ export function encodeClipboard(
 }
 
 /**
- * Encode a lone text-event selection to the `VELO_TEXT_EVENTS:{json}` string,
- * matching the legacy copySelectionToClipboard text-event branch (offset reset
- * to 0 so paste lands at the insertion cursor).
+ * Encode a lone text-event selection to the `VELO_TEXT_EVENTS:{json}` string
+ * (offset reset to 0 so paste lands at the insertion cursor).
  */
 export function encodeTextEventClipboard(textEvents: TextEvent[]): string {
   const payload = {

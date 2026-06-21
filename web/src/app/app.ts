@@ -24,16 +24,15 @@ export interface AppContext {
 }
 
 export interface BootOptions {
-  // Called when a ride finishes (after the FIT is written). Mirrors the legacy
-  // onWorkoutEnded follow-up (docs/workout.js:1368) — the shell uses it to open
-  // the planner to the saved ride. `info` is null when nothing was saved.
+  // Called when a ride finishes (after the FIT is written). The shell uses it to
+  // open the planner to the saved ride. `info` is null when nothing was saved.
   onWorkoutEnded?: (info: { fileName: string; startedAt: Date; endedAt: Date } | null) => void;
   // Surfaces the important WebFileStore failures (no folder, permission revoked,
-  // save/delete failed) to the UI via a themed Dialog alert (mirrors the legacy
-  // alert()s, replacing the unthemed native ones). Wired to dialogs.alert.
+  // save/delete failed) to the UI via a themed Dialog alert. Wired to
+  // dialogs.alert.
   onFileError?: (message: string) => void;
   // Surfaces the engine's two reachable warnings (no workout / end current
-  // workout first) via the themed Dialog (replaces native alert()s; J-DARK-12).
+  // workout first) via the themed Dialog.
   onEngineAlert?: (message: string) => void;
 }
 
@@ -46,11 +45,10 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
 
   const engine = new WorkoutEngine({ transport, fileStore, beeper });
 
-  // Route the important file-op failures to the themed Dialog (replaces the
-  // unthemed native alert()s; J-ERR / J-DARK-12).
+  // Route the important file-op failures to the themed Dialog.
   if (opts.onFileError) fileStore.onError = opts.onFileError;
 
-  // Surface transport device status into the store (mirrors legacy bottom-nav).
+  // Surface transport device status into the store (drives the bottom-nav).
   transport.on('bikeStatus', (s) => {
     store.bikeStatus = s.state;
     store.bikeStatusMessage = s.message;
@@ -62,14 +60,13 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   transport.on('hrBattery', (pct) => {
     store.hrBatteryPercent = pct;
   });
-  // Surface BLE/transport logs in the Settings logs sub-view (mirrors legacy
-  // workout.js `BleManager.on("log", logDebug)` → addLogLineToSettings).
+  // Surface BLE/transport logs in the Settings logs sub-view.
   transport.on('log', logs.append);
 
   // Load persisted FTP + sound preference before init (the engine reads the
   // selected workout + active state itself in init()).
   const ftp = await fileStore.getSetting<number>('ftp', DEFAULT_FTP);
-  // Default audible (legacy default true; J-CFG-15) — SettingsView agrees.
+  // Default audible — SettingsView agrees.
   const soundEnabled = await fileStore.getSetting<boolean>('soundEnabled', true);
   beeper.setEnabled(!!soundEnabled);
   // Volume level (0..1) for the settings slider; independent of the on/off flag.
@@ -77,14 +74,13 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   beeper.setVolume(await fileStore.getSetting<number>('soundVolume', 50 / 70));
   engine.setFtpInitial(ftp);
 
-  // Apply the persisted theme to <html> (mirrors legacy initThemeFromStorage).
-  // The inline anti-FOUC script in index.html only reads localStorage; the
-  // store (IDB) is authoritative for the harness, so re-apply here.
+  // Apply the persisted theme to <html>. The inline anti-FOUC script in
+  // index.html only reads localStorage; the store (IDB) is authoritative for the
+  // harness, so re-apply here.
   applyThemeMode(await loadThemeMode(fileStore));
 
   // Tell the transport which saved devices to auto-reconnect, and how to persist
-  // a newly paired device id for next-load reconnect (mirrors legacy
-  // saveBikeBleDeviceId/saveHrBleDeviceId via storage.js).
+  // a newly paired device id for next-load reconnect.
   const { bikeId, hrId } = await fileStore.loadBleDeviceIds();
   transport.setSavedDeviceIds({ bikeId, hrId });
   transport.setPersistDeviceIds({

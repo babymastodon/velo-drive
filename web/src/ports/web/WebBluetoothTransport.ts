@@ -1,8 +1,7 @@
 // WebBluetoothTransport.ts
 //
-// TypeScript port of docs/ble-manager.js behavior. Reads `navigator.bluetooth`
-// (so the harness fake drives it like the legacy app). Preserves: FTMS Indoor
-// Bike Data parse, HR measurement parse, ERG control (requestControl +
+// Reads `navigator.bluetooth` (so the harness fake drives it). Handles: FTMS
+// Indoor Bike Data parse, HR measurement parse, ERG control (requestControl +
 // startOrResume handshake, setTargetPower throttle/clamp), disconnect -> null
 // sample, and the bikeSample/hrSample/bikeStatus/hrStatus/hrBattery/log events.
 
@@ -14,7 +13,7 @@ import type {
   TrainerState,
 } from '../TrainerTransport.js';
 
-// ---------- FTMS constants (verbatim from docs/ble-manager.js) ----------
+// ---------- FTMS constants ----------
 const FTMS_SERVICE_UUID = 0x1826;
 const HEART_RATE_SERVICE_UUID = 0x180d;
 const BATTERY_SERVICE_UUID = 0x180f;
@@ -110,8 +109,8 @@ export class WebBluetoothTransport implements TrainerTransport {
   private hrServer: BtServer | null = null;
 
   // Suppress auto-reconnect for the SPECIFIC server we manually tear down when
-  // re-pairing (BLE-E2). Binding to the server (not a global boolean) means a
-  // real hardware drop racing the manual teardown can't mis-consume the flag.
+  // re-pairing. Binding to the server (not a global boolean) means a real
+  // hardware drop racing the manual teardown can't mis-consume the flag.
   private bikeSuppressReconnectServer: BtServer | null = null;
   private hrSuppressReconnectServer: BtServer | null = null;
 
@@ -120,7 +119,7 @@ export class WebBluetoothTransport implements TrainerTransport {
   private hrDisconnectHandler: (() => void) | null = null;
 
   // Persist newly paired device ids for next-load reconnect (set by the
-  // composition root). Mirrors legacy saveBikeBleDeviceId/saveHrBleDeviceId.
+  // composition root).
   private persistBikeId: ((id: string | null) => void) | null = null;
   private persistHrId: ((id: string | null) => void) | null = null;
 
@@ -165,7 +164,7 @@ export class WebBluetoothTransport implements TrainerTransport {
     this.hrDesiredDeviceId = ids.hrId || null;
   }
 
-  /** How to persist a newly paired device id (mirrors legacy saveBikeBleDeviceId). */
+  /** How to persist a newly paired device id. */
   setPersistDeviceIds(cb: {
     saveBikeId: (id: string | null) => void;
     saveHrId: (id: string | null) => void;
@@ -174,7 +173,7 @@ export class WebBluetoothTransport implements TrainerTransport {
     this.persistHrId = cb.saveHrId;
   }
 
-  // -------- auto-reconnect via getDevices() (mirrors maybeReconnectSavedDevicesOnLoad) --------
+  // -------- auto-reconnect via getDevices() --------
 
   private async maybeReconnectSavedDevices(): Promise<void> {
     const bt = getBluetooth();
@@ -317,7 +316,7 @@ export class WebBluetoothTransport implements TrainerTransport {
     } catch (err) {
       this.log('Bike picker cancelled or failed: ' + err);
       // Re-pair was cancelled: tear down the old connection, suppressing the
-      // resulting disconnect's auto-reconnect once (legacy behavior).
+      // resulting disconnect's auto-reconnect once.
       if (wasConnected && this.bikeServer?.connected) {
         this.bikeSuppressReconnectServer = this.bikeServer;
         try {
@@ -396,7 +395,7 @@ export class WebBluetoothTransport implements TrainerTransport {
       const indoorChar = await ftmsService.getCharacteristic(INDOOR_BIKE_DATA_CHAR);
       const cpChar = await ftmsService.getCharacteristic(FTMS_CONTROL_POINT_CHAR);
 
-      // Log FTMS Control Point indications (result codes), mirroring legacy.
+      // Log FTMS Control Point indications (result codes).
       cpChar.addEventListener('characteristicvaluechanged', (e) => {
         const dv = e.target.value;
         if (!dv || dv.byteLength < 3) return;
@@ -417,7 +416,7 @@ export class WebBluetoothTransport implements TrainerTransport {
 
       // requestControl + startOrResume handshake (both fatal on failure). Uses
       // the LOCAL cpChar; this.bikeControlPointChar is committed only after the
-      // stale-id check below (BLE-E1).
+      // stale-id check below.
       await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.requestControl, null);
       await this.writeFtmsControlPoint(cpChar, FTMS_OPCODES.startOrResume, null);
       this.log('FTMS requestControl + startOrResume sent.');
@@ -449,9 +448,9 @@ export class WebBluetoothTransport implements TrainerTransport {
       this.bikeDisconnectHandler = handler;
       device.addEventListener('gattserverdisconnected', handler);
 
-      // BLE-E1: commit the control-point char only here, AFTER the stale-id
-      // check, so a re-pair that lands mid-connect can't leave ERG writes
-      // pointed at a torn-down GATT char.
+      // Commit the control-point char only here, AFTER the stale-id check, so a
+      // re-pair that lands mid-connect can't leave ERG writes pointed at a
+      // torn-down GATT char.
       this.bikeControlPointChar = cpChar;
       this.bikeServer = server;
       this.bikeConnected = true;
@@ -522,10 +521,9 @@ export class WebBluetoothTransport implements TrainerTransport {
     }
     if (flags & (1 << 3)) index += 2;
     if (flags & (1 << 4)) index += 3;
-    // SENS-E1: Instantaneous Resistance Level is SINT16 (2 bytes) per the FTMS
-    // Indoor Bike Data spec. Legacy advanced only 1 byte, which misaligns the
-    // following fields (power/HR) for any trainer that sets this flag. Fixed to
-    // 2 (intentional divergence from the legacy parity oracle).
+    // Instantaneous Resistance Level is SINT16 (2 bytes) per the FTMS Indoor
+    // Bike Data spec. Advancing only 1 byte would misalign the following fields
+    // (power/HR) for any trainer that sets this flag.
     if (flags & (1 << 5)) index += 2;
     if (flags & (1 << 6)) {
       if (dataView.byteLength >= index + 2) {
@@ -680,7 +678,7 @@ export class WebBluetoothTransport implements TrainerTransport {
   }
 
   // Return whether the write actually landed, so setTrainerState only commits
-  // dedupe state on success (ERG-E2): a swallowed GATT failure must be retried.
+  // dedupe state on success: a swallowed GATT failure must be retried.
   private async sendErgSetpointRaw(targetWatts: number): Promise<boolean> {
     if (!this.bikeControlPointChar) return false;
     const val = Math.max(0, Math.min(2000, targetWatts | 0));
@@ -715,7 +713,7 @@ export class WebBluetoothTransport implements TrainerTransport {
   async setTrainerState(state: TrainerState, opts?: { force?: boolean }): Promise<void> {
     const force = opts?.force ?? false;
     if (!this.bikeConnected || !this.bikeControlPointChar) return;
-    // ERG-E4: drop a non-finite target rather than coercing it to 0 W (which
+    // Drop a non-finite target rather than coercing it to 0 W (which
     // `targetWatts | 0` would do) and busy-looping the dedupe (NaN !== NaN).
     if (!Number.isFinite(state.value)) return;
     const tNow = this.nowSec();
@@ -728,9 +726,9 @@ export class WebBluetoothTransport implements TrainerTransport {
         this.lastErgTargetSent !== target ||
         tNow - this.lastErgSendTs >= TRAINER_SEND_MIN_INTERVAL_SEC;
       if (needsSend) {
-        // ERG-E2: only record the target as sent when the write actually landed,
-        // so a swallowed GATT failure is retried on the next tick rather than
-        // deduped away (trainer left at the wrong watts for up to 10 s).
+        // Only record the target as sent when the write actually landed, so a
+        // swallowed GATT failure is retried on the next tick rather than deduped
+        // away (trainer left at the wrong watts for up to 10 s).
         const ok = await this.sendErgSetpointRaw(target);
         if (ok) {
           this.lastTrainerMode = 'erg';

@@ -1,12 +1,11 @@
 // welcome-scene.ts
 //
-// Faithful TS port of the welcome scene builder in docs/welcome.js. Builds the
-// per-slide SVG scene (splash = a centered logo image; the other slides load an
-// SVG asset, split its top-level <g> groups, and position each by its measured
-// bbox center). Animation-only CSS custom properties (--fly-*, --float-*) are
-// set as in legacy, but the visual harness disables animations, so only the
-// deterministic static transforms affect the render — keeping the pixel diff
-// stable. Assets are fetched from /img and /icons (copied into the build).
+// Builds the per-slide welcome SVG scene (splash = a centered logo image; the
+// other slides load an SVG asset, split its top-level <g> groups, and position
+// each by its measured bbox center). Animation-only CSS custom properties
+// (--fly-*, --float-*) are set, but the visual harness disables animations, so
+// only the deterministic static transforms affect the render — keeping the pixel
+// diff stable. Assets are fetched from /img and /icons (copied into the build).
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const VIEWBOX_SIZE = 360;

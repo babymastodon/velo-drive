@@ -1,10 +1,7 @@
 <script lang="ts">
-  // SettingsView — faithful re-host of the legacy #settingsOverlay/#settingsModal
-  // (docs/index.html ~894-1288 + docs/settings.js behavior). Same classes + IDs
-  // so the re-hosted settings.css applies unchanged; data-testids added for
-  // behavior assertions. FTP (input + ±10 clamp 50-500, persists via FileStore +
-  // engine.setFtp), sound, theme (auto/light/dark — re-applies <html> classes +
-  // persists), folder/env/compat (same DOM; FSA parts stubbed via the port),
+  // SettingsView — the #settingsOverlay/#settingsModal. FTP (input + ±10 clamp
+  // 50-500, persists via FileStore + engine.setFtp), sound, theme
+  // (auto/light/dark — re-applies <html> classes + persists), folder/env/compat,
   // logs sub-view.
   import OverlayModal from './OverlayModal.svelte';
   import type { WorkoutEngine } from '../core/engine.js';
@@ -79,7 +76,7 @@
   // A single horizontal volume slider (0–100). 0 = muted; >0 = audible at that
   // level. Persists both soundVolume (the level the beeper scales by) and
   // soundEnabled (the on/off flag app.ts reads on boot) so muting via the slider
-  // is a real off. Default audible (legacy default true; J-CFG-15).
+  // is a real off. Default audible.
   // The slider is 0–100% in 10% steps; 70% maps to the reference gain (1.0 —
   // today's loudness), so a stored soundVolume of 1.0 shows as 70%. The default
   // (nothing stored) is 50%, i.e. a moderate level below the reference. Above
@@ -167,9 +164,8 @@
   function toggleHelp(id: string): void {
     helpOpen = { ...helpOpen, [id]: !helpOpen[id] };
   }
-  // Force-open a help section (used by the boot-time auto-open; mirrors
-  // settings.js showHelpSectionById). Reads ui.forceHelpSection set by the
-  // startup-attention path.
+  // Force-open a help section (used by the boot-time auto-open). Reads
+  // ui.forceHelpSection set by the startup-attention path.
   $effect(() => {
     if (open && ui.forceHelpSection) {
       const id = ui.forceHelpSection;
@@ -179,10 +175,9 @@
   });
 
   // ---- Logs sub-view ----
-  // Render the reactive log lines, preserving the legacy "auto-scroll only when
-  // already at the bottom" behavior (docs/settings.js addLogLineToSettings):
-  // measure before re-render, then if the user was at the bottom, keep them
-  // pinned; otherwise leave their scroll position alone.
+  // Render the reactive log lines, preserving the "auto-scroll only when already
+  // at the bottom" behavior: measure before re-render, then if the user was at
+  // the bottom, keep them pinned; otherwise leave their scroll position alone.
   let logsContentEl = $state<HTMLDivElement | null>(null);
   const logText = $derived(logs.lines.join('\n'));
   $effect(() => {

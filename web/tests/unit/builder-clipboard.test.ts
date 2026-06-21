@@ -1,6 +1,6 @@
 // Unit tests for the builder clipboard codec (src/core/builder-backend.ts
 // encodeClipboard / encodeTextEventClipboard / parseClipboard). The codec owns
-// the wire format the legacy builder used: ZWO XML for block selections and a
+// the builder's clipboard wire format: ZWO XML for block selections and a
 // `VELO_TEXT_EVENTS:{json}` string for a lone text-event. These functions are
 // pure (no navigator.clipboard) so copy->paste can be asserted deterministically
 // here; the e2e harness mocks navigator.clipboard separately.

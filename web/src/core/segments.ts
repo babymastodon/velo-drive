@@ -6,9 +6,9 @@
 // the HUD modules; they are consolidated here WITHOUT changing the tuple shape
 // or any computed value.
 //
-// CRITICAL: the tuple layout is byte-locked to the FIT/zwo parity +
-// differential tests. These accessors only WRAP the existing positional indices
-// (seg[0]..seg[4]); they do not restructure the tuple or alter any value.
+// CRITICAL: the tuple layout is load-bearing for the FIT/zwo codecs. These
+// accessors only WRAP the existing positional indices (seg[0]..seg[4]); they do
+// not restructure the tuple or alter any value.
 
 import type { RawSegment } from './model.js';
 
@@ -47,7 +47,7 @@ export function getRawType(seg: RawSegmentLike): unknown {
 
 /**
  * Segment duration in whole seconds. The canonical formula
- * `Math.max(1, Math.round(min * 60))` — preserved verbatim.
+ * `Math.max(1, Math.round(min * 60))`.
  */
 export function segDurationSec(minutes: number): number {
   return Math.max(1, Math.round((minutes || 0) * 60));
@@ -59,9 +59,8 @@ export function isFreeRideSegment(seg: RawSegmentLike): boolean {
 }
 
 /**
- * Cadence target (rpm) for the segment, or `null`. Mirrors the legacy lookup:
- * free-ride has none; otherwise prefer slot [4], falling back to a numeric
- * slot [3].
+ * Cadence target (rpm) for the segment, or `null`: free-ride has none;
+ * otherwise prefer slot [4], falling back to a numeric slot [3].
  */
 export function getRawCadence(seg: RawSegmentLike): number | null {
   if (!Array.isArray(seg)) return null;

@@ -1,9 +1,9 @@
 // svg-dom.ts
 //
-// Tiny internal SVG-assembly helpers extracted from core/chart.ts (Q7). These
-// are a PURE MECHANICAL replacement for the repeated
-// `document.createElementNS(SVG_NS, tag)` + `setAttribute(...)` sequences — they
-// do NOT change any element, attribute value, attribute ORDER, or geometry.
+// Tiny internal SVG-assembly helpers extracted from core/chart.ts. These
+// replace the repeated `document.createElementNS(SVG_NS, tag)` +
+// `setAttribute(...)` sequences — they do NOT change any element, attribute
+// value, attribute ORDER, or geometry.
 //
 // Attribute ordering note: SVG/DOM serialization emits attributes in insertion
 // order, and JS object literals iterate string keys in insertion order, so
@@ -15,7 +15,7 @@ export const SVG_NS = 'http://www.w3.org/2000/svg';
 export const XHTML_NS = 'http://www.w3.org/1999/xhtml';
 
 /** Attribute values: numbers/booleans are coerced to string via String() to
- * mirror the legacy `setAttribute(name, String(x))` / string-literal calls. */
+ * match the `setAttribute(name, String(x))` / string-literal calls. */
 type AttrValue = string | number | boolean;
 
 /**
@@ -54,9 +54,9 @@ export function appendEl<K extends keyof SVGElementTagNameMap>(
  * 100-W grid loop used by the HUD and builder charts. The label is only created
  * when `label` is supplied. Returns nothing; appends directly to `svg`.
  *
- * This collapses the verbatim 9-line `line` + 6-line `text` createElementNS
- * blocks into one call WITHOUT changing any coordinate, attribute, value, or
- * append order (line first, then label).
+ * This collapses the `line` + `text` createElementNS blocks into one call
+ * WITHOUT changing any coordinate, attribute, value, or append order (line
+ * first, then label).
  */
 export function appendGridLine(
   svg: SVGSVGElement,

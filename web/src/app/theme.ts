@@ -1,10 +1,9 @@
 // theme.ts
 //
-// TypeScript port of docs/theme.js: apply the theme by toggling <html> classes
-// (theme-light / theme-dark) + data-theme, and persist the chosen mode. The
-// legacy app persists the mode to BOTH localStorage (for the anti-FOUC inline
-// script) and the IndexedDB "settings" store; we mirror that so the new app
-// boots in the same theme and a pixel diff sees identical theming.
+// Apply the theme by toggling <html> classes (theme-light / theme-dark) +
+// data-theme, and persist the chosen mode. The mode is persisted to BOTH
+// localStorage (for the anti-FOUC inline script) and the IndexedDB "settings"
+// store so the app boots in the same theme.
 
 import type { FileStore } from '../ports/FileStore.js';
 
@@ -18,7 +17,7 @@ export function normalizeThemeMode(mode: unknown): ThemeMode {
   return mode === 'dark' || mode === 'light' ? mode : 'auto';
 }
 
-/** Toggle the <html> theme classes + data-theme (mirrors applyThemeMode). */
+/** Toggle the <html> theme classes + data-theme. */
 export function applyThemeMode(mode: unknown): ThemeMode {
   const root = document?.documentElement;
   const next = normalizeThemeMode(mode);
@@ -43,7 +42,7 @@ export async function loadThemeMode(store: FileStore): Promise<ThemeMode> {
   return normalizeThemeMode(raw);
 }
 
-/** Apply + persist the theme mode (mirrors saveAndApplyThemeMode). */
+/** Apply + persist the theme mode. */
 export async function saveAndApplyThemeMode(store: FileStore, mode: unknown): Promise<ThemeMode> {
   const next = applyThemeMode(mode);
   try {

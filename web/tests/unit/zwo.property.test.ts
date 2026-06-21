@@ -5,7 +5,7 @@ import * as newZwo from '../../src/core/zwo.js';
 import type { RawSegment } from '../../src/core/model.js';
 
 // A generator for "well-formed-ish" canonical segments using percent power
-// (the 6..100 range avoids the legacy `<= 5 means relative` ambiguity, so the
+// (the 6..100 range avoids the `<= 5 means relative` ambiguity, so the
 // parse->serialize->parse fixpoint is meaningful).
 const segmentArb = fc.tuple(
   fc.integer({ min: 1, max: 60 }), // minutes

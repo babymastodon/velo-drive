@@ -1,8 +1,6 @@
 // hud-coaching.ts
 //
-// Live coaching for the running HUD center title, ported from
-// docs/workout.js (buildSegmentDescriptionParts ~425, updateWorkoutTitleUI
-// ~505, updateCadenceOutOfBoundsState ~380). Produces:
+// Live coaching for the running HUD center title. Produces:
 //   * per-segment instruction ("Maintain N watts for D at C RPM",
 //     "Ramp up/down to N watts", "Free ride at N watts/resistance")
 //   * an "In N - " lookahead when the current segment is >=20s and <=10s
@@ -139,9 +137,9 @@ function getCurrentCadenceTarget(vm: EngineViewModel): number | null {
 }
 
 /**
- * Stateful tracker for sustained off-cadence direction (legacy
- * updateCadenceOutOfBoundsState). Accrues seconds while the rider stays >5 rpm
- * out of band; the title shows "Speed up/Slow down" once >=5s in one direction.
+ * Stateful tracker for sustained off-cadence direction. Accrues seconds while
+ * the rider stays >5 rpm out of band; the title shows "Speed up/Slow down" once
+ * >=5s in one direction.
  */
 export class CadenceCoach {
   private seconds = 0;
@@ -204,7 +202,7 @@ export interface CoachingTitle {
 /**
  * Compute the running-title content for the current VM. Returns plain `text`
  * for cadence coaching / non-running fallback, or rich `parts` for the segment
- * instruction (with optional "In N - " lookahead). Mirrors updateWorkoutTitleUI.
+ * instruction (with optional "In N - " lookahead).
  */
 export function computeCoachingTitle(vm: EngineViewModel, coach: CadenceCoach): CoachingTitle {
   const cw = vm.canonicalWorkout;

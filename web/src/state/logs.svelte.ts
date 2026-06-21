@@ -3,8 +3,7 @@
 // A small reactive append-only log store. The composition root wires the
 // transport `log` events + the engine `onLog` callback into `append`; the
 // Settings logs sub-view (#settingsLogsContent) renders the lines and
-// auto-scrolls when the user is already at the bottom (mirrors the legacy
-// docs/settings.js addLogLineToSettings selection-preserving append).
+// auto-scrolls when the user is already at the bottom.
 //
 // We store the lines as an array (reactive) rather than mutating textContent
 // directly: Svelte re-renders the joined text, and the SettingsView handles the

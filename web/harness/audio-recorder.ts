@@ -1,12 +1,12 @@
 // harness/audio-recorder.ts
 //
-// A fake `AudioContext` that satisfies docs/beeper.js and RECORDS audio cue
-// activity for assertions. Beeper schedules audio purely through Web Audio
+// A fake `AudioContext` that satisfies the beeper and RECORDS audio cue
+// activity for assertions. The beeper schedules audio purely through Web Audio
 // nodes and drives its countdown / pattern timing through `setTimeout` — which
 // the virtual clock owns. So the countdown `onDone` (the callback that STARTS a
-// ride, per Part X) fires automatically once the clock advances ~4s through
-// beeper's timer cascade; this recorder just has to be a working-enough audio
-// backend so `ensureAudioContext()` returns non-null and beep scheduling runs.
+// ride) fires automatically once the clock advances ~4s through the beeper's
+// timer cascade; this recorder just has to be a working-enough audio backend so
+// `ensureAudioContext()` returns non-null and beep scheduling runs.
 //
 // Recording: every oscillator `start()` is logged with its time + frequency, so
 // the test can assert "3 short beeps + 1 long" (playBeepPattern), countdown

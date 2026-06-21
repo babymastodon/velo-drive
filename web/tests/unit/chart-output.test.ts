@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 //
 // Render-lock for core/chart.ts. Calls EVERY exported chart renderer with fixed
-// representative inputs and snapshots the produced SVG/DOM markup. This is the
-// independent gate for the Q7 SVG-assembly extraction: the visual (pixel) gate
-// does not exercise every chart variant (picker expanded mini-chart, planner
-// ride-detail / calendar mini-charts), so this asserts the markup is
-// byte-identical before and after the refactor.
+// representative inputs and snapshots the produced SVG/DOM markup. The visual
+// (pixel) gate does not exercise every chart variant (picker expanded
+// mini-chart, planner ride-detail / calendar mini-charts), so this asserts the
+// markup is stable (byte-identical) across changes to chart.ts.
 //
 // The test container has no theme CSS, so getCssVar returns '' for every var;
 // that is fine — we only assert the markup is STABLE (before == after).

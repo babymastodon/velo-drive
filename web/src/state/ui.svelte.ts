@@ -4,7 +4,7 @@
 // time (welcome | settings | …). Components read `ui.activeOverlay` reactively;
 // the global keymap + the overlay chrome call open/close. Escape closes the
 // active overlay, except the Settings logs sub-view returns to the main view
-// first (matching the legacy disposition in docs/settings.js).
+// first.
 
 export type OverlayId = 'none' | 'welcome' | 'settings' | 'picker' | 'planner';
 
@@ -12,7 +12,7 @@ export type OverlayId = 'none' | 'welcome' | 'settings' | 'picker' | 'planner';
  * An overlay's keydown handler. Returns true if it consumed the key (so the
  * shell can preventDefault/stopPropagation). Overlays register themselves here
  * on mount; the App keymap (overlayKeyHandlers hook) routes keys to the active
- * overlay's handler. Mirrors the legacy per-view document keydown listeners.
+ * overlay's handler.
  */
 export type OverlayKeyHandler = (e: KeyboardEvent) => boolean;
 
@@ -34,11 +34,11 @@ export class UiStore {
 
   // Schedule-mode handoff: the planner re-opens the picker as the workout
   // LIBRARY in "Schedule Workout" / "Edit Schedule" mode so the user browses +
-  // picks ANY workout for a calendar day (legacy picker.openScheduleMode,
-  // docs/workout-picker.js:1923-1934). When set, PickerView relabels its chrome,
-  // hides Create-workout, shows Back-to-calendar (+ Unschedule in edit mode) and
-  // schedules instead of loading the workout onto the HUD. Cleared on every
-  // disposition (select / back / Escape) which returns to the planner overlay.
+  // picks ANY workout for a calendar day. When set, PickerView relabels its
+  // chrome, hides Create-workout, shows Back-to-calendar (+ Unschedule in edit
+  // mode) and schedules instead of loading the workout onto the HUD. Cleared on
+  // every disposition (select / back / Escape) which returns to the planner
+  // overlay.
   pickerScheduleContext = $state<{ dateKey: string; entry: { date: string; workoutTitle: string } | null; editMode: boolean } | null>(null);
 
   /**
@@ -46,7 +46,7 @@ export class UiStore {
    * picker becomes the workout library so the user can browse + pick ANY
    * workout; selecting writes schedule.json and returns to the planner. In edit
    * mode the entry is pre-targeted (selecting REPLACES it; Unschedule removes
-   * it). Mirrors legacy picker.openScheduleMode({dateKey, entry, editMode}).
+   * it).
    */
   openPickerForSchedule(dateKey: string, entry: { date: string; workoutTitle: string } | null = null, editMode = false): void {
     this.pickerScheduleContext = { dateKey, entry, editMode };
@@ -63,18 +63,17 @@ export class UiStore {
   // the BuilderView owns ALL keys (including Escape, which deselects a block or
   // goes Back — it must NOT close the picker). The App's global key router
   // checks this to suppress global hotkeys + the close-on-Escape disposition
-  // while the builder is open. Mirrors legacy picker.isBuilderMode()
-  // (docs/workout.js:1748-1750 — Escape returns early in builder mode).
+  // while the builder is open (Escape returns early in builder mode).
   pickerBuilderMode = $state(false);
 
   // The boot-time auto-open (startupNeedsAttention) can force a help section
-  // open when it auto-opens Settings (mirrors settings.js showHelpSectionById).
-  // SettingsView reads + clears this on open. null = no forced section.
+  // open when it auto-opens Settings. SettingsView reads + clears this on open.
+  // null = no forced section.
   forceHelpSection = $state<string | null>(null);
 
   // The planner has an internal ride-detail sub-view; Escape/Backspace return to
   // the calendar first (and Escape on the calendar does NOT close the planner —
-  // legacy ignores it). Set by PlannerView; consumed in handleEscape. The
+  // it is ignored). Set by PlannerView; consumed in handleEscape. The
   // PlannerView's own key handler does the calendar→detail pop for Backspace.
   plannerDetailOpen = $state(false);
 
@@ -85,11 +84,10 @@ export class UiStore {
 
   // When a ride finishes, the shell opens the planner to the saved ride. The
   // planner reads this on open to select the day + open the ride's detail
-  // (consumed in the planner wave; set here by onWorkoutEnded). Mirrors the
-  // legacy planner.openDetailByFile(fileName, date) call.
+  // (consumed in the planner wave; set here by onWorkoutEnded).
   pendingHistoryFile = $state<{ fileName: string; date: Date } | null>(null);
 
-  // Open the planner focused on a just-saved ride (legacy onWorkoutEnded flow).
+  // Open the planner focused on a just-saved ride (onWorkoutEnded flow).
   openPlannerForRide(fileName: string | null, date: Date): void {
     this.pendingHistoryFile = fileName ? { fileName, date } : null;
     this.activeOverlay = 'planner';
@@ -129,16 +127,15 @@ export class UiStore {
     }
     // The planner's ride-detail sub-view is popped by the planner's own key
     // handler (routed first in App). If we still see it open here, the detail
-    // view owns Escape — never close the whole planner from detail (legacy
-    // pops detail first, ignores Escape on the calendar otherwise). The handler
+    // view owns Escape — never close the whole planner from detail (detail is
+    // popped first; Escape on the calendar is ignored otherwise). The handler
     // already returned true in that case, so this is a defensive guard.
     if (this.activeOverlay === 'planner' && this.plannerDetailOpen) {
       return true;
     }
     // Schedule-mode picker: Escape returns to the planner calendar WITHOUT
-    // scheduling, it does NOT close everything (legacy workout-picker.js:1432-
-    // 1443 close({returnToPlanner:true})). The picker's own key handler normally
-    // consumes Escape first; this is the defensive fallback.
+    // scheduling, it does NOT close everything. The picker's own key handler
+    // normally consumes Escape first; this is the defensive fallback.
     if (this.activeOverlay === 'picker' && this.pickerScheduleContext) {
       this.returnToPlannerFromSchedule();
       return true;

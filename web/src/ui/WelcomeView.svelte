@@ -1,8 +1,6 @@
 <script lang="ts">
-  // WelcomeView — re-host of the legacy #welcomeOverlay first-run tour
-  // (docs/index.html ~59-114 + docs/welcome.js). Same classes/IDs so the
-  // re-hosted welcome.css applies unchanged. 4 slides + prev/next/close. The new
-  // app does NOT show welcome on boot (the ui-store starts at 'none'); the
+  // WelcomeView — the #welcomeOverlay first-run tour. 4 slides + prev/next/close.
+  // The app does NOT show welcome on boot (the ui-store starts at 'none'); the
   // harness opens it for the visual test via ui.openWelcome().
   import { onMount, tick } from 'svelte';
   import type { UiStore } from '../state/ui.svelte.js';
@@ -61,13 +59,13 @@
 
   let currentIndex = $state(0);
   const slide = $derived(SLIDES[currentIndex]);
-  // Splash hides text for 1000ms on first render (legacy behavior).
+  // Splash hides text for 1000ms on first render.
   let textHidden = $state(false);
   let firstRenderDone = false;
   // During that same first-render window the nav arrows + close button stay
-  // hidden, then fade in — the legacy splash "boot reveal" (docs/welcome.js
-  // 514-528 hid prev/next/close for 1000ms). The prev arrow stays hidden beyond
-  // it because the splash is the first slide (nothing to go back to).
+  // hidden, then fade in — the splash "boot reveal" (prev/next/close hidden for
+  // 1000ms). The prev arrow stays hidden beyond it because the splash is the
+  // first slide (nothing to go back to).
   const splashBooting = $derived(slide.id === 'splash' && textHidden);
 
   let sceneEl = $state<HTMLDivElement | null>(null);
@@ -153,11 +151,11 @@
     await renderScene(SLIDES[i].id);
   }
 
-  // Port of docs/welcome.js animateSlideChange (541-603): slide the current panel
-  // out toward the travel direction, swap content at the midpoint, then slide the
-  // new panel in from the opposite edge — 330ms each leg, matching the legacy
+  // animateSlideChange: slide the current panel out toward the travel direction,
+  // swap content at the midpoint, then slide the new panel in from the opposite
+  // edge — 330ms each leg, matching the
   // welcome-slide--animating-{out,in}-{forward,backward} CSS. The nav arrows live
-  // outside .welcome-slide, so they don't travel with it (legacy parity).
+  // outside .welcome-slide, so they don't travel with it.
   async function animateSlideChange(target: number, goingPrev: boolean): Promise<void> {
     const el = slideEl;
     if (!el) {
@@ -239,9 +237,8 @@
     if (open && !lastOpen) {
       firstRenderDone = false;
       void goToIndex(ui.welcomeStartIndex ?? 0);
-      // Configured-PWA splash auto-dismisses after ~1100ms (legacy
-      // playSplash(1100), docs/workout.js:1272-1273; J-WEL-03). The full tour
-      // stays open until the user dismisses it.
+      // Configured-PWA splash auto-dismisses after ~1100ms. The full tour stays
+      // open until the user dismisses it.
       if (splashTimer != null) clearTimeout(splashTimer);
       if (splashMode) {
         splashTimer = setTimeout(() => {
@@ -272,17 +269,17 @@
     goNext();
   }
 
-  // Welcome keyboard navigation (mirrors docs/welcome.js keydown 718-747).
-  // Registered via the App overlay-key router so it runs while welcome is the
-  // active overlay (the App suppresses all global hotkeys then). In splash mode,
-  // nav keys are swallowed (consumed, no effect) so app shortcuts never leak.
+  // Welcome keyboard navigation. Registered via the App overlay-key router so it
+  // runs while welcome is the active overlay (the App suppresses all global
+  // hotkeys then). In splash mode, nav keys are swallowed (consumed, no effect)
+  // so app shortcuts never leak.
   const handleWelcomeKey: OverlayKeyHandler = (e: KeyboardEvent): boolean => {
     if (e.key === 'Escape') {
       close();
       return true;
     }
     if (splashMode) {
-      // Splash swallows nav keys without acting (matches legacy splash bail).
+      // Splash swallows nav keys without acting.
       if (
         e.key === 'ArrowRight' ||
         e.key === 'ArrowLeft' ||

@@ -77,7 +77,7 @@ test.describe("Planner (new Svelte app) — behavior", () => {
     await reachNewRidingView(page);
     await openPlanner(page);
 
-    // Seeded ride: ~40 min, ~410 kJ, TSS ~35 (same as the legacy baseline render).
+    // Seeded ride: ~40 min, ~410 kJ, TSS ~35.
     await expect(page.getByTestId("planner-agg-3")).toContainText("40 min, 410 kJ, TSS 35");
     await expect(page.getByTestId("planner-agg-7")).toContainText("40 min, 410 kJ, TSS 35");
     await expect(page.getByTestId("planner-agg-30")).toContainText("40 min, 410 kJ, TSS 35");
@@ -403,7 +403,7 @@ test.describe("Planner (new Svelte app) — behavior", () => {
     await page.locator(".planner-day").first(); // ensure render
     // Press ArrowUp (k = -7 days) several times to walk the selection toward the
     // top of the rendered window, then assert the selected cell is within the
-    // visible calendar-body viewport (scrolled into view, legacy 8px pad).
+    // visible calendar-body viewport (scrolled into view, 8px pad).
     for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowUp");
     await page.waitForTimeout(120);
 

@@ -1,7 +1,7 @@
-// Theme-SWITCH behavior for the new (Svelte) app: boot LIGHT, then flip to Dark
-// and assert the charts REDRAW on the theme change (legacy does this via a
-// MutationObserver on <html> -> rerenderThemeSensitive). If the new app does NOT
-// redraw, the chart keeps its stale LIGHT-palette colors on the now-dark page.
+// Theme-SWITCH behavior: boot LIGHT, then flip to Dark and assert the charts
+// REDRAW on the theme change (via a MutationObserver on <html> that re-renders
+// theme-sensitive charts). If the app does NOT redraw, the chart keeps its stale
+// LIGHT-palette colors on the now-dark page.
 
 import {
   test,

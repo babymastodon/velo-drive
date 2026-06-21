@@ -1,9 +1,8 @@
 // TrainerTransport.ts
 //
-// Port interface for the BLE trainer/HR transport. Mirrors the public surface
-// of docs/ble-manager.js (the legacy singleton). The web implementation
+// Port interface for the BLE trainer/HR transport. The web implementation
 // (WebBluetoothTransport) reads `navigator.bluetooth` so the harness fake drives
-// it exactly like the legacy app.
+// it.
 
 export interface BikeSample {
   power: number | null;

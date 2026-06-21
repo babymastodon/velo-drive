@@ -1,10 +1,10 @@
 // harness/clock.ts
 //
 // A sinon-style virtual clock that owns setTimeout / setInterval / Date.now /
-// performance.now / new Date across the whole page. The legacy app spreads time
-// over five bases (engine setInterval tick, beeper setTimeout cascade,
-// ble-manager performance.now throttle + setTimeout reconnect, pause accounting
-// via Date.now, FIT timestamps via `new Date`). One clock owns them all so the
+// performance.now / new Date across the whole page. The app spreads time over
+// five bases (engine setInterval tick, beeper setTimeout cascade, transport
+// performance.now throttle + setTimeout reconnect, pause accounting via
+// Date.now, FIT timestamps via `new Date`). One clock owns them all so the
 // harness can advance time deterministically.
 //
 // `step(ms)` / `stepTicks(n)` advance virtual time AND drain microtasks between

@@ -1,12 +1,10 @@
 // history.ts
 //
-// Pure ride-history analytics (moved out of the WebFileStore persistence
-// adapter + PlannerView). These functions take parsed FIT data / samples and
-// return the planner's preview / detail models — no I/O, no DOM, no caching.
+// Pure ride-history analytics. These functions take parsed FIT data / samples
+// and return the planner's preview / detail models — no I/O, no DOM, no caching.
 // WebFileStore keeps the file/cache I/O and CALLS buildHistoryPreview; the
-// planner's openDetail CALLS buildRideDetail. Every formula/threshold here is
-// byte-identical to the inline code it replaced (the stats-cache + planner
-// tests pin the behavior).
+// planner's openDetail CALLS buildRideDetail. The stats-cache + planner tests
+// pin the behavior.
 
 import type { CanonicalWorkout, RawSegment } from './model.js';
 import type { ParseFitResult } from './fit.js';
@@ -84,9 +82,7 @@ export interface RideDetail {
 }
 
 /**
- * Build the per-ride preview model from a parsed FIT + its file name. Pure:
- * same metric/segment math as the legacy planner-backend loadHistoryPreview.
- * (Moved verbatim from WebFileStore.buildPreview.)
+ * Build the per-ride preview model from a parsed FIT + its file name. Pure.
  */
 export function buildHistoryPreview(fileName: string, parsed: ParseFitResult): HistoryPreview {
   const cw = parsed.canonicalWorkout || ({} as CanonicalWorkout);
@@ -123,9 +119,8 @@ export function buildHistoryPreview(fileName: string, parsed: ParseFitResult): H
 /**
  * Build the full ride detail model from a parsed FIT, its file name, and the
  * preview-level fallbacks (title / startedAt / zone) the planner already had.
- * `startedAtFallback` is used when the FIT carried no startedAt (the planner's
- * inline code used the file's day key). Pure: same VI/EF/paused/HR-cad math as
- * the legacy openDetailView. (Moved verbatim from PlannerView.openDetail.)
+ * `startedAtFallback` is used when the FIT carried no startedAt (falls back to
+ * the file's day key). Pure: VI/EF/paused/HR-cad math.
  */
 export function buildRideDetail(
   fileName: string,

@@ -5,7 +5,7 @@
 // validate blocks an invalid save (missing name); a valid Save writes a .zwo
 // (asserted via the fake FS) and returns to the library.
 
-import {test, expect, reachNewRidingView, PICKER_HARNESS_CONFIG} from "./fixtures.js";
+import {test, expect, reachNewRidingView} from "./fixtures.js";
 import type {Page} from "@playwright/test";
 
 async function openBuilder(page: Page): Promise<void> {
@@ -216,7 +216,7 @@ test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
 
     const baseline = await chartSegments(page).count();
 
-    // Select first block, cut it with `d` (legacy cut-to-clipboard).
+    // Select first block, cut it with `d` (cut-to-clipboard).
     await chartSegments(page).first().click();
     await expect(page.getByTestId("wb-block-editor")).toBeVisible();
     await page.keyboard.press("d");
@@ -267,10 +267,9 @@ test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
     expect(await selectedBands(page).count()).toBeGreaterThan(1);
   });
 
-  // Bug #6: Escape in the builder must DESELECT the block, NOT close the picker
-  // (legacy docs/workout.js:1748-1750 returns early in builder mode). A second
-  // Escape (no selection) goes Back to the library — it still does NOT close the
-  // whole picker overlay.
+  // Escape in the builder must DESELECT the block, NOT close the picker (the
+  // builder-mode handler returns early). A second Escape (no selection) goes Back
+  // to the library — it still does NOT close the whole picker overlay.
   test("Escape in the builder deselects the block and keeps the builder open", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
@@ -297,8 +296,8 @@ test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
     await expect(page.locator("#workoutPickerModal.workout-picker-modal--builder")).toHaveCount(0);
   });
 
-  // Bug #6 (general): global HUD hotkeys must NOT fire while the builder owns the
-  // keymap. 's' is an insert shortcut (threshold) in the builder, NOT the
+  // Global HUD hotkeys must NOT fire while the builder owns the keymap. 's' is an
+  // insert shortcut (threshold) in the builder, NOT the
   // global "open Settings" hotkey — pressing it inserts a block and the Settings
   // overlay never appears.
   test("global hotkeys are suppressed while the builder is open", async ({configuredPage}) => {
@@ -332,8 +331,8 @@ test.describe("Builder (new Svelte app) — clipboard + multi-select", () => {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(40);
 
-    // Legacy Cmd+A (no selection) = cursor-to-start; it must NOT select all
-    // blocks (no block-editor appears, no bands become active).
+    // Cmd+A (no selection) = cursor-to-start; it must NOT select all blocks
+    // (no block-editor appears, no bands become active).
     await page.keyboard.press("Control+a");
     await page.waitForTimeout(60);
     expect(await selectedBands(page).count()).toBe(0);

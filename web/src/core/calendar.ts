@@ -1,10 +1,9 @@
 // calendar.ts
 //
-// Pure helpers moved out of the big views: the picker search-grammar parser /
+// Pure helpers extracted from the big views: the picker search-grammar parser /
 // matcher (PickerView) and the planner calendar-week builder (PlannerView).
-// No DOM, no reactivity — the components call these and bind the result. Every
-// regex / range rule / month-boundary class is byte-identical to the inline code
-// it replaced (the picker + planner tests pin the behavior).
+// No DOM, no reactivity — the components call these and bind the result. The
+// picker + planner tests pin the behavior.
 
 import { formatDateKey } from './date-keys.js';
 
@@ -12,8 +11,8 @@ import { formatDateKey } from './date-keys.js';
 
 /**
  * The parsed picker search query: free-text tokens that must all appear in the
- * haystack, plus an optional inclusive duration range (minutes). Mirrors the
- * legacy workout-picker search grammar: `30-45` / `<40` / `>60` / `45` (±5).
+ * haystack, plus an optional inclusive duration range (minutes). The search
+ * grammar: `30-45` / `<40` / `>60` / `45` (±5).
  */
 export interface ParsedSearchQuery {
   tokens: string[];
@@ -25,8 +24,7 @@ export interface ParsedSearchQuery {
  * Parse a (already lower-cased or raw) search term into tokens + a duration
  * range. Whitespace-splits, then classifies each token: a compact range
  * (`30-45`), `<N` / `>N` bounds, an approx `N`(min) (expands to ±5), else a
- * free-text token. A reversed explicit range is normalized (min<=max). (Moved
- * verbatim from PickerView visibleItems.)
+ * free-text token. A reversed explicit range is normalized (min<=max).
  */
 export function parseSearchQuery(term: string): ParsedSearchQuery {
   const rawTokens = term
@@ -75,7 +73,7 @@ export function parseSearchQuery(term: string): ParsedSearchQuery {
 /**
  * Test a single item (its lower-cased haystack + duration in minutes) against a
  * parsed query: every token must be a substring, and the duration must fall
- * within any range bound. (Moved verbatim from PickerView visibleItems filter.)
+ * within any range bound.
  */
 export function matchesSearchQuery(
   q: ParsedSearchQuery,
@@ -122,8 +120,7 @@ function isSameDay(a: Date | null, b: Date | null): boolean {
  * Build the planner's calendar weeks grid (a VISIBLE_WEEKS × 7 matrix of
  * DayCells) from the anchor week start, today, and the selected date. Computes
  * the month labels (Today / month name / day-1) and the month-boundary CSS
- * classes exactly as the legacy planner did. Pure: same geometry + classes as
- * the inline `weeks` derivation. (Moved verbatim from PlannerView.)
+ * classes. Pure.
  */
 export function buildCalendarWeeks(
   anchorStart: Date,
