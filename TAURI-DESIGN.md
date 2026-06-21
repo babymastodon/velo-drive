@@ -114,6 +114,21 @@ behaviour. The one place we'll revisit a wrapper:
 the Android target later**. On Linux (and the other desktops) the plain btleplug
 bridge needs no JNI, so Linux-first carries no Android tax.
 
+### Spike results (validated on Linux ✅)
+
+The `src-tauri/` spikes proved the full BLE path against **real hardware** on this
+Linux machine via btleplug/BlueZ:
+
+- **HRM** (Wahoo TICKR FIT): scan → connect → subscribe → live BPM.
+- **Trainer** (Wahoo KICKR): live Indoor Bike Data (power/cadence/speed) **and** the
+  ERG control-point write — `setTargetPower(110)` made the trainer hold ~110 W.
+
+This de-risks the single biggest unknown in the port. One lesson banked: **BLE
+connects are flaky** ("service discovery timed out" on a stale BlueZ cache right
+after a prior session) — the spikes now retry 3×, and the production
+`NativeTrainerTransport` will reconnect with backoff (as the web transport already
+does).
+
 ### Per-platform BLE notes (validate as each target lands)
 
 - **Linux (now):** btleplug → BlueZ over D-Bus; needs `bluetoothd` running and, for
