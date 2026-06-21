@@ -69,6 +69,11 @@ export interface FileStore {
     url: string,
     subfolder?: string,
   ): Promise<{ added: number; error: string | null }>;
+  /** Write a batch of CanonicalWorkouts to their `sourcePath` (bulk importers). */
+  importWorkoutBatch(
+    canonicals: CanonicalWorkout[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<{ added: number; error: string | null }>;
 
   // ---- Planner: history (.fit) ----
   /** List + parse every .fit file in the history dir (full samples/meta). */

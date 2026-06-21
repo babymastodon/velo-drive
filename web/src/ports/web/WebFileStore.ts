@@ -656,6 +656,38 @@ export class WebFileStore implements FileStore {
     return { added, error: null };
   }
 
+  async importWorkoutBatch(
+    canonicals: CanonicalWorkout[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<{ added: number; error: string | null }> {
+    const root = await this.loadZwoDirHandle();
+    if (!root) return { added: 0, error: 'Choose a VeloDrive folder first.' };
+    if (!(await ensureDirPermission(root))) {
+      return { added: 0, error: 'Permission to write to the workouts folder was not granted.' };
+    }
+    let added = 0;
+    for (let i = 0; i < canonicals.length; i += 1) {
+      const c = canonicals[i]!;
+      const relPath = c.sourcePath || `${sanitizeZwoFileName(c.workoutTitle || 'workout')}.zwo`;
+      try {
+        const handle = await this.ensureNestedFile(root, relPath);
+        if (handle) {
+          const writable = await handle.createWritable();
+          await writable.write(canonicalWorkoutToZwoXml(c));
+          await writable.close();
+          added += 1;
+        }
+      } catch (err) {
+        console.warn('[WebFileStore] importWorkoutBatch: failed to write', relPath, err);
+      }
+      if (onProgress && (i % 25 === 0 || i === canonicals.length - 1)) {
+        onProgress(added, canonicals.length);
+      }
+    }
+    if (added === 0) return { added: 0, error: 'No workouts could be written to the folder.' };
+    return { added, error: null };
+  }
+
   /**
    * Move an existing library .zwo (by relative path) to the trash dir with a
    * timestamped name. Shared by deleteWorkoutToTrash + the pre-overwrite trash
