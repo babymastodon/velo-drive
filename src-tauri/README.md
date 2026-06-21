@@ -82,6 +82,23 @@ Connects an FTMS trainer (`0x1826`), subscribes to Indoor Bike Data (`0x2AD2`), 
 — only if you pass a wattage — writes the Control Point (`0x2AD9`) to set ERG target
 power. Pedal a turn first to wake the trainer.
 
+## Run the native app
+
+```sh
+npm --prefix ../web run build        # build the frontend into ../web/dist (once / on UI change)
+cargo run --bin velodrive            # open the native window
+```
+
+The window hosts the existing VeloDrive UI and drives Bluetooth through the native
+connector — connect your trainer/HRM from the bottom nav and watch live power/HR.
+If launching from a detached shell hits a Wayland error, force X11:
+`GDK_BACKEND=x11 cargo run --bin velodrive`. (For HMR dev, install the Tauri CLI and
+use `cargo tauri dev`.)
+
+**Note:** the workout *library* (folder picker) still uses the web File System
+Access API, which isn't in the webview yet — that's the next milestone
+(`NativeFileStore`). Bluetooth + the live HUD work today.
+
 ---
 
 ## Roadmap (this crate)
@@ -89,8 +106,11 @@ power. Pedal a turn first to wake the trainer.
 1. ✅ HRM spike — proven on real hardware (Wahoo TICKR FIT streaming live BPM).
 2. ✅ Trainer spike — proven on real hardware (Wahoo KICKR: live power/cadence/
    speed **and** ERG control-point write holding the 110 W target). Connects can
-   be flaky (BlueZ "service discovery timed out"); both spikes retry 3×.
-3. Wrap the BLE module in Tauri commands/events; add `fs`/`dialog`/`updater`.
-4. Implement `web/src/ports/native/{NativeTrainerTransport,NativeFileStore}.ts`
-   against the IPC; select native vs web ports at boot.
-5. Flatpak manifest (bundle id `bike.velodrive.app`) + Flathub/self-hosted repo.
+   be flaky (BlueZ "service discovery timed out"); the spikes + connector retry.
+3. ✅ Tauri shell + BLE module behind Tauri commands/events (src/lib.rs, src/ble.rs).
+4. ✅ `NativeTrainerTransport` over the IPC; native-vs-web port selected at boot.
+   Robust connector: error events, remember + reconnect-on-start, multi-app-polite.
+5. `NativeFileStore` — workout folder + history via Tauri `fs`/`dialog` plugins
+   (replaces the File System Access API).
+6. Flatpak manifest (bundle id `bike.velodrive.app`, `--system-talk-name=org.bluez`)
+   + Flathub/self-hosted repo; `keep-awake` for rides.
