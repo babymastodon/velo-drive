@@ -53,9 +53,11 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   // Surface transport device status into the store (mirrors legacy bottom-nav).
   transport.on('bikeStatus', (s) => {
     store.bikeStatus = s.state;
+    store.bikeStatusMessage = s.message;
   });
   transport.on('hrStatus', (s) => {
     store.hrStatus = s.state;
+    store.hrStatusMessage = s.message;
   });
   transport.on('hrBattery', (pct) => {
     store.hrBatteryPercent = pct;

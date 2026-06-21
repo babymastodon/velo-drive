@@ -12,6 +12,10 @@ export class EngineStore {
   // Device status surfaced from transport events (not part of the engine VM).
   bikeStatus = $state<'connecting' | 'connected' | 'error' | 'idle'>('idle');
   hrStatus = $state<'connecting' | 'connected' | 'error' | 'idle'>('idle');
+  // Detailed status text (e.g. "Connected to KICKR", "Device disconnected. Will
+  // retry…") shown as the bike/HRM button hover tooltip (legacy bottom-nav).
+  bikeStatusMessage = $state('');
+  hrStatusMessage = $state('');
   hrBatteryPercent = $state<number | null>(null);
 
   set = (vm: EngineViewModel): void => {
