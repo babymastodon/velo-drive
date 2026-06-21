@@ -13,6 +13,8 @@ export interface DialogRequest {
   // For prompt: the initial input value + a place for the host to mirror edits.
   inputValue?: string;
   placeholder?: string;
+  // For prompt: an example value shown as a styled monospace hint.
+  example?: string;
   resolve: (value: boolean) => void;
   // For prompt: resolves with the entered string (or null on cancel).
   resolveText?: (value: string | null) => void;
@@ -55,7 +57,14 @@ export class DialogStore {
    */
   prompt(
     message: string,
-    opts: { title?: string; okLabel?: string; cancelLabel?: string; defaultValue?: string; placeholder?: string } = {},
+    opts: {
+      title?: string;
+      okLabel?: string;
+      cancelLabel?: string;
+      defaultValue?: string;
+      placeholder?: string;
+      example?: string;
+    } = {},
   ): Promise<string | null> {
     return new Promise<string | null>((resolveText) => {
       this.current = {
@@ -66,6 +75,7 @@ export class DialogStore {
         cancelLabel: opts.cancelLabel ?? 'Cancel',
         inputValue: opts.defaultValue ?? '',
         placeholder: opts.placeholder,
+        example: opts.example,
         resolve: () => {},
         resolveText,
       };
