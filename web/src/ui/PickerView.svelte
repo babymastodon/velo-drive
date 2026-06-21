@@ -143,6 +143,18 @@
     return inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
   }
 
+  // Name shown in the library navigator: the workout's folder path (from its
+  // sourcePath) + its title. Workouts at the root just show the title. Used only
+  // for display here — everywhere else (selected workout, HUD, schedule) uses the
+  // plain workoutTitle.
+  function libraryName(cw: CanonicalWorkout): string {
+    const path = cw.sourcePath || '';
+    const slash = path.lastIndexOf('/');
+    const dir = slash >= 0 ? path.slice(0, slash) : '';
+    const name = cw.workoutTitle || 'Untitled';
+    return dir ? `${dir.replace(/\//g, ' / ')} / ${name}` : name;
+  }
+
   // --------------------------- visible (search / filter / sort) ---------------------------
   const allItems = $derived.by<PickerItem[]>(() => {
     const ftp = currentFtp;
@@ -170,7 +182,12 @@
       // core/calendar helper.
       const query = parseSearchQuery(term);
       items = items.filter((it) => {
-        const haystack = [it.canonical.workoutTitle, it.zone, it.canonical.source || '']
+        const haystack = [
+          it.canonical.workoutTitle,
+          it.zone,
+          it.canonical.source || '',
+          it.canonical.sourcePath || '',
+        ]
           .join(' ')
           .toLowerCase();
         return matchesSearchQuery(query, haystack, it.metrics.durationMin);
@@ -568,7 +585,7 @@
     importMenuOpen = false;
     if (kind === 'url') await onImportUrl();
     else if (kind === 'upload') onUploadFileClick();
-    else await onImportPack(ZWIFT_PACK_URL, 'Zwift Workouts', 'the Zwift workout collection');
+    else await onImportPack(ZWIFT_PACK_URL, 'Zwift', 'the Zwift workout collection');
   }
 
   // --------------------------- import: file upload (.zwo/.fit) ---------------------------
@@ -1233,11 +1250,12 @@
         <tbody id="pickerWorkoutTbody" data-testid="picker-tbody">
           {#each visibleItems as item (item.canonical.sourcePath ?? item.canonical.workoutTitle)}
             {@const title = item.canonical.workoutTitle}
+            {@const displayName = libraryName(item.canonical)}
             {@const zone = item.zone}
             {@const m = item.metrics}
             {#if expandedTitle !== title}
               <tr class="picker-row" data-title={title} onclick={() => toggleExpand(title)}>
-                <td title={title}>{title}</td>
+                <td title={displayName}>{displayName}</td>
                 <td>
                   <div class="picker-zone-cell">
                     <span class="picker-zone-dot {zoneDotClass(zone)}"></span>
@@ -1264,7 +1282,7 @@
                     ></div>
 
                     <div class="picker-expanded-header">
-                      <div class="picker-expanded-title">{title}</div>
+                      <div class="picker-expanded-title">{displayName}</div>
                       <div class="picker-expanded-actions">
                         {#if !scheduleMode}
                         {#if item.canonical.sourceURL}
