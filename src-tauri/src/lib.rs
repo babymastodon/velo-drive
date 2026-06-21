@@ -2,6 +2,7 @@
 // bridges Bluetooth to native Rust (see ble.rs).
 
 mod ble;
+mod files;
 
 use std::sync::Arc;
 
@@ -64,6 +65,7 @@ async fn ble_disconnect_hr(ble: State<'_, Arc<Ble>>) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ble_scan,
             ble_connect_bike,
@@ -73,6 +75,15 @@ pub fn run() {
             ble_set_resistance,
             ble_disconnect_bike,
             ble_disconnect_hr,
+            files::fs_pick_folder,
+            files::fs_read_dir,
+            files::fs_read_text,
+            files::fs_write_text,
+            files::fs_read_bytes,
+            files::fs_write_bytes,
+            files::fs_mkdir,
+            files::fs_remove,
+            files::fs_exists,
         ])
         .setup(|app| {
             // Init the BLE manager up front so events can fire as soon as the UI

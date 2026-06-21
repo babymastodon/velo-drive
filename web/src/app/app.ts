@@ -45,7 +45,12 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const transport: TrainerTransport = isTauri
     ? new (await import('../ports/native/NativeTrainerTransport.js')).NativeTrainerTransport()
     : new WebBluetoothTransport();
-  const fileStore = new WebFileStore();
+  // Native window → file I/O through Rust (workout folder, history); browser/PWA
+  // → File System Access. NativeFileStore extends WebFileStore (settings stay in
+  // IndexedDB), so it's a drop-in.
+  const fileStore: WebFileStore = isTauri
+    ? new (await import('../ports/native/NativeFileStore.js')).NativeFileStore()
+    : new WebFileStore();
   const beeper = new Beeper();
   const store = new EngineStore();
   const logs = new LogsStore();
