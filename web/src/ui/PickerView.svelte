@@ -30,6 +30,7 @@
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
   import { parseWorkoutUrl } from '../core/scrapers.js';
+  import { fetchTrainerDayPopular, fetchWhatsOnZwiftAll } from '../core/importers.js';
   import { openExternal } from '../app/compat.js';
 
   const TRAINERDAY_SEARCH_URL = 'https://app.trainerday.com/search?sortBy=popularity';
@@ -207,6 +208,77 @@
       return 0;
     });
   });
+
+  // --------------------------- folder navigation ---------------------------
+  let currentFolder = $state('');
+  let showAllFolders = $state(false);
+
+  // Browse by folder by default; switch to a flat list when "show all" is on or
+  // any search/filter is active (those cut across folders).
+  const flatMode = $derived(
+    showAllFolders || !!searchTerm.trim() || !!zoneValue || !!durationValue,
+  );
+
+  type NavFolder = { kind: 'folder'; name: string; path: string; count: number };
+  type NavWorkout = { kind: 'workout'; item: PickerItem; label: string };
+  type NavEntry = NavFolder | NavWorkout;
+
+  const navEntries = $derived.by<NavEntry[]>(() => {
+    if (flatMode) {
+      // Flat: every matching workout, labelled with its full folder path.
+      return visibleItems.map((item) => ({
+        kind: 'workout' as const,
+        item,
+        label: libraryName(item.canonical),
+      }));
+    }
+    // Folder mode: subfolders of `currentFolder` + the workouts directly in it.
+    const prefix = currentFolder ? currentFolder + '/' : '';
+    const folderCounts = new Map<string, number>();
+    const workoutsHere: NavEntry[] = [];
+    for (const item of visibleItems) {
+      const path = item.canonical.sourcePath || `${item.canonical.workoutTitle}.zwo`;
+      if (prefix && !path.startsWith(prefix)) continue;
+      const rest = path.slice(prefix.length);
+      const slash = rest.indexOf('/');
+      if (slash >= 0) {
+        const sub = rest.slice(0, slash);
+        folderCounts.set(sub, (folderCounts.get(sub) || 0) + 1);
+      } else {
+        workoutsHere.push({
+          kind: 'workout',
+          item,
+          label: item.canonical.workoutTitle || 'Untitled',
+        });
+      }
+    }
+    const folders: NavEntry[] = [...folderCounts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ kind: 'folder', name, path: prefix + name, count }));
+    return [...folders, ...workoutsHere];
+  });
+
+  const breadcrumbSegments = $derived.by<{ name: string; path: string }[]>(() => {
+    if (!currentFolder) return [];
+    const segs = currentFolder.split('/');
+    return segs.map((name, i) => ({ name, path: segs.slice(0, i + 1).join('/') }));
+  });
+
+  function navEntryKey(e: NavEntry): string {
+    return e.kind === 'folder'
+      ? 'f:' + e.path
+      : 'w:' + (e.item.canonical.sourcePath ?? e.item.canonical.workoutTitle);
+  }
+
+  function enterFolder(path: string): void {
+    currentFolder = path;
+    expandedTitle = null;
+  }
+
+  function folderParent(path: string): string {
+    const i = path.lastIndexOf('/');
+    return i >= 0 ? path.slice(0, i) : '';
+  }
 
   const summaryText = $derived(
     workouts.length === 0
@@ -561,31 +633,102 @@
   // --------------------------- import: workout packs (zip → library) ---------------------------
   const ZWIFT_PACK_URL =
     'https://forums.zwift.com/uploads/short-url/kfwBnOg1iFvfNh65haAupeMIuav.zip';
+  const ZWIFT_FORUM_URL = 'https://forums.zwift.com/t/workout-refresh-october-2023/609799';
 
-  async function onImportPack(url: string, subfolder: string, label: string): Promise<void> {
-    const ok = await dialogs.confirm(`Download ${label} into your library? This can take a moment.`, {
-      title: 'Import workout pack',
-      okLabel: 'Import',
-    });
-    if (!ok) return;
-    const prev = builderStatusText;
-    builderStatusText = `Importing ${label}…`;
-    const { added, error } = await fileStore.importZwoZip(url, subfolder);
-    builderStatusText = prev;
+  let importMenuOpen = $state(false);
+  async function pickImport(kind: 'url' | 'upload'): Promise<void> {
+    importMenuOpen = false;
+    if (kind === 'url') await onImportUrl();
+    else onUploadFileClick();
+  }
+
+  // ---- library bulk importers (each opens a modal from the Import dropdown) ----
+  type ImportModal = 'zwift' | 'trainerday' | 'whatsonzwift';
+  let importLibMenuOpen = $state(false);
+  let importModal = $state<ImportModal | null>(null);
+  let importBusy = $state(false);
+  let importProgress = $state('');
+  let trainerdayLimit = $state(1000);
+
+  function openImportModal(which: ImportModal): void {
+    importLibMenuOpen = false;
+    importProgress = '';
+    importModal = which;
+  }
+
+  function onImportModalStart(): Promise<void> {
+    if (importModal === 'zwift') return runZwiftImport();
+    if (importModal === 'trainerday') return runTrainerDayImport();
+    return runWhatsOnZwiftImport();
+  }
+
+  async function runZwiftImport(): Promise<void> {
+    importBusy = true;
+    importProgress = 'Downloading the Zwift collection…';
+    const { added, error } = await fileStore.importZwoZip(ZWIFT_PACK_URL, 'Zwift');
+    importBusy = false;
     if (error) {
       await dialogs.alert(error, { title: 'Import failed' });
       return;
     }
+    importModal = null;
     await rescan();
-    await dialogs.alert(`Imported ${added} workouts into “${subfolder}”.`, { title: 'Import complete' });
+    await dialogs.alert(`Imported ${added} workouts into “Zwift”.`, { title: 'Import complete' });
   }
 
-  let importMenuOpen = $state(false);
-  async function pickImport(kind: 'url' | 'upload' | 'zwift'): Promise<void> {
-    importMenuOpen = false;
-    if (kind === 'url') await onImportUrl();
-    else if (kind === 'upload') onUploadFileClick();
-    else await onImportPack(ZWIFT_PACK_URL, 'Zwift', 'the Zwift workout collection');
+  async function runBatchImport(
+    fetcher: () => Promise<import('../core/model.js').CanonicalWorkout[]>,
+    folderLabel: string,
+    reachErr: string,
+  ): Promise<void> {
+    importBusy = true;
+    let canonicals;
+    try {
+      canonicals = await fetcher();
+    } catch {
+      importBusy = false;
+      await dialogs.alert(reachErr, { title: 'Import failed' });
+      return;
+    }
+    if (!canonicals.length) {
+      importBusy = false;
+      await dialogs.alert('No workouts were returned.', { title: 'Import failed' });
+      return;
+    }
+    importProgress = `Saving ${canonicals.length} workouts…`;
+    const { added, error } = await fileStore.importWorkoutBatch(
+      canonicals,
+      (d, t) => (importProgress = `Saved ${d}/${t}…`),
+    );
+    importBusy = false;
+    if (error) {
+      await dialogs.alert(error, { title: 'Import failed' });
+      return;
+    }
+    importModal = null;
+    await rescan();
+    await dialogs.alert(`Imported ${added} workouts into “${folderLabel}”.`, {
+      title: 'Import complete',
+    });
+  }
+
+  function runTrainerDayImport(): Promise<void> {
+    const limit = Math.max(1, Math.min(40000, Math.round(trainerdayLimit) || 1000));
+    importProgress = `Fetching the top ${limit} workouts from TrainerDay…`;
+    return runBatchImport(
+      () => fetchTrainerDayPopular(limit, (m) => (importProgress = m)),
+      'TrainerDay',
+      'Could not reach TrainerDay. Check your connection (the desktop app avoids browser CORS limits).',
+    );
+  }
+
+  function runWhatsOnZwiftImport(): Promise<void> {
+    importProgress = 'Scanning WhatsOnZwift…';
+    return runBatchImport(
+      () => fetchWhatsOnZwiftAll((m) => (importProgress = m)),
+      'WhatsOnZwift',
+      'Could not crawl WhatsOnZwift — it blocks cross-origin requests in the browser. Use the desktop app for this import.',
+    );
   }
 
   // --------------------------- import: file upload (.zwo/.fit) ---------------------------
@@ -1071,6 +1214,45 @@
           <span>Create workout</span>
         </button>
 
+        <!-- Library bulk-import dropdown → each option opens a details modal. -->
+        <div class="wb-import" style:display={builderMode || scheduleMode ? 'none' : 'inline-flex'}>
+          <button
+            class="picker-add-btn picker-import-btn"
+            type="button"
+            data-testid="picker-import"
+            title="Import a collection of workouts"
+            aria-haspopup="menu"
+            aria-expanded={importLibMenuOpen}
+            onclick={() => (importLibMenuOpen = !importLibMenuOpen)}
+          >
+            <svg viewBox="0 0 24 24" class="wb-code-icon" aria-hidden="true">
+              <path d="M12 3v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>Import ▾</span>
+          </button>
+          {#if importLibMenuOpen}
+            <button
+              class="wb-import-backdrop"
+              type="button"
+              aria-label="Close import menu"
+              onclick={() => (importLibMenuOpen = false)}
+            ></button>
+            <div class="wb-import-menu" role="menu">
+              <button class="wb-import-item" type="button" role="menuitem" data-testid="import-zwift" onclick={() => openImportModal('zwift')}>
+                <span>Zwift collection</span><small>official workouts (one download)</small>
+              </button>
+              <button class="wb-import-item" type="button" role="menuitem" data-testid="import-trainerday" onclick={() => openImportModal('trainerday')}>
+                <span>TrainerDay</span><small>the most popular workouts</small>
+              </button>
+              <button class="wb-import-item" type="button" role="menuitem" data-testid="import-whatsonzwift" onclick={() => openImportModal('whatsonzwift')}>
+                <span>WhatsOnZwift</span><small>every workout on the site</small>
+              </button>
+            </div>
+          {/if}
+        </div>
+
         <button
           id="pickerScheduleUnscheduleBtn"
           class="picker-add-btn delete-workout-btn"
@@ -1157,17 +1339,6 @@
                 <span>Upload a file…</span><small>.zwo or .fit</small>
               </button>
               <div class="wb-import-sep"></div>
-              <div class="wb-import-group-label">Workout packs</div>
-              <button
-                class="wb-import-item"
-                type="button"
-                role="menuitem"
-                data-testid="builder-import-zwift"
-                onclick={() => void pickImport('zwift')}
-              >
-                <span>Zwift collection</span><small>200+ official workouts → library</small>
-              </button>
-              <div class="wb-import-sep"></div>
               <p class="wb-import-hint">
                 Tip: you can also drop <code>.zwo</code> files (in folders too)
                 straight into your VeloDrive <strong>workouts</strong> folder — they
@@ -1235,6 +1406,39 @@
         </div>
       {/if}
 
+      <div class="picker-navbar">
+        <nav class="picker-breadcrumb" aria-label="Folder path">
+          {#if flatMode}
+            <span class="picker-crumb picker-crumb-current">
+              {searchTerm.trim() || zoneValue || durationValue ? 'Search results' : 'All workouts'}
+            </span>
+          {:else}
+            <button
+              type="button"
+              class="picker-crumb"
+              class:picker-crumb-current={!currentFolder}
+              onclick={() => enterFolder('')}
+            >Library</button>
+            {#each breadcrumbSegments as seg, i}
+              <span class="picker-crumb-sep">/</span>
+              <button
+                type="button"
+                class="picker-crumb"
+                class:picker-crumb-current={i === breadcrumbSegments.length - 1}
+                onclick={() => enterFolder(seg.path)}
+              >{seg.name}</button>
+            {/each}
+          {/if}
+        </nav>
+        <label
+          class="picker-showall"
+          title="Show every workout from all subfolders in one flat list, instead of browsing folders"
+        >
+          <input type="checkbox" data-testid="picker-showall" bind:checked={showAllFolders} />
+          <span>Show all</span>
+        </label>
+      </div>
+
       <table class="workout-picker-table">
         <thead>
           <tr>
@@ -1248,12 +1452,49 @@
           </tr>
         </thead>
         <tbody id="pickerWorkoutTbody" data-testid="picker-tbody">
-          {#each visibleItems as item (item.canonical.sourcePath ?? item.canonical.workoutTitle)}
-            {@const title = item.canonical.workoutTitle}
-            {@const displayName = libraryName(item.canonical)}
-            {@const zone = item.zone}
-            {@const m = item.metrics}
-            {#if expandedTitle !== title}
+          {#if !flatMode && currentFolder}
+            <tr
+              class="picker-folder-row picker-folder-up"
+              data-testid="picker-folder-up"
+              onclick={() => enterFolder(folderParent(currentFolder))}
+            >
+              <td colspan="7">
+                <span class="picker-folder-cell">
+                  <svg viewBox="0 0 24 24" class="picker-folder-icon" aria-hidden="true">
+                    <path d="M5 12l7-7 7 7M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <span class="picker-folder-name">..</span>
+                </span>
+              </td>
+            </tr>
+          {/if}
+          {#each navEntries as entry (navEntryKey(entry))}
+            {#if entry.kind === 'folder'}
+              <tr
+                class="picker-folder-row"
+                data-testid="picker-folder"
+                onclick={() => enterFolder(entry.path)}
+              >
+                <td colspan="7">
+                  <span class="picker-folder-cell">
+                    <svg viewBox="0 0 24 24" class="picker-folder-icon" aria-hidden="true">
+                      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                    </svg>
+                    <span class="picker-folder-name">{entry.name}</span>
+                    <span class="picker-folder-count">{entry.count}</span>
+                    <svg viewBox="0 0 24 24" class="picker-folder-chevron" aria-hidden="true">
+                      <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </span>
+                </td>
+              </tr>
+            {:else}
+              {@const item = entry.item}
+              {@const title = item.canonical.workoutTitle}
+              {@const displayName = entry.label}
+              {@const zone = item.zone}
+              {@const m = item.metrics}
+              {#if expandedTitle !== title}
               <tr class="picker-row" data-title={title} onclick={() => toggleExpand(title)}>
                 <td title={displayName}>{displayName}</td>
                 <td>
@@ -1405,6 +1646,7 @@
                   </div>
                 </td>
               </tr>
+              {/if}
             {/if}
           {/each}
         </tbody>
@@ -1439,4 +1681,85 @@
       {/if}
     </div>
   </div>
+
+  {#if importModal}
+    <div class="import-modal-overlay" role="dialog" aria-modal="true" data-testid="import-modal">
+      <div class="import-modal">
+        {#if importModal === 'zwift'}
+          <h2 class="import-modal-title">Import the Zwift collection</h2>
+          <p>
+            Download the official Zwift workout collection — 1,300+ <code>.zwo</code>
+            workouts organized by training plan — into a <strong>Zwift</strong> folder
+            in your library.
+          </p>
+          <p class="import-modal-note">
+            From the Zwift forums’ October 2023 workout refresh.
+            <button type="button" class="wb-import-link" onclick={() => void openExternal(ZWIFT_FORUM_URL)}>
+              Learn more on the forum →
+            </button>
+          </p>
+        {:else if importModal === 'trainerday'}
+          <h2 class="import-modal-title">Import from TrainerDay</h2>
+          <p>
+            Download the most popular workouts from TrainerDay into a
+            <strong>TrainerDay</strong> folder, ordered by popularity.
+          </p>
+          <label class="import-modal-field">
+            <span>How many workouts?</span>
+            <input
+              type="number"
+              min="1"
+              max="40000"
+              data-testid="trainerday-limit"
+              bind:value={trainerdayLimit}
+              disabled={importBusy}
+            />
+          </label>
+          <p class="import-modal-note">
+            TrainerDay has 40,000+ workouts; the top {trainerdayLimit} by popularity
+            are imported.
+            <button type="button" class="wb-import-link" onclick={() => void openExternal(TRAINERDAY_SEARCH_URL)}>
+              Browse TrainerDay →
+            </button>
+          </p>
+        {:else}
+          <h2 class="import-modal-title">Import from WhatsOnZwift</h2>
+          <p>
+            Download <strong>every</strong> workout on WhatsOnZwift (~3,000),
+            organized into folders by collection under a <strong>WhatsOnZwift</strong>
+            folder.
+          </p>
+          <p class="import-modal-note">
+            This is a large crawl and works best in the desktop app — the browser
+            blocks the cross-origin requests it needs.
+            <button type="button" class="wb-import-link" onclick={() => void openExternal(WHATSONZWIFT_BROWSE_URL)}>
+              Browse WhatsOnZwift →
+            </button>
+          </p>
+        {/if}
+
+        {#if importBusy}
+          <div class="import-modal-progress" data-testid="import-progress">
+            {importProgress || 'Working…'}
+          </div>
+        {/if}
+
+        <div class="import-modal-actions">
+          <button
+            type="button"
+            class="wb-code-insert-btn picker-back-btn"
+            disabled={importBusy}
+            onclick={() => (importModal = null)}
+          >Cancel</button>
+          <button
+            type="button"
+            class="picker-add-btn"
+            data-testid="import-modal-start"
+            disabled={importBusy}
+            onclick={() => void onImportModalStart()}
+          >{importBusy ? 'Importing…' : 'Import'}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </OverlayModal>

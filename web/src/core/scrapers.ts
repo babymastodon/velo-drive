@@ -94,7 +94,7 @@ function toPlainText(value: unknown): string {
  * Convert TrainerDay segments into canonical [minutes, startPower, endPower, type?, cadenceRpm?].
  * TrainerDay segments are typically [minutes, startPct, endPct?, cadence?, ...].
  */
-function canonicalizeTrainerDaySegments(segments: unknown): RawSegment[] {
+export function canonicalizeTrainerDaySegments(segments: unknown): RawSegment[] {
   if (!Array.isArray(segments)) return [];
   const out: RawSegment[] = [];
   for (const seg of segments) {
