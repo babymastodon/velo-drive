@@ -652,8 +652,7 @@
           >
             In Chrome on desktop, click the install icon in the address bar on
             the right side → <strong>Install VeloDrive</strong>. On Android, open
-            Chrome’s menu and select <strong>Add to Home screen</strong>. If
-            you’re using the Chrome extension, you’re already set.
+            Chrome’s menu and select <strong>Add to Home screen</strong>.
           </div>
 
           <!-- Connection logs -->
