@@ -17,6 +17,7 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
     ok: init.ok ?? true,
     status: init.status ?? 200,
     json: async () => body,
+    text: async () => JSON.stringify(body),
   } as unknown as Response;
 }
 

@@ -3,6 +3,7 @@
 
 mod ble;
 mod files;
+mod net;
 
 use std::sync::{Arc, Mutex};
 
@@ -107,6 +108,7 @@ pub fn run() {
             files::fs_mkdir,
             files::fs_remove,
             files::fs_exists,
+            net::http_get,
             set_keep_awake,
         ])
         .manage(KeepAwake::default())

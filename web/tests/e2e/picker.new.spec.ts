@@ -472,7 +472,7 @@ test.describe("Picker — import", () => {
     ).toBeVisible();
   });
 
-  test("the Import TrainerDay button opens a URL prompt", async ({configuredPage}) => {
+  test("the Import-from-URL button opens a URL prompt", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await openPicker(page);
@@ -480,9 +480,9 @@ test.describe("Picker — import", () => {
     await page.waitForTimeout(60);
 
     // The button is wired: clicking it opens the URL prompt dialog. (The actual
-    // TrainerDay fetch cannot be made deterministic in the e2e harness — see the
+    // fetch cannot be made deterministic in the e2e harness — see the
     // core/scrapers Vitest unit test for the parser coverage.)
-    await page.getByTestId("builder-trainerday").click();
+    await page.getByTestId("builder-import-url").click();
     await expect(page.getByTestId("dialog-input")).toBeVisible();
     await page.getByTestId("dialog-cancel").click();
   });
