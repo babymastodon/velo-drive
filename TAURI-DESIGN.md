@@ -116,8 +116,10 @@ bridge needs no JNI, so Linux-first carries no Android tax.
 
 ### Per-platform BLE notes (validate as each target lands)
 
-- **Linux (now):** btleplug → BlueZ over D-Bus; needs `bluetoothd`. Packaging
-  affects BLE access (see Q-A on AppImage vs Flatpak).
+- **Linux (now):** btleplug → BlueZ over D-Bus; needs `bluetoothd` running and, for
+  *local dev builds*, the system `dbus-devel`/`libdbus-1-dev` + `pkg-config` (the
+  Flatpak build bundles these). The Flatpak sandbox gets BLE via
+  `--system-talk-name=org.bluez`.
 - **Windows:** WinRT BLE has known connect/discovery/caching quirks; some trainers
   want OS-level pairing — needs hardening.
 - **macOS/iOS:** CoreBluetooth; `NSBluetoothAlwaysUsageDescription` + proper bundle/
