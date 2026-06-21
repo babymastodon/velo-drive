@@ -2,20 +2,14 @@
 //
 // Reactive "theme version" counters that increment when the theme changes, so
 // charts (which read CSS-var colors at DRAW time, core/chart.ts getCssVar) can
-// re-render with the now-current palette. Two counters mirror the two distinct
-// legacy redraw wirings exactly:
+// re-render with the now-current palette. Two distinct counters:
 //
 //  * `version` — bumped on BOTH a manual <html> class/data-theme mutation AND an
-//    Auto-mode OS light/dark flip. Read by the HUD + planner charts. Mirrors
-//    docs/workout.js, which installs a MutationObserver on <html> (manual
-//    toggle) AND a matchMedia('(prefers-color-scheme: dark)') listener (Auto OS
-//    flip), both calling rerenderThemeSensitive() (HUD + planner).
+//    Auto-mode OS light/dark flip. Read by the HUD + planner charts.
 //
 //  * `autoVersion` — bumped ONLY on the Auto-mode OS flip (the matchMedia path).
-//    Read by the picker mini-chart + builder chart. Mirrors
-//    docs/workout-picker.js, which wires its picker/builder rerender to the
-//    matchMedia listener ONLY — a manual data-theme toggle does NOT redraw the
-//    picker/builder there (so the visual baselines stay valid).
+//    Read by the picker mini-chart + builder chart — a manual data-theme toggle
+//    does NOT redraw the picker/builder.
 //
 // Components depend on the relevant counter inside their chart-render $effect so
 // the effect re-runs on the theme change they care about. A single shared
@@ -49,8 +43,7 @@ class ThemeStore {
     // fires — charts read CSS-var colors at draw time and would keep the stale
     // palette. Listen for the OS change to (a) re-apply the Auto theme so any
     // class-derived state stays correct, and (b) bump BOTH counters so every
-    // subscribed chart redraws. Mirrors legacy workout.js:1402-1406 +
-    // workout-picker.js:2096-2107.
+    // subscribed chart redraws.
     if (!this.mediaInstalled && typeof matchMedia === 'function') {
       this.mediaInstalled = true;
       try {
@@ -85,7 +78,7 @@ export function themeVersion(): number {
 /**
  * Read inside a chart-render $effect so the effect re-runs ONLY on an Auto-mode
  * OS light/dark flip (NOT a manual toggle). For the picker mini-chart + builder
- * chart, matching legacy workout-picker.js's matchMedia-only redraw wiring.
+ * chart (matchMedia-only redraw wiring).
  */
 export function themeAutoVersion(): number {
   themeStore.ensureObserver();

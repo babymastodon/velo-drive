@@ -1,10 +1,10 @@
 // tests/unit/web-file-store.test.ts
 //
 // Unit coverage for the two WebFileStore behaviors added in the defect pass:
-//   * pickRootDir seeds the 6 bundled default workouts when the library is empty
-//     (J-CFG-17), and skips seeding when the library already has .zwo files.
-//   * removeScheduledByTitle clears the matching scheduled entry (post-ride flow,
-//     J-PLAN-34) and leaves others intact.
+//   * pickRootDir seeds the bundled default workouts when the library is empty,
+//     and skips seeding when the library already has .zwo files.
+//   * removeScheduledByTitle clears the matching scheduled entry (post-ride
+//     flow) and leaves others intact.
 //
 // Drives the real WebFileStore against the in-memory FSA + fake IndexedDB fakes
 // (harness/file-store.ts), a fake showDirectoryPicker, and a fake fetch that
@@ -23,8 +23,8 @@ import {WebFileStore} from "../../src/ports/web/WebFileStore.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_WORKOUTS = resolve(__dirname, "..", "..", "public", "workouts");
 
-// The full bundled starter library seeded on a fresh folder pick (mirrors
-// WebFileStore.DEFAULT_WORKOUT_FILES — the complete docs/workouts/ set).
+// The full bundled starter library seeded on a fresh folder pick (matches
+// WebFileStore.DEFAULT_WORKOUT_FILES — the complete public/workouts/ set).
 const DEFAULT_NAMES = [
   "Airforge.zwo",
   "Ashen%20Surge.zwo",
@@ -74,7 +74,7 @@ function installEnv(root: FakeFileSystemDirectoryHandle): void {
   (globalThis as unknown as {indexedDB: unknown}).indexedDB = indexedDB;
   (globalThis as unknown as {showDirectoryPicker: () => Promise<unknown>}).showDirectoryPicker =
     () => Promise.resolve(root);
-  // Serve /workouts/<name> from the bundled public assets (mirrors the app
+  // Serve /workouts/<name> from the bundled public assets (matching the app
   // fetch). The app requests `/workouts/${encodeURI(fileName)}` where fileName is
   // already the URL-encoded on-disk name (e.g. "Basefire%20Waves.zwo"); encodeURI
   // then escapes the "%" -> "%25", so the request path is double-encoded
@@ -158,7 +158,7 @@ describe("WebFileStore.pickRootDir default-workout seeding (J-CFG-17)", () => {
     // Reproduces the real-world bug: the first seed pass was interrupted partway
     // (tab closed / blip), leaving the folder with only the alphabetical HEAD of
     // the defaults + the in-progress marker still set. The folder is now
-    // non-empty, so the legacy "bail if any .zwo exists" would have stranded the
+    // non-empty, so a naive "bail if any .zwo exists" would have stranded the
     // tail (e.g. "Sleepy Spin", ~36/41) forever. The marker must let it resume.
     const workouts = await root.getDirectoryHandle("workouts", {create: true});
     for (const name of ["Airforge.zwo", "Ashen%20Surge.zwo", "Basefire%20Waves.zwo"]) {
@@ -180,7 +180,7 @@ describe("WebFileStore.pickRootDir default-workout seeding (J-CFG-17)", () => {
 
 describe("WebFileStore.removeScheduledByTitle (post-ride flow, J-PLAN-34)", () => {
   // Seed the root handle directly into the fake IndexedDB in the {key, handle}
-  // shape loadHandle reads (mirrors the page-env hermetic seed), then write the
+  // shape loadHandle reads (matching the page-env hermetic seed), then write the
   // schedule into the seeded root.
   function bootConfigured(initial: {date: string; workoutTitle: string}[]): {
     store: WebFileStore;

@@ -18,10 +18,9 @@
 
   let panelEl = $state<HTMLElement | null>(null);
 
-  // Dynamic stat font sizing, ported verbatim from docs/workout.js
-  // adjustStatFontSizes(): scale each .stat-value to fill its card; the two
+  // Dynamic stat font sizing: scale each .stat-value to fill its card; the two
   // time cards (.stat-lg) get a wider divisor (6 vs 3). This is what produces
-  // the large clock digits in the legacy HUD.
+  // the large clock digits in the HUD.
   function adjustStatFontSizes(): void {
     if (!panelEl) return;
     const cards = panelEl.querySelectorAll('.stat-card');

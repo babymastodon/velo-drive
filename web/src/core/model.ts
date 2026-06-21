@@ -2,13 +2,11 @@
 //
 // TypeScript types for the canonical workout representation.
 //
-// These types describe the SAME runtime data shape the legacy vanilla-JS code
-// (docs/zwo.js, docs/workout-metrics.js, docs/fit-file.js) produces. They are
-// types only — they introduce no runtime shape changes, so differential
-// equality between the legacy modules and the ported TypeScript modules holds.
+// These are types only — they describe the runtime data shape that core/zwo.ts,
+// core/metrics.ts, and core/fit.ts produce and consume.
 
 /**
- * The legacy positional segment tuple:
+ * The positional segment tuple:
  *   [minutes, startPct, endPct, type?, cadence?]
  *
  * - minutes:  duration in minutes (float allowed)
@@ -18,8 +16,8 @@
  *             segments this slot may be `null` (a placeholder before cadence).
  * - cadence:  optional cadence target (rpm)
  *
- * The legacy producers emit tuples of varying length (3, 4, or 5 elements);
- * this type captures all the observed runtime shapes without forcing a length.
+ * The producers emit tuples of varying length (3, 4, or 5 elements); this type
+ * captures all the observed runtime shapes without forcing a length.
  */
 export type RawSegment =
   | [minutes: number, startPct: number, endPct: number]
@@ -44,8 +42,8 @@ export interface TextEvent {
 /**
  * Canonical representation of a scraped/authored workout.
  *
- * Mirrors the object produced by parseZwoXmlToCanonicalWorkout and consumed by
- * canonicalWorkoutToZwoXml in the legacy code.
+ * Produced by parseZwoXmlToCanonicalWorkout and consumed by
+ * canonicalWorkoutToZwoXml.
  */
 export interface CanonicalWorkout {
   /** e.g. "TrainerRoad" | "TrainerDay" | "WhatsOnZwift" | "Unknown" */
@@ -64,7 +62,7 @@ export interface CanonicalWorkout {
 
 /**
  * A higher-level workout view. Kept minimal; the canonical positional form
- * (CanonicalWorkout) is the load-bearing runtime shape in M1.
+ * (CanonicalWorkout) is the load-bearing runtime shape.
  */
 export interface Segment {
   durationSec: number;

@@ -1,11 +1,10 @@
 // shim.ts
 //
-// Default-to-real platform bootstrap for the NEW app, mirroring
-// web/scripts/velo-shim.js. When `window.__VELO_TEST_ENV__` is present (injected
-// by the Playwright harness BEFORE app code runs) it swaps the platform
-// providers the ports read from globals (navigator.bluetooth, timers, Date,
-// AudioContext, indexedDB, showDirectoryPicker); when absent it is a no-op, so
-// production behavior is pristine.
+// Default-to-real platform bootstrap. When `window.__VELO_TEST_ENV__` is present
+// (injected by the Playwright harness BEFORE app code runs) it swaps the
+// platform providers the ports read from globals (navigator.bluetooth, timers,
+// Date, AudioContext, indexedDB, showDirectoryPicker); when absent it is a
+// no-op, so production behavior is pristine.
 //
 // This must be imported FIRST in main.ts, before any port/engine module that
 // captures these globals.

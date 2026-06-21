@@ -1,4 +1,4 @@
-// Unit tests for the ported TrainerDay URL scraper (src/core/scrapers.ts). The
+// Unit tests for the TrainerDay URL scraper (src/core/scrapers.ts). The
 // scraper is pure except for the global `fetch`, which we stub here so the
 // happy + error paths are deterministic (the e2e harness can't reach the real
 // TrainerDay API).

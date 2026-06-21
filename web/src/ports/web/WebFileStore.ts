@@ -1,8 +1,7 @@
 // WebFileStore.ts
 //
-// TypeScript port of the docs/storage.js IndexedDB "settings" plumbing (the HUD
-// subset). Reads `indexedDB` (and, for the history dir, the persisted FSA
-// handles) so the harness fakes drive it exactly like the legacy app.
+// IndexedDB "settings" plumbing (the HUD subset). Reads `indexedDB` (and, for
+// the history dir, the persisted FSA handles) so the harness fakes drive it.
 
 import type {
   FileStore,
@@ -39,11 +38,9 @@ const DB_NAME = 'velo-drive';
 const DB_VERSION = 1;
 const SETTINGS_STORE = 'settings';
 
-// Persisted FIT-metrics cache (mirrors docs/planner-backend.js
-// STATS_CACHE_VERSION + load/saveWorkoutStatsCache). Computed previews are keyed
-// by the FIT file name so each planner open re-parses only NEW files. Bump the
-// version whenever the preview format/computation changes (invalidates the whole
-// cache).
+// Persisted FIT-metrics cache. Computed previews are keyed by the FIT file name
+// so each planner open re-parses only NEW files. Bump the version whenever the
+// preview format/computation changes (invalidates the whole cache).
 const STATS_CACHE_KEY = 'workoutStatsCache';
 const STATS_CACHE_VERSION = 30;
 
@@ -68,9 +65,7 @@ const SEED_IN_PROGRESS_KEY = 'defaultWorkoutsSeedInProgress';
 // dir is empty, every file here is fetched from /workouts/<name> (bundled in
 // web/public/workouts) and written into the folder so a new user gets the full
 // starter library — short spins through long endurance + free-rides, not an
-// arbitrary 60-min-ish subset. This is the complete docs/workouts/ set (41
-// files); the legacy app shipped all of these as assets but only seeded 6, which
-// left new users with a tiny, duration-skewed library.
+// arbitrary 60-min-ish subset (41 files).
 const DEFAULT_WORKOUT_FILES = [
   'Airforge.zwo',
   'Ashen%20Surge.zwo',
@@ -139,7 +134,7 @@ interface StatsCache {
 
 // ScheduleEntry now lives in core/schedule.ts (re-exported above).
 
-/** Injective title -> file-safe base name (mirrors docs/workout-picker.js). */
+/** Injective title -> file-safe base name. */
 function sanitizeZwoFileName(title: string): string {
   return encodeURIComponent(title);
 }
@@ -151,18 +146,18 @@ interface HandleRecord {
 // FSA permission surface (present on real FileSystemHandle, faked granted in the
 // harness). A persisted handle reloaded from IndexedDB comes back in the
 // "prompt" state in a REAL browser, so reads/writes fail until we re-request
-// read-write permission (mirrors docs/storage.js ensureDirPermission). The
-// harness fake always resolves "granted", so this is a no-op in tests.
+// read-write permission. The harness fake always resolves "granted", so this is
+// a no-op in tests.
 interface FsPermissionHandle {
   queryPermission?(opts: { mode: 'readwrite' | 'read' }): Promise<PermissionState | string>;
   requestPermission?(opts: { mode: 'readwrite' | 'read' }): Promise<PermissionState | string>;
 }
 
 /**
- * Re-authorize a persisted directory handle for read-write access. Mirrors
- * docs/storage.js ensureDirPermission: query first, short-circuit on
- * granted/denied, otherwise prompt. Returns true only when read-write access is
- * granted. requestPermission must run in a user gesture in a real browser.
+ * Re-authorize a persisted directory handle for read-write access: query first,
+ * short-circuit on granted/denied, otherwise prompt. Returns true only when
+ * read-write access is granted. requestPermission must run in a user gesture in
+ * a real browser.
  */
 async function ensureDirPermission(handle: unknown): Promise<boolean> {
   const h = handle as FsPermissionHandle | null;
@@ -193,8 +188,7 @@ export class WebFileStore implements FileStore {
 
   // Optional UI error sink. The composition root wires this to a themed Dialog
   // alert so the important file-op failures (no folder, permission revoked,
-  // save/delete failed) surface to the user instead of failing silently
-  // (mirrors the legacy alert()s; replaces the unthemed native alert()s). The
+  // save/delete failed) surface to the user instead of failing silently. The
   // data-loss guard (overwrite-to-trash-first) is unaffected.
   onError: ((message: string) => void) | null = null;
 
@@ -248,8 +242,7 @@ export class WebFileStore implements FileStore {
   // NOT `{key, value}`. Writing a handle through setSetting() stores
   // `{key, value:{handle}}`, which loadHandle CANNOT read (record.handle is
   // undefined) — so the picked folder silently failed to persist. This matches
-  // the harness seed shape (page-env: store[key] = {handle}) and legacy
-  // storage.js saveHandle.
+  // the harness seed shape (page-env: store[key] = {handle}).
   private async saveHandle(key: string, handle: unknown): Promise<void> {
     const db = await this.getDb();
     return new Promise<void>((resolve, reject) => {
@@ -311,8 +304,7 @@ export class WebFileStore implements FileStore {
     }
     try {
       const root = await picker();
-      // Re-authorize read-write before touching the folder (mirrors
-      // docs/storage.js pickRootDir → ensureDirPermission). In a real browser
+      // Re-authorize read-write before touching the folder. In a real browser
       // showDirectoryPicker() grants on selection, but be explicit.
       const ok = await ensureDirPermission(root);
       if (!ok) {
@@ -320,16 +312,14 @@ export class WebFileStore implements FileStore {
         return null;
       }
       // Persist the root + the three standard subdir handles so they survive a
-      // reload (mirrors docs/storage.js saveRootDirHandle/saveZwoDirHandle/
-      // saveWorkoutDirHandle/saveTrashDirHandle). Persisting the subdir handles
-      // (not just root) matches legacy and avoids re-deriving them every load.
+      // reload. Persisting the subdir handles (not just root) avoids re-deriving
+      // them every load.
       await this.saveHandle(ROOT_DIR_KEY, root);
       const workouts = await root.getDirectoryHandle('workouts', { create: true });
       const history = await root.getDirectoryHandle('history', { create: true });
       const trash = await root.getDirectoryHandle('trash', { create: true });
-      // Seed the 6 bundled default workouts when the library is empty (mirrors
-      // docs/storage.js maybeSeedDefaultWorkouts after ensureDirPermission), so a
-      // fresh user never lands on an empty picker.
+      // Seed the bundled default workouts when the library is empty, so a fresh
+      // user never lands on an empty picker.
       if (await ensureDirPermission(workouts)) {
         await this.maybeSeedDefaultWorkouts(workouts);
       }
@@ -347,9 +337,8 @@ export class WebFileStore implements FileStore {
   }
 
   /**
-   * If the workouts dir has no .zwo files, copy the bundled defaults in (mirrors
-   * docs/storage.js maybeSeedDefaultWorkouts/copyDefaultWorkoutsToDir, 446-487).
-   * Returns the number of files copied.
+   * If the workouts dir has no .zwo files, copy the bundled defaults in. Returns
+   * the number of files copied.
    */
   private async maybeSeedDefaultWorkouts(dir: FsDirHandle): Promise<number> {
     const empty = !(await this.directoryHasAnyZwoFiles(dir));
@@ -358,7 +347,7 @@ export class WebFileStore implements FileStore {
     // tail never landed (the folder has SOME .zwo but a prior pass didn't finish
     // — this is what stranded late-alphabet defaults like "Sleepy Spin"). A
     // non-empty folder with no in-progress marker is treated as the user's own
-    // library and left untouched (legacy behavior; respects deleted defaults).
+    // library and left untouched (respects deleted defaults).
     if (!empty && !inProgress) return 0;
 
     await this.setSetting(SEED_IN_PROGRESS_KEY, true);
@@ -405,7 +394,7 @@ export class WebFileStore implements FileStore {
     let copied = 0;
 
     const copyOne = async (fileName: string): Promise<void> => {
-      // Skip a file that already exists (mirrors legacy create:false probe).
+      // Skip a file that already exists (create:false probe).
       try {
         await dir.getFileHandle(fileName, { create: false });
         return;
@@ -417,8 +406,7 @@ export class WebFileStore implements FileStore {
       }
       try {
         // The bundled .zwo live in web/public/workouts; the file names are
-        // already URL-encoded on disk, so encodeURI leaves "%20" intact (mirrors
-        // legacy `./workouts/${encodeURI(fileName)}`).
+        // already URL-encoded on disk, so encodeURI leaves "%20" intact.
         const resp = await fetch(`/workouts/${encodeURI(fileName)}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
@@ -497,8 +485,8 @@ export class WebFileStore implements FileStore {
   async listWorkouts(): Promise<CanonicalWorkout[]> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return [];
-    // Re-authorize the reloaded handle (legacy rescanWorkouts → ensureDirPermission).
-    // Runs in the gesture that opened the picker, so the prompt is allowed.
+    // Re-authorize the reloaded handle. Runs in the gesture that opened the
+    // picker, so the prompt is allowed.
     await ensureDirPermission(dir);
     const out: CanonicalWorkout[] = [];
     try {
@@ -529,19 +517,17 @@ export class WebFileStore implements FileStore {
       this.notifyError('Choose a VeloDrive folder first, then save the workout.');
       return false;
     }
-    // Re-authorize the persisted handle before writing (mirrors legacy
-    // saveCanonicalWorkoutToZwoDir → ensureDirPermission). A handle reloaded
-    // from IndexedDB is in the "prompt" state in a real browser until this runs.
+    // Re-authorize the persisted handle before writing. A handle reloaded from
+    // IndexedDB is in the "prompt" state in a real browser until this runs.
     if (!(await ensureDirPermission(dir))) {
       this.notifyError('Permission to write to the workouts folder was not granted.');
       return false;
     }
     const fileName = sanitizeZwoFileName(canonical.workoutTitle || 'workout') + '.zwo';
     try {
-      // Mirror legacy saveCanonicalWorkoutToZwoDir (docs/workout-picker.js
-      // 1805-1823): if a same-name .zwo already exists, move it to trash BEFORE
-      // writing so there is always a recoverable copy (no silent overwrite). If
-      // the trash move fails, abort the save rather than risk data loss.
+      // If a same-name .zwo already exists, move it to trash BEFORE writing so
+      // there is always a recoverable copy (no silent overwrite). If the trash
+      // move fails, abort the save rather than risk data loss.
       let overwriting = false;
       try {
         await dir.getFileHandle(fileName, { create: false });
@@ -570,7 +556,7 @@ export class WebFileStore implements FileStore {
   /**
    * Move an existing library .zwo (by exact file name) to the trash dir with a
    * timestamped name. Shared by deleteWorkoutToTrash + the pre-overwrite trash
-   * move in saveWorkout. Mirrors legacy moveWorkoutFileToTrash.
+   * move in saveWorkout.
    */
   private async moveZwoFileToTrash(fileName: string): Promise<boolean> {
     const srcDir = await this.loadZwoDirHandle();
@@ -587,7 +573,7 @@ export class WebFileStore implements FileStore {
       const ext = dotIdx > 0 ? fileName.slice(dotIdx) : '';
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       let destFileName = `${base} (${stamp})${ext}`;
-      // Cap the trashed file name length (legacy 1644-1647) to keep the FS happy.
+      // Cap the trashed file name length to keep the FS happy.
       if (destFileName.length > 120) {
         const overflow = destFileName.length - 120;
         const trimmedBase = base.slice(0, Math.max(0, base.length - overflow));
@@ -610,9 +596,8 @@ export class WebFileStore implements FileStore {
   // ---------- planner: history (.fit) + schedule.json ----------
 
   /**
-   * List + parse every .fit file in the history dir. Mirrors the legacy
-   * planner-backend.js history index (docs/planner-backend.js): the day a ride
-   * belongs to is derived by the caller from `fileName` (UTC ISO timestamps).
+   * List + parse every .fit file in the history dir. The day a ride belongs to
+   * is derived by the caller from `fileName` (UTC ISO timestamps).
    */
   async listHistory(): Promise<HistoryFitEntry[]> {
     const dir = await this.loadWorkoutDirHandle();
@@ -642,10 +627,10 @@ export class WebFileStore implements FileStore {
   /**
    * List the history dir and return a computed preview per .fit file, using the
    * persisted stats cache (settings key `workoutStatsCache`) to skip re-parsing
-   * unchanged files. Mirrors docs/planner-backend.js loadHistoryPreview, but
-   * caches the WHOLE preview (rawSegments included) keyed by file name so a
-   * cache hit avoids the parse entirely. Cache invalidates by file name +
-   * STATS_CACHE_VERSION; entries for files no longer present are pruned.
+   * unchanged files. Caches the WHOLE preview (rawSegments included) keyed by
+   * file name so a cache hit avoids the parse entirely. Cache invalidates by
+   * file name + STATS_CACHE_VERSION; entries for files no longer present are
+   * pruned.
    */
   async listHistoryPreviews(): Promise<HistoryPreview[]> {
     const dir = await this.loadWorkoutDirHandle();
@@ -783,7 +768,7 @@ export class WebFileStore implements FileStore {
     }
   }
 
-  /** Persist schedule.json (pretty-printed, mirrors docs/storage.js). */
+  /** Persist schedule.json (pretty-printed). */
   async saveSchedule(entries: ScheduleEntry[]): Promise<boolean> {
     try {
       const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
@@ -809,11 +794,9 @@ export class WebFileStore implements FileStore {
 
   /**
    * Remove the scheduled entry for a given local day + workout title (matched
-   * case-insensitively on the trimmed title). Mirrors the legacy planner
-   * removeScheduledByTitle → removeScheduledEntryByRef (workout-planner.js:1598)
-   * used by the post-ride follow-up (workout.js:1376-1380): finishing a
-   * scheduled ride clears that day's matching entry. Returns true if an entry
-   * was removed (and persisted), false otherwise.
+   * case-insensitively on the trimmed title), used by the post-ride follow-up:
+   * finishing a scheduled ride clears that day's matching entry. Returns true if
+   * an entry was removed (and persisted), false otherwise.
    */
   async removeScheduledByTitle(dateKey: string, title: string): Promise<boolean> {
     const entries = await this.loadSchedule();
@@ -823,13 +806,12 @@ export class WebFileStore implements FileStore {
   }
 
   /**
-   * Move a scheduled entry from one day to another (drag-and-drop reschedule).
-   * Mirrors the legacy planner moveScheduledEntry (workout-planner.js:223-258):
+   * Move a scheduled entry from one day to another (drag-and-drop reschedule):
    * a same-day move is a no-op (true), a move onto a PAST day is rejected
    * (false), and only the FIRST matching {fromDate, title} entry is moved. The
    * matched entry keeps its other fields and just gets the new date appended at
-   * the end of the list (matching legacy slice+concat order). Returns true when
-   * the move succeeded (or was a no-op same-day), false otherwise.
+   * the end of the list. Returns true when the move succeeded (or was a no-op
+   * same-day), false otherwise.
    */
   async moveScheduledEntry(
     fromDate: string,
@@ -845,7 +827,7 @@ export class WebFileStore implements FileStore {
     return this.saveSchedule(result.entries);
   }
 
-  /** Move a history .fit file to the trash dir (mirrors moveHistoryFileToTrash). */
+  /** Move a history .fit file to the trash dir. */
   async deleteHistoryToTrash(fileName: string): Promise<boolean> {
     const srcDir = await this.loadWorkoutDirHandle();
     const trashDir = await this.loadTrashDirHandle();

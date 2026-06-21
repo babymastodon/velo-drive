@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://velodrive.bike/">
-    <img src="legacy/icons/logo.svg" alt="VeloDrive logo" height="128">
+    <img src="media/logo.svg" alt="VeloDrive logo" height="128">
   </a>
 </p>
 
@@ -15,8 +15,8 @@ You can open the app directly at:
 The PWA works offline, installs locally, and runs entirely in the browser with no accounts or backend.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/hero-dark.png">
-  <img alt="Workout Interface" src="legacy/screenshots/hero.png">
+  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/hero-dark.png">
+  <img alt="Workout Interface" src="media/screenshots/hero.png">
 </picture>
 
 ## Installation
@@ -31,8 +31,8 @@ In **Google Chrome**, you’ll see an **Install** icon in the address bar.
 Click it to install VeloDrive as an app. It will appear in your system’s app launcher and can run offline once installed.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/install_dark.png">
-  <img alt="PWA Install Instructions" src="legacy/screenshots/install_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/install_dark.png">
+  <img alt="PWA Install Instructions" src="media/screenshots/install_light.png">
 </picture>
 
 ### Chrome extension (optional)
@@ -45,8 +45,8 @@ and
 [TrainerRoad](https://www.trainerroad.com/app/cycling/workouts).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/extension_dark.png">
-  <img alt="Extension Install Instructions" src="legacy/screenshots/extension_light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/extension_dark.png">
+  <img alt="Extension Install Instructions" src="media/screenshots/extension_light.png">
 </picture>
 
 
@@ -73,8 +73,8 @@ To install:
 * Works fully offline as a PWA
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="legacy/screenshots/selector-dark.png">
-  <img alt="Workout Selector Interface" src="legacy/screenshots/selector-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/selector-dark.png">
+  <img alt="Workout Selector Interface" src="media/screenshots/selector-light.png">
 </picture>
 
 ## Platform support
@@ -102,10 +102,21 @@ Should work with most FTMS-compatible trainers (Tacx, Elite, Saris, JetBlack, et
 
 ## Development
 
-This entire app was **vibe-coded with ChatGPT**, so there are *very few guarantees* about the code being tidy, consistent, idiomatic, or even sensible. It works — but approach it with a sense of adventure.
+VeloDrive is built with **TypeScript, Vite, and Svelte 5**. The source lives in
+[`web/`](./web); the production build is published to [`docs/`](./docs), which is
+the GitHub Pages source for velodrive.bike. See [`web/README.md`](./web/README.md)
+for the architecture and test harness.
 
-There is no build system. Everything runs as plain JavaScript, HTML, and CSS.
-Reload the extension via `chrome://extensions` to see any changes.
+```sh
+cd web
+npm install
+npm run dev            # local dev server
+npm run typecheck      # tsc --noEmit (strict)
+npm run test           # unit tests (vitest)
+npx playwright install chromium
+npm run test:e2e       # end-to-end tests (Playwright)
+npm run build:docs     # build the PWA into ../docs
+```
 
 ## Contributing
 

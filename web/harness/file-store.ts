@@ -1,9 +1,9 @@
 // harness/file-store.ts
 //
 // In-memory File System Access fakes + a fake IndexedDB, enough to boot the
-// legacy app into a CONFIGURED state without any real browser storage.
+// app into a CONFIGURED state without any real browser storage.
 //
-// What the legacy app needs (from docs/storage.js):
+// What the app needs:
 //   * indexedDB.open("velo-drive") with a "settings" object store keyed by
 //     "key", holding {key, value} (settings) and {key, handle} (dir handles).
 //   * Directory handles implementing getDirectoryHandle / getFileHandle /
@@ -151,7 +151,7 @@ export class FakeFileSystemDirectoryHandle {
 
 // ------------------------------ fake IndexedDB ------------------------------
 //
-// Minimal IDB modelled on exactly the calls docs/storage.js makes. Backed by a
+// Minimal IDB modelling the settings/history calls the app makes. Backed by a
 // single Map for the "settings" store. Records are {key, value?, handle?}.
 
 interface SettingsRecord {
@@ -274,7 +274,7 @@ export function createFakeIndexedDB(
       };
       Promise.resolve().then(() => {
         // Store already has its object store, so upgrade isn't strictly needed,
-        // but fire it once to mirror real first-open semantics.
+        // but fire it once to match real first-open semantics.
         try {
           req.onupgradeneeded?.({target: {result: db}});
         } catch {

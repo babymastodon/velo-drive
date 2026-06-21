@@ -1,30 +1,25 @@
 <script lang="ts">
-  // PlannerView — faithful re-host of the legacy workout planner (the
-  // `.planner-only` half of #workoutPickerOverlay/#workoutPickerModal in
-  // docs/index.html ~703-890 + docs/workout-planner.js). Reproduces the same
-  // class names / IDs / data-attributes so the re-hosted workout-planner.css +
-  // workout-picker.css apply unchanged. Implements: the infinite-ish week
-  // calendar (the legacy initial 16-week window, offsets -8..+7 around today,
-  // scrolled so today's week sits one row down), history cards on past days,
-  // scheduled cards on future days, the ride detail view (stat chips + power
-  // curve + planned-vs-actual chart), the 3/7/30-day totals footer, scheduling a
-  // workout on a day, and deleting a ride to trash.
+  // PlannerView — the workout planner (the `.planner-only` half of
+  // #workoutPickerOverlay/#workoutPickerModal). Implements: the infinite-ish week
+  // calendar (an initial 16-week window, offsets -8..+7 around today, scrolled so
+  // today's week sits one row down), history cards on past days, scheduled cards
+  // on future days, the ride detail view (stat chips + power curve +
+  // planned-vs-actual chart), the 3/7/30-day totals footer, scheduling a workout
+  // on a day, and deleting a ride to trash.
   //
   // Scheduling a workout on a day re-opens the workout LIBRARY in schedule mode
   // (ui.openPickerForSchedule → PickerView): the user browses + picks ANY workout
   // for the day, the picker writes schedule.json and returns to this planner
-  // overlay (faithful to legacy picker.openScheduleMode). See onScheduleDay /
-  // onEditScheduled below.
+  // overlay. See onScheduleDay / onEditScheduled below.
   //
-  // Drag-and-drop reschedule (G3), the `?`-held hotkey overlay (G4), and
-  // keyboard-nav scroll-into-view (G5/D2) are all ported below.
+  // Drag-and-drop reschedule, the `?`-held hotkey overlay, and keyboard-nav
+  // scroll-into-view are all below.
   //
-  // SIMPLIFICATION vs legacy (documented):
-  //  * Scrolling renders the fixed legacy initial 16-week window rather than
-  //    recycling rows on scroll — the initial render + scroll position is
-  //    pixel-identical to legacy; deep scroll just stops instead of paging.
-  //    Keyboard day-nav stays within this window and scrolls the selected cell
-  //    into view (scrollSelectedIntoView), matching legacy scrollCellIntoView.
+  // SIMPLIFICATION:
+  //  * Scrolling renders the fixed initial 16-week window rather than recycling
+  //    rows on scroll — deep scroll just stops instead of paging. Keyboard
+  //    day-nav stays within this window and scrolls the selected cell into view
+  //    (scrollSelectedIntoView).
   import OverlayModal from './OverlayModal.svelte';
   import type { FileStore } from '../ports/FileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
@@ -69,7 +64,7 @@
 
   const currentFtp = $derived(store.vm?.currentFtp || DEFAULT_FTP);
 
-  // --------------------------- date helpers (verbatim from legacy) ---------------------------
+  // --------------------------- date helpers ---------------------------
   function startOfWeek(date: Date): Date {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -147,9 +142,8 @@
   let detail = $state<DetailState | null>(null);
   const detailMode = $derived(detail != null);
 
-  // `?`-held hotkey overlay (G4): while held, hide the footer aggregates and
-  // show the hotkey list. questionHeld guards key-repeat (legacy
-  // workout-planner.js:1445-1466).
+  // `?`-held hotkey overlay: while held, hide the footer aggregates and show the
+  // hotkey list. questionHeld guards key-repeat.
   let showHotkeys = $state(false);
   let questionHeld = false;
 
@@ -181,8 +175,7 @@
   });
 
   // When we hand off to the schedule-mode picker we save the selected day so the
-  // re-opened planner restores it (instead of snapping back to today), matching
-  // the legacy showModal() round-trip which preserved planner state.
+  // re-opened planner restores it (instead of snapping back to today).
   let pendingScheduleReturnDate: Date | null = null;
 
   async function onOpen(): Promise<void> {
@@ -203,21 +196,19 @@
     await Promise.all([loadHistory(), loadSchedule()]);
     loaded = true;
     // Post-ride flow: if the shell opened the planner with a just-saved ride,
-    // auto-open that ride's DETAIL view (port of legacy planner.openDetailByFile,
-    // docs/workout.js:1383-1389 / workout-planner.js:1520; J-RIDE-26). Consume +
-    // clear the pending file so a later manual open shows the calendar.
+    // auto-open that ride's DETAIL view. Consume + clear the pending file so a
+    // later manual open shows the calendar.
     const pending = ui.pendingHistoryFile;
     if (pending) {
       ui.pendingHistoryFile = null;
       await openDetailByFile(pending.fileName, pending.date);
     }
-    // Scroll so today's week sits one row below the top (legacy centerOnDate).
+    // Scroll so today's week sits one row below the top.
     requestAnimationFrame(() => scrollToToday());
   }
 
   // Open the ride detail for a specific history file (post-ride follow-up).
-  // Selects the ride's day, finds its preview, and opens the detail. Mirrors
-  // legacy openDetailByFile (workout-planner.js:1520).
+  // Selects the ride's day, finds its preview, and opens the detail.
   async function openDetailByFile(fileName: string, startedAt: Date | null): Promise<void> {
     if (!fileName) return;
     const dateKey = startedAt ? formatKey(startedAt) : dateKeyFromHandleName(fileName);
@@ -234,9 +225,9 @@
     const rowEls = calendarBodyEl.querySelectorAll('.planner-week-row');
     const rowsBefore = Math.floor(VISIBLE_WEEKS / 2); // 8 → today's week is row index 8
     const targetRow = Math.max(0, rowsBefore - 1);
-    // Match legacy centerOnDate exactly: scrollTop = targetRow * measuredRowHeight
-    // (the first row's rendered height), NOT offsetTop (which accumulates the
-    // inter-row borders and drifts a few px per row).
+    // scrollTop = targetRow * measuredRowHeight (the first row's rendered
+    // height), NOT offsetTop (which accumulates the inter-row borders and drifts
+    // a few px per row).
     const firstRow = rowEls[0] as HTMLElement | undefined;
     const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 0;
     calendarBodyEl.scrollTop = Math.max(0, targetRow * rowHeight);
@@ -250,8 +241,7 @@
     for (const preview of previews) {
       const dateKey = dateKeyFromHandleName(preview.fileName);
       if (!dateKey) continue;
-      // Fall back to the file's day key when the FIT carried no startedAt
-      // (mirrors legacy loadHistoryPreview's utcDateKeyToLocalDate fallback).
+      // Fall back to the file's day key when the FIT carried no startedAt.
       const withStart: HistoryPreview =
         preview.startedAt != null
           ? preview
@@ -373,8 +363,7 @@
   // --------------------------- charts (imperative use: actions) ---------------------------
   //
   // Each chart action registers its render closure so it can be re-run on a
-  // theme change (charts read CSS-var colors at draw time; legacy redraws all
-  // planner charts via planner.rerenderCharts() on the <html> class mutation).
+  // theme change (charts read CSS-var colors at draw time).
   const chartRenderers = new Set<() => void>();
   function registerChart(node: SVGSVGElement, render: () => void) {
     chartRenderers.add(render);
@@ -459,8 +448,8 @@
   }
 
   async function openDetail(p: HistoryPreview): Promise<void> {
-    // Re-read the FIT for full samples/meta (matches legacy openDetailView), then
-    // delegate the VI/EF/paused/HR-cad ride-detail math to core/history.
+    // Re-read the FIT for full samples/meta, then delegate the VI/EF/paused/
+    // HR-cad ride-detail math to core/history.
     const entries = await fileStore.listHistory();
     const match = entries.find((e) => e.fileName === p.fileName) || null;
     if (!match) return;
@@ -476,7 +465,7 @@
     detail = null;
   }
 
-  // Detail stat chips (label/value/tooltip), mirrors renderDetailStats order.
+  // Detail stat chips (label/value/tooltip).
   const STAT_TOOLTIPS: Record<string, string> = {
     Duration: 'Moving time — Time the timer was running; paused time is excluded (elapsed minus pauses).',
     Paused: 'Paused time — Total time the ride timer was stopped; not counted in duration or averages.',
@@ -529,14 +518,12 @@
 
   // --------------------------- schedule / delete ---------------------------
   // Open the workout LIBRARY in schedule mode so the user browses + picks ANY
-  // workout for the day (the legacy openScheduleMode flow, G1/G2). The picker
-  // writes schedule.json + returns to the planner overlay (which reloads the
-  // schedule on re-open). Mirrors planner.requestSchedule → picker.openScheduleMode
-  // (workout-planner.js:868-872 / workout.js:1454-1459).
+  // workout for the day. The picker writes schedule.json + returns to the planner
+  // overlay (which reloads the schedule on re-open).
   function onScheduleDay(): void {
     if (!selectedDate) return;
     const dateKey = formatKey(selectedDate);
-    if (isPastDate(dateKey)) return; // past-date scheduling rejected (legacy 1497-1504)
+    if (isPastDate(dateKey)) return; // past-date scheduling rejected
     pendingScheduleReturnDate = selectedDate;
     ui.openPickerForSchedule(dateKey, null, false);
   }
@@ -576,9 +563,8 @@
     ui.close();
   }
 
-  // Load a scheduled workout into the engine + close the planner (legacy
-  // onScheduledLoadRequested → saveSelectedWorkout + setWorkoutFromPicker +
-  // planner.close). The full CanonicalWorkout was joined in loadSchedule.
+  // Load a scheduled workout into the engine + close the planner. The full
+  // CanonicalWorkout was joined in loadSchedule.
   async function onLoadScheduled(entry: ScheduledPreview): Promise<void> {
     const canonical: CanonicalWorkout = entry.canonical || {
       source: 'scheduled',
@@ -594,14 +580,13 @@
 
   // Edit a scheduled entry: re-open the workout LIBRARY in "Edit Schedule" mode
   // (the entry is pre-targeted; selecting a different workout REPLACES it, the
-  // Unschedule button REMOVES it). Mirrors legacy onScheduledEditRequested →
-  // picker.openScheduleMode({editMode:true}) (workout-planner.js:388-398).
+  // Unschedule button REMOVES it).
   function onEditScheduled(entry: ScheduledPreview): void {
     pendingScheduleReturnDate = keyToDate(entry.date);
     ui.openPickerForSchedule(entry.date, { date: entry.date, workoutTitle: entry.workoutTitle }, true);
   }
 
-  // --------------------------- keyboard (legacy onKeyDown ~1285-1395) ---------------------------
+  // --------------------------- keyboard ---------------------------
   function handlePlannerKey(e: KeyboardEvent): boolean {
     const key = (e.key || '').toLowerCase();
     // Detail mode: d/Delete delete the shown ride; Backspace/Escape exit detail.
@@ -618,7 +603,7 @@
       return false;
     }
     // Escape on the calendar is handled by ui.handleEscape (closes planner); not
-    // here. Mirrors legacy ignoring Escape in the non-detail branch.
+    // here.
     if (key === 'escape') return false;
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
     if (isEditableTarget(e.target)) return false;
@@ -693,14 +678,13 @@
     const base = selectedDate ? new Date(selectedDate) : new Date();
     selectedDate = addDays(base, daysDelta);
     // Scroll the newly-selected day cell into view if it's outside the visible
-    // calendar window (legacy setSelectedDate → scrollCellIntoView, 8px pad,
-    // workout-planner.js:839-859). The fixed 16-week window doesn't recycle, so
-    // we only scroll; the cell is always rendered within the window.
+    // calendar window (8px pad). The fixed 16-week window doesn't recycle, so we
+    // only scroll; the cell is always rendered within the window.
     queueMicrotask(() => scrollSelectedIntoView());
   }
 
-  // Scroll the selected day's cell into view inside the calendar body (legacy
-  // scrollCellIntoView, workout-planner.js:839-849). 8px padding top/bottom.
+  // Scroll the selected day's cell into view inside the calendar body. 8px
+  // padding top/bottom.
   function scrollSelectedIntoView(): void {
     if (!calendarBodyEl || !selectedDate) return;
     const key = formatKey(selectedDate);
@@ -716,12 +700,10 @@
     }
   }
 
-  // --------------------------- `?`-held hotkey overlay (legacy G4) ---------------------------
+  // --------------------------- `?`-held hotkey overlay ---------------------------
   // Hold `?` (Shift+/) or `/` to hide the footer aggregates and reveal the
   // hotkey list; release restores the footer. Only while the planner overlay is
-  // active and not in detail mode (the footer is calendar-only). Mirrors
-  // workout-planner.js isQuestionShowHotkey/isQuestionReleaseKey + keydown/keyup
-  // (:1275-1283, :1445-1466).
+  // active and not in detail mode (the footer is calendar-only).
   function isQuestionShowHotkey(e: KeyboardEvent): boolean {
     const key = e.key || '';
     return key === '?' || (key === '/' && e.shiftKey) || (e.code === 'Slash' && e.shiftKey);
@@ -747,11 +729,10 @@
     showHotkeys = false;
   }
 
-  // --------------------------- drag-and-drop reschedule (legacy G3) ---------------------------
+  // --------------------------- drag-and-drop reschedule ---------------------------
   // Drag a scheduled card onto a future-or-today day to move it. PAST days
   // reject; SAME-day is a no-op; live planner-drop-hover (hovered day) +
-  // planner-dragging (dragged card) styling. Mirrors workout-planner.js
-  // :457-471 (dragstart payload), :985-1023 (dragover/leave/drop).
+  // planner-dragging (dragged card) styling.
   function onCardDragStart(e: DragEvent, fromDate: string, workoutTitle: string): void {
     const dt = e.dataTransfer;
     if (!dt) return;
@@ -811,7 +792,7 @@
 
   // Register the planner keymap with the App overlay-key router while the planner
   // overlay is active (App suppresses global hotkeys + routes keys here). Mirrors
-  // the PickerView registration convention (Wave 1).
+  // the PickerView registration convention.
   $effect(() => {
     if (open) {
       ui.registerOverlayKeyHandler('planner', handlePlannerKey);
@@ -821,8 +802,8 @@
   });
 
   // Tell the ui store whether the detail sub-view is open so Escape/Backspace
-  // pop the detail back to the calendar (instead of closing the whole planner),
-  // matching legacy. Cleared on close.
+  // pop the detail back to the calendar (instead of closing the whole planner).
+  // Cleared on close.
   $effect(() => {
     ui.plannerDetailOpen = open && detailMode;
   });

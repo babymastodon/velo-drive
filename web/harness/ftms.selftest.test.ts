@@ -1,10 +1,10 @@
 // harness/ftms.selftest.test.ts
 //
-// Sim-vs-parser self-test: encode a known Indoor Bike Data frame with the
+// Encode/decode self-test: encode a known Indoor Bike Data frame with the
 // harness FTMS simulator's encoder, then decode it with the reference decoder
-// (a faithful copy of docs/ble-manager.js `parseIndoorBikeData`) and assert the
-// decoded sample equals the input. This proves the simulator is the inverse of
-// the legacy BLE parser, so closed-loop scenarios are grounded in real bytes.
+// (a faithful FTMS `parseIndoorBikeData`) and assert the decoded sample equals
+// the input. This proves the simulator's encoder is the inverse of the FTMS
+// decoder/parser, so closed-loop scenarios are grounded in real bytes.
 
 import {describe, it, expect} from "vitest";
 import {
@@ -15,8 +15,8 @@ import {
   FTMS_OPCODES,
 } from "./ftms.js";
 
-describe("FTMS sim ↔ legacy parser round-trip", () => {
-  it("decodes power+cadence+hr exactly as the legacy parser would", () => {
+describe("FTMS sim ↔ parser round-trip", () => {
+  it("decodes power+cadence+hr exactly as the FTMS parser would", () => {
     const input = {power: 237, cadence: 92, speedKph: 31.4, hr: 148};
     const frame = encodeIndoorBikeData(input);
     const decoded = decodeIndoorBikeData(frame);

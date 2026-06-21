@@ -18,5 +18,5 @@
     "noEmit": true
   },
   "include": ["src", "tests", "harness", "vite.config.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "legacy", "legacy-shimmed", "dist"]
+  "exclude": ["node_modules", "dist"]
 }

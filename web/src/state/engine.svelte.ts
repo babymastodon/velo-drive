@@ -13,7 +13,7 @@ export class EngineStore {
   bikeStatus = $state<'connecting' | 'connected' | 'error' | 'idle'>('idle');
   hrStatus = $state<'connecting' | 'connected' | 'error' | 'idle'>('idle');
   // Detailed status text (e.g. "Connected to KICKR", "Device disconnected. Will
-  // retry…") shown as the bike/HRM button hover tooltip (legacy bottom-nav).
+  // retry…") shown as the bike/HRM button hover tooltip in the bottom-nav.
   bikeStatusMessage = $state('');
   hrStatusMessage = $state('');
   hrBatteryPercent = $state<number | null>(null);

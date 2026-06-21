@@ -1,8 +1,7 @@
 // hud-format.ts
 //
-// Pure presentation helpers ported from docs/workout.js render layer
-// (formatting, target-power, current cadence target, zone color). These map the
-// engine view-model to display values exactly as the legacy HUD does.
+// Pure presentation helpers (formatting, target-power, current cadence target,
+// zone color). These map the engine view-model to display values.
 
 import type { EngineViewModel } from '../core/engine.js';
 import { DEFAULT_FTP } from '../core/metrics.js';

@@ -1,5 +1,5 @@
-// New (Svelte) app BLE auto-reconnect + connection logs + boot auto-open guard.
-// Behavior only (no visual diff). The harness FTMS sim supports getDevices() and
+// BLE auto-reconnect + connection logs + boot auto-open guard.
+// The harness FTMS sim supports getDevices() and
 // seeds lastBikeDeviceId when connectBike:true, so a fresh load drives the
 // transport's reconnect-saved-devices path exactly like the real app.
 
@@ -97,10 +97,9 @@ test.describe("BLE (new Svelte app) — boot auto-open guard", () => {
   });
 });
 
-// Bug #4: clicking Bike/HRM connect when Web Bluetooth is unavailable must warn
-// (Dialog) + open Settings (legacy docs/workout.js:1525-1565); and cancelling
-// the device chooser (AbortError) must return the status dot to IDLE — not
-// error or connected.
+// Clicking Bike/HRM connect when Web Bluetooth is unavailable must warn
+// (Dialog) + open Settings; and cancelling the device chooser (AbortError) must
+// return the status dot to IDLE — not error or connected.
 test.describe("BLE (new Svelte app) — unavailable warning + cancel status", () => {
   test.use({harnessConfig: {...CONNECT_CONFIG, connectBike: false}});
 

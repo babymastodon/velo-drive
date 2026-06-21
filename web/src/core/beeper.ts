@@ -1,14 +1,14 @@
 // beeper.ts
 //
-// Focused TypeScript port of docs/beeper.js. The HUD needs the start countdown
-// (3-2-1-Start) whose onDone callback starts the ride, plus the basic audio
-// cue primitive (so the fake AudioContext records oscillator-start events for
-// the harness). Reads `window.setTimeout` / `window.AudioContext` so the
-// platform shim (virtual clock + fake audio) drives it like the legacy app.
+// The HUD needs the start countdown (3-2-1-Start) whose onDone callback starts
+// the ride, plus the basic audio cue primitive (so the fake AudioContext
+// records oscillator-start events for the harness). Reads `window.setTimeout` /
+// `window.AudioContext` so the platform shim (virtual clock + fake audio) can
+// drive it.
 //
 // Overlay DOM (#statusOverlay/#statusText) is optional: when present the
 // countdown shows the big "3/2/1/Start" labels; when absent the countdown still
-// runs on the (virtual) clock and fires onDone, matching legacy behavior.
+// runs on the (virtual) clock and fires onDone.
 
 type AudioContextCtor = new () => AudioContext;
 
@@ -35,8 +35,8 @@ export class Beeper implements BeeperLike {
 
   /**
    * Warm/resume the AudioContext on the first user gesture and whenever the tab
-   * returns to the foreground, mirroring legacy primeAudioContext. Browsers
-   * start an AudioContext SUSPENDED until a gesture resumes it, so without this
+   * returns to the foreground. Browsers start an AudioContext SUSPENDED until a
+   * gesture resumes it, so without this
    * the first countdown/cue beep (often fired from a tick, not a click) is
    * silently dropped. Best-effort + harness-safe (no AudioContext → no-op).
    */
@@ -145,7 +145,7 @@ export class Beeper implements BeeperLike {
 
   playBeepPattern(): void {
     // 3-2-1 countdown into an interval change: 3 short beeps spaced 1s apart,
-    // then a longer "go" beep at the change (legacy beeper.js playBeepPattern).
+    // then a longer "go" beep at the change.
     // Scheduled via timers (not a synchronous loop, which stacked all three into
     // a single audible blip) so each beep also re-checks `enabled` — muting
     // mid-pattern silences the rest.
@@ -162,9 +162,8 @@ export class Beeper implements BeeperLike {
 
   /**
    * Soft triple-tap cue played once when a text event becomes active during a
-   * ride (port of docs/beeper.js playTextEventTaps, 387). Three layered
-   * triangle+sine taps through a low-pass filter. No-op when sound is disabled
-   * or no AudioContext is available.
+   * ride. Three layered triangle+sine taps through a low-pass filter. No-op when
+   * sound is disabled or no AudioContext is available.
    */
   playTextEventTaps(gain = 0.6): void {
     if (!this.enabled) return;

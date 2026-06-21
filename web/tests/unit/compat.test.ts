@@ -1,6 +1,6 @@
-// Unit tests for app/compat.ts (detectOs/detectBrowser/compatMessage), the port
-// of docs/settings.js platform detection. We stub navigator.userAgent /
-// userAgentData so the detection is deterministic.
+// Unit tests for app/compat.ts (detectOs/detectBrowser/compatMessage) platform
+// detection. We stub navigator.userAgent / userAgentData so the detection is
+// deterministic.
 
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {compatMessage, detectBrowser, detectOs} from "../../src/app/compat.js";
@@ -79,9 +79,9 @@ describe("detectOs", () => {
   });
 
   it("marks iOS as unsupported (iphone UA without the mac-os-x token)", () => {
-    // The legacy ordering matches "mac os x" before "iphone"; a real iOS Safari
-    // UA carries "like Mac OS X" so it classifies as macOS (faithful to legacy).
-    // Use a bare iphone token to exercise the iOS branch itself.
+    // The detection ordering matches "mac os x" before "iphone"; a real iOS
+    // Safari UA carries "like Mac OS X" so it classifies as macOS. Use a bare
+    // iphone token to exercise the iOS branch itself.
     stubNavigator({userAgent: "mozilla/5.0 (iphone; cpu iphone os 16_0)"});
     expect(detectOs()).toMatchObject({name: "iOS", supported: false});
   });

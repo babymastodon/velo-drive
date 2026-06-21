@@ -1,4 +1,4 @@
-// New (Svelte) app HUD: behavior tests. Both apps boot the SAME hermetic config.
+// HUD behavior tests.
 
 import {test, expect, reachNewRidingView, type HarnessConfig} from "./fixtures.js";
 

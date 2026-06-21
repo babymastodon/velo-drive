@@ -1,7 +1,6 @@
 <script lang="ts" module>
-  // Public imperative API the host (PickerView) drives. Mirrors the legacy
-  // workoutBuilder return object (docs/workout-builder.js): getState /
-  // clearState / refreshLayout / validateForSave / loadCanonicalWorkout.
+  // Public imperative API the host (PickerView) drives: getState / clearState /
+  // refreshLayout / validateForSave / loadCanonicalWorkout.
   export interface BuilderApi {
     getState: () => CanonicalWorkout;
     clearState: (opts?: { persist?: boolean }) => void;
@@ -12,18 +11,14 @@
 </script>
 
 <script lang="ts">
-  // BuilderView — faithful re-host of the legacy in-picker workout builder
-  // (docs/workout-builder.js UI + docs/builder-backend.js model, ported to
-  // core/builder-backend.ts). Reproduces the wb-* DOM/classes so the re-hosted
-  // workout-picker.css applies unchanged. The block MODEL is the DOM-free
-  // backend; the chart is rendered imperatively via core/chart.ts
-  // renderBuilderWorkoutGraph. Stats / toolbar / block-editor are reactive
-  // Svelte bound to a version-bumped snapshot of the backend.
+  // BuilderView — the in-picker workout builder. The block MODEL is the DOM-free
+  // backend (core/builder-backend.ts); the chart is rendered imperatively via
+  // core/chart.ts renderBuilderWorkoutGraph. Stats / toolbar / block-editor are
+  // reactive Svelte bound to a version-bumped snapshot of the backend.
   //
-  // Required behavior path (per milestone): keyboard/stepper editing + the saved
-  // .zwo outcome. Drag-on-chart: pointerdown selects a block / sets the insert
-  // point + supports right-edge duration + top power drag (the pointer->time/
-  // power math reuses the legacy formulas); pixel-perfect ramp-region drag is
+  // Required behavior path: keyboard/stepper editing + the saved .zwo outcome.
+  // Drag-on-chart: pointerdown selects a block / sets the insert point + supports
+  // right-edge duration + top power drag; pixel-perfect ramp-region drag is
   // simplified (see handleChartPointerMove).
 
   import {
@@ -53,8 +48,7 @@
     onStatusChange?: (p: { text: string; tone: string }) => void;
     onUiStateChange?: (p: { hasSelection: boolean }) => void;
     // Fired after any model mutation (version bump). The host uses this to
-    // diff against a baseline for unsaved-changes tracking + draft persistence
-    // (mirrors docs/workout-picker.js handleBuilderChange wiring).
+    // diff against a baseline for unsaved-changes tracking + draft persistence.
     onChange?: () => void;
     api?: BuilderApi;
   } = $props();
@@ -90,9 +84,8 @@
   let descTextarea = $state<HTMLTextAreaElement | null>(null);
   let toolbarCard = $state<HTMLDivElement | null>(null);
 
-  // Responsive toolbar label mode (mirrors docs/workout-builder.js
-  // updateSteadyLabels): width<950 -> icon-only; <1260 -> short (Z1..Z6);
-  // otherwise full labels.
+  // Responsive toolbar label mode: width<950 -> icon-only; <1260 -> short
+  // (Z1..Z6); otherwise full labels.
   let labelMode = $state<'full' | 'short' | 'icon'>('full');
   function updateLabelMode(): void {
     if (!toolbarCard) return;
@@ -335,10 +328,10 @@
   }
 
   // --------------------------- clipboard ---------------------------
-  // Faithful port of docs/workout-builder.js copy/cut/pasteFromClipboard. The
-  // wire format (ZWO XML for blocks, VELO_TEXT_EVENTS:{json} for a lone text
-  // event) lives in core/builder-backend.ts as pure encode/parse functions;
-  // here we only do the navigator.clipboard I/O.
+  // Copy/cut/paste from the clipboard. The wire format (ZWO XML for blocks,
+  // VELO_TEXT_EVENTS:{json} for a lone text event) lives in
+  // core/builder-backend.ts as pure encode/parse functions; here we only do the
+  // navigator.clipboard I/O.
   async function clipboardWrite(text: string): Promise<void> {
     try {
       if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
@@ -451,7 +444,7 @@
     onStatusChange?.({ text, tone });
   }
 
-  // emit empty/no-error status as the model changes (mirrors updateErrorStyling).
+  // emit empty/no-error status as the model changes.
   $effect(() => {
     void version;
     const blocks = backend.getCurrentBlocks();
@@ -467,9 +460,9 @@
   $effect(() => {
     void version;
     // Redraw on an Auto-mode OS light/dark flip too (charts read CSS-var colors
-    // at draw time; J-DARK-06 / J-CFG-13). Uses themeAutoVersion (matchMedia
-    // path only) to match legacy workout-picker.js — a manual data-theme toggle
-    // does not redraw the builder there, keeping the dark visual baseline valid.
+    // at draw time). Uses themeAutoVersion (matchMedia path only) — a manual
+    // data-theme toggle does not redraw the builder, keeping the dark visual
+    // baseline valid.
     void themeAutoVersion();
     if (!chartHost) return;
     const ftp = getCurrentFtp() || 0;
@@ -504,8 +497,8 @@
       deselectBlock();
       return;
     }
-    // Shift-click range-select (docs/workout-builder.js:1362). Extend from the
-    // existing anchor to the clicked block via the cursor-based selection.
+    // Shift-click range-select. Extend from the existing anchor to the clicked
+    // block via the cursor-based selection.
     if (opts.shiftKey) {
       const selection = backend.getSelectionSnapshot();
       const anchor =
@@ -637,8 +630,8 @@
     };
     dragInsertAfterIndex = null;
     if (handle === 'right') timelineLockSec = dragState.lockedTimelineSec || 0;
-    // Legacy workout-builder.js:2548 — drives the `grabbing` cursor for the
-    // move-drag handle (workout-picker.css:1307 `body.wb-dragging …--move`).
+    // Drives the `grabbing` cursor for the move-drag handle
+    // (workout-picker.css:1307 `body.wb-dragging …--move`).
     document.body.classList.add('wb-dragging');
     window.addEventListener('pointermove', handleChartPointerMove);
     window.addEventListener('pointerup', handleChartPointerUp);
@@ -762,14 +755,14 @@
     if (isRedo) { e.preventDefault(); redo(); return; }
 
     // Cmd/Ctrl+A / Cmd/Ctrl+E (no selection) -> move the insertion cursor to
-    // start / end (docs/workout-builder.js:525-539).
+    // start / end.
     if (isMeta && !hasSel && currentBlocks.length) {
       if (lower === 'a') { e.preventDefault(); backend.setInsertAfterOverrideIndex(-1); bump(); return; }
       if (lower === 'e') { e.preventDefault(); backend.setInsertAfterOverrideIndex(currentBlocks.length - 1); bump(); return; }
     }
 
-    // Clipboard (docs/workout-builder.js:561-602): Cmd/Ctrl+C/X/V, the legacy
-    // Insert/Delete variants, and bare P for paste.
+    // Clipboard: Cmd/Ctrl+C/X/V, the Insert/Delete variants, and bare P for
+    // paste.
     const isShiftInsert = !e.metaKey && !e.ctrlKey && e.shiftKey && key === 'Insert';
     const isShiftDelete = !e.metaKey && !e.ctrlKey && e.shiftKey && key === 'Delete';
     const isCtrlInsert = (e.metaKey || e.ctrlKey) && !e.altKey && key === 'Insert';
@@ -781,8 +774,7 @@
     if (isShiftInsert) { e.preventDefault(); void pasteFromClipboard(); return; }
     if (isShiftDelete) { e.preventDefault(); void cutSelectionToClipboard(); return; }
 
-    // Shift+H/L/Arrows -> extend the multi-block selection by cursor
-    // (docs/workout-builder.js:604-619).
+    // Shift+H/L/Arrows -> extend the multi-block selection by cursor.
     if (!e.metaKey && !e.ctrlKey && !e.altKey && e.shiftKey &&
         (lower === 'h' || lower === 'l' || key === 'ArrowLeft' || key === 'ArrowRight')) {
       e.preventDefault();
@@ -795,7 +787,7 @@
 
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-    // Multi-selection Y -> copy then deselect (docs/workout-builder.js:623-629).
+    // Multi-selection Y -> copy then deselect.
     if (selCount > 1 && lower === 'y') {
       e.preventDefault();
       void copySelectionToClipboard();
@@ -827,8 +819,8 @@
       }
       if (hasSel) {
         e.preventDefault();
-        // Legacy `d` is CUT-to-clipboard (copy+delete); Delete/Backspace are
-        // plain delete (docs/workout-builder.js:693-697).
+        // `d` is CUT-to-clipboard (copy+delete); Delete/Backspace are plain
+        // delete.
         if (lower === 'd') void cutSelectionToClipboard();
         else deleteSelected();
         return;
@@ -899,7 +891,7 @@
     }
 
     // Multi-selection Space -> toggle insert side to first-1 / last of the
-    // range (docs/workout-builder.js:779-784).
+    // range.
     if (!single && hasSel && (key === ' ' || e.code === 'Space')) {
       e.preventDefault();
       e.stopPropagation();
@@ -1022,10 +1014,9 @@
   // --------------------------- lifecycle / public API ---------------------------
   function initDefault(persist = true): void {
     backend.resetHistory();
-    // Match the legacy create-default flow: the builder hydrates from its own
-    // persisted snapshot, whose title was normalized to "Custom workout" by
-    // syncMetaFromInputs (docs/workout-builder.js). So the Name field shows
-    // "Custom workout" on a fresh create, not an empty string.
+    // The builder hydrates from its own persisted snapshot, whose title is
+    // normalized to "Custom workout". So the Name field shows "Custom workout"
+    // on a fresh create, not an empty string.
     nameValue = 'Custom workout';
     sourceValue = 'Me';
     descValue = '';

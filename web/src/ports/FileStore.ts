@@ -1,10 +1,10 @@
 // FileStore.ts
 //
-// Port interface for settings/persistence + file output, wrapping the behavior
-// of docs/storage.js. The web implementation (WebFileStore) reads `indexedDB`
-// and `showDirectoryPicker` so the harness fakes drive it. Only the surface the
-// HUD needs is modeled: load selected workout, FTP + settings, saved device IDs,
-// active-state persistence, and the history dir handle (for FIT output).
+// Port interface for settings/persistence + file output. The web implementation
+// (WebFileStore) reads `indexedDB` and `showDirectoryPicker` so the harness
+// fakes drive it. Only the surface the HUD needs is modeled: load selected
+// workout, FTP + settings, saved device IDs, active-state persistence, and the
+// history dir handle (for FIT output).
 
 import type { CanonicalWorkout } from '../core/model.js';
 import type { HistoryPreview, HistoryFitEntry } from '../core/history.js';
@@ -45,7 +45,7 @@ export interface FsWritable {
 export interface FileStore {
   loadSelectedWorkout(): Promise<CanonicalWorkout | null>;
   getSetting<T>(key: string, defaultValue: T): Promise<T>;
-  /** Persist a single setting (mirrors docs/storage.js setSetting). */
+  /** Persist a single setting. */
   putSetting(key: string, value: unknown): Promise<void>;
   loadBleDeviceIds(): Promise<{ bikeId: string | null; hrId: string | null }>;
   loadActiveState(): Promise<ActiveState | null>;

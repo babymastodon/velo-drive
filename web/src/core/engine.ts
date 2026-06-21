@@ -1,10 +1,9 @@
 // engine.ts
 //
-// TypeScript port of docs/workout-engine.js — the DOM-free ride state machine.
-// Behavior is preserved verbatim (Part X constants, tick-counting, ERG control,
-// auto-pause/resume, countdown→onDone start, view-model shape). Dependencies are
+// The DOM-free ride state machine: tick-counting, ERG control,
+// auto-pause/resume, countdown→onDone start, view-model shape. Dependencies are
 // INJECTED ({ transport, fileStore, beeper, now, setInterval, clearInterval,
-// setTimeout }) so the virtual clock + fakes drive it under the harness; all
+// setTimeout }) so the virtual clock + fakes can drive it under the harness; all
 // default to the real platform globals.
 
 import { DEFAULT_FTP } from './metrics.js';
@@ -71,7 +70,7 @@ export interface EngineInitCallbacks {
   onWorkoutEnded?: (info: { fileName: string; startedAt: Date; endedAt: Date } | null) => void;
   // User-facing alert sink (themed Dialog) for the two reachable engine
   // warnings ("No workout selected", "Please end your current workout first").
-  // Replaces the unthemed native alert()s (J-DARK-12). Falls back to onLog.
+  // Falls back to onLog.
   onAlert?: (msg: string) => void;
 }
 
@@ -117,8 +116,7 @@ export class WorkoutEngine {
   private lastSampleCadence: number | null = null;
 
   private zeroPowerSeconds = 0;
-  // Dedup key so the text-event cue fires once per active text event (port of
-  // docs/workout.js lastTextEventKey; J-RIDE-10).
+  // Dedup key so the text-event cue fires once per active text event.
   private lastTextEventKey: string | null = null;
   private autoPauseDisabledUntilSec = 0;
   private manualPauseAutoResumeBlockedUntilMs = 0;
@@ -268,7 +266,7 @@ export class WorkoutEngine {
   }
 
   private persistActiveState(): Promise<void> {
-    // PERS-E4: surface a silent active-state write failure (structured-clone /
+    // Surface a silent active-state write failure (structured-clone /
     // quota) instead of losing the in-progress ride invisibly. Logged once per
     // failure streak (cleared on the next successful save) to avoid log spam.
     return this.fileStore.saveActiveState(this.buildActiveSnapshot()).then(
@@ -385,7 +383,7 @@ export class WorkoutEngine {
     if (!this.canonicalWorkout) return;
 
     const first = this.canonicalWorkout.rawSegments[0];
-    if (!first) return; // A2: guard empty rawSegments
+    if (!first) return; // guard empty rawSegments
     const startPct = first[1];
     const ftp = this.currentFtp || DEFAULT_FTP;
     const pStartRel = (startPct || 50) / 100;
@@ -438,27 +436,26 @@ export class WorkoutEngine {
   }
 
   private async tick(): Promise<void> {
-    // NOTE (ACT-E1): tick() awaits a real BLE write, so a >1s stall can let the
+    // NOTE: tick() awaits a real BLE write, so a >1s stall can let the
     // 1s interval fire an overlapping tick. The serious symptom of that — a
     // double FIT save / double onWorkoutEnded if two ticks both auto-finalize —
     // is handled by endWorkout()'s `ending` idempotency guard. We deliberately
-    // do NOT add a skip-guard here: the engine counts ride time in ticks (P6),
+    // do NOT add a skip-guard here: the engine counts ride time in ticks,
     // and the virtual-clock harness fires interval callbacks synchronously, so
     // a skip-guard would drop legitimate ticks and desync elapsedSec. The only
     // residual is a possible duplicate sample during a genuine multi-second BLE
     // stall — cosmetic in the FIT.
     this.lastTickWallMs = this.now();
-    // TODO(P6, known limitation — do not "fix" casually): ride time is COUNTED IN
+    // TODO (known limitation — do not "fix" casually): ride time is COUNTED IN
     // TICKS (elapsedSec += 1 per fired interval), not derived from wall-clock.
     // Browsers throttle background-tab setInterval (fires far slower than 1 Hz),
     // so a backgrounded ride under-counts elapsed time and delays the 0-power
     // auto-pause. lastTickWallMs is captured here but NOT used to catch elapsed
-    // up. Inherited from legacy (docs/workout-engine.js). Fixing it (wall-clock
-    // reconciliation or a Web Worker ticker) changes the engine's core time
-    // source and the virtual-clock test harness, and naive catch-up causes timer
-    // jumps + skipped interval cues — so left as-is intentionally. See
-    // docs-analysis/audit/00-workout-state-bugs.md (P6). Screen Wake Lock would
-    // address the common screen-sleep case but not tab-switch throttling.
+    // up. Fixing it (wall-clock reconciliation or a Web Worker ticker) changes
+    // the engine's core time source and the virtual-clock test harness, and
+    // naive catch-up causes timer jumps + skipped interval cues — so left as-is
+    // intentionally. Screen Wake Lock would address the common screen-sleep case
+    // but not tab-switch throttling.
     const shouldAdvance = this.workoutRunning && !this.workoutPaused;
 
     if (!this.workoutRunning && !this.workoutPaused) {
@@ -516,10 +513,9 @@ export class WorkoutEngine {
       const hasPower = !!this.lastSamplePower && this.lastSamplePower > 0;
       // Normal structured segments auto-resume at >=90% of target. But that
       // threshold is unreachable from a dead stop for (a) ANY free-ride —
-      // resistance (no numeric target, P1) OR a high manual-ERG free-ride
-      // (ACT-E2) — and (b) a segment whose target rounds to <=0W (AUTO-E3).
-      // Those would trap the rider on the pause overlay, so resume on any
-      // positive power instead.
+      // resistance (no numeric target) OR a high manual-ERG free-ride — and
+      // (b) a segment whose target rounds to <=0W. Those would trap the rider
+      // on the pause overlay, so resume on any positive power instead.
       const shouldAutoResume =
         segment?.isFreeRide || tgt <= 0
           ? hasPower
@@ -527,7 +523,7 @@ export class WorkoutEngine {
       if (!autoResumeBlocked && shouldAutoResume) {
         this.log('Auto-resume: power high vs target (>=90%).');
         this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
-        // P4: clear the manual-pause auto-resume block for symmetry with the
+        // Clear the manual-pause auto-resume block for symmetry with the
         // manual resume path, so snapshots don't carry a stale block timestamp.
         this.manualPauseAutoResumeBlockedUntilMs = 0;
         this.beeper.showResumedOverlay();
@@ -561,9 +557,8 @@ export class WorkoutEngine {
 
   /**
    * Fire the text-event audio cue once when a text event becomes active during a
-   * running (non-paused) ride (port of docs/workout.js getActiveTextEvent +
-   * maybePlayTextEvent, 1051-1086; J-RIDE-10). Deduped by idx/offset/text so a
-   * given event taps once for its whole window.
+   * running (non-paused) ride. Deduped by idx/offset/text so a given event taps
+   * once for its whole window.
    */
   private maybePlayTextEvent(): void {
     const cw = this.canonicalWorkout;
@@ -627,7 +622,7 @@ export class WorkoutEngine {
 
   /**
    * Resume from a paused ride (paused→running) and immediately force-re-send the
-   * held target to the trainer (P3). Without the force-send, re-application is
+   * held target to the trainer. Without the force-send, re-application is
    * left to the throttled next tick (sendTrainerState(false)) and can be a no-op
    * if the target is unchanged and <10s have elapsed on the transport clock.
    * No-op if we are not actually paused, so the force-send only fires on a real
@@ -645,7 +640,7 @@ export class WorkoutEngine {
       return;
     }
 
-    // A4: during the 3-2-1 countdown workoutStarting is true; ignore Start/Space
+    // During the 3-2-1 countdown workoutStarting is true; ignore Start/Space
     // so we don't fall through to the pause/resume else-branch and flip a stray
     // workoutPaused (which beginRun would otherwise self-heal).
     if (this.workoutStarting) return;
@@ -667,7 +662,7 @@ export class WorkoutEngine {
       this.autoPauseDisabledUntilSec = this.elapsedSec + 15;
       this.manualPauseAutoResumeBlockedUntilMs = 0;
       this.beeper.showResumedOverlay();
-      // P3: force-re-send the held target on resume (fire-and-forget; startWorkout
+      // Force-re-send the held target on resume (fire-and-forget; startWorkout
       // is sync). resumeFromPause no-ops if we're not actually paused.
       void this.resumeFromPause();
     } else {
@@ -679,14 +674,14 @@ export class WorkoutEngine {
   }
 
   private async beginRun(): Promise<void> {
-    // LIFE-E1: the start-countdown's onDone lands here ~3s after startWorkout.
+    // The start-countdown's onDone lands here ~3s after startWorkout.
     // If the ride was ended/cancelled during the countdown, workoutStarting was
     // cleared — bail so we never resurrect a ghost ride.
     if (!this.workoutStarting) return;
     this.liveSamples = [];
     this.elapsedSec = 0;
     const first = this.canonicalWorkout!.rawSegments[0];
-    if (!first) return; // A2: guard empty rawSegments
+    if (!first) return; // guard empty rawSegments
     const minutes = first[0];
     this.intervalElapsedSec = segDurationSec(minutes || 0);
     this.currentIntervalIndex = 0;
@@ -708,7 +703,7 @@ export class WorkoutEngine {
   }
 
   async endWorkout(): Promise<void> {
-    // Idempotent (LIFE-E2 / ACT-E1): endWorkout awaits the FIT save, so it can be
+    // Idempotent: endWorkout awaits the FIT save, so it can be
     // entered twice — e.g. the ticker auto-finalizing at the same instant the
     // user confirms Stop — which would double-save the FIT and fire
     // onWorkoutEnded twice. The second entrant is a no-op.
@@ -837,7 +832,7 @@ export class WorkoutEngine {
     }
 
     if (this.workoutRunning) {
-      // P7: a ride that crashed at/after completion would otherwise be restored
+      // A ride that crashed at/after completion would otherwise be restored
       // as paused — and the end check (elapsedSec >= workoutTotalSec) lives inside
       // the running-&-not-paused tick block, so it sits stuck forever. Finalize
       // immediately instead of arming a paused ticker.
@@ -873,7 +868,7 @@ export class WorkoutEngine {
     this.liveSamples = (a.liveSamples as LiveSample[]) || [];
     this.zeroPowerSeconds = (a.zeroPowerSeconds as number) || 0;
     this.autoPauseDisabledUntilSec = (a.autoPauseDisabledUntilSec as number) || 0;
-    // P8: do NOT carry the prior session's wall-clock pause-start / block ms. The
+    // Do NOT carry the prior session's wall-clock pause-start / block ms. The
     // app-closed gap is not "paused riding"; restoring pauseStartedAtMs as an
     // absolute prior-session ms would flow the whole closed-app interval into
     // totalPausedMs → FIT totalElapsedSec on the next resume/end. We keep the
@@ -899,8 +894,8 @@ export class WorkoutEngine {
     if (newMode === this.freeRideMode || this.workoutStarting) return;
     this.freeRideMode = newMode;
     this.scheduleSaveActiveState();
-    // P2: don't force a fresh setpoint to the wheel while paused; the resume
-    // re-send (P3) re-asserts the target. State still updates + persists.
+    // Don't force a fresh setpoint to the wheel while paused; the resume
+    // re-send re-asserts the target. State still updates + persists.
     if (!this.workoutPaused) {
       this.sendTrainerState(true).catch((err) =>
         this.log('Trainer state send on free ride mode change failed: ' + err),
@@ -912,7 +907,7 @@ export class WorkoutEngine {
   setFtp(newFtp: number): void {
     this.currentFtp = newFtp || DEFAULT_FTP;
     this.scheduleSaveActiveState();
-    // P2: skip the forced send while paused (state still updates + persists).
+    // Skip the forced send while paused (state still updates + persists).
     if (!this.workoutPaused) {
       this.sendTrainerState(true).catch((err) => this.log('Trainer state send after FTP change failed: ' + err));
     }
@@ -922,7 +917,7 @@ export class WorkoutEngine {
   adjustManualErg(delta: number): void {
     this.manualErgTarget = Math.max(50, Math.min(1500, this.manualErgTarget + delta));
     this.scheduleSaveActiveState();
-    // P2: skip the forced send while paused (state still updates + persists).
+    // Skip the forced send while paused (state still updates + persists).
     if (!this.workoutPaused) {
       this.sendTrainerState(true).catch(() => {});
     }
@@ -932,7 +927,7 @@ export class WorkoutEngine {
   adjustManualResistance(delta: number): void {
     this.manualResistance = Math.max(0, Math.min(100, this.manualResistance + delta));
     this.scheduleSaveActiveState();
-    // P2: skip the forced send while paused (state still updates + persists).
+    // Skip the forced send while paused (state still updates + persists).
     if (!this.workoutPaused) {
       this.sendTrainerState(true).catch(() => {});
     }
@@ -948,7 +943,7 @@ export class WorkoutEngine {
       console.warn('[WorkoutEngine] Invalid CanonicalWorkout payload:', canonical);
       return;
     }
-    // A2: reject zero-length workouts — beginRun/maybeAutoStartFromPower read
+    // Reject zero-length workouts — beginRun/maybeAutoStartFromPower read
     // rawSegments[0] and an empty array (reachable via the planner scheduled-load
     // `entry.rawSegments || []`) would TypeError on every sample + on Start.
     if (!canonical.rawSegments.length) {
@@ -963,7 +958,7 @@ export class WorkoutEngine {
     this.zeroPowerSeconds = 0;
     this.autoPauseDisabledUntilSec = 0;
     this.manualPauseAutoResumeBlockedUntilMs = 0;
-    // A1: a freshly selected workout is an intentional workout action, so lift
+    // A freshly selected workout is an intentional workout action, so lift
     // the auto-start suppression set by a prior endWorkout — otherwise pedaling
     // never auto-starts the new ride until a manual Start.
     this.autoStartSuppressed = false;

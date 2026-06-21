@@ -1,5 +1,5 @@
-// OS-FLIP BEHAVIOR for the new (Svelte) app in AUTO theme mode: boot auto, flip
-// the OS via page.emulateMedia, and assert the resolved palette (--bg /
+// OS-FLIP BEHAVIOR in AUTO theme mode: boot auto, flip the OS via
+// page.emulateMedia, and assert the resolved palette (--bg /
 // --chart-empty-shadow / --ftp-line) flips AND a chart redraws (the themeVersion
 // path) so charts never keep a stale palette.
 
@@ -25,8 +25,8 @@ async function settle(page: Page): Promise<void> {
 // The chart bakes CSS-var colors (e.g. --ftp-line) into SVG paint attributes at
 // DRAW time, so an OS flip must (a) re-resolve the active palette (computed --bg
 // / --chart-empty-shadow flip) and (b) trigger a redraw so the chart picks up the
-// new palette (legacy rerenderThemeSensitive via the matchMedia listener). A
-// stuck palette or a non-redrawing chart is the bug class this guards.
+// new palette (a redraw of theme-sensitive charts via the matchMedia listener).
+// A stuck palette or a non-redrawing chart is the bug class this guards.
 // =====================================================================================
 
 async function readPalette(page: Page): Promise<{bg: string; emptyShadow: string; ftpLine: string}> {
@@ -68,15 +68,12 @@ test.describe("Auto-theme new — OS flip resolves the palette to the OS; charts
     },
   });
 
-  // PART 1 — the resolved palette follows the OS. This is the load-bearing guard
-  // for the C1 collapse: in auto mode the resolved palette (--bg /
-  // --chart-empty-shadow / --ftp-line) MUST follow the OS prefers-color-scheme.
-  // Pre-collapse this rides @media (auto = class-less). Post-collapse it must
-  // still follow (the JS must resolve auto->light/dark and set the .theme-* class
-  // on the OS change). If a broken Phase 2 leaves the palette stuck (e.g. the
-  // class is set once at boot and never updated on the OS flip, while the @media
-  // blocks it used to rely on were deleted), the dark assertions below FAIL and
-  // force the verify-or-revert.
+  // PART 1 — the resolved palette follows the OS. In auto mode the resolved
+  // palette (--bg / --chart-empty-shadow / --ftp-line) MUST follow the OS
+  // prefers-color-scheme: the JS resolves auto->light/dark and sets the .theme-*
+  // class on the OS change. If the palette ever got stuck (e.g. the class is set
+  // once at boot and never updated on the OS flip), the dark assertions below
+  // would FAIL.
   //
   // NOTE on emulateMedia: page.emulateMedia({colorScheme}) updates
   // matchMedia(...).matches and the resolved @media palette, but in this Chromium

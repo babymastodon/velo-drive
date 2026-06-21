@@ -1,8 +1,7 @@
 <script lang="ts">
   // App shell — boots the composition root, mounts the riding (HUD) view, and
   // hosts the overlay layer (welcome/settings), the dialog host, and the global
-  // keymap. Reproduces the legacy riding-view DOM/classes so the re-hosted
-  // global CSS applies unchanged.
+  // keymap.
   import { bootApp, type AppContext } from '../app/app.js';
   import HudView from './HudView.svelte';
   import SettingsView from './SettingsView.svelte';
@@ -20,13 +19,13 @@
   import { ScreenWakeLock } from './wake-lock.js';
 
   let ctx = $state<AppContext | null>(null);
-  // Keep the screen awake while a ride is in progress (AUDIO-E3).
+  // Keep the screen awake while a ride is in progress.
   const wakeLock = new ScreenWakeLock();
   const ui = new UiStore();
   const dialogs = new DialogStore();
 
   // Expose the UI/dialog stores so e2e tests can drive overlays that have no
-  // on-screen entry point (e.g. open the welcome tour for its visual diff).
+  // on-screen entry point (e.g. open the welcome tour directly).
   // `getVm` lets behavior tests inspect the engine view-model (manual targets,
   // free-ride state) without reaching into internals.
   const appBridge = {
@@ -37,7 +36,7 @@
     // has parsed (cache misses). A second open of an unchanged history adds 0.
     getHistoryParseCount: () => ctx?.fileStore.historyParseCount ?? 0,
     // Diagnostic for the theme-redraw test: the shared theme version counter,
-    // bumped on a manual toggle OR an Auto-mode OS color-scheme flip (J-DARK-06).
+    // bumped on a manual toggle OR an Auto-mode OS color-scheme flip.
     getThemeVersion: () => themeStore.version,
   };
   // Ensure the theme observer + OS-flip listener are installed at boot (charts
@@ -57,23 +56,21 @@
   $effect(() => {
     let cancelled = false;
     bootApp({
-      // Finishing a ride opens the planner to the saved ride (mirrors the
-      // legacy onWorkoutEnded follow-up in docs/workout.js:1368).
+      // Finishing a ride opens the planner to the saved ride.
       onWorkoutEnded: (info) => {
         const date = info?.endedAt || info?.startedAt || new Date();
-        // Remove the just-completed scheduled entry for the ride's day (port of
-        // legacy planner.removeScheduledByTitle, docs/workout.js:1376-1380).
+        // Remove the just-completed scheduled entry for the ride's day.
         const finishedTitle = ctx?.store.vm?.canonicalWorkout?.workoutTitle;
         if (finishedTitle) {
           const dateKey = formatDateKey(date);
           void ctx?.fileStore.removeScheduledByTitle(dateKey, finishedTitle);
         }
         // Open the planner to the saved ride; the planner consumes
-        // ui.pendingHistoryFile to auto-open the ride detail (J-RIDE-26).
+        // ui.pendingHistoryFile to auto-open the ride detail.
         ui.openPlannerForRide(info?.fileName ?? null, date);
       },
       // Surface the important file-op failures as a themed Dialog alert
-      // (J-ERR / J-DARK-12) instead of failing silently / native alert().
+      // instead of failing silently / native alert().
       onFileError: (message) => {
         void dialogs.alert(message, { title: 'VeloDrive' });
       },
@@ -94,7 +91,7 @@
     };
   });
 
-  // PWA / standalone detection (mirrors docs/workout.js isRunningAsPwa).
+  // PWA / standalone detection.
   function isRunningAsPwa(): boolean {
     try {
       return !!(
@@ -106,10 +103,9 @@
     }
   }
 
-  // Boot-time welcome gating (port of docs/workout.js shouldForceFullWelcome +
-  // maybeShowWelcome, 184-207 / 1223-1283). Shows the first-run tour for a fresh
-  // real user, then falls through to startupNeedsAttention only when welcome was
-  // NOT shown. Gating:
+  // Boot-time welcome gating. Shows the first-run tour for a fresh real user,
+  // then falls through to startupNeedsAttention only when welcome was NOT shown.
+  // Gating:
   //   * Persisted `hasSeenWelcome` flag → never show again (this is what the
   //     hermetic harness seeds, so configured test state never triggers it).
   //   * An active workout → never show (resuming a ride).
@@ -137,7 +133,7 @@
     const runningAsPwa = isRunningAsPwa();
     const forceFullWelcome = !runningAsPwa || missingRootDir;
 
-    // Mark seen now so a reload doesn't re-show it (legacy persists on first show).
+    // Mark seen now so a reload doesn't re-show it (persisted on first show).
     try {
       await c.fileStore.putSetting('hasSeenWelcome', true);
     } catch {
@@ -154,13 +150,13 @@
     if (shown) return;
     await maybeAutoOpenSettings(c);
     // If settings didn't claim the screen, auto-open the planner to today's
-    // scheduled ride (legacy maybeOpenPlannerForTodaySchedule, workout.js:1292).
+    // scheduled ride.
     if (ui.activeOverlay === 'none') await maybeOpenPlannerForTodaySchedule(c);
   }
 
-  // Boot-time auto-open of the planner when TODAY has a scheduled workout (port
-  // of docs/workout.js maybeOpenPlannerForTodaySchedule, 1292-1315). Suppressed
-  // when a workout is active or the scheduled workout is already the loaded one.
+  // Boot-time auto-open of the planner when TODAY has a scheduled workout.
+  // Suppressed when a workout is active or the scheduled workout is already the
+  // loaded one.
   async function maybeOpenPlannerForTodaySchedule(c: AppContext): Promise<void> {
     try {
       const vm = c.store.vm;
@@ -183,8 +179,7 @@
     }
   }
 
-  // Boot-time auto-open (mirrors docs/settings.js startupNeedsAttention +
-  // shouldAutoOpen): if the root data folder is missing, OR Web Bluetooth is
+  // Boot-time auto-open: if the root data folder is missing, OR Web Bluetooth is
   // unavailable, OR the platform/browser is unsupported, auto-open Settings to
   // the relevant help section. In the hermetic tests the root dir is seeded,
   // the FTMS sim provides navigator.bluetooth.getDevices, and the runner is
@@ -207,7 +202,7 @@
     ui.open('settings');
   }
 
-  // Hide the HUD behind the welcome overlay exactly like legacy
+  // Hide the HUD behind the welcome overlay
   // (`body.welcome-active .page-root/.bottom-nav { visibility:hidden }`).
   $effect(() => {
     document.body.classList.toggle('welcome-active', welcomeActive);
@@ -226,10 +221,8 @@
 
     // A modal dialog (alert/confirm/prompt) traps the keyboard: Escape cancels,
     // Enter confirms (alert/confirm), and every other key is swallowed so it
-    // can't leak to the overlay or builder behind it. Legacy native alert()/
-    // confirm() are modal and cancel on Escape (events audit D3 + the dialog-
-    // over-overlay leak). For a prompt, let typing + the input's own Enter/
-    // Escape handler through (bail without swallowing).
+    // can't leak to the overlay or builder behind it. For a prompt, let typing +
+    // the input's own Enter/Escape handler through (bail without swallowing).
     if (dialogs.current) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -253,9 +246,8 @@
     // (insert/edit/undo/Escape-deselect/Escape-back). The BuilderView has its
     // own window keydown handler; the App must stay completely out of the way —
     // do NOT route to the picker handler, do NOT preventDefault, and CRUCIALLY
-    // do NOT close the overlay on Escape (legacy returns early in builder mode,
-    // docs/workout.js:1748-1750). Bailing here (without preventDefault) lets the
-    // BuilderView's handler run with e.defaultPrevented still false.
+    // do NOT close the overlay on Escape. Bailing here (without preventDefault)
+    // lets the BuilderView's handler run with e.defaultPrevented still false.
     if (ui.pickerBuilderMode) return;
 
     if (e.key === 'Escape') {
@@ -280,7 +272,7 @@
 
     // When an overlay is open, route the key to that overlay (if it has a
     // handler) and never fall through to the global HUD hotkeys. Welcome
-    // suppresses everything (no handler), matching legacy `isWelcomeActive`.
+    // suppresses everything (no handler).
     if (ui.activeOverlay !== 'none') {
       const handler = overlayKeyHandlers[ui.activeOverlay];
       if (handler && handler(e)) {
@@ -296,7 +288,7 @@
     const vm = ctx.store.vm;
 
     // Space → start / pause / resume (only when a workout is selected). Use
-    // e.code so it's layout-independent, mirroring legacy.
+    // e.code so it's layout-independent.
     if (e.code === 'Space') {
       if (!vm?.canonicalWorkout) return;
       e.preventDefault();
@@ -345,8 +337,7 @@
     }
   }
 
-  // Guard the picker/save flows on a configured VeloDrive folder (mirrors legacy
-  // ensureRootDirConfiguredForWorkouts, docs/workout.js:209-222): no folder →
+  // Guard the picker/save flows on a configured VeloDrive folder: no folder →
   // warn + open Settings to the folders help section, and do NOT proceed.
   async function ensureRootDirConfigured(): Promise<boolean> {
     if (!ctx) return false;
@@ -363,8 +354,8 @@
     return false;
   }
 
-  // Open the workout picker, guarding against an active workout (matches legacy
-  // openPickerWithGuard in docs/workout.js) AND requiring a configured folder.
+  // Open the workout picker, guarding against an active workout AND requiring a
+  // configured folder.
   async function openPicker(): Promise<void> {
     if (!ctx) return;
     const vm = ctx.store.vm;
@@ -373,8 +364,7 @@
     ui.open('picker');
   }
 
-  // Open the planner (calendar), guarded against an active workout (matches the
-  // legacy #calendarBtn / 'c' handlers in docs/workout.js).
+  // Open the planner (calendar), guarded against an active workout.
   function openPlanner(): void {
     if (!ctx) return;
     const vm = ctx.store.vm;

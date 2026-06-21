@@ -1,11 +1,9 @@
 // zwo.ts
 //
-// TypeScript port of docs/zwo.js — canonical workout representation +
-// conversion to/from ZWO, plus inline ZWO parsing.
+// Canonical workout representation + conversion to/from ZWO, plus inline ZWO
+// parsing.
 //
-// Behavior is preserved EXACTLY from the legacy module, including the
-// `<= 5 means relative` (`toRel`) handling in segmentsToZwoSnippet. Parity is
-// proven via differential tests in web/tests/parity/.
+// Note the `<= 5 means relative` (`toRel`) handling in segmentsToZwoSnippet.
 //
 // This file is intentionally standalone (no DOM or fetch dependencies).
 

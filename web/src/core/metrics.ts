@@ -1,13 +1,6 @@
 // metrics.ts
 //
-// TypeScript port of docs/workout-metrics.js — pure workout metrics + helpers.
-//
-// Behavior is preserved EXACTLY from the legacy module, with ONE intentional
-// divergence: the legacy `getAdjustedKjForPicker` `baseFtp <= 0` branch
-// referenced an undefined `workout` variable (docs/workout-metrics.js:375),
-// which throws at runtime. The port returns the correct value (`baseKj`)
-// instead. This is the only behavior change in M1; it is covered by a unit
-// test asserting the fixed behavior.
+// Pure workout metrics + helpers.
 
 import type { RawSegment } from './model.js';
 import { FREERIDE_SEGMENT_FLAG, isFreeRideSegment, segDurationSec } from './segments.js';
@@ -437,10 +430,8 @@ export function getDurationBucket(durationMin: number): string {
 /**
  * Adjust kJ to the current FTP (used in picker list sorting).
  *
- * NOTE (intentional M1 divergence): the legacy version returned
- * `workout.baseKj` in the `baseFtp <= 0` branch, where `workout` is undefined
- * and throws a ReferenceError. The fixed behavior returns `baseKj`, which is
- * the value the branch clearly intended to pass through unchanged.
+ * When `baseFtp <= 0` the kJ can't be scaled, so `baseKj` is passed through
+ * unchanged.
  */
 export function getAdjustedKjForPicker(
   baseKj: number | null | undefined,
@@ -454,6 +445,6 @@ export function getAdjustedKjForPicker(
   ) {
     return baseKj;
   }
-  if (baseFtp <= 0) return baseKj; // fixed: legacy referenced undefined `workout`
+  if (baseFtp <= 0) return baseKj; // can't scale; pass through unchanged
   return baseKj * (currentFtp / baseFtp);
 }

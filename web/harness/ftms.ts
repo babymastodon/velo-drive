@@ -1,17 +1,17 @@
 // harness/ftms.ts
 //
 // FTMS byte-layout helpers shared by the trainer simulator and the
-// sim-vs-parser self-test. These are the *inverse* of the decode logic in
-// docs/ble-manager.js (`parseIndoorBikeData`) and encode the Control-Point
-// frames that `parseControlPointWrite` reads back.
+// encode/decode self-test. These are the *inverse* of the FTMS decode logic
+// (`parseIndoorBikeData`) and encode the Control-Point frames that
+// `parseControlPointWrite` reads back.
 //
 // Indoor Bike Data (characteristic 0x2AD2), flags are uint16 LE:
-//   bit0  set => instantaneous speed ABSENT (legacy: present when bit0 == 0)
+//   bit0  set => instantaneous speed ABSENT (present when bit0 == 0)
 //   bit1  average speed present (uint16)            -- not emitted
 //   bit2  instantaneous cadence present (uint16, 1/2 rpm)
 //   bit3  average cadence present (uint16)          -- not emitted
 //   bit4  total distance present (uint24)           -- not emitted
-//   bit5  resistance level present (sint16, 2 bytes) -- not emitted (SENS-E1)
+//   bit5  resistance level present (sint16, 2 bytes) -- not emitted
 //   bit6  instantaneous power present (sint16, watts)
 //   bit7  average power present (sint16)            -- not emitted
 //   bit8  expended energy present (5 bytes)         -- not emitted
@@ -40,7 +40,7 @@ export const FTMS_OPCODES = {
   stopOrPause: 0x08,
 } as const;
 
-// Indoor-Bike-Data flag bits (matching legacy decode).
+// Indoor-Bike-Data flag bits.
 const FLAG_SPEED_ABSENT = 0x0001; // bit0 == 0 means speed present
 const FLAG_CADENCE = 1 << 2;
 const FLAG_POWER = 1 << 6;
@@ -58,7 +58,7 @@ export interface BikeSampleInput {
 }
 
 /**
- * Encode an Indoor Bike Data (0x2AD2) frame. Field order must match the legacy
+ * Encode an Indoor Bike Data (0x2AD2) frame. Field order must match the
  * parser's flag-walk: speed, [avg speed], cadence, ..., power, ..., hr.
  */
 export function encodeIndoorBikeData(s: BikeSampleInput): DataView {
@@ -99,10 +99,9 @@ export interface DecodedBikeSample {
 }
 
 /**
- * Reference decoder — a faithful re-implementation of
- * docs/ble-manager.js `parseIndoorBikeData`. Used by the self-test to prove the
- * encoder is the inverse of the legacy parser. Returns null on malformed input
- * (matching the legacy `byteLength < 4` guard).
+ * Reference decoder — a faithful implementation of FTMS `parseIndoorBikeData`.
+ * Used by the self-test to prove the encoder is the inverse of the decoder.
+ * Returns null on malformed input (the `byteLength < 4` guard).
  */
 export function decodeIndoorBikeData(dataView: DataView): DecodedBikeSample | null {
   if (!dataView || dataView.byteLength < 4) return null;
@@ -127,9 +126,9 @@ export function decodeIndoorBikeData(dataView: DataView): DecodedBikeSample | nu
   }
   if (flags & (1 << 3)) index += 2;
   if (flags & (1 << 4)) index += 3;
-  // SENS-E1: Resistance Level is SINT16 (2 bytes) per spec; spec-correct here to
-  // match the real transport (the encoder never emits this field, so no frame in
-  // the self-test exercises it either way).
+  // Resistance Level is SINT16 (2 bytes) per spec; spec-correct here to match
+  // the real transport (the encoder never emits this field, so no frame in the
+  // self-test exercises it either way).
   if (flags & (1 << 5)) index += 2;
   if (flags & (1 << 6)) {
     if (dataView.byteLength >= index + 2) {

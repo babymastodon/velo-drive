@@ -1,9 +1,8 @@
 // app/compat.ts
 //
-// Platform compatibility detection, a faithful port of docs/settings.js
-// detectOs/detectBrowser/refreshCompatibilityAlert. Used by SettingsView for
-// the unsupported-OS / non-Chrome warning and by the boot-time auto-open
-// (startupNeedsAttention) decision.
+// Platform compatibility detection. Used by SettingsView for the unsupported-OS
+// / non-Chrome warning and by the boot-time auto-open (startupNeedsAttention)
+// decision.
 
 export interface DetectResult {
   name: string;
@@ -79,8 +78,7 @@ export function detectBrowser(): DetectResult {
 }
 
 /**
- * The compatibility-alert message (empty string when supported). Mirrors
- * docs/settings.js refreshCompatibilityAlert.
+ * The compatibility-alert message (empty string when supported).
  */
 export function compatMessage(): string {
   const os = detectOs();
@@ -99,7 +97,7 @@ export function isPlatformIncompatible(): boolean {
   return compatMessage() !== '';
 }
 
-/** Web Bluetooth (getDevices) availability (mirrors settings.js isWebBluetoothAvailable). */
+/** Web Bluetooth (getDevices) availability. */
 export function isWebBluetoothAvailable(): boolean {
   return (
     typeof navigator !== 'undefined' &&

@@ -23,9 +23,9 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
     await reachNewRidingView(page);
     await openWelcomeAt(page, 0);
 
-    // Slide 0 is the splash; the prev arrow is hidden via the legacy
+    // Slide 0 is the splash; the prev arrow is hidden via the
     // `.welcome-nav-hidden` class (opacity:0 + pointer-events:none) rather than
-    // an inline visibility:hidden (functional-equivalent, matches legacy CSS).
+    // an inline visibility:hidden.
     await expect(page.getByTestId("welcome-title")).toHaveText("Welcome to VeloDrive");
     await expect(page.getByTestId("welcome-prev")).toHaveClass(/welcome-nav-hidden/);
     await expect(page.getByTestId("welcome-prev")).toHaveCSS("opacity", "0");
@@ -80,9 +80,9 @@ test.describe("Welcome (new Svelte app) — behavior", () => {
   });
 });
 
-// Bug #5: boot-time welcome gating. A fresh REAL user (no hasSeenWelcome flag)
-// sees the welcome tour on boot; a configured user who has seen it does NOT.
-// Mirrors legacy shouldForceFullWelcome/maybeShowWelcome (docs/workout.js).
+// Boot-time welcome gating. A fresh REAL user (no hasSeenWelcome flag) sees the
+// welcome tour on boot; a configured user who has seen it does NOT.
+// (shouldForceFullWelcome/maybeShowWelcome.)
 test.describe("Welcome (new Svelte app) — boot gating", () => {
   test.use({harnessConfig: WELCOME_HARNESS_CONFIG});
 

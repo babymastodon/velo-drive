@@ -35,9 +35,8 @@ export function readSeedWorkouts(): Record<string, string> {
 }
 
 // A small, deterministic CanonicalWorkout used as the selected workout so the
-// engine boots with a workout loaded (durations are in MINUTES; see
-// docs/workout-engine.js recomputeWorkoutTotalSec). Shape matches
-// docs/zwo.js CanonicalWorkout: rawSegments = [[min,startPct,endPct,(flag?),(cad?)], ...].
+// engine boots with a workout loaded (durations are in MINUTES). Shape:
+// rawSegments = [[min,startPct,endPct,(flag?),(cad?)], ...].
 export const SAMPLE_WORKOUT = {
   workoutTitle: "Harness Sample",
   rawSegments: [
@@ -64,11 +63,10 @@ export interface HarnessConfig {
   seedHistory?: Record<string, string>;
 }
 
-// Config for the VISUAL comparison: identical for legacy + new so the only
-// differences a pixel diff can surface are layout/CSS. connectBike:false ->
-// neither app auto-reconnects, so both show the same "no bike" empty state
-// (avoids cross-app auto-reconnect timing differences). Behavior tests use the
-// default config (bike connected) instead.
+// Config for the VISUAL snapshots. connectBike:false -> the app does not
+// auto-reconnect, so it shows the "no bike" empty state (avoids auto-reconnect
+// timing differences in snapshots). Behavior tests use the default config (bike
+// connected) instead.
 export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
   ftp: 250,
   soundEnabled: false,
@@ -79,25 +77,23 @@ export const VISUAL_HARNESS_CONFIG: HarnessConfig = {
   seedZwo: readSeedWorkouts(),
 };
 
-// Settings + Welcome share the same matched-state config as the HUD: identical
-// for legacy + new so the only difference a pixel diff surfaces is layout/CSS.
-// (The settings modal + welcome overlay are theme/FTP/folder dependent, all of
-// which are seeded identically here.)
+// Settings + Welcome share the same matched-state config as the HUD. (The
+// settings modal + welcome overlay are theme/FTP/folder dependent, all of which
+// are seeded here.)
 export const SETTINGS_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 export const WELCOME_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 
-// Picker shares the same matched-state config (identical seeded .zwo library for
-// legacy + new). Both apps default to the same picker sort (kJ ascending) + no
-// filters, so the only difference a pixel diff can surface is layout/CSS.
+// Picker shares the same matched-state config (the seeded .zwo library). The
+// picker defaults to its kJ-ascending sort + no filters.
 export const PICKER_HARNESS_CONFIG: HarnessConfig = VISUAL_HARNESS_CONFIG;
 
 // --------------------------- Planner (calendar) fixture ---------------------------
 //
 // The virtualized calendar renders relative to "today" (the VIRTUAL clock) and
-// to seeded history/schedule, so for a stable legacy-vs-new pixel match the
-// harness clock is pinned to a FIXED date and BOTH apps are seeded with the SAME
-// history .fit files + schedule.json. (Today = 2026-06-17; a completed ride on
-// 2026-06-15 and a scheduled workout on 2026-06-20.)
+// to seeded history/schedule, so for a stable snapshot the harness clock is
+// pinned to a FIXED date and seeded with history .fit files + schedule.json.
+// (Today = 2026-06-17; a completed ride on 2026-06-15 and a scheduled workout
+// on 2026-06-20.)
 export const PLANNER_FIXED_MS = Date.UTC(2026, 5, 17, 12, 0, 0); // 2026-06-17 12:00 UTC
 
 function toBase64(bytes: Uint8Array): string {
@@ -184,11 +180,9 @@ export const PLANNER_HARNESS_CONFIG: HarnessConfig = {
 
 // --------------------------- DARK-mode variants ---------------------------
 //
-// Identical matched-state configs to the light ones above, but forcing
-// themeMode:"dark" so both legacy + new boot the forced-dark palette
-// (:root.theme-dark). The dark-mode visual specs diff legacy-vs-new in dark to
-// catch theme-only rendering bugs (stale chart colors on theme switch, modal
-// elevation, select carets, welcome SVGs) that the light-only specs miss.
+// The same matched-state configs as the light ones above, but forcing
+// themeMode:"dark" so the app boots the forced-dark palette (:root.theme-dark).
+// Used by the dark-mode behavior tests (theme-switch chart redraw, etc.).
 export const VISUAL_HARNESS_CONFIG_DARK: HarnessConfig = {
   ...VISUAL_HARNESS_CONFIG,
   themeMode: "dark",
@@ -200,10 +194,8 @@ export const PLANNER_HARNESS_CONFIG_DARK: HarnessConfig = {
   themeMode: "dark",
 };
 // No workout selected, bike connected -> the chart empty-state shows
-// "Select a workout" (the noWorkout state). This state was NEVER rendered by any
-// prior visual baseline (all seeded a workout), so its dark text-shadow went
-// untested. Bike connected so both apps reach the SAME state regardless of the
-// bike-vs-workout precedence.
+// "Select a workout" (the noWorkout state). Bike connected so the app reaches
+// this state regardless of the bike-vs-workout precedence.
 export const NO_WORKOUT_DARK: HarnessConfig = {
   ...VISUAL_HARNESS_CONFIG_DARK,
   selectedWorkout: undefined,
@@ -255,10 +247,10 @@ export const test = base.extend<{
     });
 
     // 2a. The fake FS dir handle exposes values()/[asyncIterator] but not the
-    // entries() async-iterator the legacy planner-backend uses to list the
-    // history dir (docs/planner-backend.js). Polyfill it on the prototype here
-    // (extending the harness fakes from the fixture, not editing harness/*) so
-    // both apps can enumerate seeded history files identically.
+    // entries() async-iterator the planner backend uses to list the history dir.
+    // Polyfill it on the prototype here (extending the harness fakes from the
+    // fixture, not editing harness/*) so the app can enumerate seeded history
+    // files.
     await page.addInitScript(() => {
       const harness = (window as unknown as {
         __VELO_HARNESS__?: {fs?: {history?: object}};
@@ -324,10 +316,10 @@ export const test = base.extend<{
 });
 
 /**
- * Reach the NEW app's riding (HUD) view: wait for the app to boot (the harness
- * control API to be present), settle the engine init timers, and confirm the
- * HUD is mounted. The new app has no welcome gate in M3, so this is simpler than
- * reachRidingView (legacy).
+ * Reach the riding (HUD) view: wait for the app to boot (the harness control API
+ * to be present), settle the engine init timers, and confirm the HUD is
+ * mounted. The app has no welcome gate here, so this is simpler than
+ * reachRidingView.
  */
 export async function reachNewRidingView(page: Page): Promise<void> {
   await page.waitForLoadState("load");

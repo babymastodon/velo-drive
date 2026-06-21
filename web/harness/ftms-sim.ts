@@ -1,8 +1,7 @@
 // harness/ftms-sim.ts
 //
-// A fake `navigator.bluetooth` whose GATT graph speaks real FTMS bytes, the
-// inverse of docs/ble-manager.js. It exposes exactly the surface ble-manager
-// touches:
+// A fake `navigator.bluetooth` whose GATT graph speaks real FTMS bytes. It
+// exposes exactly the surface the transport touches:
 //   navigator.bluetooth.requestDevice / getDevices
 //   device.gatt.connect / getPrimaryService / getCharacteristic
 //   char.startNotifications / addEventListener('characteristicvaluechanged')
@@ -241,8 +240,8 @@ export function createFtmsSim(opts: FtmsSimOptions = {}): FtmsSim {
   controlPointChar.onWrite = (buf: ArrayBuffer) => {
     const decoded = parseControlPointWrite(buf);
     controlPointWrites.push(decoded);
-    // Only the set/handshake opcodes get an indicate in real FTMS; ble-manager
-    // ignores the body beyond logging, so always indicate success.
+    // Only the set/handshake opcodes get an indicate in real FTMS; the
+    // transport ignores the body beyond logging, so always indicate success.
     const resp = encodeControlPointResponse(decoded.opcode, 0x01);
     // Fire asynchronously-ish but synchronously here is fine (listeners just log).
     controlPointChar.notify(resp);

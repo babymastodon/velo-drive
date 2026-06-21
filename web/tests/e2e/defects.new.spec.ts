@@ -1,14 +1,13 @@
 // tests/e2e/defects.new.spec.ts
 //
-// Targeted behavior coverage for the verified-defects fix pass (new Svelte app).
-// Each test asserts a specific user-visible behavior; none capture a visual
-// baseline (the existing visual specs already guard pixels). Covers:
-//   * default-workout seeding on an empty folder pick (J-CFG-17)
+// Targeted behavior coverage for the verified-defects fix pass. Each test
+// asserts a specific user-visible behavior. Covers:
+//   * default-workout seeding on an empty folder pick
 //   * post-ride flow: finishing a scheduled ride removes its scheduled entry +
-//     auto-opens the ride detail (J-PLAN-34 / J-RIDE-26)
-//   * picker empty-search Escape stays open + blurs the search (P-1)
-//   * sound default boots audible (J-CFG-15)
-//   * boot auto-opens the planner when today has a scheduled ride (J-RIDE-34)
+//     auto-opens the ride detail
+//   * picker empty-search Escape stays open + blurs the search
+//   * sound default boots audible
+//   * boot auto-opens the planner when today has a scheduled ride
 
 import {test, expect, reachNewRidingView, readSeedWorkouts, SAMPLE_WORKOUT} from "./fixtures.js";
 import type {Page} from "@playwright/test";
@@ -52,7 +51,7 @@ async function settle(page: Page): Promise<void> {
   });
 }
 
-// --------------------------- default-workout seeding (J-CFG-17) ---------------------------
+// --------------------------- default-workout seeding ---------------------------
 test.describe("default-workout seeding on folder pick", () => {
   // Boot configured but with an EMPTY workouts library (seedZwo omitted) so the
   // folder pick must seed the 6 bundled starters.
@@ -71,7 +70,7 @@ test.describe("default-workout seeding on folder pick", () => {
     const page = configuredPage;
     await reachNewRidingView(page);
 
-    // The bundled starter library = the complete docs/workouts/ set (41 files).
+    // The bundled starter library = the complete public/workouts/ set (41 files).
     const expectedNames = Object.keys(readSeedWorkouts()).sort();
 
     // Library starts empty.
@@ -106,7 +105,7 @@ test.describe("default-workout seeding on folder pick", () => {
   });
 });
 
-// --------------------------- post-ride flow (J-PLAN-34 / J-RIDE-26) ---------------------------
+// --------------------------- post-ride flow ---------------------------
 test.describe("post-ride flow", () => {
   // Today (FIXED_MS) has a scheduled entry whose title matches the selected
   // workout, so finishing the ride should clear it. SAMPLE_WORKOUT title is
@@ -171,7 +170,7 @@ test.describe("post-ride flow", () => {
   });
 });
 
-// --------------------------- picker empty-search Escape (P-1) ---------------------------
+// --------------------------- picker empty-search Escape ---------------------------
 test.describe("picker empty-search Escape", () => {
   test.use({
     harnessConfig: {
@@ -196,8 +195,8 @@ test.describe("picker empty-search Escape", () => {
     await expect(search).toBeFocused();
     expect(await search.inputValue()).toBe("");
 
-    // Escape on an EMPTY search: must NOT close the picker (legacy always clears
-    // + blurs + consumes). The picker stays open; the search loses focus.
+    // Escape on an EMPTY search: must NOT close the picker (always clears +
+    // blurs + consumes). The picker stays open; the search loses focus.
     await search.press("Escape");
     await settle(page);
 
@@ -220,7 +219,7 @@ test.describe("picker empty-search Escape", () => {
   });
 });
 
-// --------------------------- sound default (J-CFG-15) ---------------------------
+// --------------------------- sound default ---------------------------
 test.describe("sound default", () => {
   // Omit soundEnabled from the config so the page-env default (false) is NOT
   // seeded... but page-env always seeds soundEnabled (defaulting false). To test
@@ -241,8 +240,8 @@ test.describe("sound default", () => {
     await reachNewRidingView(cp);
     // Remove the harness-seeded soundEnabled so the read falls back to the app
     // default. SettingsView reads getSetting('soundEnabled', true) on each open,
-    // so opening settings now reflects the boot default (true) — matching legacy
-    // (J-CFG-15). The app/app.ts boot default is the same true fallback.
+    // so opening settings now reflects the boot default (true). The app/app.ts
+    // boot default is the same true fallback.
     await cp.evaluate(() => {
       (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.settingsStore.delete("soundEnabled");
     });
@@ -255,7 +254,7 @@ test.describe("sound default", () => {
   });
 });
 
-// --------------------------- theme OS-flip redraw (J-DARK-06) ---------------------------
+// --------------------------- theme OS-flip redraw ---------------------------
 test.describe("theme OS-flip redraw", () => {
   // Boot in AUTO mode so the matchMedia('(prefers-color-scheme: dark)') listener
   // fires on an OS color-scheme flip and bumps the shared theme version (which
@@ -296,7 +295,7 @@ test.describe("theme OS-flip redraw", () => {
   });
 });
 
-// --------------------------- boot auto-open planner for today (J-RIDE-34) ---------------------------
+// --------------------------- boot auto-open planner for today ---------------------------
 test.describe("boot auto-open planner for today", () => {
   // Today has a scheduled workout whose title is NOT the loaded one, so the
   // planner should auto-open on boot.

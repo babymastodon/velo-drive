@@ -172,8 +172,8 @@
 }
 
 /* The splash "boot reveal" (arrows + close fade in after the 1000ms text-hide
-   window) is driven by the `welcome-nav-hidden` class toggle in WelcomeView,
-   mirroring legacy docs/welcome.js. A prior CSS-animation approach targeted
+   window) is driven by the `welcome-nav-hidden` class toggle in WelcomeView.
+   A prior CSS-animation approach targeted
    `.welcome-slide--splash .welcome-nav`, but the nav buttons are SIBLINGS of the
    slide (both children of .welcome-shell), so that selector never matched — and
    if it ever had, its `forwards` fill to opacity:1 would have un-hidden the prev

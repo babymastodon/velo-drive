@@ -13,7 +13,7 @@
   let chartPanel = $state<HTMLElement | null>(null);
   let chartTooltip = $state<HTMLElement | null>(null);
 
-  // Empty-state decision (ported from docs/workout.js drawChart, same priority).
+  // Empty-state decision.
   type EmptyKind = 'noBike' | 'noWorkout' | 'readyToStart' | 'resume' | 'none';
   const emptyKind = $derived.by((): EmptyKind => {
     if (bikeConnected && vm.workoutPaused === true && vm.workoutRunning) return 'resume';
@@ -67,7 +67,7 @@
 
   // Redraw on every VM change, whenever the SVG mounts, and on theme change.
   // The chart reads colors from CSS vars at draw time, so a theme toggle must
-  // trigger a redraw or the palette goes stale (legacy rerenderThemeSensitive).
+  // trigger a redraw or the palette goes stale.
   $effect(() => {
     // touch reactive deps so the effect re-runs
     void vm.elapsedSec;
@@ -78,9 +78,9 @@
     if (chartSvg && chartPanel) redraw();
   });
 
-  // Redraw when the panel changes size. Legacy redrew charts on window 'resize';
-  // a ResizeObserver on the panel covers that plus any container reflow so the
-  // chart never stays at a stale size (events audit D4).
+  // Redraw when the panel changes size. A ResizeObserver on the panel covers
+  // window resizes plus any container reflow so the chart never stays at a stale
+  // size.
   $effect(() => {
     if (!chartPanel || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => {

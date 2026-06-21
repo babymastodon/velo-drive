@@ -1,12 +1,10 @@
 // chart.ts
 //
-// Focused TypeScript port of docs/workout-chart.js `drawWorkoutChart` for the
-// live HUD. Renders the workout profile (interval blocks), the FTP line, the
-// playback position cursor, a past-shade, and the live power/HR/cadence traces
-// into an existing <svg>. Geometry, colors, and magic numbers are preserved
-// verbatim from the legacy module (the non-interactive HUD subset: hover wiring,
-// tooltips, text-event overlay, grid lines, and ERG/builder/history paths are
-// intentionally dropped — they are separable in the legacy code too).
+// Chart rendering for the live HUD. `drawWorkoutChart` renders the workout
+// profile (interval blocks), the FTP line, the playback position cursor, a
+// past-shade, and the live power/HR/cadence traces into an existing <svg>.
+// This file also hosts the builder, picker mini, mini-history, and power-curve
+// charts.
 
 import { DEFAULT_FTP, formatDurationMinSec, zoneIndexForPct } from './metrics.js';
 import type { RawSegment } from './model.js';
@@ -40,12 +38,12 @@ export interface DrawWorkoutChartArgs {
   liveSamples: LiveSample[];
   manualErgTarget?: number;
   showProgress?: boolean;
-  // Active text-event message overlay (legacy drawWorkoutChart ~2081). When the
-  // elapsed time falls within an event window, its text is centered on the chart.
+  // Active text-event message overlay. When the elapsed time falls within an
+  // event window, its text is centered on the chart.
   textEvents?: { offsetSec: number; durationSec: number; text?: string }[];
-  // Hover tooltip wiring (legacy drawWorkoutChart `panel`/`tooltipEl`, ~1900).
-  // When both are supplied, mousemove over a segment shows zone/power/duration
-  // and mousemove over the live trace shows the interpolated power/HR/cadence.
+  // Hover tooltip wiring (`panel`/`tooltipEl`). When both are supplied,
+  // mousemove over a segment shows zone/power/duration and mousemove over the
+  // live trace shows the interpolated power/HR/cadence.
   panel?: HTMLElement | null;
   tooltipEl?: HTMLElement | null;
 }
@@ -256,11 +254,11 @@ function renderSegmentPolygon(args: {
 
 // --------------------------- hover engine ---------------------------
 //
-// Focused port of docs/workout-chart.js `attachSegmentHover` (~712-1063) for the
-// non-scrolling, non-drag charts (live HUD + planner ride-detail). Hovering a
-// segment shows its zone/power/duration/cadence; hovering over a live trace
-// shows the binary-searched, gap-aware interpolated power/HR/cadence at that
-// time. The builder/picker mini-charts keep their own (inert) tooltip path.
+// `attachSegmentHover` for the non-scrolling, non-drag charts (live HUD +
+// planner ride-detail). Hovering a segment shows its zone/power/duration/cadence;
+// hovering over a live trace shows the binary-searched, gap-aware interpolated
+// power/HR/cadence at that time. The builder/picker mini-charts keep their own
+// (inert) tooltip path.
 
 const hoverCleanupMap = new WeakMap<SVGSVGElement, () => void>();
 let lastHoveredSegment: SVGPolygonElement | null = null;
@@ -353,11 +351,10 @@ function attachSegmentHover(
     if (!liveSamples.length || !(totalSec > 0) || !(maxY > 0)) return null;
 
     // Snap to the nearest actual DATA POINT by an X-WEIGHTED screen distance,
-    // rather than reading the line value at the mouse-X (the legacy crosshair —
-    // which the findSamplesAroundForKey "prev==next" quirk turned into "snap to
-    // the next sample's Y at the mouse X", so on a steep spike/dip the dot's Y
-    // was far from the cursor and the vertical hit-test missed). Nearest-point
-    // snapping nails spikes/dips (the extremum sample is the closest point when
+    // rather than reading the line value at the mouse-X (which on a steep
+    // spike/dip would put the dot's Y far from the cursor and miss the vertical
+    // hit-test). Nearest-point snapping nails spikes/dips (the extremum sample
+    // is the closest point when
     // you hover near it), snaps to the first/last sample at the trace ends, skips
     // real gaps (no sample within the radius), and ignores a metric until it has
     // data. Weighting X heavier keeps the snap tracking the cursor's TIME so it
@@ -496,7 +493,6 @@ function attachSegmentHover(
 
 /**
  * Render the live HUD chart into the given SVG (mutated in place).
- * Mirrors docs/workout-chart.js drawWorkoutChart (workout mode, HUD subset).
  */
 export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
   const {
@@ -659,8 +655,8 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     });
   }
 
-  // Active text-event message overlay (legacy drawWorkoutChart ~2081): the LAST
-  // event whose window contains the elapsed time is centered on the chart.
+  // Active text-event message overlay: the LAST event whose window contains the
+  // elapsed time is centered on the chart.
   const textEvents = args.textEvents;
   if (Array.isArray(textEvents) && textEvents.length && elapsedSec != null) {
     const active = textEvents
@@ -752,7 +748,7 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
     addPaths(pathsForKey('cadence'), getCssVar('--cad-line'), 1.5);
   }
 
-  // Hover tooltip (legacy attachSegmentHover): segment + live-trace tooltips.
+  // Hover tooltip: segment + live-trace tooltips.
   if (args.panel && args.tooltipEl) {
     attachSegmentHover(svg, args.tooltipEl, args.panel, ftpVal, {
       liveSamples: samples,
@@ -769,10 +765,8 @@ export function drawWorkoutChart(args: DrawWorkoutChartArgs): void {
 
 /**
  * Render a small workout profile chart into a container for the picker's
- * expanded row. Mirrors docs/workout-chart.js renderMiniWorkoutGraph (the
- * non-interactive subset: segment polygons + a transparent hover bg + an empty
- * tooltip div, so the DOM matches legacy for the visual diff). Geometry/scale
- * are preserved verbatim.
+ * expanded row: segment polygons + a transparent hover bg + an empty tooltip
+ * div.
  */
 export function renderMiniWorkoutGraph(
   container: HTMLElement,
@@ -866,14 +860,13 @@ export function renderMiniWorkoutGraph(
 
 // --------------------------- Builder mini chart ---------------------------
 //
-// Port of docs/workout-chart.js renderBuilderWorkoutGraph: operates on parsed
-// BLOCKS (not flattened rawSegments), draws grid + time ticks, block highlight
-// bands, segment polygons with per-block/seg drag-handle datasets, top/right
-// drag handles, the FTP line, text-event markers, an insert-after dashed line,
-// and the scroll-pinned axis-overlay labels. Geometry/colors/magic numbers are
-// preserved verbatim. The chart is rendered into `container` (an existing host
-// element). Click/hover wiring is attached when callbacks are supplied; the
-// pointer-down drag engine lives in the BuilderView host.
+// renderBuilderWorkoutGraph operates on parsed BLOCKS (not flattened
+// rawSegments), drawing grid + time ticks, block highlight bands, segment
+// polygons with per-block/seg drag-handle datasets, top/right drag handles, the
+// FTP line, text-event markers, an insert-after dashed line, and the
+// scroll-pinned axis-overlay labels. The chart is rendered into `container` (an
+// existing host element). Click/hover wiring is attached when callbacks are
+// supplied; the pointer-down drag engine lives in the BuilderView host.
 
 import type { Block, BlockSegment } from './builder-backend.js';
 
@@ -895,7 +888,7 @@ function computeBlockTimings(blocks: Block[]): {
 }
 
 /** Render a single builder segment polygon, returning the element so the caller
- * can stamp block/seg datasets + classes (mirrors the legacy inline body). */
+ * can stamp block/seg datasets + classes. */
 function renderBuilderSegmentPolygon(args: {
   svg: SVGSVGElement & { _freeridePatternIds?: FreeridePatternIds };
   totalSec: number;
@@ -1124,8 +1117,7 @@ export interface BuilderGraphOptions {
 }
 
 /**
- * Render the builder workout chart into `container`. Port of
- * docs/workout-chart.js renderBuilderWorkoutGraph (geometry/colors verbatim).
+ * Render the builder workout chart into `container`.
  * Returns nothing; mutates `container`.
  */
 export function renderBuilderWorkoutGraph(
@@ -1612,11 +1604,8 @@ export interface DrawMiniHistoryChartArgs {
 
 /**
  * Render the small per-day history/scheduled chart (planned target bands +
- * actual-power step line) into an existing <svg>. Ported from
- * docs/workout-chart.js drawMiniHistoryChart — the non-interactive subset used
- * by the planner day cards (the actualLineSegments path; actualPath / minute /
- * segment fallbacks are dropped because the planner only ever passes
- * actualLineSegments). Geometry/colors preserved verbatim.
+ * actual-power step line) into an existing <svg>. Used by the planner day cards
+ * (the actualLineSegments path; the planner only ever passes actualLineSegments).
  */
 export function drawMiniHistoryChart(args: DrawMiniHistoryChartArgs): void {
   const {
@@ -1750,10 +1739,9 @@ export interface DrawPowerCurveChartArgs {
 }
 
 /**
- * Render the ride-detail power-duration curve into an existing <svg>. Ported
- * from docs/workout-chart.js drawPowerCurveChart (the non-interactive subset:
- * grid/ticks, FTP line, 1h marker, the curve path — the hover dot/label/mouse
- * listeners are dropped). Log-x duration axis, linear-W y axis.
+ * Render the ride-detail power-duration curve into an existing <svg>:
+ * grid/ticks, FTP line, 1h marker, the curve path. Log-x duration axis,
+ * linear-W y axis.
  */
 export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
   const { svg, width = 600, height = 300, ftp = DEFAULT_FTP, points = [], maxDurationSec = 0 } =

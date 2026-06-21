@@ -1,12 +1,10 @@
 <script lang="ts">
-  // PickerView — faithful re-host of the legacy #workoutPickerOverlay /
-  // #workoutPickerModal (docs/index.html ~347-700 + docs/workout-picker.js browse
-  // logic). Same classes + IDs so the re-hosted workout-picker.css applies
-  // unchanged; data-testids added for behavior assertions. Implements browse /
-  // list / search (grammar 30-45 / <40 / >60 / 45) / zone+duration filters /
-  // sort / expand (stats + mini chart) / select-to-ride / delete (->trash) /
-  // clone. The in-picker workout BUILDER is fully shipped: the "Create workout" /
-  // Edit buttons open the embedded BuilderView (see onCreateWorkout / onEdit).
+  // PickerView — the #workoutPickerOverlay / #workoutPickerModal. Implements
+  // browse / list / search (grammar 30-45 / <40 / >60 / 45) / zone+duration
+  // filters / sort / expand (stats + mini chart) / select-to-ride / delete
+  // (->trash) / clone. The in-picker workout BUILDER is fully shipped: the
+  // "Create workout" / Edit buttons open the embedded BuilderView (see
+  // onCreateWorkout / onEdit).
   import OverlayModal from './OverlayModal.svelte';
   import type { WorkoutEngine } from '../core/engine.js';
   import type { FileStore } from '../ports/FileStore.js';
@@ -70,9 +68,8 @@
   let expandedTitle = $state<string | null>(null);
 
   // pickerState persistence (search + zone + duration + sort) across opens.
-  // Mirrors docs/storage.js STORAGE_PICKER_STATE + workout-picker.js
-  // load/savePickerState. We suppress the auto-save effect while restoring so the
-  // restore itself doesn't immediately re-persist defaults.
+  // We suppress the auto-save effect while restoring so the restore itself
+  // doesn't immediately re-persist defaults.
   const PICKER_STATE_KEY = 'pickerState';
   interface PickerState {
     searchTerm?: string;
@@ -123,8 +120,8 @@
   // Rescan the library whenever the picker is opened.
   $effect(() => {
     if (open) {
-      // Pre-expand the targeted entry in schedule EDIT mode (legacy open(entry
-      // ?.workoutTitle)); otherwise start collapsed.
+      // Pre-expand the targeted entry in schedule EDIT mode; otherwise start
+      // collapsed.
       expandedTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
       builderMode = false;
       void (async () => {
@@ -243,13 +240,12 @@
     expandedTitle = expandedTitle === title ? null : title;
   }
 
-  // --------------------------- schedule mode (G1/G2) ---------------------------
+  // --------------------------- schedule mode ---------------------------
   // When opened from the planner (ui.openPickerForSchedule), the picker becomes
   // the workout LIBRARY in "Schedule Workout" / "Edit Schedule" mode: the row
   // CTA is relabeled, Create-workout is hidden, Back-to-calendar (+ Unschedule
   // in edit mode) appear, and selecting SCHEDULES the workout for the day (writes
   // schedule.json) then returns to the planner — it does NOT load onto the HUD.
-  // Mirrors legacy picker.openScheduleMode (docs/workout-picker.js:1923-1934).
   const scheduleCtx = $derived(ui.pickerScheduleContext);
   const scheduleMode = $derived(scheduleCtx != null);
   const scheduleEditMode = $derived(scheduleCtx?.editMode === true);
@@ -270,8 +266,7 @@
 
   // Schedule the picked workout on the context's day (replace in edit mode),
   // persist schedule.json, then return to the planner calendar (which reloads
-  // the schedule on re-open). Mirrors legacy planner.applyScheduledEntry +
-  // handleScheduleSelected (workout-planner.js:1551 / workout.js:1343).
+  // the schedule on re-open).
   async function scheduleWorkoutForDay(
     canonical: CanonicalWorkout,
     ctx: { dateKey: string; entry: ScheduleEntry | null; editMode: boolean },
@@ -285,7 +280,6 @@
   }
 
   // Unschedule (edit mode): remove the targeted entry, persist, return to planner.
-  // Mirrors legacy onScheduleUnschedule (workout.js:1355 / workout-picker.js:230).
   async function onScheduleUnschedule(): Promise<void> {
     const ctx = scheduleCtx;
     if (!ctx?.entry) return;
@@ -296,7 +290,7 @@
   }
 
   // Back to calendar (+ Escape/Backspace in schedule mode): cancel, return to the
-  // planner WITHOUT scheduling. Mirrors close({returnToPlanner:true}).
+  // planner WITHOUT scheduling.
   function onBackToCalendar(): void {
     ui.returnToPlannerFromSchedule();
   }
@@ -350,8 +344,6 @@
   // The in-picker workout builder. "Create workout" opens a fresh default
   // workout; per-row "Edit" loads the workout into the builder. "Back" returns
   // to the library; "Save" validates + writes the .zwo + reopens the library.
-  // Mirrors docs/workout-picker.js enterBuilderMode / exitBuilderMode /
-  // saveCurrentBuilderWorkoutToZwoDir.
   let builderMode = $state(false);
   let builderTitle = $state('New Workout');
   let builderStatusText = $state('');
@@ -362,10 +354,8 @@
 
   // --------------------------- builder dirty-tracking + draft ---------------------------
   // Baseline = the canonical workout the builder was loaded with; the builder is
-  // "dirty" when getState() no longer equals it. Mirrors docs/workout-picker.js
-  // canonicalEquals / handleBuilderChange / setBuilderBaselineFromCurrent. The
-  // in-progress draft is persisted under STORAGE_WORKOUT_BUILDER_STATE so an
-  // accidental close can be recovered on the next builder open.
+  // "dirty" when getState() no longer equals it. The in-progress draft is
+  // persisted so an accidental close can be recovered on the next builder open.
   const BUILDER_STATE_KEY = 'workoutBuilderState';
   let builderBaseline = $state<CanonicalWorkout | null>(null);
   let hasUnsavedBuilderChanges = $state(false);
@@ -430,8 +420,8 @@
     await fileStore.putSetting(BUILDER_STATE_KEY, null);
   }
 
-  // Confirm-on-leave when the builder has unsaved edits (legacy
-  // maybeHandleUnsavedBeforeLeave). Returns true if it's safe to leave.
+  // Confirm-on-leave when the builder has unsaved edits. Returns true if it's
+  // safe to leave.
   async function maybeHandleUnsavedBeforeLeave(): Promise<boolean> {
     if (!builderMode || !hasUnsavedBuilderChanges) return true;
     const ok = await dialogs.confirm('Discard unsaved changes?', {
@@ -448,7 +438,7 @@
   // Mirror builderMode into the ui store so the App's global key router knows
   // the builder owns the keymap (suppresses global hotkeys + close-on-Escape).
   // Cleared whenever the picker is closed (open=false) so a stale flag never
-  // leaks into the HUD. Mirrors legacy picker.isBuilderMode() gating.
+  // leaks into the HUD.
   $effect(() => {
     ui.pickerBuilderMode = open && builderMode;
     return () => {
@@ -475,8 +465,7 @@
     enterBuilderMode('New Workout');
     builderOriginalTitle = null;
     // BuilderView mounts with a default workout already initialized. Try to
-    // restore an in-progress draft (legacy restorePersistedStateOrDefault),
-    // else baseline against the default.
+    // restore an in-progress draft, else baseline against the default.
     requestAnimationFrame(() => {
       void restoreBuilderDraftOrDefault();
     });
@@ -495,7 +484,7 @@
   }
 
   // Restore a persisted draft if present (and non-trivial), else take the
-  // default-workout baseline. Mirrors legacy restorePersistedStateOrDefault.
+  // default-workout baseline.
   async function restoreBuilderDraftOrDefault(): Promise<void> {
     const draft = await fileStore.getSetting<CanonicalWorkout | null>(BUILDER_STATE_KEY, null);
     suppressBuilderDirty = true;
@@ -579,8 +568,7 @@
     loadIntoBuilder(normalizeUploadedWorkout(canonical, name), 'Uploaded Workout');
   }
 
-  // Default title/source/description for an uploaded file (legacy
-  // normalizeUploadedWorkout + buildSegmentDescription).
+  // Default title/source/description for an uploaded file.
   function normalizeUploadedWorkout(canonical: CanonicalWorkout, fileName: string): CanonicalWorkout {
     const next: CanonicalWorkout = {
       ...canonical,
@@ -651,7 +639,7 @@
     if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
       return;
     }
-    // Title rename: move the old file to trash first (mirrors legacy).
+    // Title rename: move the old file to trash first.
     const originalTitle = builderOriginalTitle && builderOriginalTitle.trim()
       ? builderOriginalTitle.trim()
       : null;
@@ -692,9 +680,9 @@
   let selectBtnEl = $state<HTMLButtonElement | null>(null);
 
   // Focus a filter <select> and open its native dropdown if the browser allows
-  // it (legacy used el.showPicker()). showPicker() requires a user gesture and
-  // can throw / steal focus when called outside one, so it's best-effort and
-  // deferred so it never clobbers the focus() we just set.
+  // it (via el.showPicker()). showPicker() requires a user gesture and can throw
+  // / steal focus when called outside one, so it's best-effort and deferred so
+  // it never clobbers the focus() we just set.
   function focusAndOpenSelect(el: HTMLSelectElement | null): void {
     if (!el) return;
     el.focus();
@@ -707,12 +695,11 @@
   }
 
   // When a filter <select> is FOCUSED, j/k + ArrowUp/ArrowDown navigate its
-  // options (clamped) and apply the new value, mirroring legacy handleSelectNav
-  // (workout-picker.js:1311-1334). A focused native <select> swallows letter
-  // keydowns (Chromium typeahead) so they never reach the window-routed
-  // handlePickerKey — hence this is bound directly on each <select>'s keydown
-  // (exactly like the legacy per-select listeners). We set the bound state
-  // directly so Svelte's bind:value stays in sync (no synthetic change needed).
+  // options (clamped) and apply the new value. A focused native <select>
+  // swallows letter keydowns (Chromium typeahead) so they never reach the
+  // window-routed handlePickerKey — hence this is bound directly on each
+  // <select>'s keydown. We set the bound state directly so Svelte's bind:value
+  // stays in sync (no synthetic change needed).
   function onSelectNavKeydown(e: KeyboardEvent, which: 'zone' | 'duration'): void {
     const key = (e.key || '').toLowerCase();
     if (key !== 'j' && key !== 'k' && key !== 'arrowdown' && key !== 'arrowup') return;
@@ -731,7 +718,6 @@
 
   // The picker keymap. Routed here by the App overlay-key hook while the picker
   // overlay is open (registered below). Returns true if it consumed the key.
-  // Mirrors docs/workout-picker.js setupHotkeys (1310-1492).
   function handlePickerKey(e: KeyboardEvent): boolean {
     if (!open) return false;
     // In builder mode the BuilderView owns the keymap (insert/edit/undo/etc).
@@ -752,14 +738,14 @@
         searchInputEl?.blur();
         const results = visibleItems;
         if (results.length) expandedTitle = results[0]!.canonical.workoutTitle;
-        // Legacy focuses the Select button so a second Enter rides the workout.
+        // Focus the Select button so a second Enter rides the workout.
         requestAnimationFrame(() => selectBtnEl?.focus());
         return true;
       }
       if (key === 'escape') {
         // Escape in the focused search ALWAYS consumes (clear if non-empty +
         // blur) and NEVER falls through to close the picker — even when the
-        // search is empty (legacy workout-picker.js:1393-1398; P-1).
+        // search is empty.
         e.preventDefault();
         if (searchTerm) searchTerm = '';
         searchInputEl?.blur();
@@ -768,8 +754,8 @@
       return false;
     }
 
-    // z / d → focus + open the zone / duration filter (legacy 1402-1414). Allow
-    // these even when another SELECT is focused (so you can hop between them).
+    // z / d → focus + open the zone / duration filter. Allow these even when
+    // another SELECT is focused (so you can hop between them).
     if (key === 'z') {
       e.preventDefault();
       focusAndOpenSelect(zoneSelectEl);
@@ -784,7 +770,7 @@
     if (isEditableTarget(target)) return false;
 
     // Schedule mode: Escape/Backspace return to the planner calendar WITHOUT
-    // scheduling (legacy workout-picker.js:1432-1443 close({returnToPlanner})).
+    // scheduling.
     if (scheduleMode && (key === 'escape' || key === 'backspace')) {
       e.preventDefault();
       onBackToCalendar();
@@ -792,12 +778,12 @@
     }
 
     if (key === 'escape') {
-      // Not handled here → App closes the overlay (matches legacy close()).
+      // Not handled here → App closes the overlay.
       return false;
     }
 
-    // e → open the expanded workout in the builder (legacy 1468-1478). Disabled
-    // in schedule mode (the builder/edit affordances are hidden there).
+    // e → open the expanded workout in the builder. Disabled in schedule mode
+    // (the builder/edit affordances are hidden there).
     if (key === 'e' && !scheduleMode) {
       const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
       if (expanded) {
@@ -832,7 +818,7 @@
 
   // Register the picker keymap with the App overlay-key router whenever the
   // picker overlay is the active one (the App suppresses global hotkeys and
-  // routes keys here). Mirrors the Wave-1 overlayKeyHandlers convention.
+  // routes keys here).
   $effect(() => {
     if (open) {
       ui.registerOverlayKeyHandler('picker', handlePickerKey);
@@ -848,8 +834,8 @@
   function onModalKeydown(e: KeyboardEvent): void {
     // Escape inside the search box ALWAYS consumes here (clear if non-empty +
     // blur) and stops the event reaching the App router, so it never closes the
-    // picker — even when the search is empty (legacy workout-picker.js:1393-1398;
-    // P-1). handlePickerKey enforces the same for the window-routed path.
+    // picker — even when the search is empty. handlePickerKey enforces the same
+    // for the window-routed path.
     if ((e.key || '').toLowerCase() === 'escape' && e.target === searchInputEl) {
       e.preventDefault();
       e.stopPropagation();
@@ -860,8 +846,8 @@
 
   // Imperative mini-chart render for the expanded row (SVG built in core/chart).
   // Each mounted chart registers its render closure so a theme change can re-run
-  // it (charts read CSS-var colors at draw time; legacy redraws the picker chart
-  // on the <html> class mutation). Mirrors PlannerView's registerChart pattern.
+  // it (charts read CSS-var colors at draw time). Mirrors PlannerView's
+  // registerChart pattern.
   const chartRenderers = new Set<() => void>();
   function miniChart(node: HTMLElement, canonical: CanonicalWorkout) {
     let cw = canonical;
@@ -880,9 +866,9 @@
   }
 
   // Re-run every mounted picker mini-chart on an Auto-mode OS light/dark flip
-  // (stale-color fix; J-DARK-06 / J-CFG-13). Uses themeAutoVersion (NOT the full
-  // themeVersion) to match legacy workout-picker.js, which redraws the picker on
-  // the matchMedia path ONLY — a manual data-theme toggle does not redraw it.
+  // (stale-color fix). Uses themeAutoVersion (NOT the full themeVersion): the
+  // picker redraws on the matchMedia path ONLY — a manual data-theme toggle does
+  // not redraw it.
   $effect(() => {
     void themeAutoVersion();
     for (const render of chartRenderers) render();
