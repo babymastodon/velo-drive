@@ -82,7 +82,7 @@ async fn ble_scan_role(
 }
 
 /// The default VeloDrive data folder: a `library` dir inside the app's own XDG
-/// data dir (~/.local/share/bike.velodrive.app), so everything lives in one place.
+/// data dir (~/.local/share/bike.velodrive.VeloDrive), so everything's in one place.
 #[tauri::command]
 fn fs_default_root(app: AppHandle) -> Result<String, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -124,8 +124,29 @@ async fn ble_disconnect_hr(ble: State<'_, Arc<Ble>>) -> Result<(), String> {
     ble.disconnect(Role::Hr).await
 }
 
+/// The system window-button layout (GNOME `button-layout`, e.g. "appmenu:close")
+/// so our titlebar matches native apps instead of forcing minimize/maximize.
+#[cfg(target_os = "linux")]
+fn system_decoration_layout() -> Option<String> {
+    let out = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.wm.preferences", "button-layout"])
+        .output()
+        .ok()?;
+    let s = String::from_utf8(out.stdout).ok()?;
+    let s = s.trim().trim_matches('\'').trim().to_string();
+    (!s.is_empty()).then_some(s)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // NVIDIA + Wayland trips WebKitGTK's DMABUF renderer (GBM / Wayland protocol
+    // errors → blank/crashing window); SHM rendering is reliable. Must be set
+    // before any GTK/webview init. Respect an explicit override.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -162,6 +183,16 @@ pub fn run() {
                 if let Some(win) = app.get_webview_window("main") {
                     let _ = win.set_icon(icon);
                 }
+            }
+            // Use the system titlebar-button layout so we match native apps
+            // (e.g. GNOME's "appmenu:close" — close only, no min/max) instead of
+            // the GTK default that always draws minimize/maximize.
+            #[cfg(target_os = "linux")]
+            if let (Some(settings), Some(layout)) =
+                (gtk::Settings::default(), system_decoration_layout())
+            {
+                use gtk::glib::object::ObjectExt;
+                settings.set_property("gtk-decoration-layout", layout.as_str());
             }
             // Init the BLE manager up front so events can fire as soon as the UI
             // calls reconnect/connect.

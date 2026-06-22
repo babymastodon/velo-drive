@@ -2,7 +2,7 @@
 name = "velodrive"
 version = "0.0.0"
 edition = "2021"
-description = "VeloDrive native shell (Tauri) — bundle id bike.velodrive.app"
+description = "VeloDrive native shell (Tauri) — app id bike.velodrive.VeloDrive"
 license = "MIT"
 publish = false
 
@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+# Match the version tao pulls in, so gtk_window() types unify (Linux titlebar tweaks).
+gtk = "0.18"
 base64 = "0.22"
 keepawake = "0.5"
 opener = "0.7"

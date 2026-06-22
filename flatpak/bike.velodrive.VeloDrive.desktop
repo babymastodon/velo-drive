@@ -3,6 +3,6 @@ Type=Application
 Name=VeloDrive
 Comment=Indoor cycling workouts on FTMS smart trainers
 Exec=velodrive
-Icon=bike.velodrive.app
+Icon=bike.velodrive.VeloDrive
 Terminal=false
 Categories=Sports;

@@ -6,12 +6,12 @@
 #
 #   npm --prefix ../web run build
 #   cargo build --release --manifest-path ../src-tauri/Cargo.toml
-#   flatpak-builder --user --install --force-clean build-dir flatpak/bike.velodrive.app.yml
+#   flatpak-builder --user --install --force-clean build-dir flatpak/bike.velodrive.VeloDrive.yml
 #
 # The runtime version may need bumping to one you have installed
 # (`flatpak install flathub org.gnome.Platform//47 org.gnome.Sdk//47`).
 
-app-id: bike.velodrive.app
+app-id: bike.velodrive.VeloDrive
 runtime: org.gnome.Platform
 runtime-version: '47'
 sdk: org.gnome.Sdk
@@ -39,16 +39,16 @@ modules:
     buildsystem: simple
     build-commands:
       - install -Dm755 velodrive /app/bin/velodrive
-      - install -Dm644 bike.velodrive.app.desktop /app/share/applications/bike.velodrive.app.desktop
-      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/bike.velodrive.app.png
-      - install -Dm644 bike.velodrive.app.metainfo.xml /app/share/metainfo/bike.velodrive.app.metainfo.xml
+      - install -Dm644 bike.velodrive.VeloDrive.desktop /app/share/applications/bike.velodrive.VeloDrive.desktop
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/bike.velodrive.VeloDrive.png
+      - install -Dm644 bike.velodrive.VeloDrive.metainfo.xml /app/share/metainfo/bike.velodrive.VeloDrive.metainfo.xml
     sources:
       - type: file
         path: ../src-tauri/target/release/velodrive
       - type: file
-        path: bike.velodrive.app.desktop
+        path: bike.velodrive.VeloDrive.desktop
       - type: file
-        path: bike.velodrive.app.metainfo.xml
+        path: bike.velodrive.VeloDrive.metainfo.xml
       - type: file
         path: ../src-tauri/icons/icon.png
         dest-filename: icon.png

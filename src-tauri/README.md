@@ -1,13 +1,13 @@
-# src-tauri — VeloDrive native shell (in progress)
+# src-tauri — VeloDrive native shell
 
-The Rust side of the native (Tauri) port. See [`../TAURI-DESIGN.md`](../TAURI-DESIGN.md)
-for the plan: **Linux first**, `btleplug` for Bluetooth, **Flatpak** for distribution,
-keep the existing `web/` app as the frontend.
+The Rust side of the native (Tauri) app: **Linux first**, `btleplug` for Bluetooth,
+**Flatpak** for distribution, hosting the existing `web/` app as the frontend.
 
-Right now this crate contains only the **BLE spike** that de-risks the hardest part —
-`btleplug` ↔ BlueZ ↔ a real device — before any Tauri/UI wiring. Tauri itself (the
-webview, `fs`/`dialog`/`updater` plugins, `tauri.conf.json`) is added once the spike
-is validated.
+The Linux app is feature-complete — it hosts the VeloDrive UI in a system webview and
+bridges Bluetooth (FTMS trainer + HR) to native Rust (`src/ble.rs`), with the workout
+library/history/planner over native `fs` commands and workout-URL imports routed
+through Rust to bypass webview CORS. The standalone `hrm-spike` / `ftms-spike` binaries
+remain for bringing up BLE against real hardware without the UI.
 
 ---
 
@@ -114,7 +114,7 @@ Rust (`native-http.js`) to bypass webview CORS.
 5. ✅ `NativeFileStore` — workout folder + .zwo library + .fit history + schedule
    + trash over native fs commands (path-backed FsDirHandle reusing WebFileStore).
 6. ✅ Native keep-awake during rides (`keepawake` inhibitor via `set_keep_awake`).
-7. ✅ Flatpak manifest scaffold — bundle id `bike.velodrive.app`,
+7. ✅ Flatpak manifest scaffold — app id `bike.velodrive.VeloDrive`,
    `--system-talk-name=org.bluez` for BLE; see [`../flatpak/`](../flatpak/).
 8. ✅ Native HTTP for workout-URL imports (`native-http.js` → Rust) so
    TrainerDay/WhatsOnZwift imports work in the webview despite CORS.

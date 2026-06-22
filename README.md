@@ -33,6 +33,25 @@ Click it to install VeloDrive as an app. It will appear in your system’s app l
   <img alt="PWA Install Instructions" src="media/screenshots/install_light.png">
 </picture>
 
+## Native Linux app (Flatpak)
+
+A native Linux build (Tauri) is also available, hosting the same UI in a system
+webview. Its main advantages over the PWA:
+
+* **More reliable Bluetooth** — it talks to the trainer and heart-rate monitor through a native BlueZ connector (with remember-and-reconnect on launch), instead of the browser's Web Bluetooth, which is flakier and can't auto-reconnect.
+* **Import from more sites** — workout-URL imports (e.g. **WhatsOnZwift** and TrainerDay) route through native HTTP, bypassing the browser CORS restrictions that block them in the PWA.
+
+Build + install from this repo (needs `flatpak` + the GNOME runtime + `flatpak-builder`):
+
+```sh
+npm --prefix web run build
+cargo build --release --manifest-path src-tauri/Cargo.toml
+flatpak-builder --user --install --force-clean flatpak/build-dir flatpak/bike.velodrive.VeloDrive.yml
+flatpak run bike.velodrive.VeloDrive
+```
+
+See [`flatpak/`](./flatpak) for packaging details.
+
 ## Features
 
 * Import workouts by URL from TrainerDay or WhatsOnZwift, or bulk-import the original Zwift collection, TrainerDay's most popular, and the full WhatsOnZwift catalog

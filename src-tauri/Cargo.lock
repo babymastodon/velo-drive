@@ -5124,6 +5124,7 @@ dependencies = [
  "base64 0.22.1",
  "btleplug",
  "futures",
+ "gtk",
  "keepawake",
  "log",
  "opener",
