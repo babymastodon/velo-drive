@@ -659,3 +659,17 @@ test.describe("Picker — filter clear", () => {
     await expect(page.getByTestId("picker-zone-filter-clear")).toHaveCount(0);
   });
 });
+
+// Enter in the search box selects the top match and closes the picker (one press).
+test.describe("Picker — Enter selects", () => {
+  test("Enter in search selects the top result and closes", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+    await page.getByTestId("picker-search").fill("recovery");
+    await page.waitForTimeout(50);
+    await page.getByTestId("picker-search").press("Enter");
+    await expect(page.locator("#workoutPickerOverlay")).toHaveCount(0);
+    expect((await page.getByTestId("workout-name-label").textContent())?.trim().length || 0).toBeGreaterThan(0);
+  });
+});
