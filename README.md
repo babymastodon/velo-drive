@@ -35,9 +35,10 @@ Click it to install VeloDrive as an app. It will appear in your system’s app l
 
 ## Features
 
-* Import `.zwo` workouts from TrainerRoad, TrainerDay, and WhatsOnZwift
-* Built-in workout builder with `.zwo`/`.fit` upload
-* Compute IF, TSS, kJ, and structured interval summaries
+* Import workouts by URL from TrainerDay or WhatsOnZwift, or bulk-import the original Zwift collection, TrainerDay's most popular, and the full WhatsOnZwift catalog
+* Built-in workout builder, plus single- or multi-file `.zwo`/`.fit` upload (or drop files straight into the workouts folder)
+* Folder-organized library with zone/duration filters + search, and a quick zone/duration workout switcher (← / → to step) right on the ride screen
+* Compute IF, TSS, kJ, and structured interval summaries (free rides count as 50% FTP and group under a dedicated Freeride zone)
 * Local workout library via the File System Access API
 * Bluetooth FTMS trainer control + heart-rate support
 * Real-time workout view with ERG/resistance modes
