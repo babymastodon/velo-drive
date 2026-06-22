@@ -290,10 +290,37 @@
   background-color: var(--cta-bg);
   color: var(--cta-text);
   border-color: var(--cta-bg);
-  background-image: url("data:image/svg+xml;utf8,\
-    <svg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5' fill='none'>\
-      <path d='M1 1l3.5 3L8 1' stroke='%23fff' stroke-width='1.1' stroke-linecap='round' stroke-linejoin='round'/>\
-    </svg>");
+  /* No caret when active — the overlaid clear "×" button replaces it. */
+  background-image: none;
+}
+
+/* Wraps a filter <select> so a clear "×" can overlay its right edge. */
+.picker-filter-wrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+.picker-filter-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--cta-text);
+  cursor: pointer;
+}
+.picker-filter-clear svg {
+  width: 12px;
+  height: 12px;
+}
+.picker-filter-clear:hover {
+  opacity: 0.8;
 }
 
 .workout-picker-controls select option {

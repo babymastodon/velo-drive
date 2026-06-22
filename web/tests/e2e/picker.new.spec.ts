@@ -652,3 +652,20 @@ test.describe("Quick workout selector", () => {
     await expect(page.locator(".quick-item", {hasText: "Any duration"})).toHaveCount(0);
   });
 });
+
+// The filter <select>s show a clear "×" (replacing the caret) when a value is set.
+test.describe("Picker — filter clear", () => {
+  test("selecting a zone shows a × that clears it", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+
+    await expect(page.getByTestId("picker-zone-clear")).toHaveCount(0);
+    await page.getByTestId("picker-zone-filter").selectOption("VO2Max");
+    const clear = page.getByTestId("picker-zone-clear");
+    await expect(clear).toBeVisible();
+    await clear.click();
+    await expect(page.getByTestId("picker-zone-filter")).toHaveValue("");
+    await expect(page.getByTestId("picker-zone-clear")).toHaveCount(0);
+  });
+});
