@@ -19,20 +19,20 @@ export interface LibraryItem {
   metrics: SegmentMetrics;
 }
 
-let memoWorkouts: CanonicalWorkout[] | null = null;
-let memoFtp = -1;
-let memoItems: LibraryItem[] | null = null;
+// Cache per workouts-array (WeakMap so it can't be clobbered by, e.g., the
+// picker's transient empty-array render on mount — which a single-slot memo
+// would overwrite, wasting the boot pre-warm). Entries GC with their array.
+const cache = new WeakMap<CanonicalWorkout[], { ftp: number; items: LibraryItem[] }>();
 
 /** Map workouts → display items (zone + metrics), memoized by (array ref, ftp). */
 export function prepareLibraryItems(workouts: CanonicalWorkout[], ftp: number): LibraryItem[] {
-  if (memoItems && memoWorkouts === workouts && memoFtp === ftp) return memoItems;
+  const hit = cache.get(workouts);
+  if (hit && hit.ftp === ftp) return hit.items;
   const items = workouts.map((canonical) => ({
     canonical,
     zone: inferZoneFromSegments(canonical.rawSegments) || 'Uncategorized',
     metrics: computeMetricsFromSegments(canonical.rawSegments, ftp),
   }));
-  memoWorkouts = workouts;
-  memoFtp = ftp;
-  memoItems = items;
+  cache.set(workouts, { ftp, items });
   return items;
 }
