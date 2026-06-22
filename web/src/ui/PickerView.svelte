@@ -1144,10 +1144,10 @@
       if (key === 'enter') {
         e.preventDefault();
         searchInputEl?.blur();
+        // Select (and close) the currently-expanded match, else the top result.
         const results = shownWorkoutItems;
-        if (results.length) expandedId = workoutId(results[0]!.canonical);
-        // Focus the Select button so a second Enter rides the workout.
-        requestAnimationFrame(() => selectBtnEl?.focus());
+        const target = results.find((it) => workoutId(it.canonical) === expandedId) ?? results[0];
+        if (target) doSelect(target.canonical);
         return true;
       }
       if (key === 'escape') {
