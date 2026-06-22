@@ -70,7 +70,7 @@
   let durationValue = $state('');
   let sortKey = $state<SortKey>('kjAdj');
   let sortDir = $state<'asc' | 'desc'>('asc');
-  let expandedTitle = $state<string | null>(null);
+  let expandedId = $state<string | null>(null);
 
   // pickerState persistence (search + zone + duration + sort) across opens.
   // We suppress the auto-save effect while restoring so the restore itself
@@ -127,11 +127,13 @@
     if (open) {
       // Pre-expand the targeted entry in schedule EDIT mode; otherwise start
       // collapsed.
-      expandedTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
+      expandedId = null;
       builderMode = false;
+      const scheduledTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
       void (async () => {
         await restorePickerState();
         await rescan();
+        if (scheduledTitle) expandedId = idForTitle(scheduledTitle);
       })();
     }
   });
@@ -154,6 +156,19 @@
     const dir = slash >= 0 ? path.slice(0, slash) : '';
     const name = cw.workoutTitle || 'Untitled';
     return dir ? `${dir.replace(/\//g, ' / ')} / ${name}` : name;
+  }
+
+  // Stable identity for expand/selection — the unique file path, so workouts
+  // that share a title in different folders don't expand together.
+  function workoutId(cw: CanonicalWorkout): string {
+    return cw.sourcePath ?? cw.workoutTitle;
+  }
+  // Resolve a (possibly ambiguous) title to a listed workout's id — used after
+  // save/clone/schedule where we only know the title.
+  function idForTitle(title: string | null | undefined): string | null {
+    if (!title) return null;
+    const match = allItems.find((it) => it.canonical.workoutTitle === title);
+    return match ? workoutId(match.canonical) : title;
   }
 
   // --------------------------- visible (search / filter / sort) ---------------------------
@@ -278,7 +293,7 @@
 
   function enterFolder(path: string): void {
     currentFolder = path;
-    expandedTitle = null;
+    expandedId = null;
   }
 
   function folderParent(path: string): string {
@@ -335,8 +350,8 @@
     return sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc';
   }
 
-  function toggleExpand(title: string): void {
-    expandedTitle = expandedTitle === title ? null : title;
+  function toggleExpand(id: string): void {
+    expandedId = expandedId === id ? null : id;
   }
 
   // --------------------------- schedule mode ---------------------------
@@ -403,7 +418,7 @@
     if (!ok) return;
     const moved = await fileStore.deleteWorkoutToTrash(canonical);
     if (!moved) return;
-    if (expandedTitle === canonical.workoutTitle) expandedTitle = null;
+    if (expandedId === workoutId(canonical)) expandedId = null;
     await rescan();
   }
 
@@ -436,7 +451,7 @@
     const saved = await fileStore.saveWorkout(copy);
     if (!saved) return;
     await rescan();
-    expandedTitle = copy.workoutTitle || null;
+    expandedId = idForTitle(copy.workoutTitle);
   }
 
   // --------------------------- builder host ---------------------------
@@ -858,7 +873,7 @@
     hasUnsavedBuilderChanges = false;
     exitBuilderMode();
     await rescan();
-    expandedTitle = canonical.workoutTitle || null;
+    expandedId = idForTitle(canonical.workoutTitle);
   }
 
   function onClose(): void {
@@ -873,10 +888,10 @@
   function movePickerExpansion(delta: number): void {
     const items = shownWorkoutItems;
     if (!items.length) return;
-    let idx = items.findIndex((it) => it.canonical.workoutTitle === expandedTitle);
+    let idx = items.findIndex((it) => workoutId(it.canonical) === expandedId);
     if (idx === -1) idx = delta > 0 ? 0 : items.length - 1;
     else idx = (idx + delta + items.length) % items.length;
-    expandedTitle = items[idx]!.canonical.workoutTitle;
+    expandedId = workoutId(items[idx]!.canonical);
   }
 
   let searchInputEl = $state<HTMLInputElement | null>(null);
@@ -942,7 +957,7 @@
         e.preventDefault();
         searchInputEl?.blur();
         const results = shownWorkoutItems;
-        if (results.length) expandedTitle = results[0]!.canonical.workoutTitle;
+        if (results.length) expandedId = workoutId(results[0]!.canonical);
         // Focus the Select button so a second Enter rides the workout.
         requestAnimationFrame(() => selectBtnEl?.focus());
         return true;
@@ -990,7 +1005,7 @@
     // e → open the expanded workout in the builder. Disabled in schedule mode
     // (the builder/edit affordances are hidden there).
     if (key === 'e' && !scheduleMode) {
-      const expanded = shownWorkoutItems.find((it) => it.canonical.workoutTitle === expandedTitle);
+      const expanded = shownWorkoutItems.find((it) => workoutId(it.canonical) === expandedId);
       if (expanded) {
         e.preventDefault();
         onEdit(expanded.canonical);
@@ -1000,7 +1015,7 @@
     }
 
     if (key === 'enter') {
-      const expanded = shownWorkoutItems.find((it) => it.canonical.workoutTitle === expandedTitle);
+      const expanded = shownWorkoutItems.find((it) => workoutId(it.canonical) === expandedId);
       if (expanded) {
         e.preventDefault();
         doSelect(expanded.canonical);
@@ -1505,12 +1520,13 @@
               </tr>
             {:else}
               {@const item = entry.item}
+              {@const id = workoutId(item.canonical)}
               {@const title = item.canonical.workoutTitle}
               {@const displayName = entry.label}
               {@const zone = item.zone}
               {@const m = item.metrics}
-              {#if expandedTitle !== title}
-              <tr class="picker-row" data-title={title} onclick={() => toggleExpand(title)}>
+              {#if expandedId !== id}
+              <tr class="picker-row" data-title={title} onclick={() => toggleExpand(id)}>
                 <td title={displayName}>{displayName}</td>
                 <td>
                   <div class="picker-zone-cell">
@@ -1531,7 +1547,7 @@
                     <div
                       class="picker-expanded-collapse-hit"
                       title="Collapse details"
-                      onclick={(e) => { e.stopPropagation(); expandedTitle = null; }}
+                      onclick={(e) => { e.stopPropagation(); expandedId = null; }}
                       role="button"
                       tabindex="-1"
                       onkeydown={() => {}}
