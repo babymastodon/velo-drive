@@ -157,6 +157,7 @@
         ) {
           currentFolder = '';
         }
+        openScrollPending = true; // the landing scroll below is the open scroll
         if (scheduledTitle) {
           expandedId = idForTitle(scheduledTitle);
           return;
@@ -217,25 +218,28 @@
   // the rendered expanded row, deferred a frame so layout (incl. the mini chart)
   // has settled.
   let tbodyEl = $state<HTMLTableSectionElement | null>(null);
+  // Non-reactive: set true when the picker opens so the first scroll defers an
+  // extra frame; reset after one use (j/k scrolls don't pay that cost).
+  let openScrollPending = false;
   $effect(() => {
     if (!expandedId && !selectedFolderPath) return;
-    // Two frames: let the modal + list paint FIRST, then jump. A synchronous
-    // scrollIntoView in the same frame forces a full layout of the (un-virtualized)
-    // list before the first paint — which, with thousands of rows, stalls the
-    // picker's appearance by ~1s. Deferring keeps the open instant.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
-          tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
-        if (!row) return;
-        // The table header is sticky, so leave room for it when scrolling up —
-        // otherwise it covers the top of the row (and its action buttons).
-        const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
-        row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
-        // Instant jump — a smooth animation across thousands of rows takes seconds.
-        row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-      }),
-    );
+    const isOpenScroll = openScrollPending;
+    openScrollPending = false;
+    const run = (): void => {
+      const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
+        tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
+      if (!row) return;
+      // The table header is sticky, so leave room for it when scrolling up —
+      // otherwise it covers the top of the row (and its action buttons).
+      const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
+      row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
+      // Instant jump — a smooth animation across thousands of rows takes seconds.
+      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    };
+    // On OPEN, defer an extra frame so the (un-virtualized) list paints before the
+    // layout-forcing jump (otherwise the picker stalls ~1s on huge libraries). For
+    // j/k navigation the list is already laid out — one frame, so it stays snappy.
+    requestAnimationFrame(isOpenScroll ? () => requestAnimationFrame(run) : run);
   });
 
   let scanning = $state(false);
