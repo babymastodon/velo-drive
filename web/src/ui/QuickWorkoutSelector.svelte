@@ -154,6 +154,27 @@
   }
   const candidates = $derived(candidatesFor(selZone, selDuration));
 
+  // Whether the carets have somewhere to step (mirrors step()'s clamping), so they
+  // grey out at the ends / when the combo has nothing else to move to — instead of
+  // staying clickable but inert.
+  const stepInfo = $derived.by(() => {
+    const atEnds = (len: number, i: number) => ({
+      prev: len > 0 && (i < 0 || i > 0),
+      next: len > 0 && (i < 0 || i < len - 1),
+    });
+    if (selZone === FREERIDE_ZONE) {
+      const opts = durationOptionsFor(FREERIDE_ZONE);
+      return atEnds(
+        opts.length,
+        opts.findIndex((b) => b.value === selDuration),
+      );
+    }
+    return atEnds(
+      candidates.length,
+      candidates.findIndex((it) => workoutKey(it.canonical) === workoutKey(current)),
+    );
+  });
+
   // Duration drop options: Freeride lists each actual free-ride length; every other
   // zone lists the standard buckets.
   function durationOptionsFor(zone: string): { value: string; label: string }[] {
@@ -288,7 +309,7 @@
     data-testid="quick-prev"
     title="Previous workout (←)"
     aria-label="Previous workout"
-    disabled={!candidates.length}
+    disabled={!stepInfo.prev}
     onclick={() => step(-1)}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
@@ -351,7 +372,7 @@
     data-testid="quick-next"
     title="Next workout (→)"
     aria-label="Next workout"
-    disabled={!candidates.length}
+    disabled={!stepInfo.next}
     onclick={() => step(1)}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
