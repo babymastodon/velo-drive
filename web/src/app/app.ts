@@ -115,8 +115,10 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
 
   // Once the (already-started) scan lands, pre-warm the per-workout metrics/zone
   // the picker renders, so opening it is a memo hit rather than a heavy recompute.
+  // Warm at the loaded FTP (== the engine's currentFtp the picker will read) so
+  // the key matches; a later FTP change only rescales kJ.
   void fileStore.getWorkouts().then((lib) => {
-    prepareLibraryItems(lib, store.vm?.currentFtp || DEFAULT_FTP);
+    prepareLibraryItems(lib, ftp);
   });
 
   return { store, engine, transport, fileStore, beeper, logs };
