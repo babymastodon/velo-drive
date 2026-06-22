@@ -73,6 +73,7 @@ interface TdItem {
 export async function fetchTrainerDayPopular(
   limit: number,
   onProgress?: ImportProgress,
+  shouldCancel?: () => boolean,
 ): Promise<CanonicalWorkout[]> {
   const out: CanonicalWorkout[] = [];
   const seen = new Set<string>();
@@ -80,6 +81,7 @@ export async function fetchTrainerDayPopular(
   let page = 0;
   // Hard cap on pages so a quirk can't loop forever (40k workouts / 500).
   for (let guard = 0; out.length < limit && guard < 200; guard += 1, page += 1) {
+    if (shouldCancel?.()) break;
     const url = `${TRAINERDAY_SEARCH}&pageNumber=${page}&pageSize=${pageSize}`;
     let res;
     try {
@@ -146,10 +148,12 @@ function workoutLinks(doc: Document): { collection: string; slug: string }[] {
  */
 export async function fetchWhatsOnZwiftAll(
   onProgress?: ImportProgress,
+  shouldCancel?: () => boolean,
 ): Promise<CanonicalWorkout[]> {
   // 1) Enumerate every workout URL via the paginated search results.
   const all = new Map<string, { collection: string; slug: string }>();
   for (let page = 1; page <= 400; page += 1) {
+    if (shouldCancel?.()) break;
     const res = await httpGetText(`${WHATSONZWIFT_SEARCH}&page=${page}`);
     if (!res.ok) break;
     const doc = new DOMParser().parseFromString(res.text, 'text/html');
@@ -171,6 +175,7 @@ export async function fetchWhatsOnZwiftAll(
   const list = Array.from(all.values());
   let done = 0;
   const results = await mapLimit(list, 5, async ({ collection, slug }) => {
+    if (shouldCancel?.()) return null;
     const url = `https://whatsonzwift.com/workouts/${collection}/${slug}`;
     try {
       const res = await httpGetText(url);

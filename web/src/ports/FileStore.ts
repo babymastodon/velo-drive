@@ -80,7 +80,8 @@ export interface FileStore {
   importWorkoutBatch(
     canonicals: CanonicalWorkout[],
     onProgress?: (done: number, total: number) => void,
-  ): Promise<{ added: number; error: string | null }>;
+    shouldCancel?: () => boolean,
+  ): Promise<{ added: number; skipped: number; error: string | null }>;
 
   // ---- Planner: history (.fit) ----
   /** List + parse every .fit file in the history dir (full samples/meta). */
