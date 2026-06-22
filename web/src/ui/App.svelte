@@ -121,17 +121,26 @@
     };
   });
 
-  // F11 toggles fullscreen in the native (Tauri) app.
+  // Native (Tauri) window shortcuts: F11 fullscreen, Ctrl/Cmd+W or Ctrl/Cmd+Q close.
   $effect(() => {
     if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
     function onKey(e: KeyboardEvent): void {
-      if (e.key !== 'F11' || e.defaultPrevented) return;
-      e.preventDefault();
-      void (async () => {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const w = getCurrentWindow();
-        await w.setFullscreen(!(await w.isFullscreen()));
-      })();
+      if (e.defaultPrevented) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.key === 'F11') {
+        e.preventDefault();
+        void (async () => {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const w = getCurrentWindow();
+          await w.setFullscreen(!(await w.isFullscreen()));
+        })();
+      } else if (mod && (e.key === 'w' || e.key === 'q')) {
+        e.preventDefault();
+        void (async () => {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().close();
+        })();
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -504,13 +504,13 @@
   padding-left: 4px;
 }
 
-/* The VeloDrive folder's full filesystem path (native) + Open-in-file-manager. */
+/* The VeloDrive folder's full path (native) + Choose / Open. Indented to align
+   with the row text (28px icon + 12px gap), on its own line since it's long. */
 .settings-rootdir-path {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: -2px 0 6px;
-  padding: 0 2px;
+  margin: -2px 0 6px 40px;
 }
 .settings-rootdir-path code {
   flex: 1;
@@ -523,4 +523,10 @@
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 6px 9px;
+}
+.settings-rootdir-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
