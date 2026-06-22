@@ -12,6 +12,7 @@
     engine,
     transport,
     dialogs,
+    fileStore,
     onOpenSettings,
     onOpenPicker,
     onOpenPlanner,
@@ -21,6 +22,7 @@
     engine: WorkoutEngine;
     transport: TrainerTransport;
     dialogs: DialogStore;
+    fileStore: import('../ports/web/WebFileStore.js').WebFileStore;
     onOpenSettings?: () => void;
     onOpenPicker?: () => void;
     onOpenPlanner?: () => void;
@@ -41,6 +43,7 @@
     {engine}
     {transport}
     {dialogs}
+    {fileStore}
     {onOpenSettings}
     {onOpenPicker}
     {onOpenPlanner}
