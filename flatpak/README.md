@@ -1,7 +1,7 @@
 # Flatpak packaging
 
-Distribution target for the Linux native app (see [`../TAURI-DESIGN.md`](../TAURI-DESIGN.md)).
-[`bike.velodrive.app.yml`](./bike.velodrive.app.yml) packages the **prebuilt**
+Distribution target for the Linux native app (see [`../src-tauri/`](../src-tauri/)).
+[`bike.velodrive.VeloDrive.yml`](./bike.velodrive.VeloDrive.yml) packages the **prebuilt**
 `velodrive` binary (it embeds the `web/` frontend), so no offline cargo/node
 source generation is needed.
 
@@ -14,8 +14,8 @@ cargo build --release --manifest-path ../src-tauri/Cargo.toml
 
 # 2. Package + install the Flatpak (needs flatpak-builder + the GNOME runtime)
 flatpak install flathub org.gnome.Platform//47 org.gnome.Sdk//47   # once
-flatpak-builder --user --install --force-clean build-dir bike.velodrive.app.yml
-flatpak run bike.velodrive.app
+flatpak-builder --user --install --force-clean build-dir bike.velodrive.VeloDrive.yml
+flatpak run bike.velodrive.VeloDrive
 ```
 
 ## Notes
