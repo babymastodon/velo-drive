@@ -189,18 +189,12 @@
     if (usePreload) {
       // Open: use the library preloaded at page load — instant if it's ready,
       // otherwise show the loading state until it lands.
-      const t0 = performance.now();
-      const ready = fileStore.isWorkoutsReady();
-      if (!ready) scanning = true;
+      if (!fileStore.isWorkoutsReady()) scanning = true;
       const lib = await fileStore.getWorkouts();
       if (token === rescanToken) {
         workouts = lib;
         scanning = false;
       }
-      console.log(
-        `[perf] picker open: preloadReady=${ready}, got ${lib.length} workouts in ` +
-          `${Math.round(performance.now() - t0)}ms (waited on scan: ${!ready})`,
-      );
       return;
     }
     // Authoritative refresh after a save / delete / import.
@@ -245,7 +239,6 @@
   const allItems = $derived<PickerItem[]>(prepareLibraryItems(workouts, currentFtp));
 
   const visibleItems = $derived.by<PickerItem[]>(() => {
-    const _t0 = performance.now();
     let items = allItems;
 
     if (zoneValue) items = items.filter((it) => it.zone === zoneValue);
@@ -286,8 +279,6 @@
         return a.canonical.workoutTitle.localeCompare(b.canonical.workoutTitle) * dir;
       return 0;
     });
-    const _dt = performance.now() - _t0;
-    if (_dt > 2) console.log(`[perf] visibleItems: ${result.length} in ${Math.round(_dt)}ms`);
     return result;
   });
 
@@ -302,20 +293,13 @@
   type NavEntry = NavFolder | NavWorkout;
 
   const navEntries = $derived.by<NavEntry[]>(() => {
-    const _t0 = performance.now();
-    const _log = (n: number) => {
-      const dt = performance.now() - _t0;
-      if (dt > 2) console.log(`[perf] navEntries: ${n} rows in ${Math.round(dt)}ms (of ${visibleItems.length})`);
-    };
     if (flatMode) {
       // Flat: every matching workout, labelled with its full folder path.
-      const flat = visibleItems.map((item) => ({
+      return visibleItems.map((item) => ({
         kind: 'workout' as const,
         item,
         label: libraryName(item.canonical),
       }));
-      _log(flat.length);
-      return flat;
     }
     // Folder mode: subfolders of `currentFolder` + the workouts directly in it.
     const prefix = currentFolder ? currentFolder + '/' : '';
@@ -340,9 +324,7 @@
     const folders: NavEntry[] = [...folderCounts.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, count]) => ({ kind: 'folder', name, path: prefix + name, count }));
-    const entries = [...folders, ...workoutsHere];
-    _log(entries.length);
-    return entries;
+    return [...folders, ...workoutsHere];
   });
 
   // The workout rows actually shown right now (current folder, or all in flat
