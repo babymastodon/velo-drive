@@ -46,6 +46,20 @@
 
   const welcomeActive = $derived(ui.activeOverlay === 'welcome');
 
+  // Persist the open overlay so a page reload stays on the same screen (workout
+  // library, planner, settings). Restored at boot in maybeRestoreLastOverlay,
+  // after the higher-priority boot auto-opens (welcome / attention / today's
+  // ride) have had their say.
+  const LAST_OVERLAY_KEY = 'lastOverlay';
+  let bootRestoreDone = $state(false);
+  $effect(() => {
+    const overlay = ui.activeOverlay;
+    if (!ctx || !bootRestoreDone) return;
+    // Welcome is first-run gated — never let it become the restored screen.
+    if (overlay === 'welcome') return;
+    void ctx.fileStore.putSetting(LAST_OVERLAY_KEY, overlay);
+  });
+
   // Hold a screen wake lock whenever a ride is in progress (running, the 3-2-1
   // countdown, or an auto/manual pause). Released automatically when idle.
   $effect(() => {
@@ -147,11 +161,35 @@
 
   async function maybeShowWelcomeThenAttention(c: AppContext): Promise<void> {
     const shown = await maybeShowWelcome(c);
-    if (shown) return;
-    await maybeAutoOpenSettings(c);
-    // If settings didn't claim the screen, auto-open the planner to today's
-    // scheduled ride.
-    if (ui.activeOverlay === 'none') await maybeOpenPlannerForTodaySchedule(c);
+    if (!shown) {
+      await maybeAutoOpenSettings(c);
+      // If settings didn't claim the screen, auto-open the planner to today's
+      // scheduled ride.
+      if (ui.activeOverlay === 'none') await maybeOpenPlannerForTodaySchedule(c);
+      // Otherwise, restore whatever overlay was open before a reload.
+      if (ui.activeOverlay === 'none') await maybeRestoreLastOverlay(c);
+    }
+    // From here on, overlay changes are persisted (see the effect above).
+    bootRestoreDone = true;
+  }
+
+  // Reopen the overlay that was showing before a reload (workout library /
+  // planner / settings) so the user lands back where they left off.
+  async function maybeRestoreLastOverlay(c: AppContext): Promise<void> {
+    try {
+      const vm = c.store.vm;
+      if (vm?.workoutRunning || vm?.workoutPaused || vm?.workoutStarting) return;
+      const last = await c.fileStore.getSetting<string>(LAST_OVERLAY_KEY, 'none');
+      if (last === 'planner' || last === 'settings') {
+        ui.open(last);
+      } else if (last === 'picker') {
+        // The picker needs a configured folder; otherwise stay on the HUD.
+        const root = await c.fileStore.loadRootDirHandle().catch(() => null);
+        if (root) ui.open('picker');
+      }
+    } catch (err) {
+      console.warn('[App] Failed to restore last overlay:', err);
+    }
   }
 
   // Boot-time auto-open of the planner when TODAY has a scheduled workout.

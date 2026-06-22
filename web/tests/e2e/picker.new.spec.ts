@@ -596,3 +596,31 @@ test.describe("Picker — no-folder guard", () => {
     await expect(page.getByTestId("settings-modal")).toBeVisible();
   });
 });
+
+// A reload should land back on whatever overlay was open (persisted lastOverlay).
+// The hermetic harness re-seeds settings on each load, so we drive the RESTORE
+// path directly: seed lastOverlay=picker + a configured folder, then boot.
+test.describe("Picker — restore last overlay on boot", () => {
+  test.use({harnessConfig: PICKER_HARNESS_CONFIG});
+
+  test("auto-opens the workout library when it was the last overlay", async ({page, harnessConfig}) => {
+    await page.addInitScript((cfg) => {
+      (window as unknown as {__VELO_HARNESS_CONFIG__: unknown}).__VELO_HARNESS_CONFIG__ = cfg;
+    }, harnessConfig);
+    await page.addInitScript({path: new URL("../../harness/page-env.js", import.meta.url).pathname});
+    await page.addInitScript(() => {
+      const store = (window as unknown as {
+        __VELO_HARNESS__?: {settingsStore?: Map<string, unknown>};
+      }).__VELO_HARNESS__?.settingsStore;
+      if (!store) return;
+      store.set("hasSeenWelcome", {key: "hasSeenWelcome", value: true});
+      store.set("lastOverlay", {key: "lastOverlay", value: "picker"});
+    });
+    await page.goto("/");
+
+    // The picker comes up on boot without any user interaction, and lists the
+    // seeded library.
+    await expect(page.getByTestId("picker-modal")).toBeVisible();
+    expect(await rows(page).count()).toBeGreaterThan(5);
+  });
+});
