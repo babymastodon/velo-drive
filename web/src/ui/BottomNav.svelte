@@ -2,7 +2,7 @@
   import type { EngineViewModel, WorkoutEngine } from '../core/engine.js';
   import type { TrainerTransport } from '../ports/TrainerTransport.js';
   import type { DialogStore } from '../state/dialog.svelte.js';
-  import { DEFAULT_FTP } from '../core/metrics.js';
+  import { DEFAULT_FTP, inferZoneFromSegments } from '../core/metrics.js';
   import { CadenceCoach, computeCoachingTitle } from './hud-coaching.js';
   import { isWebBluetoothAvailable } from '../app/compat.js';
 
@@ -60,6 +60,22 @@
   const titleText = $derived(
     coaching.text ?? (coaching.parts ?? []).map((p) => p.text).join(''),
   );
+  // Dominant training zone of the selected workout → a colored swatch next to its
+  // name. Reuses the picker's .picker-zone-dot classes (global CSS).
+  const workoutZone = $derived(
+    vm.canonicalWorkout ? inferZoneFromSegments(vm.canonicalWorkout.rawSegments) : null,
+  );
+  function zoneDotClass(zone: string | null): string {
+    const z = (zone || '').toLowerCase();
+    if (z.startsWith('recovery')) return 'picker-zone-dot-recovery';
+    if (z.startsWith('endurance')) return 'picker-zone-dot-endurance';
+    if (z.startsWith('tempo')) return 'picker-zone-dot-tempo';
+    if (z.startsWith('threshold')) return 'picker-zone-dot-threshold';
+    if (z.startsWith('vo2')) return 'picker-zone-dot-vo2';
+    if (z.startsWith('anaerobic')) return 'picker-zone-dot-anaerobic';
+    return 'picker-zone-dot-unknown';
+  }
+
   const nameLabelText = $derived(
     vm.canonicalWorkout
       ? vm.canonicalWorkout.workoutTitle || 'Selected workout'
@@ -320,6 +336,14 @@
         onclick={() => onOpenPicker?.()}
         onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPicker?.(); } }}
       >
+        {#if workoutZone}
+          <span
+            class="picker-zone-dot {zoneDotClass(workoutZone)}"
+            style="margin-right: 6px; align-self: center;"
+            title="{workoutZone} workout"
+            aria-hidden="true"
+          ></span>
+        {/if}
         {nameLabelText}
       </div>
 
