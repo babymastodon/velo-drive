@@ -52,6 +52,11 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const fileStore: WebFileStore = isTauri
     ? new (await import('../ports/native/NativeFileStore.js')).NativeFileStore()
     : new WebFileStore();
+  // Native first run: default the data folder to the XDG location (~/.local/share/
+  // VeloDrive) so the app works out of the box; the user can change it in Settings.
+  if (isTauri && 'ensureDefaultRoot' in fileStore) {
+    await (fileStore as unknown as { ensureDefaultRoot: () => Promise<void> }).ensureDefaultRoot();
+  }
   // Kick off the library scan as early as possible (runs concurrently with the
   // rest of boot) so the picker is likely ready by the time it's opened.
   fileStore.preloadWorkouts();

@@ -8,7 +8,7 @@ mod net;
 use std::sync::{Arc, Mutex};
 
 use ble::{Ble, DeviceInfo, Role};
-use tauri::{Manager, RunEvent, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 
 /// Holds a keep-awake guard while a ride is in progress (dropping it releases).
 #[derive(Default)]
@@ -69,6 +69,25 @@ async fn ble_connect_device(
     ble.connect(r, Some(id)).await
 }
 
+/// Scan for devices advertising the role's service (for the device picker).
+#[tauri::command]
+async fn ble_scan_role(
+    ble: State<'_, Arc<Ble>>,
+    role: String,
+    secs: Option<u64>,
+) -> Result<Vec<DeviceInfo>, String> {
+    let ble = ble.inner().clone();
+    let r = if role == "hr" { Role::Hr } else { Role::Bike };
+    ble.scan_role(r, secs.unwrap_or(5)).await
+}
+
+/// The default XDG data location for the VeloDrive folder (~/.local/share/VeloDrive).
+#[tauri::command]
+fn fs_default_root(app: AppHandle) -> Result<String, String> {
+    let dir = app.path().data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("VeloDrive").to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 async fn ble_reconnect(
     ble: State<'_, Arc<Ble>>,
@@ -110,6 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ble_scan,
+            ble_scan_role,
             ble_connect_bike,
             ble_connect_hr,
             ble_connect_device,
@@ -130,6 +150,7 @@ pub fn run() {
             net::http_get,
             net::http_get_bytes,
             open_external,
+            fs_default_root,
             set_keep_awake,
         ])
         .manage(KeepAwake::default())

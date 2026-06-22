@@ -153,7 +153,21 @@ impl Ble {
 
     pub async fn scan(&self, secs: u64) -> Result<Vec<DeviceInfo>, String> {
         let central = self.central()?;
-        let out = scan_devices(&central, secs).await.map_err(|e| e.to_string())?;
+        scan_devices(&central, secs, None).await.map_err(|e| e.to_string())
+    }
+
+    /// Scan for devices advertising the role's service (FTMS for the trainer, HR
+    /// for the monitor) — what the device picker shows.
+    pub async fn scan_role(&self, role: Role, secs: u64) -> Result<Vec<DeviceInfo>, String> {
+        let central = self.central()?;
+        log(&self.app, format!("scanning {secs}s for {} devices…", role.name()));
+        let out = scan_devices(&central, secs, Some(role.service()))
+            .await
+            .map_err(|e| e.to_string())?;
+        log(
+            &self.app,
+            format!("scan found {} {} device(s)", out.len(), role.name()),
+        );
         Ok(out)
     }
 
@@ -290,7 +304,11 @@ fn log(app: &AppHandle, msg: impl Into<String>) {
     let _ = app.emit("ble://log", msg.into());
 }
 
-async fn scan_devices(central: &Adapter, secs: u64) -> Result<Vec<DeviceInfo>> {
+async fn scan_devices(
+    central: &Adapter,
+    secs: u64,
+    filter: Option<Uuid>,
+) -> Result<Vec<DeviceInfo>> {
     central.start_scan(ScanFilter::default()).await.context("start_scan")?;
     tokio::time::sleep(Duration::from_secs(secs)).await;
     let ps = central.peripherals().await?;
@@ -298,6 +316,13 @@ async fn scan_devices(central: &Adapter, secs: u64) -> Result<Vec<DeviceInfo>> {
     let mut out = Vec::new();
     for p in ps {
         if let Ok(Some(props)) = p.properties().await {
+            // Only keep devices advertising the requested service (FTMS / HR), so
+            // the picker lists valid trainers / monitors rather than every gadget.
+            if let Some(svc) = filter {
+                if !props.services.contains(&svc) {
+                    continue;
+                }
+            }
             out.push(DeviceInfo {
                 id: props.address.to_string(),
                 name: props.local_name.unwrap_or_default(),
@@ -376,8 +401,20 @@ async fn do_connect(
         s.wanted_id = want_id.clone();
     }
     status(&app, role, "connecting", "Connecting…", None, None);
+    log(
+        &app,
+        format!(
+            "{}: connecting{}",
+            role.name(),
+            want_id
+                .as_ref()
+                .map(|i| format!(" to {i}"))
+                .unwrap_or_else(|| " (first available)".into())
+        ),
+    );
 
     let fail = |app: &AppHandle, msg: String| -> Result<(), String> {
+        log(app, format!("{}: {}", role.name(), msg));
         if report_error {
             status(app, role, "error", &msg, None, None);
         } else {
@@ -393,6 +430,7 @@ async fn do_connect(
     if let Err(e) = connect_peripheral(&app, &p).await {
         return fail(&app, format!("connect failed: {e}"));
     }
+    log(&app, format!("{}: connected, discovering services…", role.name()));
     if let Err(e) = p.discover_services().await {
         let _ = p.disconnect().await;
         return fail(&app, format!("service discovery failed: {e}"));

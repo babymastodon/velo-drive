@@ -8,6 +8,13 @@
   let { dialogs }: { dialogs: DialogStore } = $props();
 
   const req = $derived(dialogs.current);
+
+  // Show BLE signal strength as filled/empty bars (RSSI in dBm: nearer 0 = stronger).
+  function signalLabel(rssi: number | null | undefined): string {
+    if (rssi == null) return '';
+    const bars = rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -78 ? 2 : 1;
+    return '▰'.repeat(bars) + '▱'.repeat(4 - bars);
+  }
 </script>
 
 <OverlayModal
@@ -57,17 +64,26 @@
         {/if}
         {#if req.kind === 'device'}
           <div class="dialog-devices" data-testid="dialog-devices">
-            {#each req.devices ?? [] as d (d.id)}
-              <button
-                class="dialog-device"
-                type="button"
-                data-testid="dialog-device"
-                onclick={() => dialogs.chooseDevice(d.id)}
-              >
-                <span class="dialog-device-name">{d.name}</span>
-                {#if d.rssi != null}<span class="dialog-device-rssi">{d.rssi} dBm</span>{/if}
-              </button>
-            {/each}
+            {#if req.searching && !(req.devices?.length)}
+              <p class="dialog-device-status"><span class="dialog-spinner"></span>Searching for devices…</p>
+            {:else if !(req.devices?.length)}
+              <p class="dialog-device-status">
+                No devices found. Make sure it's on, awake (pedal / touch the strap), and not
+                connected to another app — then Rescan.
+              </p>
+            {:else}
+              {#each req.devices ?? [] as d (d.id)}
+                <button
+                  class="dialog-device"
+                  type="button"
+                  data-testid="dialog-device"
+                  onclick={() => dialogs.chooseDevice(d.id)}
+                >
+                  <span class="dialog-device-name">{d.name}</span>
+                  {#if d.rssi != null}<span class="dialog-device-rssi">{signalLabel(d.rssi)}</span>{/if}
+                </button>
+              {/each}
+            {/if}
           </div>
         {/if}
         <div class="dialog-actions">
@@ -79,7 +95,15 @@
               onclick={() => dialogs.resolve(false)}>{req.cancelLabel}</button
             >
           {/if}
-          {#if req.kind !== 'device'}
+          {#if req.kind === 'device'}
+            <button
+              class="settings-button settings-button-primary"
+              type="button"
+              data-testid="dialog-rescan"
+              disabled={req.searching}
+              onclick={() => dialogs.rescanDevices()}>{req.searching ? 'Searching…' : 'Rescan'}</button
+            >
+          {:else}
             <button
               class="settings-button settings-button-primary"
               type="button"
@@ -160,27 +184,54 @@
     justify-content: space-between;
     gap: 12px;
     text-align: left;
-    padding: 10px 12px;
+    height: var(--nav-control-height);
+    padding: 0 12px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface-muted);
+    border-radius: var(--radius);
+    background: var(--surface);
     color: var(--text-main);
     font: inherit;
+    font-size: var(--font-size-base);
     cursor: pointer;
+    transition: var(--interactive-transition);
   }
   .dialog-device:hover {
     background: var(--hover-strong);
+    border-color: var(--text-muted);
   }
   .dialog-device-name {
-    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .dialog-device-rssi {
-    font-size: 0.82em;
-    color: var(--text-muted);
+    font-size: 0.9em;
+    letter-spacing: 1px;
+    color: var(--success);
     flex-shrink: 0;
+  }
+  .dialog-device-status {
+    margin: 0;
+    padding: 14px 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.92em;
+  }
+  .dialog-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--text-muted);
+    border-radius: 50%;
+    animation: dialog-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes dialog-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .dialog-example {
     display: flex;
