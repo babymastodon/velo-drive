@@ -66,6 +66,10 @@ export interface FileStore {
   // ---- Workout library (picker) ----
   /** Scan the .zwo workouts dir and return parsed CanonicalWorkouts. */
   listWorkouts(): Promise<CanonicalWorkout[]>;
+  /** The last-known parsed library from the cache (no disk scan), or null if
+   *  nothing is cached yet — for an instant first paint while listWorkouts()
+   *  reconciles in the background. */
+  getCachedWorkouts(): Promise<CanonicalWorkout[] | null>;
   /** Move a workout's .zwo file to the trash folder (delete). */
   deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean>;
   /** Serialize + write a CanonicalWorkout into the workouts dir (used by clone). */

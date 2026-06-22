@@ -147,7 +147,7 @@
       const scheduledTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
       void (async () => {
         await restorePickerState();
-        await rescan();
+        await rescan(true);
         // A restored folder may no longer exist (deleted/renamed) — fall to root.
         if (
           currentFolder &&
@@ -180,12 +180,34 @@
   });
 
   let scanning = $state(false);
-  async function rescan(): Promise<void> {
+  let rescanToken = 0;
+  async function rescan(useCache = false): Promise<void> {
+    const token = ++rescanToken;
+    const cached = useCache ? await fileStore.getCachedWorkouts() : null;
+    if (token !== rescanToken) return;
+    if (cached && cached.length) {
+      // Fast open: show the last-known library from the cache INSTANTLY, then
+      // reconcile against disk in the BACKGROUND (the scan is the slow part).
+      workouts = cached;
+      scanning = false;
+      void fileStore
+        .listWorkouts()
+        .then((fresh) => {
+          if (token === rescanToken) workouts = fresh;
+        })
+        .finally(() => {
+          if (token === rescanToken) scanning = false;
+        });
+      return;
+    }
+    // No cache yet (first-ever scan), or an authoritative rescan after a
+    // save/delete/import: await the full scan so the result is final.
     scanning = true;
     try {
-      workouts = await fileStore.listWorkouts();
+      const fresh = await fileStore.listWorkouts();
+      if (token === rescanToken) workouts = fresh;
     } finally {
-      scanning = false;
+      if (token === rescanToken) scanning = false;
     }
   }
 
