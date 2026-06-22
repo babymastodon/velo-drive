@@ -14,6 +14,7 @@
     computeMetricsFromSegments,
   } from '../core/metrics.js';
   import { prepareLibraryItems, type LibraryItem } from '../core/library-items.js';
+  import { isFreeRideSegment } from '../core/segments.js';
 
   let {
     vm,
@@ -106,9 +107,21 @@
     }
   });
 
+  // A fully free-ride workout (no structured intervals) — implicitly excluded from
+  // the main-page selector's candidates.
+  function isAllFreeRide(it: LibraryItem): boolean {
+    const segs = it.canonical.rawSegments;
+    return segs.length > 0 && segs.every((s) => isFreeRideSegment(s));
+  }
+
   function candidatesFor(zone: string, dur: string): LibraryItem[] {
     return library
-      .filter((it) => it.zone === zone && getDurationBucket(it.metrics.durationMin) === dur)
+      .filter(
+        (it) =>
+          it.zone === zone &&
+          getDurationBucket(it.metrics.durationMin) === dur &&
+          !isAllFreeRide(it),
+      )
       .slice()
       .sort((a, b) => (a.metrics.kj ?? 0) - (b.metrics.kj ?? 0));
   }
