@@ -26,6 +26,11 @@ describe('prepareLibraryItems', () => {
     // Same array + ftp → memo hit (identical reference).
     expect(prepareLibraryItems(workouts, 200)).toBe(a);
 
+    // A transient call with a DIFFERENT array (e.g. the picker's empty []-on-mount
+    // render) must NOT evict the real array's cache — that was the perf bug.
+    prepareLibraryItems([], 200);
+    expect(prepareLibraryItems(workouts, 200)).toBe(a);
+
     // Changed ftp → recompute (new reference).
     expect(prepareLibraryItems(workouts, 260)).not.toBe(a);
 
