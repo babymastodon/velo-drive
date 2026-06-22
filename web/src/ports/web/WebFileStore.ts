@@ -484,7 +484,7 @@ export class WebFileStore implements FileStore {
     if (this.workoutDirHandle) return this.workoutDirHandle;
     let handle = (await this.loadHandle(WORKOUT_DIR_KEY)) as FsDirHandle | null;
     if (!handle) {
-      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      const root = await this.loadRootDirHandle();
       if (root) {
         handle = await root.getDirectoryHandle('history', { create: true });
       }
@@ -498,7 +498,7 @@ export class WebFileStore implements FileStore {
   private async loadZwoDirHandle(): Promise<FsDirHandle | null> {
     let handle = (await this.loadHandle(ZWO_DIR_KEY)) as FsDirHandle | null;
     if (!handle) {
-      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      const root = await this.loadRootDirHandle();
       if (root) handle = await root.getDirectoryHandle('workouts', { create: true });
     }
     return handle || null;
@@ -507,7 +507,7 @@ export class WebFileStore implements FileStore {
   private async loadTrashDirHandle(): Promise<FsDirHandle | null> {
     let handle = (await this.loadHandle(TRASH_DIR_KEY)) as FsDirHandle | null;
     if (!handle) {
-      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      const root = await this.loadRootDirHandle();
       if (root) handle = await root.getDirectoryHandle('trash', { create: true });
     }
     return handle || null;
@@ -1010,7 +1010,7 @@ export class WebFileStore implements FileStore {
   /** Read schedule.json (a flat array) from the root dir; [] if absent. */
   async loadSchedule(): Promise<ScheduleEntry[]> {
     try {
-      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      const root = await this.loadRootDirHandle();
       if (!root) return [];
       const fileHandle = await root.getFileHandle(SCHEDULE_FILE, { create: false });
       const file = await fileHandle.getFile?.();
@@ -1025,7 +1025,7 @@ export class WebFileStore implements FileStore {
   /** Persist schedule.json (pretty-printed). */
   async saveSchedule(entries: ScheduleEntry[]): Promise<boolean> {
     try {
-      const root = (await this.loadHandle(ROOT_DIR_KEY)) as FsDirHandle | null;
+      const root = await this.loadRootDirHandle();
       if (!root) {
         this.notifyError('Choose a VeloDrive folder first to save the schedule.');
         return false;
