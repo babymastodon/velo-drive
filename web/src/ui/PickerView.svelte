@@ -20,6 +20,7 @@
   import type { CanonicalWorkout } from '../core/model.js';
   import {
     getDurationBucket,
+    DURATION_BUCKETS,
     formatDurationMinSec,
     type SegmentMetrics,
   } from '../core/metrics.js';
@@ -94,9 +95,7 @@
     folder?: string;
     showAll?: boolean;
   }
-  const VALID_DURATIONS = new Set([
-    '', '1-30', '31-45', '46-60', '61-75', '76-90', '91-120', '121-180', '181-240', '>240',
-  ]);
+  const VALID_DURATIONS = new Set(['', ...DURATION_BUCKETS.map((b) => b.value)]);
   let pickerStateReady = $state(false);
 
   async function restorePickerState(): Promise<void> {
@@ -1353,15 +1352,9 @@
           onkeydown={(e) => onSelectNavKeydown(e, 'duration')}
         >
           <option value="">All durations</option>
-          <option value="1-30">1–30 min</option>
-          <option value="31-45">31–45 min</option>
-          <option value="46-60">46–60 min</option>
-          <option value="61-75">61–75 min</option>
-          <option value="76-90">76–90 min</option>
-          <option value="91-120">91–120 min</option>
-          <option value="121-180">121–180 min</option>
-          <option value="181-240">181–240 min</option>
-          <option value=">240">&gt; 4 hours</option>
+          {#each DURATION_BUCKETS as b}
+            <option value={b.value}>{b.label}</option>
+          {/each}
         </select>
 
         <button
