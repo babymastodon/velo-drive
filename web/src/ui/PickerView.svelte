@@ -160,9 +160,10 @@
           expandedId = idForTitle(scheduledTitle);
           return;
         }
-        // Always land on the currently-loaded workout when the filters allow it.
+        // Always land on the currently-loaded workout (clearing conflicting
+        // filters + navigating to its folder).
         expandedId = null;
-        selectCurrentWorkoutIfVisible();
+        selectCurrentWorkout();
       })();
     }
   });
@@ -170,7 +171,7 @@
   // When nothing is selected, default the picker to the workout loaded on the HUD
   // — navigate to its folder + expand it — as long as it passes the active
   // search/zone/duration filters.
-  function selectCurrentWorkoutIfVisible(): void {
+  function selectCurrentWorkout(): void {
     const cur = store.vm?.canonicalWorkout;
     if (!cur) return;
     const curId = workoutId(cur);
@@ -178,9 +179,33 @@
       allItems.find((it) => workoutId(it.canonical) === curId) ??
       allItems.find((it) => it.canonical.workoutTitle === cur.workoutTitle);
     if (!item) return;
-    // Respect filters: only auto-select if the workout is in the filtered set.
     const id = workoutId(item.canonical);
-    if (!visibleItems.some((v) => workoutId(v.canonical) === id)) return;
+
+    // Always reveal the loaded workout: clear only the filters that would hide it
+    // (leave non-conflicting ones in place).
+    if (zoneValue && item.zone !== zoneValue) zoneValue = '';
+    if (durationValue && getDurationBucket(item.metrics.durationMin) !== durationValue)
+      durationValue = '';
+    if (searchTerm) {
+      const haystack = [
+        item.canonical.workoutTitle,
+        item.zone,
+        item.canonical.source || '',
+        item.canonical.sourcePath || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (
+        !matchesSearchQuery(
+          parseSearchQuery(searchTerm.toLowerCase()),
+          haystack,
+          item.metrics.durationMin,
+        )
+      )
+        searchTerm = '';
+    }
+
+    // Navigate to its folder (folder-browse mode) so the row is on screen.
     const path = item.canonical.sourcePath || '';
     currentFolder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
     expandedId = id;
@@ -201,7 +226,9 @@
       // otherwise it covers the top of the row (and its action buttons).
       const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
       row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
-      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // Instant ('auto') jump — a smooth animation across thousands of rows takes
+      // seconds; this lands on the row immediately.
+      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     });
   });
 
