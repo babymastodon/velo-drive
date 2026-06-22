@@ -146,10 +146,13 @@
   $effect(() => {
     if (!expandedId) return;
     requestAnimationFrame(() => {
-      tbodyEl?.querySelector('.picker-expanded-row')?.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth',
-      });
+      const row = tbodyEl?.querySelector('.picker-expanded-row') as HTMLElement | null;
+      if (!row) return;
+      // The table header is sticky, so leave room for it when scrolling up —
+      // otherwise it covers the top of the row (and its action buttons).
+      const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
+      row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
+      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   });
 
