@@ -224,8 +224,8 @@ const THEME_VARS_LIGHT: Record<string, string> = {
   "--wb-insert-line": "#3a7bff",
 };
 const THEME_VARS_DARK: Record<string, string> = {
-  "--freeride-fill": "#3a3a3a",
-  "--freeride-stripe": "#4a4a4a",
+  "--freeride-fill": "#545454",
+  "--freeride-stripe": "#6f6f6f",
   "--shade-bg": "#ffffff",
   "--wb-insert-line": "#6ba8ff",
 };

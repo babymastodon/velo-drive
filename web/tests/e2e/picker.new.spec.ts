@@ -282,14 +282,15 @@ test.describe("Picker — keymap", () => {
         el.dispatchEvent(new KeyboardEvent("keydown", {key: k, bubbles: true, cancelable: true}));
       }, key);
 
+    // Order: "" (All zones), Freeride, Recovery, …
+    await pressOnSelect("j");
+    await expect(zone).toHaveValue("Freeride");
     await pressOnSelect("j");
     await expect(zone).toHaveValue("Recovery");
-    await pressOnSelect("j");
-    await expect(zone).toHaveValue("Endurance");
 
     // 'k' moves back up.
     await pressOnSelect("k");
-    await expect(zone).toHaveValue("Recovery");
+    await expect(zone).toHaveValue("Freeride");
 
     // The new value actually re-filters the table.
     await page.waitForTimeout(30);

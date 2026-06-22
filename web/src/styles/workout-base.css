@@ -151,8 +151,8 @@
     --hr-line: #e82210;
   --cad-line: #6ad60b;
   --shade-bg: #ffffff;
-  --freeride-fill: #3a3a3a;
-  --freeride-stripe: #4a4a4a;
+  --freeride-fill: #545454;
+  --freeride-stripe: #6f6f6f;
   --wb-block-active-filter: brightness(1.4) saturate(0.8);
   --wb-insert-line: #6ba8ff;
 
@@ -319,8 +319,8 @@
   --hr-line: #e82210;
   --cad-line: #6ad60b;
   --shade-bg: #ffffff;
-  --freeride-fill: #3a3a3a;
-  --freeride-stripe: #4a4a4a;
+  --freeride-fill: #545454;
+  --freeride-stripe: #6f6f6f;
   --zone-recovery: #cccccc;
   --zone-endurance: #6ac2ff;
   --zone-tempo: #70e870;
