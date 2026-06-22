@@ -726,36 +726,63 @@ export class WebFileStore implements FileStore {
     return { added, error: null };
   }
 
+  /** True if a file already exists at `relPath` under `root` (no create). */
+  private async fileExistsAt(root: FsDirHandle, relPath: string): Promise<boolean> {
+    const segs = relPath.split('/').filter((s) => s && s !== '.' && s !== '..');
+    const fileName = segs.pop();
+    if (!fileName) return false;
+    try {
+      let dir = root;
+      for (const seg of segs) dir = await dir.getDirectoryHandle(seg, { create: false });
+      await dir.getFileHandle(fileName, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async importWorkoutBatch(
     canonicals: CanonicalWorkout[],
     onProgress?: (done: number, total: number) => void,
-  ): Promise<{ added: number; error: string | null }> {
+    shouldCancel?: () => boolean,
+  ): Promise<{ added: number; skipped: number; error: string | null }> {
     const root = await this.loadZwoDirHandle();
-    if (!root) return { added: 0, error: 'Choose a VeloDrive folder first.' };
+    if (!root) return { added: 0, skipped: 0, error: 'Choose a VeloDrive folder first.' };
     if (!(await ensureDirPermission(root))) {
-      return { added: 0, error: 'Permission to write to the workouts folder was not granted.' };
+      return { added: 0, skipped: 0, error: 'Permission to write to the workouts folder was not granted.' };
     }
     let added = 0;
+    let skipped = 0;
+    let failed = 0;
     for (let i = 0; i < canonicals.length; i += 1) {
+      if (shouldCancel?.()) break;
       const c = canonicals[i]!;
       const relPath = c.sourcePath || `${sanitizeZwoFileName(c.workoutTitle || 'workout')}.zwo`;
-      try {
-        const handle = await this.ensureNestedFile(root, relPath);
-        if (handle) {
-          const writable = await handle.createWritable();
-          await writable.write(canonicalWorkoutToZwoXml(c));
-          await writable.close();
-          added += 1;
+      // Don't re-download/overwrite a workout already present locally — skip it.
+      if (await this.fileExistsAt(root, relPath)) {
+        skipped += 1;
+      } else {
+        try {
+          const handle = await this.ensureNestedFile(root, relPath);
+          if (handle) {
+            const writable = await handle.createWritable();
+            await writable.write(canonicalWorkoutToZwoXml(c));
+            await writable.close();
+            added += 1;
+          }
+        } catch (err) {
+          failed += 1;
+          console.warn('[WebFileStore] importWorkoutBatch: failed to write', relPath, err);
         }
-      } catch (err) {
-        console.warn('[WebFileStore] importWorkoutBatch: failed to write', relPath, err);
       }
       if (onProgress && (i % 25 === 0 || i === canonicals.length - 1)) {
-        onProgress(added, canonicals.length);
+        onProgress(added + skipped, canonicals.length);
       }
     }
-    if (added === 0) return { added: 0, error: 'No workouts could be written to the folder.' };
-    return { added, error: null };
+    if (added === 0 && skipped === 0 && failed > 0) {
+      return { added: 0, skipped: 0, error: 'No workouts could be written to the folder.' };
+    }
+    return { added, skipped, error: null };
   }
 
   /**

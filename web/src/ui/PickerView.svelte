@@ -711,13 +711,27 @@
   let importLibMenuOpen = $state(false);
   let importModal = $state<ImportModal | null>(null);
   let importBusy = $state(false);
+  let importCancel = $state(false);
   let importProgress = $state('');
   let trainerdayLimit = $state(1000);
 
   function openImportModal(which: ImportModal): void {
     importLibMenuOpen = false;
     importProgress = '';
+    importCancel = false;
     importModal = which;
+  }
+
+  // Cancel button: while an import is running it requests a cooperative stop
+  // (importers + the writer poll importCancel between items); otherwise it just
+  // closes the modal.
+  function onImportCancel(): void {
+    if (importBusy) {
+      importCancel = true;
+      importProgress = 'Cancelling…';
+    } else {
+      importModal = null;
+    }
   }
 
   function onImportModalStart(): Promise<void> {
@@ -741,17 +755,26 @@
   }
 
   async function runBatchImport(
-    fetcher: () => Promise<import('../core/model.js').CanonicalWorkout[]>,
+    fetcher: (
+      shouldCancel: () => boolean,
+    ) => Promise<import('../core/model.js').CanonicalWorkout[]>,
     folderLabel: string,
     reachErr: string,
   ): Promise<void> {
+    importCancel = false;
     importBusy = true;
+    const cancel = () => importCancel;
     let canonicals;
     try {
-      canonicals = await fetcher();
+      canonicals = await fetcher(cancel);
     } catch {
       importBusy = false;
       await dialogs.alert(reachErr, { title: 'Import failed' });
+      return;
+    }
+    if (importCancel) {
+      importBusy = false;
+      importModal = null;
       return;
     }
     if (!canonicals.length) {
@@ -760,27 +783,34 @@
       return;
     }
     importProgress = `Saving ${canonicals.length} workouts…`;
-    const { added, error } = await fileStore.importWorkoutBatch(
+    const { added, skipped, error } = await fileStore.importWorkoutBatch(
       canonicals,
       (d, t) => (importProgress = `Saved ${d}/${t}…`),
+      cancel,
     );
     importBusy = false;
+    importModal = null;
     if (error) {
       await dialogs.alert(error, { title: 'Import failed' });
       return;
     }
-    importModal = null;
     await rescan();
-    await dialogs.alert(`Imported ${added} workouts into “${folderLabel}”.`, {
-      title: 'Import complete',
-    });
+    const parts = [`${added} new`];
+    if (skipped) parts.push(`${skipped} already present`);
+    const detail = parts.join(', ');
+    await dialogs.alert(
+      importCancel
+        ? `Import cancelled — ${detail}.`
+        : `Imported into “${folderLabel}”: ${detail}.`,
+      { title: importCancel ? 'Import cancelled' : 'Import complete' },
+    );
   }
 
   function runTrainerDayImport(): Promise<void> {
     const limit = Math.max(1, Math.min(40000, Math.round(trainerdayLimit) || 1000));
     importProgress = `Fetching the top ${limit} workouts from TrainerDay…`;
     return runBatchImport(
-      () => fetchTrainerDayPopular(limit, (m) => (importProgress = m)),
+      (cancel) => fetchTrainerDayPopular(limit, (m) => (importProgress = m), cancel),
       'TrainerDay',
       'Could not reach TrainerDay. Check your connection (the desktop app avoids browser CORS limits).',
     );
@@ -789,7 +819,7 @@
   function runWhatsOnZwiftImport(): Promise<void> {
     importProgress = 'Scanning WhatsOnZwift…';
     return runBatchImport(
-      () => fetchWhatsOnZwiftAll((m) => (importProgress = m)),
+      (cancel) => fetchWhatsOnZwiftAll((m) => (importProgress = m), cancel),
       'WhatsOnZwift',
       'Could not crawl WhatsOnZwift — it blocks cross-origin requests in the browser. Use the desktop app for this import.',
     );
@@ -1820,9 +1850,10 @@
           <button
             type="button"
             class="wb-code-insert-btn picker-back-btn"
-            disabled={importBusy}
-            onclick={() => (importModal = null)}
-          >Cancel</button>
+            data-testid="import-modal-cancel"
+            disabled={importCancel}
+            onclick={onImportCancel}
+          >{importBusy ? 'Stop import' : 'Cancel'}</button>
           <button
             type="button"
             class="picker-add-btn"
