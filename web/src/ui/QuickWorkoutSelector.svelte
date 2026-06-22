@@ -398,7 +398,8 @@
   }
   .quick-item:hover,
   .quick-item:focus-visible {
-    background: var(--surface-muted);
+    /* Same hover shade as the bottom-nav buttons (rgba .06 light / .1 dark). */
+    background: var(--hover-strong);
     outline: none;
   }
 </style>
