@@ -57,6 +57,18 @@ async fn ble_connect_hr(ble: State<'_, Arc<Ble>>) -> Result<(), String> {
     ble.connect(Role::Hr, None).await
 }
 
+/// Connect a role to a specific device the user picked from the scan list.
+#[tauri::command]
+async fn ble_connect_device(
+    ble: State<'_, Arc<Ble>>,
+    role: String,
+    id: String,
+) -> Result<(), String> {
+    let ble = ble.inner().clone();
+    let r = if role == "hr" { Role::Hr } else { Role::Bike };
+    ble.connect(r, Some(id)).await
+}
+
 #[tauri::command]
 async fn ble_reconnect(
     ble: State<'_, Arc<Ble>>,
@@ -100,6 +112,7 @@ pub fn run() {
             ble_scan,
             ble_connect_bike,
             ble_connect_hr,
+            ble_connect_device,
             ble_reconnect,
             ble_set_target_power,
             ble_set_resistance,

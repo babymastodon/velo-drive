@@ -55,8 +55,23 @@
             <code class="dialog-example-url">{req.example}</code>
           </div>
         {/if}
+        {#if req.kind === 'device'}
+          <div class="dialog-devices" data-testid="dialog-devices">
+            {#each req.devices ?? [] as d (d.id)}
+              <button
+                class="dialog-device"
+                type="button"
+                data-testid="dialog-device"
+                onclick={() => dialogs.chooseDevice(d.id)}
+              >
+                <span class="dialog-device-name">{d.name}</span>
+                {#if d.rssi != null}<span class="dialog-device-rssi">{d.rssi} dBm</span>{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
         <div class="dialog-actions">
-          {#if req.kind === 'confirm' || req.kind === 'prompt'}
+          {#if req.kind === 'confirm' || req.kind === 'prompt' || req.kind === 'device'}
             <button
               class="settings-button"
               type="button"
@@ -64,12 +79,14 @@
               onclick={() => dialogs.resolve(false)}>{req.cancelLabel}</button
             >
           {/if}
-          <button
-            class="settings-button settings-button-primary"
-            type="button"
-            data-testid="dialog-ok"
-            onclick={() => dialogs.resolve(true)}>{req.okLabel}</button
-          >
+          {#if req.kind !== 'device'}
+            <button
+              class="settings-button settings-button-primary"
+              type="button"
+              data-testid="dialog-ok"
+              onclick={() => dialogs.resolve(true)}>{req.okLabel}</button
+            >
+          {/if}
         </div>
       </div>
     </div>
@@ -128,6 +145,42 @@
   }
   .dialog-link:hover {
     background: var(--hover-light);
+  }
+  .dialog-devices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 16px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .dialog-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    color: var(--text-main);
+    font: inherit;
+    cursor: pointer;
+  }
+  .dialog-device:hover {
+    background: var(--hover-strong);
+  }
+  .dialog-device-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dialog-device-rssi {
+    font-size: 0.82em;
+    color: var(--text-muted);
+    flex-shrink: 0;
   }
   .dialog-example {
     display: flex;
