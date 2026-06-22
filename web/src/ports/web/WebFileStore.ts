@@ -605,6 +605,20 @@ export class WebFileStore implements FileStore {
     return out;
   }
 
+  /**
+   * The last-known parsed library straight from the cache — NO filesystem scan.
+   * The picker shows this instantly on open, then calls listWorkouts() in the
+   * background to reconcile against disk. Returns null when nothing is cached yet
+   * (the first-ever scan), so the caller knows to show a loading state.
+   */
+  async getCachedWorkouts(): Promise<CanonicalWorkout[] | null> {
+    const cache = await this.loadWorkoutCache();
+    if (!cache) return null;
+    const entries = Object.values(cache.entries);
+    if (!entries.length) return null;
+    return entries.map((e) => e.canonical);
+  }
+
   async deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean> {
     // Prefer the exact source path (handles nested workouts); fall back to the
     // title-derived name at the dir root.
