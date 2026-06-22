@@ -25,6 +25,10 @@ export interface FsDirHandle {
 export interface FsHandle {
   readonly kind: 'file' | 'directory';
   readonly name: string;
+  /** File size in bytes + mtime (ms) when the platform's dir listing provides
+   *  them (native) — lets the library cache skip re-reading unchanged files. */
+  readonly size?: number;
+  readonly mtimeMs?: number;
 }
 export interface FsFileHandle {
   readonly kind?: 'file';
@@ -34,6 +38,9 @@ export interface FsFileHandle {
 }
 export interface FsFile {
   readonly name?: string;
+  /** Cheap metadata (FSA File exposes these without reading content). */
+  readonly size?: number;
+  readonly lastModified?: number;
   text(): Promise<string>;
   arrayBuffer(): Promise<ArrayBuffer>;
 }

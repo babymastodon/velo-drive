@@ -17,6 +17,10 @@ pub struct DirEntry {
     pub name: String,
     #[serde(rename = "isDir")]
     pub is_dir: bool,
+    // Size + mtime (ms) let the library cache skip re-reading unchanged files.
+    pub size: u64,
+    #[serde(rename = "mtimeMs")]
+    pub mtime_ms: f64,
 }
 
 /// Native "pick a folder" dialog. Returns the chosen path, or None if cancelled.
@@ -36,9 +40,19 @@ pub fn fs_read_dir(path: String) -> Result<Vec<DirEntry>, String> {
     for entry in fs::read_dir(&path).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let meta = entry.metadata().ok();
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        let mtime_ms = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as f64)
+            .unwrap_or(0.0);
         out.push(DirEntry {
             name: entry.file_name().to_string_lossy().into_owned(),
             is_dir,
+            size,
+            mtime_ms,
         });
     }
     Ok(out)

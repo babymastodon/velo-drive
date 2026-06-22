@@ -9,6 +9,8 @@ import type { FsDirHandle, FsFileHandle, FsFile, FsHandle, FsWritable } from '..
 interface RustDirEntry {
   name: string;
   isDir: boolean;
+  size: number;
+  mtimeMs: number;
 }
 
 function joinPath(dir: string, name: string): string {
@@ -69,7 +71,7 @@ export class NativeDirHandle implements FsDirHandle {
   async *values(): AsyncIterableIterator<FsHandle> {
     const entries = await invoke<RustDirEntry[]>('fs_read_dir', { path: this.path });
     for (const e of entries) {
-      yield { kind: e.isDir ? 'directory' : 'file', name: e.name };
+      yield { kind: e.isDir ? 'directory' : 'file', name: e.name, size: e.size, mtimeMs: e.mtimeMs };
     }
   }
 

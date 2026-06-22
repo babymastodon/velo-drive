@@ -9,6 +9,7 @@ import type {
   FsDirHandle,
   FsHandle,
   FsFileHandle,
+  FsFile,
 } from '../FileStore.js';
 import type { CanonicalWorkout } from '../../core/model.js';
 import {
@@ -46,6 +47,21 @@ const SETTINGS_STORE = 'settings';
 // preview format/computation changes (invalidates the whole cache).
 const STATS_CACHE_KEY = 'workoutStatsCache';
 const STATS_CACHE_VERSION = 30;
+
+// Persisted parsed-library cache: per .zwo path → its parse signature (size:mtime)
+// + parsed CanonicalWorkout. listWorkouts reuses entries whose signature is
+// unchanged, so it never re-reads or re-parses unchanged files across opens. Bump
+// the version if the parse output shape changes.
+const WORKOUT_CACHE_KEY = 'workoutLibraryCache';
+const WORKOUT_CACHE_VERSION = 1;
+interface WorkoutCacheEntry {
+  sig: string;
+  canonical: CanonicalWorkout;
+}
+interface WorkoutCache {
+  version: number;
+  entries: Record<string, WorkoutCacheEntry>;
+}
 
 const STORAGE_SELECTED_WORKOUT = 'selectedWorkout';
 const STORAGE_ACTIVE_STATE = 'activeWorkoutState';
@@ -493,22 +509,48 @@ export class WebFileStore implements FileStore {
     return handle || null;
   }
 
-  /** Recursively yield every .zwo file handle + its path relative to the dir. */
-  private async *walkZwo(
+  /**
+   * Recursively yield each .zwo entry's containing dir + name + relative path +
+   * signature (size:mtime, when the listing provides it — native). The file
+   * handle is fetched lazily by the caller only on a cache MISS, so unchanged
+   * files cost nothing beyond the directory listing.
+   */
+  private async *walkZwoEntries(
     dir: FsDirHandle,
     prefix: string,
     depth: number,
-  ): AsyncGenerator<{ handle: FsFileHandle; relPath: string }> {
+  ): AsyncGenerator<{ dir: FsDirHandle; name: string; relPath: string; sig: string | null }> {
     if (depth > 8) return; // guard against deep/cyclic trees
     for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
       const childPath = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.kind === 'directory') {
         const sub = await dir.getDirectoryHandle(entry.name, { create: false });
-        yield* this.walkZwo(sub, childPath, depth + 1);
+        yield* this.walkZwoEntries(sub, childPath, depth + 1);
       } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zwo')) {
-        yield { handle: await dir.getFileHandle(entry.name), relPath: childPath };
+        const sig =
+          entry.size != null && entry.mtimeMs != null ? `${entry.size}:${entry.mtimeMs}` : null;
+        yield { dir, name: entry.name, relPath: childPath, sig };
       }
     }
+  }
+
+  private workoutCache: WorkoutCache | null = null;
+  private async loadWorkoutCache(): Promise<WorkoutCache | null> {
+    if (this.workoutCache) return this.workoutCache;
+    try {
+      const c = await this.getSetting<WorkoutCache | null>(WORKOUT_CACHE_KEY, null);
+      if (c && c.version === WORKOUT_CACHE_VERSION && c.entries) {
+        this.workoutCache = c;
+        return c;
+      }
+    } catch {
+      /* ignore — fall back to a full scan */
+    }
+    return null;
+  }
+  private saveWorkoutCache(c: WorkoutCache): void {
+    this.workoutCache = c;
+    void this.putSetting(WORKOUT_CACHE_KEY, c).catch(() => {});
   }
 
   async listWorkouts(): Promise<CanonicalWorkout[]> {
@@ -517,21 +559,49 @@ export class WebFileStore implements FileStore {
     // Re-authorize the reloaded handle. Runs in the gesture that opened the
     // picker, so the prompt is allowed.
     await ensureDirPermission(dir);
+    const cache = await this.loadWorkoutCache();
+    const next: WorkoutCache = { version: WORKOUT_CACHE_VERSION, entries: {} };
     const out: CanonicalWorkout[] = [];
+    let dirty = false;
     try {
-      // Scan the workouts dir AND any nested subfolders.
-      for await (const { handle, relPath } of this.walkZwo(dir, '', 0)) {
-        const file = await handle.getFile?.();
+      // Scan the workouts dir AND any nested subfolders, reusing unchanged files.
+      for await (const { dir: entryDir, name, relPath, sig } of this.walkZwoEntries(dir, '', 0)) {
+        let signature = sig;
+        let file: FsFile | undefined;
+        if (!signature) {
+          // No listing signature (FSA): read cheap file metadata via the handle.
+          const handle = await entryDir.getFileHandle(name);
+          file = await handle.getFile?.();
+          signature = file ? `${file.size ?? 0}:${file.lastModified ?? 0}` : '0:0';
+        }
+        const cached = cache?.entries[relPath];
+        // Only trust a real signature — '0:0' means the platform gave no size/
+        // mtime (e.g. the test fakes), so always re-parse to stay correct.
+        if (cached && cached.sig === signature && signature !== '0:0') {
+          next.entries[relPath] = cached;
+          out.push(cached.canonical);
+          continue;
+        }
+        // Miss: read + parse the file.
+        if (!file) {
+          const handle = await entryDir.getFileHandle(name);
+          file = await handle.getFile?.();
+        }
         if (!file) continue;
         const canonical = parseZwoXmlToCanonicalWorkout(await file.text());
-        if (canonical) {
-          canonical.sourcePath = relPath;
-          out.push(canonical);
-        }
+        if (!canonical) continue;
+        canonical.sourcePath = relPath;
+        next.entries[relPath] = { sig: signature, canonical };
+        out.push(canonical);
+        dirty = true;
       }
     } catch (err) {
       console.error('[WebFileStore] listWorkouts failed:', err);
+      return out;
     }
+    // Persist when anything was re-parsed OR files were removed (entry count drops).
+    const prevCount = cache ? Object.keys(cache.entries).length : -1;
+    if (dirty || prevCount !== Object.keys(next.entries).length) this.saveWorkoutCache(next);
     return out;
   }
 

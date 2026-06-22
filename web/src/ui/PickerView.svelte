@@ -175,8 +175,14 @@
     });
   });
 
+  let scanning = $state(false);
   async function rescan(): Promise<void> {
-    workouts = await fileStore.listWorkouts();
+    scanning = true;
+    try {
+      workouts = await fileStore.listWorkouts();
+    } finally {
+      scanning = false;
+    }
   }
 
   function getZone(cw: CanonicalWorkout): string {
@@ -336,11 +342,14 @@
   }
 
   const summaryText = $derived(
-    workouts.length === 0
-      ? 'No .zwo files found in this folder yet.'
-      : `${visibleItems.length} of ${workouts.length} workouts shown`,
+    scanning && workouts.length === 0
+      ? 'Loading workouts…'
+      : workouts.length === 0
+        ? 'No .zwo files found in this folder yet.'
+        : `${visibleItems.length} of ${workouts.length} workouts shown`,
   );
-  const showEmptyState = $derived(workouts.length === 0);
+  // Don't flash the "no workouts" empty state while the first scan is in flight.
+  const showEmptyState = $derived(!scanning && workouts.length === 0);
 
   // --------------------------- display helpers ---------------------------
   function formatPickerDuration(m: SegmentMetrics): string {
