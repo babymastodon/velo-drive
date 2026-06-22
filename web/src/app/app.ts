@@ -52,6 +52,9 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   const fileStore: WebFileStore = isTauri
     ? new (await import('../ports/native/NativeFileStore.js')).NativeFileStore()
     : new WebFileStore();
+  // Kick off the library scan as early as possible (runs concurrently with the
+  // rest of boot) so the picker is likely ready by the time it's opened.
+  fileStore.preloadWorkouts();
   // In the native shell, route workout-URL imports through Rust (no CORS).
   if (isTauri) (await import('../ports/native/native-http.js')).installNativeHttp();
   const beeper = new Beeper();
@@ -110,11 +113,8 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
     onAlert: opts.onEngineAlert,
   });
 
-  // Start scanning the workout library in the background now, so the picker can
-  // open instantly later (or show a loading state if it's not done yet). Once the
-  // scan lands, pre-warm the per-workout metrics/zone the picker renders, so the
-  // open is a memo hit rather than a heavy recompute.
-  fileStore.preloadWorkouts();
+  // Once the (already-started) scan lands, pre-warm the per-workout metrics/zone
+  // the picker renders, so opening it is a memo hit rather than a heavy recompute.
   void fileStore.getWorkouts().then((lib) => {
     prepareLibraryItems(lib, store.vm?.currentFtp || DEFAULT_FTP);
   });

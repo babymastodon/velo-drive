@@ -188,6 +188,25 @@ function sourceSubfolder(source: string): string {
   return '';
 }
 
+/** Run `fn` over `items` with at most `limit` in flight; preserves input order. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i]!, i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) || 1 }, () => worker()));
+  return out;
+}
+
 export class WebFileStore implements FileStore {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private workoutDirHandle: FsDirHandle | null = null;
@@ -494,51 +513,67 @@ export class WebFileStore implements FileStore {
     return handle || null;
   }
 
-  /**
-   * Recursively yield each .zwo entry's containing dir + name + relative path +
-   * signature (size:mtime, when the listing provides it — native). The file
-   * handle is fetched lazily by the caller only on a cache MISS, so unchanged
-   * files cost nothing beyond the directory listing.
-   */
-  private async *walkZwoEntries(
-    dir: FsDirHandle,
-    prefix: string,
-    depth: number,
-  ): AsyncGenerator<{ dir: FsDirHandle; name: string; relPath: string; sig: string | null }> {
-    if (depth > 8) return; // guard against deep/cyclic trees
-    for await (const entry of dir.values() as AsyncIterable<FsHandle>) {
-      const childPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.kind === 'directory') {
-        const sub = await dir.getDirectoryHandle(entry.name, { create: false });
-        yield* this.walkZwoEntries(sub, childPath, depth + 1);
-      } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zwo')) {
-        const sig =
-          entry.size != null && entry.mtimeMs != null ? `${entry.size}:${entry.mtimeMs}` : null;
-        yield { dir, name: entry.name, relPath: childPath, sig };
-      }
-    }
-  }
-
-  /** Scan the workouts dir (+ nested subfolders) and parse every .zwo. */
+  /** Scan the workouts dir (+ nested subfolders) and parse every .zwo. The walk
+   *  fans out over subdirectories concurrently and the file reads/parses run with
+   *  bounded concurrency, so the scan isn't a long chain of sequential I/O. */
   async listWorkouts(): Promise<CanonicalWorkout[]> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return [];
     // Re-authorize the reloaded handle (no-op once granted).
     await ensureDirPermission(dir);
-    const out: CanonicalWorkout[] = [];
-    try {
-      for await (const { dir: entryDir, name, relPath } of this.walkZwoEntries(dir, '', 0)) {
-        const handle = await entryDir.getFileHandle(name);
-        const file = await handle.getFile?.();
-        if (!file) continue;
-        const canonical = parseZwoXmlToCanonicalWorkout(await file.text());
-        if (!canonical) continue;
-        canonical.sourcePath = relPath;
-        out.push(canonical);
+    const t0 = performance.now();
+
+    // Phase 1: walk the tree (subdirs in parallel) collecting .zwo file entries.
+    const tasks: { dir: FsDirHandle; name: string; relPath: string }[] = [];
+    const walk = async (d: FsDirHandle, prefix: string, depth: number): Promise<void> => {
+      if (depth > 8) return;
+      const subs: Promise<void>[] = [];
+      try {
+        for await (const entry of d.values() as AsyncIterable<FsHandle>) {
+          const childPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+          if (entry.kind === 'directory') {
+            subs.push(
+              d
+                .getDirectoryHandle(entry.name, { create: false })
+                .then((sub) => walk(sub, childPath, depth + 1))
+                .catch(() => {}),
+            );
+          } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.zwo')) {
+            tasks.push({ dir: d, name: entry.name, relPath: childPath });
+          }
+        }
+      } catch (err) {
+        console.warn('[WebFileStore] walk error:', err);
       }
+      await Promise.all(subs);
+    };
+    try {
+      await walk(dir, '', 0);
     } catch (err) {
-      console.error('[WebFileStore] listWorkouts failed:', err);
+      console.error('[WebFileStore] listWorkouts walk failed:', err);
     }
+    const t1 = performance.now();
+
+    // Phase 2: read + parse files with bounded concurrency.
+    const parsed = await mapLimit(tasks, 32, async ({ dir: d, name, relPath }) => {
+      try {
+        const handle = await d.getFileHandle(name);
+        const file = await handle.getFile?.();
+        if (!file) return null;
+        const canonical = parseZwoXmlToCanonicalWorkout(await file.text());
+        if (!canonical) return null;
+        canonical.sourcePath = relPath;
+        return canonical;
+      } catch {
+        return null;
+      }
+    });
+    const out = parsed.filter((c): c is CanonicalWorkout => !!c);
+    const t2 = performance.now();
+    console.log(
+      `[perf] listWorkouts: ${out.length} workouts — walk ${Math.round(t1 - t0)}ms, ` +
+        `read+parse ${Math.round(t2 - t1)}ms (${tasks.length} files), total ${Math.round(t2 - t0)}ms`,
+    );
     return out;
   }
 
@@ -550,9 +585,12 @@ export class WebFileStore implements FileStore {
   /** Start scanning the library in the background (call at app boot). */
   preloadWorkouts(): void {
     if (this.preloadedWorkouts || this.preloadingWorkouts) return;
+    const t0 = performance.now();
+    console.log('[perf] preloadWorkouts: starting library scan…');
     this.preloadingWorkouts = this.listWorkouts()
       .then((lib) => {
         this.preloadedWorkouts = lib;
+        console.log(`[perf] preloadWorkouts: ready in ${Math.round(performance.now() - t0)}ms`);
         return lib;
       })
       .catch((err) => {
