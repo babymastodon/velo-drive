@@ -3,7 +3,12 @@
 // Pure workout metrics + helpers.
 
 import type { RawSegment } from './model.js';
-import { FREERIDE_SEGMENT_FLAG, isFreeRideSegment, segDurationSec } from './segments.js';
+import {
+  FREERIDE_POWER_REL,
+  FREERIDE_SEGMENT_FLAG,
+  isFreeRideSegment,
+  segDurationSec,
+} from './segments.js';
 
 export const DEFAULT_FTP = 250;
 
@@ -80,12 +85,10 @@ export function computeMetricsFromSegments(
     const isFreeRide = isFreeRideSegment(seg);
     totalSec += dur;
 
-    if (isFreeRide) {
-      continue;
-    }
-
-    const p0 = (startPct as number) / 100; // relative FTP 0–1
-    const dp = ((endPct as number) - (startPct as number)) / 100; // delta relative FTP
+    // Treat free-ride periods as 50% FTP for metrics (matches how the chart
+    // renders them) rather than excluding them from IF/TSS/kJ.
+    const p0 = isFreeRide ? FREERIDE_POWER_REL : (startPct as number) / 100; // relative FTP 0–1
+    const dp = isFreeRide ? 0 : ((endPct as number) - (startPct as number)) / 100; // delta relative FTP
 
     for (let i = 0; i < dur; i++) {
       const rel = p0 + dp * ((i + 0.5) / dur); // mid-point power
