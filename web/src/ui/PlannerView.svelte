@@ -222,15 +222,17 @@
 
   function scrollToToday(): void {
     if (!calendarBodyEl) return;
-    const rowEls = calendarBodyEl.querySelectorAll('.planner-week-row');
+    const rowEls = calendarBodyEl.querySelectorAll<HTMLElement>('.planner-week-row');
     const rowsBefore = Math.floor(VISIBLE_WEEKS / 2); // 8 → today's week is row index 8
     const targetRow = Math.max(0, rowsBefore - 1);
-    // scrollTop = targetRow * measuredRowHeight (the first row's rendered
-    // height), NOT offsetTop (which accumulates the inter-row borders and drifts
-    // a few px per row).
-    const firstRow = rowEls[0] as HTMLElement | undefined;
-    const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 0;
-    calendarBodyEl.scrollTop = Math.max(0, targetRow * rowHeight);
+    // Align the target row's top with the body's top so today's week sits one
+    // row below. Measure the row's actual position (rows grow with cards, so a
+    // uniform rowHeight × index estimate drifts) — mirrors scrollSelectedIntoView.
+    const targetEl = rowEls[targetRow];
+    if (!targetEl) return;
+    const bodyRect = calendarBodyEl.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
+    calendarBodyEl.scrollTop += targetRect.top - bodyRect.top;
   }
 
   async function loadHistory(): Promise<void> {
