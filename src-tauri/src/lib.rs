@@ -137,6 +137,23 @@ fn system_decoration_layout() -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+/// tao's client-side titlebar is a GtkEventBox wrapping a GtkHeaderBar that draws
+/// the window buttons from its decoration-layout. Find that header bar and set its
+/// layout to the system one (e.g. GNOME's "appmenu:close" — close only).
+#[cfg(target_os = "linux")]
+fn apply_titlebar_layout(w: &gtk::Widget, layout: &str) {
+    use gtk::prelude::*;
+    if let Some(hb) = w.downcast_ref::<gtk::HeaderBar>() {
+        hb.set_decoration_layout(Some(layout));
+        return;
+    }
+    if let Some(c) = w.downcast_ref::<gtk::Container>() {
+        for child in c.children() {
+            apply_titlebar_layout(&child, layout);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // NVIDIA + Wayland trips WebKitGTK's DMABUF renderer (GBM / Wayland protocol
@@ -184,15 +201,18 @@ pub fn run() {
                     let _ = win.set_icon(icon);
                 }
             }
-            // Use the system titlebar-button layout so we match native apps
-            // (e.g. GNOME's "appmenu:close" — close only, no min/max) instead of
-            // the GTK default that always draws minimize/maximize.
+            // tao draws its own client-side titlebar that ignores GNOME's
+            // button-layout; make its header bar match the system one.
             #[cfg(target_os = "linux")]
-            if let (Some(settings), Some(layout)) =
-                (gtk::Settings::default(), system_decoration_layout())
-            {
-                use gtk::glib::object::ObjectExt;
-                settings.set_property("gtk-decoration-layout", layout.as_str());
+            if let (Some(layout), Some(gtk_win)) = (
+                system_decoration_layout(),
+                app.get_webview_window("main")
+                    .and_then(|w| w.gtk_window().ok()),
+            ) {
+                use gtk::prelude::GtkWindowExt;
+                if let Some(tb) = gtk_win.titlebar() {
+                    apply_titlebar_layout(&tb, &layout);
+                }
             }
             // Init the BLE manager up front so events can fire as soon as the UI
             // calls reconnect/connect.
