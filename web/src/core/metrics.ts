@@ -418,7 +418,7 @@ export function inferZoneFromSegments(
  * Buckets duration into label used by the duration filter.
  */
 // Duration buckets shared by the picker filter + the bottom-bar quick selector:
-// 10-minute steps up to 90, 30-minute steps up to 240 (4h), then "> 4 hours".
+// 15-minute steps up to 90, 30-minute steps up to 240 (4h), then "> 4 hours".
 export interface DurationBucket {
   value: string;
   label: string;
@@ -426,7 +426,7 @@ export interface DurationBucket {
 }
 export const DURATION_BUCKETS: DurationBucket[] = (() => {
   const out: DurationBucket[] = [];
-  for (let lo = 1, hi = 10; hi <= 90; lo = hi + 1, hi += 10)
+  for (let lo = 1, hi = 15; hi <= 90; lo = hi + 1, hi += 15)
     out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });
   for (let lo = 91, hi = 120; hi <= 240; lo = hi + 1, hi += 30)
     out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });

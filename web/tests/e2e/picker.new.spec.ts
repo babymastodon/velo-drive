@@ -55,7 +55,7 @@ test.describe("Picker — behavior", () => {
     await openPicker(page);
 
     const before = await rows(page).count();
-    await page.getByTestId("picker-duration-filter").selectOption("31-40");
+    await page.getByTestId("picker-duration-filter").selectOption("31-45");
     await page.waitForTimeout(50);
     const after = await rows(page).count();
     expect(after).toBeLessThan(before);
