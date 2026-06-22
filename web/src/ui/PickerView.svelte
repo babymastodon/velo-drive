@@ -181,31 +181,24 @@
 
   let scanning = $state(false);
   let rescanToken = 0;
-  async function rescan(useCache = false): Promise<void> {
+  async function rescan(usePreload = false): Promise<void> {
     const token = ++rescanToken;
-    const cached = useCache ? await fileStore.getCachedWorkouts() : null;
-    if (token !== rescanToken) return;
-    if (cached && cached.length) {
-      // Fast open: show the last-known library from the cache INSTANTLY, then
-      // reconcile against disk in the BACKGROUND (the scan is the slow part).
-      workouts = cached;
-      scanning = false;
-      void fileStore
-        .listWorkouts()
-        .then((fresh) => {
-          if (token === rescanToken) workouts = fresh;
-        })
-        .finally(() => {
-          if (token === rescanToken) scanning = false;
-        });
+    if (usePreload) {
+      // Open: use the library preloaded at page load — instant if it's ready,
+      // otherwise show the loading state until it lands.
+      if (!fileStore.isWorkoutsReady()) scanning = true;
+      const lib = await fileStore.getWorkouts();
+      if (token === rescanToken) {
+        workouts = lib;
+        scanning = false;
+      }
       return;
     }
-    // No cache yet (first-ever scan), or an authoritative rescan after a
-    // save/delete/import: await the full scan so the result is final.
+    // Authoritative refresh after a save / delete / import.
     scanning = true;
     try {
-      const fresh = await fileStore.listWorkouts();
-      if (token === rescanToken) workouts = fresh;
+      const lib = await fileStore.refreshWorkouts();
+      if (token === rescanToken) workouts = lib;
     } finally {
       if (token === rescanToken) scanning = false;
     }

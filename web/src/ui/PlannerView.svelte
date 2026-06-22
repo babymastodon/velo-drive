@@ -281,7 +281,7 @@
   async function loadSchedule(): Promise<void> {
     const [entries, workouts] = await Promise.all([
       fileStore.loadSchedule(),
-      fileStore.listWorkouts(),
+      fileStore.getWorkouts(),
     ]);
     const byTitle = new Map<string, CanonicalWorkout>();
     for (const w of workouts) byTitle.set(w.workoutTitle || '', w);

@@ -27,6 +27,7 @@ export class NativeFileStore extends WebFileStore {
       await root.getDirectoryHandle('trash', { create: true });
       // Seed the bundled defaults when the library is empty (same as the web path).
       await this.maybeSeedDefaultWorkouts(workouts);
+      this.invalidatePreloadedWorkouts();
       return root;
     } catch (err) {
       console.error('[NativeFileStore] pickRootDir failed:', err);

@@ -109,5 +109,9 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
     onAlert: opts.onEngineAlert,
   });
 
+  // Start scanning the workout library in the background now, so the picker can
+  // open instantly later (or show a loading state if it's not done yet).
+  fileStore.preloadWorkouts();
+
   return { store, engine, transport, fileStore, beeper, logs };
 }
