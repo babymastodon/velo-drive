@@ -257,6 +257,13 @@
     return [...folders, ...workoutsHere];
   });
 
+  // The workout rows actually shown right now (current folder, or all in flat
+  // mode) — keyboard expansion + select/edit cycle through these, not every
+  // filtered workout.
+  const shownWorkoutItems = $derived(
+    navEntries.filter((e): e is NavWorkout => e.kind === 'workout').map((e) => e.item),
+  );
+
   const breadcrumbSegments = $derived.by<{ name: string; path: string }[]>(() => {
     if (!currentFolder) return [];
     const segs = currentFolder.split('/');
@@ -864,7 +871,7 @@
 
   // --------------------------- keyboard (browse subset) ---------------------------
   function movePickerExpansion(delta: number): void {
-    const items = visibleItems;
+    const items = shownWorkoutItems;
     if (!items.length) return;
     let idx = items.findIndex((it) => it.canonical.workoutTitle === expandedTitle);
     if (idx === -1) idx = delta > 0 ? 0 : items.length - 1;
@@ -934,7 +941,7 @@
       if (key === 'enter') {
         e.preventDefault();
         searchInputEl?.blur();
-        const results = visibleItems;
+        const results = shownWorkoutItems;
         if (results.length) expandedTitle = results[0]!.canonical.workoutTitle;
         // Focus the Select button so a second Enter rides the workout.
         requestAnimationFrame(() => selectBtnEl?.focus());
@@ -983,7 +990,7 @@
     // e → open the expanded workout in the builder. Disabled in schedule mode
     // (the builder/edit affordances are hidden there).
     if (key === 'e' && !scheduleMode) {
-      const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
+      const expanded = shownWorkoutItems.find((it) => it.canonical.workoutTitle === expandedTitle);
       if (expanded) {
         e.preventDefault();
         onEdit(expanded.canonical);
@@ -993,7 +1000,7 @@
     }
 
     if (key === 'enter') {
-      const expanded = visibleItems.find((it) => it.canonical.workoutTitle === expandedTitle);
+      const expanded = shownWorkoutItems.find((it) => it.canonical.workoutTitle === expandedTitle);
       if (expanded) {
         e.preventDefault();
         doSelect(expanded.canonical);
