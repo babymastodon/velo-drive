@@ -28,7 +28,13 @@
     activeOverlay?: string;
   } = $props();
 
-  const ZONES = ['Recovery', 'Endurance', 'Tempo', 'Threshold', 'VO2Max', 'Anaerobic'];
+  // "Freeride" is a synthetic zone (above Recovery) holding the 100%-free-ride
+  // workouts; every other zone excludes them.
+  const FREERIDE_ZONE = 'Freeride';
+  const ZONES = [FREERIDE_ZONE, 'Recovery', 'Endurance', 'Tempo', 'Threshold', 'VO2Max', 'Anaerobic'];
+  function allFreeRide(segs: CanonicalWorkout['rawSegments']): boolean {
+    return segs.length > 0 && segs.every((s) => isFreeRideSegment(s));
+  }
   function zoneDotClass(zone: string): string {
     const z = (zone || '').toLowerCase();
     if (z.startsWith('recovery')) return 'picker-zone-dot-recovery';
@@ -96,7 +102,9 @@
       // Match the loaded workout (computed straight from its cached segments so the
       // controls populate immediately — no wait for the library scan) and remember
       // it for the combo. Duration is FTP-independent, so a default FTP is exact.
-      selZone = inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
+      selZone = allFreeRide(cw.rawSegments)
+        ? FREERIDE_ZONE
+        : inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
       selDuration = getDurationBucket(computeMetricsFromSegments(cw.rawSegments, ftp).durationMin);
       lastSyncedKey = key;
       rememberCombo(selZone, selDuration, key);
@@ -107,14 +115,17 @@
     }
   });
 
-  // A fully free-ride workout (no structured intervals) — implicitly excluded from
-  // the main-page selector's candidates.
-  function isAllFreeRide(it: LibraryItem): boolean {
-    const segs = it.canonical.rawSegments;
-    return segs.length > 0 && segs.every((s) => isFreeRideSegment(s));
-  }
+  const isAllFreeRide = (it: LibraryItem): boolean => allFreeRide(it.canonical.rawSegments);
 
   function candidatesFor(zone: string, dur: string): LibraryItem[] {
+    if (zone === FREERIDE_ZONE) {
+      // The 100%-free-ride workouts for this duration, deduped to one (free rides
+      // of the same length are interchangeable).
+      const fr = library.filter(
+        (it) => isAllFreeRide(it) && getDurationBucket(it.metrics.durationMin) === dur,
+      );
+      return fr.slice(0, 1);
+    }
     return library
       .filter(
         (it) =>
@@ -126,6 +137,16 @@
       .sort((a, b) => (a.metrics.kj ?? 0) - (b.metrics.kj ?? 0));
   }
   const candidates = $derived(candidatesFor(selZone, selDuration));
+
+  // Duration buckets offered for a zone: for Freeride only the buckets that have a
+  // free-ride workout (one option per duration); all buckets otherwise.
+  function availableDurationsFor(zone: string): typeof DURATION_BUCKETS {
+    if (zone !== FREERIDE_ZONE) return DURATION_BUCKETS;
+    return DURATION_BUCKETS.filter((b) =>
+      library.some((it) => isAllFreeRide(it) && getDurationBucket(it.metrics.durationMin) === b.value),
+    );
+  }
+  const durationOptions = $derived(availableDurationsFor(selZone));
 
   function load(it: LibraryItem): void {
     rememberCombo(selZone, selDuration, workoutKey(it.canonical));
@@ -146,6 +167,9 @@
   function pickZone(z: string): void {
     zoneOpen = false;
     selZone = z;
+    // Keep the duration valid for the new zone (Freeride only offers some).
+    const avail = availableDurationsFor(z);
+    if (avail.length && !avail.some((b) => b.value === selDuration)) selDuration = avail[0]!.value;
     loadForCombo();
   }
   function pickDuration(d: string): void {
@@ -155,6 +179,16 @@
   }
 
   function step(dir: 1 | -1): void {
+    // Freeride has one workout per duration, so the carets step through durations.
+    if (selZone === FREERIDE_ZONE) {
+      const opts = availableDurationsFor(FREERIDE_ZONE);
+      if (!opts.length) return;
+      let i = opts.findIndex((b) => b.value === selDuration);
+      if (i < 0) i = dir > 0 ? -1 : opts.length;
+      selDuration = opts[(i + dir + opts.length) % opts.length]!.value;
+      loadForCombo();
+      return;
+    }
     const cands = candidatesFor(selZone, selDuration);
     if (!cands.length) return;
     const key = workoutKey(current);
@@ -213,6 +247,25 @@
   });
 </script>
 
+<!-- Zone swatch: the squiggle free-ride texture (matching the chart) for Freeride,
+     a solid color dot otherwise. `uid` makes each SVG pattern id unique. -->
+{#snippet zoneSwatch(zone: string, uid: string)}
+  {#if zone === FREERIDE_ZONE}
+    <svg class="picker-zone-dot freeride-dot" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+      <defs>
+        <pattern id={uid} patternUnits="userSpaceOnUse" width="16" height="16" patternTransform="rotate(45)">
+          <rect width="16" height="16" style="fill: var(--freeride-fill)"></rect>
+          <path d="M-8 4 Q-4 0 0 4 T8 4 T16 4 T24 4" style="fill:none;stroke:var(--freeride-stripe)" stroke-width="2.6" stroke-linecap="round"></path>
+          <path d="M-8 12 Q-4 8 0 12 T8 12 T16 12 T24 12" style="fill:none;stroke:var(--freeride-stripe)" stroke-width="2.6" stroke-linecap="round"></path>
+        </pattern>
+      </defs>
+      <rect width="16" height="16" fill="url(#{uid})"></rect>
+    </svg>
+  {:else}
+    <span class="picker-zone-dot {zoneDotClass(zone)}"></span>
+  {/if}
+{/snippet}
+
 <div class="quick-selector" data-testid="quick-selector">
   <button
     class="nav-icon-button"
@@ -239,14 +292,14 @@
         durOpen = false;
       }}
     >
-      <span class="picker-zone-dot {zoneDotClass(selZone)}"></span>
+      {@render zoneSwatch(selZone, 'fr-quick-btn')}
       <span>{selZone || 'Zone'}</span>
     </button>
     {#if zoneOpen}
       <div class="quick-menu" role="menu">
         {#each ZONES as z}
           <button class="quick-item" type="button" onclick={() => pickZone(z)}>
-            <span class="picker-zone-dot {zoneDotClass(z)}"></span><span>{z}</span>
+            {@render zoneSwatch(z, `fr-quick-${z}`)}<span>{z}</span>
           </button>
         {/each}
       </div>
@@ -270,7 +323,7 @@
     </button>
     {#if durOpen}
       <div class="quick-menu quick-menu-scroll" role="menu">
-        {#each DURATION_BUCKETS as b}
+        {#each durationOptions as b}
           <button class="quick-item" type="button" onclick={() => pickDuration(b.value)}>{b.label}</button>
         {/each}
       </div>
@@ -310,6 +363,12 @@
   .quick-drop {
     position: relative;
     display: inline-flex;
+  }
+  /* The Freeride swatch is an inline SVG; clip it to the same rounded box as the
+     solid-color .picker-zone-dot swatches. */
+  .freeride-dot {
+    overflow: hidden;
+    padding: 0;
   }
   .quick-menu {
     position: absolute;
