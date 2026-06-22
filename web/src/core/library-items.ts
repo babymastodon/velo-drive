@@ -28,11 +28,17 @@ const cache = new WeakMap<CanonicalWorkout[], { ftp: number; items: LibraryItem[
 export function prepareLibraryItems(workouts: CanonicalWorkout[], ftp: number): LibraryItem[] {
   const hit = cache.get(workouts);
   if (hit && hit.ftp === ftp) return hit.items;
+  const t0 = performance.now();
   const items = workouts.map((canonical) => ({
     canonical,
     zone: inferZoneFromSegments(canonical.rawSegments) || 'Uncategorized',
     metrics: computeMetricsFromSegments(canonical.rawSegments, ftp),
   }));
   cache.set(workouts, { ftp, items });
+  if (workouts.length > 0) {
+    console.log(
+      `[perf] prepareLibraryItems COMPUTE: ${workouts.length} items in ${Math.round(performance.now() - t0)}ms`,
+    );
+  }
   return items;
 }

@@ -185,12 +185,18 @@
     if (usePreload) {
       // Open: use the library preloaded at page load — instant if it's ready,
       // otherwise show the loading state until it lands.
-      if (!fileStore.isWorkoutsReady()) scanning = true;
+      const t0 = performance.now();
+      const ready = fileStore.isWorkoutsReady();
+      if (!ready) scanning = true;
       const lib = await fileStore.getWorkouts();
       if (token === rescanToken) {
         workouts = lib;
         scanning = false;
       }
+      console.log(
+        `[perf] picker open: preloadReady=${ready}, got ${lib.length} workouts in ` +
+          `${Math.round(performance.now() - t0)}ms (waited on scan: ${!ready})`,
+      );
       return;
     }
     // Authoritative refresh after a save / delete / import.
@@ -235,6 +241,7 @@
   const allItems = $derived<PickerItem[]>(prepareLibraryItems(workouts, currentFtp));
 
   const visibleItems = $derived.by<PickerItem[]>(() => {
+    const _t0 = performance.now();
     let items = allItems;
 
     if (zoneValue) items = items.filter((it) => it.zone === zoneValue);
@@ -265,7 +272,7 @@
 
     const dir = sortDir === 'asc' ? 1 : -1;
     const num = (v: number | null | undefined) => (Number.isFinite(v) ? (v as number) : -Infinity);
-    return items.slice().sort((a, b) => {
+    const result = items.slice().sort((a, b) => {
       if (sortKey === 'kjAdj') return (num(a.metrics.kj) - num(b.metrics.kj)) * dir;
       if (sortKey === 'if') return (num(a.metrics.ifValue) - num(b.metrics.ifValue)) * dir;
       if (sortKey === 'tss') return (num(a.metrics.tss) - num(b.metrics.tss)) * dir;
@@ -275,6 +282,9 @@
         return a.canonical.workoutTitle.localeCompare(b.canonical.workoutTitle) * dir;
       return 0;
     });
+    const _dt = performance.now() - _t0;
+    if (_dt > 2) console.log(`[perf] visibleItems: ${result.length} in ${Math.round(_dt)}ms`);
+    return result;
   });
 
   // --------------------------- folder navigation ---------------------------
@@ -288,13 +298,20 @@
   type NavEntry = NavFolder | NavWorkout;
 
   const navEntries = $derived.by<NavEntry[]>(() => {
+    const _t0 = performance.now();
+    const _log = (n: number) => {
+      const dt = performance.now() - _t0;
+      if (dt > 2) console.log(`[perf] navEntries: ${n} rows in ${Math.round(dt)}ms (of ${visibleItems.length})`);
+    };
     if (flatMode) {
       // Flat: every matching workout, labelled with its full folder path.
-      return visibleItems.map((item) => ({
+      const flat = visibleItems.map((item) => ({
         kind: 'workout' as const,
         item,
         label: libraryName(item.canonical),
       }));
+      _log(flat.length);
+      return flat;
     }
     // Folder mode: subfolders of `currentFolder` + the workouts directly in it.
     const prefix = currentFolder ? currentFolder + '/' : '';
@@ -319,7 +336,9 @@
     const folders: NavEntry[] = [...folderCounts.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, count]) => ({ kind: 'folder', name, path: prefix + name, count }));
-    return [...folders, ...workoutsHere];
+    const entries = [...folders, ...workoutsHere];
+    _log(entries.length);
+    return entries;
   });
 
   // The workout rows actually shown right now (current folder, or all in flat
