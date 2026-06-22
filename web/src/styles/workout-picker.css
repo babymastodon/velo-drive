@@ -1621,3 +1621,8 @@ body.wb-dragging .wb-drag-handle--move {
 .picker-folder-up .picker-folder-name {
   color: var(--text-muted);
 }
+.picker-folder-selected,
+.picker-folder-selected:hover {
+  background: var(--cta-soft);
+  box-shadow: inset 2px 0 0 var(--cta-bg);
+}

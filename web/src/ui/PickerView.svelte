@@ -75,6 +75,8 @@
   // current directory + view survive a reload).
   let currentFolder = $state('');
   let showAllFolders = $state(false);
+  // Keyboard cursor can land on a folder row (highlighted); Enter descends into it.
+  let selectedFolderPath = $state<string | null>(null);
 
   // pickerState persistence (search + zone + duration + sort) across opens.
   // We suppress the auto-save effect while restoring so the restore itself
@@ -140,6 +142,7 @@
       // Pre-expand the targeted entry in schedule EDIT mode; otherwise start
       // collapsed.
       expandedId = null;
+      selectedFolderPath = null;
       builderMode = false;
       const scheduledTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
       void (async () => {
@@ -163,9 +166,10 @@
   // has settled.
   let tbodyEl = $state<HTMLTableSectionElement | null>(null);
   $effect(() => {
-    if (!expandedId) return;
+    if (!expandedId && !selectedFolderPath) return;
     requestAnimationFrame(() => {
-      const row = tbodyEl?.querySelector('.picker-expanded-row') as HTMLElement | null;
+      const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
+        tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
       if (!row) return;
       // The table header is sticky, so leave room for it when scrolling up —
       // otherwise it covers the top of the row (and its action buttons).
@@ -334,6 +338,7 @@
   function enterFolder(path: string): void {
     currentFolder = path;
     expandedId = null;
+    selectedFolderPath = null;
   }
 
   function folderParent(path: string): string {
@@ -958,13 +963,27 @@
   }
 
   // --------------------------- keyboard (browse subset) ---------------------------
-  function movePickerExpansion(delta: number): void {
-    const items = shownWorkoutItems;
-    if (!items.length) return;
-    let idx = items.findIndex((it) => workoutId(it.canonical) === expandedId);
-    if (idx === -1) idx = delta > 0 ? 0 : items.length - 1;
-    else idx = (idx + delta + items.length) % items.length;
-    expandedId = workoutId(items[idx]!.canonical);
+  // Move the keyboard cursor over the shown rows — folders AND workouts (folders
+  // are no longer skipped). Landing on a workout expands it; landing on a folder
+  // highlights it (Enter then descends).
+  function moveCursor(delta: number): void {
+    const entries = navEntries;
+    if (!entries.length) return;
+    let idx = entries.findIndex((e) =>
+      e.kind === 'folder'
+        ? e.path === selectedFolderPath
+        : workoutId(e.item.canonical) === expandedId,
+    );
+    if (idx === -1) idx = delta > 0 ? 0 : entries.length - 1;
+    else idx = (idx + delta + entries.length) % entries.length;
+    const e = entries[idx]!;
+    if (e.kind === 'folder') {
+      selectedFolderPath = e.path;
+      expandedId = null;
+    } else {
+      expandedId = workoutId(e.item.canonical);
+      selectedFolderPath = null;
+    }
   }
 
   let searchInputEl = $state<HTMLInputElement | null>(null);
@@ -1015,6 +1034,8 @@
     if (!open) return false;
     // In builder mode the BuilderView owns the keymap (insert/edit/undo/etc).
     if (builderMode) return false;
+    // While an import modal is open, let it (and its inputs) own the keyboard.
+    if (importModal) return false;
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
     const key = (e.key || '').toLowerCase();
     const target = e.target as HTMLElement | null;
@@ -1088,6 +1109,12 @@
     }
 
     if (key === 'enter') {
+      // Enter on a highlighted folder descends into it; on a workout, selects it.
+      if (selectedFolderPath) {
+        e.preventDefault();
+        enterFolder(selectedFolderPath);
+        return true;
+      }
       const expanded = shownWorkoutItems.find((it) => workoutId(it.canonical) === expandedId);
       if (expanded) {
         e.preventDefault();
@@ -1096,14 +1123,20 @@
       }
       return false;
     }
+    // "-" goes up to the parent directory (netrw-style).
+    if (key === '-' && !flatMode && currentFolder) {
+      e.preventDefault();
+      enterFolder(folderParent(currentFolder));
+      return true;
+    }
     if (key === 'arrowdown' || key === 'j') {
       e.preventDefault();
-      movePickerExpansion(1);
+      moveCursor(1);
       return true;
     }
     if (key === 'arrowup' || key === 'k') {
       e.preventDefault();
-      movePickerExpansion(-1);
+      moveCursor(-1);
       return true;
     }
     return false;
@@ -1575,6 +1608,7 @@
             {#if entry.kind === 'folder'}
               <tr
                 class="picker-folder-row"
+                class:picker-folder-selected={selectedFolderPath === entry.path}
                 data-testid="picker-folder"
                 onclick={() => enterFolder(entry.path)}
               >
