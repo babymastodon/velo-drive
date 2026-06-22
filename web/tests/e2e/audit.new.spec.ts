@@ -336,7 +336,7 @@ test.describe("forced-dark — no-workout HUD", () => {
 test.describe("forced-dark — picker library + open dropdowns", () => {
   test.use({harnessConfig: darkForcedConfig({seedZwo: readSeedWorkouts()})});
 
-  test("picker zone/duration carets + library render dark (no light-in-dark)", async ({configuredPage}) => {
+  test("picker zone/duration filters + library render dark (no light-in-dark)", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await page.getByTestId("workout-name-label").click();
@@ -345,25 +345,9 @@ test.describe("forced-dark — picker library + open dropdowns", () => {
 
     saveShot("picker-library-dark", await page.screenshot({fullPage: false}));
 
-    // The select carets are a CSS background-image SVG (var(--select-arrow)).
-    // In forced dark it must be the light-stroke ('%23bbbbbb') variant, and it
-    // must be positioned once (right 12px center), not duplicated.
-    const zoneSel = page.getByTestId("picker-zone-filter");
-    const caret = await zoneSel.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return {
-        image: cs.backgroundImage,
-        position: cs.backgroundPosition,
-        repeat: cs.backgroundRepeat,
-        size: cs.backgroundSize,
-      };
-    });
-    // Single caret, no-repeat, anchored right.
-    expect(caret.repeat).toContain("no-repeat");
-    expect(caret.image).toContain("svg");
-    // The dark caret stroke is %23bbbbbb (light grey). The light caret is %23999.
-    // url-encoding may vary, so just assert it is NOT the light-only %23999.
-    expect(caret.image.includes("%23999") && !caret.image.includes("bbbbbb")).toBe(false);
+    // Open the zone filter dropdown so its floating menu is scanned too.
+    await page.getByTestId("picker-zone-filter").click();
+    await expect(page.locator(".fd-menu")).toBeVisible();
 
     const offenders = await scanLightInDark(page, ALLOW);
     expect(

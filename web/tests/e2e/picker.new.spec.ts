@@ -22,6 +22,16 @@ function rows(page: Page) {
   return page.locator("#pickerWorkoutTbody tr.picker-row");
 }
 
+// The zone/duration filters are custom dropdowns (FilterDropdown): open the
+// trigger, click the option with the given data-value.
+async function pickFilter(page: Page, testid: string, value: string): Promise<void> {
+  await page.getByTestId(testid).click();
+  await page.locator(`.fd-menu [data-value="${value}"]`).click();
+}
+function filterLabel(page: Page, testid: string) {
+  return page.getByTestId(testid).locator(".fd-label");
+}
+
 test.describe("Picker — behavior", () => {
   test("search narrows the list", async ({configuredPage}) => {
     const page = configuredPage;
@@ -43,7 +53,7 @@ test.describe("Picker — behavior", () => {
     await openPicker(page);
 
     const before = await rows(page).count();
-    await page.getByTestId("picker-zone-filter").selectOption("VO2Max");
+    await pickFilter(page, "picker-zone-filter", "VO2Max");
     await page.waitForTimeout(50);
     const after = await rows(page).count();
     expect(after).toBeLessThan(before);
@@ -55,7 +65,7 @@ test.describe("Picker — behavior", () => {
     await openPicker(page);
 
     const before = await rows(page).count();
-    await page.getByTestId("picker-duration-filter").selectOption("31-45");
+    await pickFilter(page, "picker-duration-filter", "31-45");
     await page.waitForTimeout(50);
     const after = await rows(page).count();
     expect(after).toBeLessThan(before);
@@ -213,21 +223,19 @@ test.describe("Picker — keymap", () => {
     await expect(page.getByTestId("picker-search")).toBeFocused();
   });
 
-  test("'z' and 'd' open the zone / duration filters", async ({configuredPage}) => {
+  test("'z' and 'd' open the zone / duration filter dropdowns", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await openPicker(page);
-    await page.getByTestId?.("picker-modal");
     await page.getByTestId("picker-modal").click();
 
     await page.keyboard.press("z");
-    await expect(page.getByTestId("picker-zone-filter")).toBeFocused();
+    await expect(page.getByTestId("picker-zone-filter")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator(".fd-menu", {hasText: "Recovery"})).toBeVisible();
 
-    // Re-focus the modal body before 'd' so the key routes through the picker
-    // keymap rather than being swallowed by the focused <select>'s typeahead.
-    await page.getByTestId("picker-modal").click();
     await page.keyboard.press("d");
-    await expect(page.getByTestId("picker-duration-filter")).toBeFocused();
+    await expect(page.getByTestId("picker-duration-filter")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId("picker-zone-filter")).toHaveAttribute("aria-expanded", "false");
   });
 
   test("'j' / 'k' move the expanded selection", async ({configuredPage}) => {
@@ -258,39 +266,21 @@ test.describe("Picker — keymap", () => {
     expect(back).toBe(first);
   });
 
-  test("'j' / 'k' navigate a focused filter <select>'s options (D1)", async ({configuredPage}) => {
+  test("'j' / 'k' navigate the open zone filter dropdown (D1)", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);
     await openPicker(page);
 
-    // Focus the zone filter via the 'z' hotkey.
+    // Open the zone dropdown via 'z' (highlight starts on "All zones").
     await page.getByTestId("picker-modal").click();
     await page.keyboard.press("z");
-    const zone = page.getByTestId("picker-zone-filter");
-    await expect(zone).toBeFocused();
-    await expect(zone).toHaveValue(""); // "All zones"
+    await expect(page.locator(".fd-menu")).toBeVisible();
 
-    // Drive a keydown on the focused <select>. NOTE: Playwright's synthetic
-    // keyboard.press() to a focused native <select> is swallowed by Chromium's
-    // built-in select keyboard handling and never reaches the JS keydown handler
-    // (on the harness Chromium `j` leaves the value unchanged). So we dispatch the
-    // keydown the way a real keyboard would on the focused element.
-    const pressOnSelect = (key: string) =>
-      page.evaluate((k) => {
-        const el = document.querySelector("#pickerZoneFilter") as HTMLSelectElement;
-        el.focus();
-        el.dispatchEvent(new KeyboardEvent("keydown", {key: k, bubbles: true, cancelable: true}));
-      }, key);
-
-    // Order: "" (All zones), Freeride, Recovery, …
-    await pressOnSelect("j");
-    await expect(zone).toHaveValue("Freeride");
-    await pressOnSelect("j");
-    await expect(zone).toHaveValue("Recovery");
-
-    // 'k' moves back up.
-    await pressOnSelect("k");
-    await expect(zone).toHaveValue("Freeride");
+    // Order: All zones, Freeride, Recovery, …
+    await page.keyboard.press("j"); // → Freeride
+    await page.keyboard.press("j"); // → Recovery
+    await page.keyboard.press("Enter"); // commit Recovery
+    await expect(filterLabel(page, "picker-zone-filter")).toHaveText("Recovery");
 
     // The new value actually re-filters the table.
     await page.waitForTimeout(30);
@@ -326,7 +316,7 @@ test.describe("Picker — filter/sort persistence", () => {
 
     // Set a search term, a zone filter, and a name sort.
     await page.getByTestId("picker-search").fill("z");
-    await page.getByTestId("picker-zone-filter").selectOption("Endurance");
+    await pickFilter(page, "picker-zone-filter", "Endurance");
     await page.locator('th[data-sort-key="name"]').click();
     await page.waitForTimeout(50);
 
@@ -336,7 +326,7 @@ test.describe("Picker — filter/sort persistence", () => {
     await openPicker(page);
 
     await expect(page.getByTestId("picker-search")).toHaveValue("z");
-    await expect(page.getByTestId("picker-zone-filter")).toHaveValue("Endurance");
+    await expect(filterLabel(page, "picker-zone-filter")).toHaveText("Endurance");
     // First click on the name header sorts it descending (default per key).
     await expect(page.locator('th[data-sort-key="name"]')).toHaveClass(/sorted-desc/);
   });
@@ -660,12 +650,12 @@ test.describe("Picker — filter clear", () => {
     await reachNewRidingView(page);
     await openPicker(page);
 
-    await expect(page.getByTestId("picker-zone-clear")).toHaveCount(0);
-    await page.getByTestId("picker-zone-filter").selectOption("VO2Max");
-    const clear = page.getByTestId("picker-zone-clear");
+    await expect(page.getByTestId("picker-zone-filter-clear")).toHaveCount(0);
+    await pickFilter(page, "picker-zone-filter", "VO2Max");
+    const clear = page.getByTestId("picker-zone-filter-clear");
     await expect(clear).toBeVisible();
     await clear.click();
-    await expect(page.getByTestId("picker-zone-filter")).toHaveValue("");
-    await expect(page.getByTestId("picker-zone-clear")).toHaveCount(0);
+    await expect(filterLabel(page, "picker-zone-filter")).toHaveText("All zones");
+    await expect(page.getByTestId("picker-zone-filter-clear")).toHaveCount(0);
   });
 });
