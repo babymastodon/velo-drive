@@ -521,7 +521,6 @@ export class WebFileStore implements FileStore {
     if (!dir) return [];
     // Re-authorize the reloaded handle (no-op once granted).
     await ensureDirPermission(dir);
-    const t0 = performance.now();
 
     // Phase 1: walk the tree (subdirs in parallel) collecting .zwo file entries.
     const tasks: { dir: FsDirHandle; name: string; relPath: string }[] = [];
@@ -552,7 +551,6 @@ export class WebFileStore implements FileStore {
     } catch (err) {
       console.error('[WebFileStore] listWorkouts walk failed:', err);
     }
-    const t1 = performance.now();
 
     // Phase 2: read + parse files with bounded concurrency.
     const parsed = await mapLimit(tasks, 32, async ({ dir: d, name, relPath }) => {
@@ -568,13 +566,7 @@ export class WebFileStore implements FileStore {
         return null;
       }
     });
-    const out = parsed.filter((c): c is CanonicalWorkout => !!c);
-    const t2 = performance.now();
-    console.log(
-      `[perf] listWorkouts: ${out.length} workouts — walk ${Math.round(t1 - t0)}ms, ` +
-        `read+parse ${Math.round(t2 - t1)}ms (${tasks.length} files), total ${Math.round(t2 - t0)}ms`,
-    );
-    return out;
+    return parsed.filter((c): c is CanonicalWorkout => !!c);
   }
 
   // --- In-memory library preload: scan once at page load, hold the result so the
@@ -585,12 +577,9 @@ export class WebFileStore implements FileStore {
   /** Start scanning the library in the background (call at app boot). */
   preloadWorkouts(): void {
     if (this.preloadedWorkouts || this.preloadingWorkouts) return;
-    const t0 = performance.now();
-    console.log('[perf] preloadWorkouts: starting library scan…');
     this.preloadingWorkouts = this.listWorkouts()
       .then((lib) => {
         this.preloadedWorkouts = lib;
-        console.log(`[perf] preloadWorkouts: ready in ${Math.round(performance.now() - t0)}ms`);
         return lib;
       })
       .catch((err) => {
