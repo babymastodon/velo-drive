@@ -142,9 +142,8 @@
   // Rescan the library whenever the picker is opened.
   $effect(() => {
     if (open) {
-      // Pre-expand the targeted entry in schedule EDIT mode; otherwise start
-      // collapsed.
-      expandedId = null;
+      // Keep any preserved selection (expandedId survives close/reopen — the
+      // component stays mounted); only the folder cursor + builder reset here.
       selectedFolderPath = null;
       builderMode = false;
       const scheduledTitle = ui.pickerScheduleContext?.entry?.workoutTitle ?? null;
@@ -158,10 +157,39 @@
         ) {
           currentFolder = '';
         }
-        if (scheduledTitle) expandedId = idForTitle(scheduledTitle);
+        if (scheduledTitle) {
+          expandedId = idForTitle(scheduledTitle);
+          return;
+        }
+        // Preserve a still-valid selection from previous usage; otherwise default
+        // to the currently-loaded workout (if the active filters allow it).
+        const preserved = !!expandedId && allItems.some((it) => workoutId(it.canonical) === expandedId);
+        if (!preserved) {
+          expandedId = null;
+          selectCurrentWorkoutIfVisible();
+        }
       })();
     }
   });
+
+  // When nothing is selected, default the picker to the workout loaded on the HUD
+  // — navigate to its folder + expand it — as long as it passes the active
+  // search/zone/duration filters.
+  function selectCurrentWorkoutIfVisible(): void {
+    const cur = store.vm?.canonicalWorkout;
+    if (!cur) return;
+    const curId = workoutId(cur);
+    const item =
+      allItems.find((it) => workoutId(it.canonical) === curId) ??
+      allItems.find((it) => it.canonical.workoutTitle === cur.workoutTitle);
+    if (!item) return;
+    // Respect filters: only auto-select if the workout is in the filtered set.
+    const id = workoutId(item.canonical);
+    if (!visibleItems.some((v) => workoutId(v.canonical) === id)) return;
+    const path = item.canonical.sourcePath || '';
+    currentFolder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    expandedId = id;
+  }
 
   // When a row expands (click, keyboard, or post-action), bring it into view —
   // mirrors the legacy picker: scrollIntoView({ block: 'nearest', smooth }) on
@@ -766,7 +794,8 @@
       return;
     }
     importModal = null;
-    await rescan();
+    await rescan(); // reload the library from disk so the new files appear
+    enterFolder('Zwift'); // show the freshly-imported folder
     await dialogs.alert(`Imported ${added} workouts into “Zwift”.`, { title: 'Import complete' });
   }
 
@@ -810,7 +839,8 @@
       await dialogs.alert(error, { title: 'Import failed' });
       return;
     }
-    await rescan();
+    await rescan(); // reload the library from disk so the new files appear
+    enterFolder(folderLabel); // show the freshly-imported folder
     const parts = [`${added} new`];
     if (skipped) parts.push(`${skipped} already present`);
     const detail = parts.join(', ');
