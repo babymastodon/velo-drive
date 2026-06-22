@@ -28,7 +28,11 @@ const cache = new WeakMap<CanonicalWorkout[], { ftp: number; items: LibraryItem[
 export function prepareLibraryItems(workouts: CanonicalWorkout[], ftp: number): LibraryItem[] {
   const hit = cache.get(workouts);
   if (hit) {
-    if (hit.ftp === ftp) return hit.items;
+    if (hit.ftp === ftp) {
+      console.log(`[perf] prepareLibraryItems HIT: ${workouts.length} items`);
+      return hit.items;
+    }
+    console.log(`[perf] prepareLibraryItems RESCALE kJ: ${workouts.length} items`);
     // Only kJ depends on FTP, and linearly — so a different FTP just rescales kJ
     // (cheap) instead of re-running the per-second metrics loop for every workout.
     const scale = hit.ftp ? ftp / hit.ftp : 1;

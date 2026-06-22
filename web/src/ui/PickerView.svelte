@@ -63,7 +63,11 @@
 
   const currentFtp = $derived(store.vm?.currentFtp || DEFAULT_FTP);
 
-  let workouts = $state<CanonicalWorkout[]>([]);
+  // $state.raw (NOT $state): a plain $state would deep-proxy the array, so the
+  // identity passed to prepareLibraryItems wouldn't match the raw array the boot
+  // warm cached (WeakMap miss → full metrics recompute on every open). We only
+  // ever reassign this array, never mutate it in place, so raw is correct.
+  let workouts = $state.raw<CanonicalWorkout[]>([]);
   let searchTerm = $state('');
   let zoneValue = $state('');
   let durationValue = $state('');
