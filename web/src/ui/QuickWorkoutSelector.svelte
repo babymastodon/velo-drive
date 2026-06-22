@@ -6,17 +6,25 @@
   import type { EngineViewModel, WorkoutEngine } from '../core/engine.js';
   import type { WebFileStore } from '../ports/web/WebFileStore.js';
   import type { CanonicalWorkout } from '../core/model.js';
-  import { DEFAULT_FTP, getDurationBucket, DURATION_BUCKETS } from '../core/metrics.js';
+  import {
+    DEFAULT_FTP,
+    getDurationBucket,
+    DURATION_BUCKETS,
+    inferZoneFromSegments,
+    computeMetricsFromSegments,
+  } from '../core/metrics.js';
   import { prepareLibraryItems, type LibraryItem } from '../core/library-items.js';
 
   let {
     vm,
     engine,
     fileStore,
+    activeOverlay = 'none',
   }: {
     vm: EngineViewModel;
     engine: WorkoutEngine;
     fileStore: WebFileStore;
+    activeOverlay?: string;
   } = $props();
 
   const ZONES = ['Recovery', 'Endurance', 'Tempo', 'Threshold', 'VO2Max', 'Anaerobic'];
@@ -35,10 +43,17 @@
     return DURATION_BUCKETS.find((b) => b.value === value)?.label ?? value;
   }
 
+  // Fresh-install default combo (no loaded workout, no persisted memory yet).
+  const DEFAULT_ZONE = 'Tempo';
+  const DEFAULT_DURATION = '46-60';
+
   const ftp = $derived(vm?.currentFtp || DEFAULT_FTP);
   const current = $derived(vm?.canonicalWorkout ?? null);
   function workoutKey(cw: CanonicalWorkout | null): string {
     return cw ? (cw.sourcePath ?? cw.workoutTitle) : '';
+  }
+  function comboKey(zone: string, dur: string): string {
+    return `${zone}|${dur}`;
   }
 
   // The preloaded library → items with zone + metrics (memoized + boot-warmed, so
@@ -52,8 +67,24 @@
     });
   });
 
-  // Zone (always a specific zone on the main page) + duration filters, synced to
-  // the loaded workout when it changes (a manual change persists until then).
+  // Per-combo memory: the workout last loaded for each (zone, duration), persisted
+  // so switching back to a combo restores its workout.
+  let comboMap = $state<Record<string, string>>({});
+  let comboLoaded = false;
+  $effect(() => {
+    if (comboLoaded) return;
+    comboLoaded = true;
+    void fileStore
+      .getSetting<Record<string, string>>('quickComboWorkouts', {})
+      .then((m) => (comboMap = m || {}));
+  });
+  function rememberCombo(zone: string, dur: string, key: string): void {
+    comboMap[comboKey(zone, dur)] = key;
+    void fileStore.putSetting('quickComboWorkouts', { ...comboMap }).catch(() => {});
+  }
+
+  // Zone + duration (both always specific on the main page), synced to the loaded
+  // workout when it changes.
   let selZone = $state('');
   let selDuration = $state('');
   let lastSyncedKey = '';
@@ -61,66 +92,109 @@
     const cw = current;
     const key = workoutKey(cw);
     if (cw && key && key !== lastSyncedKey) {
+      // Match the loaded workout (computed straight from its cached segments so the
+      // controls populate immediately — no wait for the library scan) and remember
+      // it for the combo. Duration is FTP-independent, so a default FTP is exact.
+      selZone = inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
+      selDuration = getDurationBucket(computeMetricsFromSegments(cw.rawSegments, ftp).durationMin);
       lastSyncedKey = key;
-      const item = library.find((it) => workoutKey(it.canonical) === key);
-      if (item) {
-        selZone = item.zone;
-        selDuration = getDurationBucket(item.metrics.durationMin);
-      }
-    } else if (!selZone && library.length) {
-      // No loaded workout yet — default to the first library item's zone so the
-      // zone (and its color swatch) is always populated.
-      selZone = library[0]!.zone;
-      selDuration = getDurationBucket(library[0]!.metrics.durationMin);
+      rememberCombo(selZone, selDuration, key);
+    } else if (!cw && !selZone) {
+      // Fresh install / nothing loaded → start at the default combo.
+      selZone = DEFAULT_ZONE;
+      selDuration = DEFAULT_DURATION;
     }
   });
 
-  // Candidates: matching zone + duration, ranked by kJ ascending.
-  const candidates = $derived(
-    library
-      .filter(
-        (it) =>
-          (!selZone || it.zone === selZone) &&
-          (!selDuration || getDurationBucket(it.metrics.durationMin) === selDuration),
-      )
+  function candidatesFor(zone: string, dur: string): LibraryItem[] {
+    return library
+      .filter((it) => it.zone === zone && getDurationBucket(it.metrics.durationMin) === dur)
       .slice()
-      .sort((a, b) => (a.metrics.kj ?? 0) - (b.metrics.kj ?? 0)),
-  );
+      .sort((a, b) => (a.metrics.kj ?? 0) - (b.metrics.kj ?? 0));
+  }
+  const candidates = $derived(candidatesFor(selZone, selDuration));
 
   function load(it: LibraryItem): void {
+    rememberCombo(selZone, selDuration, workoutKey(it.canonical));
     void fileStore.putSetting('selectedWorkout', it.canonical).catch(() => {});
     engine.setWorkoutFromPicker(it.canonical);
   }
 
+  // Switching combo loads its workout: the one last used (persisted), else the
+  // middle-ranked (by kJ) eligible workout.
+  function loadForCombo(): void {
+    const cands = candidatesFor(selZone, selDuration);
+    if (!cands.length) return;
+    const savedKey = comboMap[comboKey(selZone, selDuration)];
+    const saved = savedKey ? cands.find((c) => workoutKey(c.canonical) === savedKey) : undefined;
+    load(saved ?? cands[Math.floor(cands.length / 2)]!);
+  }
+
+  function pickZone(z: string): void {
+    zoneOpen = false;
+    selZone = z;
+    loadForCombo();
+  }
+  function pickDuration(d: string): void {
+    durOpen = false;
+    selDuration = d;
+    loadForCombo();
+  }
+
   function step(dir: 1 | -1): void {
-    if (!candidates.length) return;
+    const cands = candidatesFor(selZone, selDuration);
+    if (!cands.length) return;
     const key = workoutKey(current);
-    let idx = candidates.findIndex((it) => workoutKey(it.canonical) === key);
-    if (idx < 0) idx = dir > 0 ? -1 : candidates.length; // start just past an end
-    load(candidates[(idx + dir + candidates.length) % candidates.length]!);
+    let idx = cands.findIndex((it) => workoutKey(it.canonical) === key);
+    if (idx < 0) idx = dir > 0 ? -1 : cands.length; // start just past an end
+    load(cands[(idx + dir + cands.length) % cands.length]!);
   }
 
   let zoneOpen = $state(false);
   let durOpen = $state(false);
+
+  // ←/→ step to the prev/next workout while the selector is showing (idle, no
+  // overlay open, not typing). The component only mounts when no workout is
+  // running, so this is inert during a ride.
+  $effect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (activeOverlay !== 'none') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
+        return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        step(-1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        step(1);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 </script>
 
 <div class="quick-selector" data-testid="quick-selector">
   <button
-    class="inline-clicktoggle quick-caret"
+    class="nav-icon-button"
     type="button"
     data-testid="quick-prev"
-    title="Previous workout (lower kJ)"
+    title="Previous workout"
     aria-label="Previous workout"
     disabled={!candidates.length}
     onclick={() => step(-1)}
-  >‹</button>
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+  </button>
 
   <div class="quick-drop">
     <button
       class="inline-clicktoggle"
       type="button"
       data-testid="quick-zone"
-      title="Filter by training zone"
+      title="Zone"
       aria-haspopup="menu"
       aria-expanded={zoneOpen}
       onclick={() => {
@@ -130,13 +204,12 @@
     >
       <span class="picker-zone-dot {zoneDotClass(selZone)}"></span>
       <span>{selZone || 'Zone'}</span>
-      <span class="quick-chevron">▴</span>
     </button>
     {#if zoneOpen}
       <button class="quick-backdrop" type="button" aria-label="Close" onclick={() => (zoneOpen = false)}></button>
       <div class="quick-menu" role="menu">
         {#each ZONES as z}
-          <button class="quick-item" type="button" onclick={() => { selZone = z; zoneOpen = false; }}>
+          <button class="quick-item" type="button" onclick={() => pickZone(z)}>
             <span class="picker-zone-dot {zoneDotClass(z)}"></span><span>{z}</span>
           </button>
         {/each}
@@ -149,7 +222,7 @@
       class="inline-clicktoggle"
       type="button"
       data-testid="quick-duration"
-      title="Filter by duration"
+      title="Duration"
       aria-haspopup="menu"
       aria-expanded={durOpen}
       onclick={() => {
@@ -157,29 +230,29 @@
         zoneOpen = false;
       }}
     >
-      <span>{selDuration ? bucketLabel(selDuration) : 'Any duration'}</span>
-      <span class="quick-chevron">▴</span>
+      <span>{selDuration ? bucketLabel(selDuration) : 'Duration'}</span>
     </button>
     {#if durOpen}
       <button class="quick-backdrop" type="button" aria-label="Close" onclick={() => (durOpen = false)}></button>
       <div class="quick-menu quick-menu-scroll" role="menu">
-        <button class="quick-item" type="button" onclick={() => { selDuration = ''; durOpen = false; }}>Any duration</button>
         {#each DURATION_BUCKETS as b}
-          <button class="quick-item" type="button" onclick={() => { selDuration = b.value; durOpen = false; }}>{b.label}</button>
+          <button class="quick-item" type="button" onclick={() => pickDuration(b.value)}>{b.label}</button>
         {/each}
       </div>
     {/if}
   </div>
 
   <button
-    class="inline-clicktoggle quick-caret"
+    class="nav-icon-button"
     type="button"
     data-testid="quick-next"
-    title="Next workout (higher kJ)"
+    title="Next workout"
     aria-label="Next workout"
     disabled={!candidates.length}
     onclick={() => step(1)}
-  >›</button>
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+  </button>
 </div>
 
 <style>
@@ -192,24 +265,16 @@
        the carets/drop-ups (and their menus) are clickable. */
     pointer-events: auto;
   }
-  /* Carets + drop-up buttons reuse the global .inline-clicktoggle (borderless,
-     transparent, same hover/active as the rest of the bottom bar). These only
-     add the caret glyph size + the disabled state. */
-  .quick-caret {
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-  .quick-caret:disabled {
+  /* Carets reuse .nav-icon-button (the settings/planner icon style) and the
+     drop-ups reuse .inline-clicktoggle (the workout-name button style) verbatim
+     — only the disabled affordance is added here. */
+  .quick-selector :global(button:disabled) {
     opacity: 0.35;
     cursor: default;
   }
   .quick-drop {
     position: relative;
     display: inline-flex;
-  }
-  .quick-chevron {
-    font-size: 0.7em;
-    color: var(--text-muted);
   }
   .quick-backdrop {
     position: fixed;

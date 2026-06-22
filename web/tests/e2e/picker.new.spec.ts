@@ -637,14 +637,15 @@ test.describe("Quick workout selector", () => {
     await expect(page.getByTestId("quick-zone")).toBeVisible();
     await expect(page.getByTestId("quick-duration")).toBeVisible();
 
-    // The zone drop-up opens upward with options.
+    // The zone drop-up opens upward with the zone options + their swatches.
     await page.getByTestId("quick-zone").click();
     await expect(page.locator(".quick-menu")).toBeVisible();
-    await page.locator(".quick-item", {hasText: "Endurance"}).first().click();
+    await expect(page.locator(".quick-menu .picker-zone-dot").first()).toBeVisible();
+    await page.locator(".quick-backdrop").click();
 
-    // Stepping loads a workout onto the HUD (the name label populates).
-    await page.getByTestId("quick-next").click();
-    await page.waitForTimeout(60);
-    expect((await page.getByTestId("workout-name-label").textContent())?.trim().length || 0).toBeGreaterThan(0);
+    // The duration drop-up opens with buckets and NO "Any duration" on the main page.
+    await page.getByTestId("quick-duration").click();
+    await expect(page.locator(".quick-menu")).toBeVisible();
+    await expect(page.locator(".quick-item", {hasText: "Any duration"})).toHaveCount(0);
   });
 });

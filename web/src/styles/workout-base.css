@@ -534,6 +534,10 @@ a:hover {
   left: 0;
   right: 0;
   bottom: 0;
+  /* Above the chart panel + its "Pedal to start" empty-state (so the quick
+     selector's upward drop-up menus render in front of it) but below the
+     full-screen overlays (picker 45 / settings 46 / planner 50 / welcome 60). */
+  z-index: 30;
   padding: 16px;
   background: var(--nav-bg);
   border-top: none;
@@ -891,6 +895,9 @@ a:hover {
   height: var(--nav-control-height);
   color: var(--text-main);
   background: rgba(0, 0, 0, 0);
+  /* No border — so the class works identically on a <button> (which has a UA
+     border) and on the workout-name <div>. */
+  border: none;
   cursor: pointer;
   transition: var(--interactive-transition);
 }
