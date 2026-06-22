@@ -218,18 +218,23 @@
   let tbodyEl = $state<HTMLTableSectionElement | null>(null);
   $effect(() => {
     if (!expandedId && !selectedFolderPath) return;
-    requestAnimationFrame(() => {
-      const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
-        tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
-      if (!row) return;
-      // The table header is sticky, so leave room for it when scrolling up —
-      // otherwise it covers the top of the row (and its action buttons).
-      const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
-      row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
-      // Instant ('auto') jump — a smooth animation across thousands of rows takes
-      // seconds; this lands on the row immediately.
-      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-    });
+    // Two frames: let the modal + list paint FIRST, then jump. A synchronous
+    // scrollIntoView in the same frame forces a full layout of the (un-virtualized)
+    // list before the first paint — which, with thousands of rows, stalls the
+    // picker's appearance by ~1s. Deferring keeps the open instant.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
+          tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
+        if (!row) return;
+        // The table header is sticky, so leave room for it when scrolling up —
+        // otherwise it covers the top of the row (and its action buttons).
+        const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
+        row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
+        // Instant jump — a smooth animation across thousands of rows takes seconds.
+        row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      }),
+    );
   });
 
   let scanning = $state(false);
