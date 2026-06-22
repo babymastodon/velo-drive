@@ -503,3 +503,24 @@
 #settingsBackFromLogsBtn {
   padding-left: 4px;
 }
+
+/* The VeloDrive folder's full filesystem path (native) + Open-in-file-manager. */
+.settings-rootdir-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -2px 0 6px;
+  padding: 0 2px;
+}
+.settings-rootdir-path code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 9px;
+}

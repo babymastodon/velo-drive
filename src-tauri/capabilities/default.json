@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "Core capability: the app shell + our own BLE commands/events.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen"
+  ]
 }

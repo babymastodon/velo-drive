@@ -100,15 +100,15 @@
         const t = c.transport as unknown as {
           onPickDevice?: (
             role: 'bike' | 'hr',
-            devices: { id: string; name: string; rssi?: number | null }[],
+            scan: () => Promise<{ id: string; name: string; rssi?: number | null }[]>,
           ) => Promise<string | null>;
         };
         if ('onPickDevice' in t) {
-          t.onPickDevice = (role, devices) =>
+          t.onPickDevice = (role, scan) =>
             dialogs.pickDevice(
               role === 'hr' ? 'Heart-rate monitor' : 'Trainer',
               `Select your ${role === 'hr' ? 'heart-rate monitor' : 'trainer'} from the devices found nearby.`,
-              devices,
+              scan,
             );
         }
         void maybeShowWelcomeThenAttention(c);

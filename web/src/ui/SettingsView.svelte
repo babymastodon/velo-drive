@@ -124,7 +124,11 @@
 
   // ---- Root directory ----
   let rootDirName = $state<string | null>(null);
+  let rootDirPath = $state<string | null>(null); // native only (full filesystem path)
   let rootDirLoaded = $state(false);
+  function pathOf(h: unknown): string | null {
+    return (h as { path?: string } | null)?.path ?? null;
+  }
   $effect(() => {
     if (open) {
       rootDirLoaded = false;
@@ -132,17 +136,32 @@
         .loadRootDirHandle()
         .then((h) => {
           rootDirName = h?.name ?? null;
+          rootDirPath = pathOf(h);
           rootDirLoaded = true;
         })
         .catch(() => {
           rootDirName = null;
+          rootDirPath = null;
           rootDirLoaded = true;
         });
     }
   });
   async function onChooseRootDir(): Promise<void> {
     const handle = await fileStore.pickRootDir();
-    if (handle) rootDirName = handle.name ?? 'Selected folder';
+    if (handle) {
+      rootDirName = handle.name ?? 'Selected folder';
+      rootDirPath = pathOf(handle);
+    }
+  }
+  // Open the VeloDrive folder in the system file manager (native, unsandboxed).
+  async function onOpenRootDir(): Promise<void> {
+    if (!rootDirPath) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_external', { url: rootDirPath });
+    } catch (err) {
+      console.error('[Settings] open folder failed:', err);
+    }
   }
 
   // ---- Environment / compatibility ----
@@ -334,6 +353,22 @@
               </div>
             </div>
           </div>
+
+          {#if rootDirPath}
+            <!-- Full path (longer, so it sits on its own line) + Open in file
+                 manager (native, unsandboxed). -->
+            <div class="settings-rootdir-path">
+              <code data-testid="root-dir-path">{rootDirPath}</code>
+              <button
+                class="settings-button"
+                type="button"
+                data-testid="root-dir-open"
+                onclick={onOpenRootDir}
+              >
+                Open
+              </button>
+            </div>
+          {/if}
 
           <div
             id="settingsFoldersHelp"

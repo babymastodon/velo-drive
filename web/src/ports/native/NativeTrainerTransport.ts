@@ -148,11 +148,12 @@ export class NativeTrainerTransport implements TrainerTransport {
     this.persistHrId = cb.saveHrId;
   }
 
-  // Set by the composition root: shows the device-chooser UI and resolves with
-  // the picked device id (or null if cancelled). When unset, falls back to the
-  // legacy auto-pick-first behavior.
-  onPickDevice: ((role: 'bike' | 'hr', devices: BleDevice[]) => Promise<string | null>) | null =
-    null;
+  // Set by the composition root: shows the device-chooser UI (which opens
+  // immediately, runs the provided scan, and lists the results), resolving with
+  // the picked device id (or null if cancelled). Unset → auto-pick-first.
+  onPickDevice:
+    | ((role: 'bike' | 'hr', scan: () => Promise<BleDevice[]>) => Promise<string | null>)
+    | null = null;
 
   async connectBikeViaPicker(): Promise<void> {
     await this.connectViaPicker('bike');
@@ -165,29 +166,7 @@ export class NativeTrainerTransport implements TrainerTransport {
   private async connectViaPicker(role: 'bike' | 'hr'): Promise<void> {
     const evt: 'bikeStatus' | 'hrStatus' = role === 'hr' ? 'hrStatus' : 'bikeStatus';
     const label = role === 'hr' ? 'heart-rate monitor' : 'trainer';
-
-    this.emit(evt, { state: 'connecting', message: `Scanning for your ${label}…` });
-    let devices: BleDevice[];
-    try {
-      devices = await invoke<BleDevice[]>('ble_scan', { secs: 4 });
-    } catch (err) {
-      this.emit(evt, {
-        state: 'error',
-        message: `Bluetooth scan failed — ${shortErr(err)}. Is Bluetooth turned on?`,
-      });
-      return;
-    }
-
-    const named = devices
-      .filter((d) => (d.name || '').trim())
-      .sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
-    if (!named.length) {
-      this.emit(evt, {
-        state: 'error',
-        message: `No Bluetooth devices found. Turn your ${label} on, wake it (pedal / touch the strap), and make sure it isn't connected to another app.`,
-      });
-      return;
-    }
+    this.emit(evt, { state: 'connecting', message: `Searching for your ${label}…` });
 
     if (!this.onPickDevice) {
       // No chooser wired — fall back to auto-pick-first.
@@ -197,11 +176,16 @@ export class NativeTrainerTransport implements TrainerTransport {
       return;
     }
 
+    // Hand the chooser a role-filtered scan (only devices advertising the
+    // FTMS / HR service); the dialog opens at once and populates when it lands.
     let id: string | null;
     try {
-      id = await this.onPickDevice(role, named);
-    } catch {
-      id = null;
+      id = await this.onPickDevice(role, () =>
+        invoke<BleDevice[]>('ble_scan_role', { role, secs: 5 }),
+      );
+    } catch (err) {
+      this.emit(evt, { state: 'error', message: `Couldn't choose a device — ${shortErr(err)}.` });
+      return;
     }
     if (!id) {
       // Cancelled — back to a neutral dot, not an error.
@@ -209,15 +193,11 @@ export class NativeTrainerTransport implements TrainerTransport {
       return;
     }
 
-    const dev = named.find((d) => d.id === id);
-    this.emit(evt, { state: 'connecting', message: `Connecting to ${dev?.name || 'device'}…` });
+    this.emit(evt, { state: 'connecting', message: `Connecting to your ${label}…` });
     try {
       await invoke('ble_connect_device', { role, id });
     } catch (err) {
-      this.emit(evt, {
-        state: 'error',
-        message: `Couldn't connect to ${dev?.name || 'the device'} — ${shortErr(err)}.`,
-      });
+      this.emit(evt, { state: 'error', message: `Couldn't connect — ${shortErr(err)}.` });
     }
   }
 

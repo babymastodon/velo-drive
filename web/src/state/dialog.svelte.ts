@@ -23,8 +23,11 @@ export interface DialogRequest {
   example?: string;
   // For prompt: optional action links rendered as buttons (e.g. "browse X").
   links?: { label: string; onClick: () => void }[];
-  // For device: the scanned devices to choose from.
+  // For device: the scanned devices to choose from, whether a scan is in flight,
+  // and the scan function (used for the initial scan + Rescan).
   devices?: PickDevice[];
+  searching?: boolean;
+  scan?: () => Promise<PickDevice[]>;
   resolve: (value: boolean) => void;
   // For prompt: resolves with the entered string (or null on cancel).
   resolveText?: (value: string | null) => void;
@@ -96,21 +99,50 @@ export class DialogStore {
     });
   }
 
-  /** Promise-based BLE device chooser. Resolves with the chosen device id, or
+  /** Promise-based BLE device chooser. Opens immediately in a "Searching…" state,
+   *  runs `scan`, then lists the results. Resolves with the chosen device id, or
    *  null if cancelled. */
-  pickDevice(title: string, message: string, devices: PickDevice[]): Promise<string | null> {
+  pickDevice(
+    title: string,
+    message: string,
+    scan: () => Promise<PickDevice[]>,
+  ): Promise<string | null> {
     return new Promise<string | null>((resolveDevice) => {
       this.current = {
         kind: 'device',
         title,
         message,
-        okLabel: 'OK',
+        okLabel: 'Rescan',
         cancelLabel: 'Cancel',
-        devices,
+        devices: [],
+        searching: true,
+        scan,
         resolve: () => {},
         resolveDevice,
       };
+      void this.runScan();
     });
+  }
+
+  private async runScan(): Promise<void> {
+    const req = this.current;
+    if (!req || req.kind !== 'device' || !req.scan) return;
+    req.searching = true;
+    req.devices = [];
+    try {
+      const found = await req.scan();
+      if (this.current === req) {
+        req.devices = [...found].sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
+        req.searching = false;
+      }
+    } catch {
+      if (this.current === req) req.searching = false;
+    }
+  }
+
+  /** Re-run the scan for the open device chooser. */
+  rescanDevices(): void {
+    void this.runScan();
   }
 
   /** Pick a specific device (closes the dialog + resolves with its id). */
