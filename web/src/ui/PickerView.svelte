@@ -138,6 +138,21 @@
     }
   });
 
+  // When a row expands (click, keyboard, or post-action), bring it into view —
+  // mirrors the legacy picker: scrollIntoView({ block: 'nearest', smooth }) on
+  // the rendered expanded row, deferred a frame so layout (incl. the mini chart)
+  // has settled.
+  let tbodyEl = $state<HTMLTableSectionElement | null>(null);
+  $effect(() => {
+    if (!expandedId) return;
+    requestAnimationFrame(() => {
+      tbodyEl?.querySelector('.picker-expanded-row')?.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth',
+      });
+    });
+  });
+
   async function rescan(): Promise<void> {
     workouts = await fileStore.listWorkouts();
   }
@@ -1481,7 +1496,7 @@
             <th data-sort-key="kjAdj" class={sortClass('kjAdj')} title="Estimated work (kJ) at your FTP; roughly equals Calories if power is accurate" onclick={() => onSort('kjAdj')}>kJ</th>
           </tr>
         </thead>
-        <tbody id="pickerWorkoutTbody" data-testid="picker-tbody">
+        <tbody id="pickerWorkoutTbody" data-testid="picker-tbody" bind:this={tbodyEl}>
           {#if !flatMode && currentFolder}
             <tr
               class="picker-folder-row picker-folder-up"
