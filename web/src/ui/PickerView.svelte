@@ -749,12 +749,16 @@
   async function onImportUrl(): Promise<void> {
     if (!builderApi) return;
     const url = await dialogs.prompt(
-      'Open a workout on TrainerDay or WhatsOnZwift, copy its URL from your browser, and paste it here.',
+      'Browse a site, open a workout, then copy its URL from your browser and paste it here.',
       {
         title: 'Import from URL',
         okLabel: 'Import',
         placeholder: 'https://…',
-        example: 'https://whatsonzwift.com/workouts/zwift-academy/finale-workout',
+        example: 'https://app.trainerday.com/workouts/violator',
+        links: [
+          { label: 'Browse TrainerDay', onClick: () => void openExternal(TRAINERDAY_SEARCH_URL) },
+          { label: 'Browse WhatsOnZwift', onClick: () => void openExternal(WHATSONZWIFT_BROWSE_URL) },
+        ],
       },
     );
     if (!url) return;
@@ -907,32 +911,70 @@
     uploadInputEl?.click();
   }
 
+  // Parse one uploaded .zwo/.fit file → a normalized canonical workout (or null).
+  async function parseUploadFile(file: File): Promise<CanonicalWorkout | null> {
+    const name = file.name || '';
+    const ext = name.toLowerCase().split('.').pop() || '';
+    let canonical: CanonicalWorkout | null = null;
+    try {
+      if (ext === 'fit') {
+        canonical = parseFitFile(await file.arrayBuffer())?.canonicalWorkout || null;
+      } else {
+        canonical = parseZwoXmlToCanonicalWorkout(await file.text());
+      }
+    } catch (err) {
+      console.warn('[PickerView] Upload parse failed:', err);
+      return null;
+    }
+    if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+      return null;
+    }
+    return normalizeUploadedWorkout(canonical, name);
+  }
+
   async function onUploadFileChange(): Promise<void> {
     if (!builderApi || !uploadInputEl) return;
     const file = uploadInputEl.files && uploadInputEl.files[0];
     uploadInputEl.value = '';
     if (!file) return;
-    const name = file.name || '';
-    const ext = (name.toLowerCase().split('.').pop() || '');
-    let canonical: CanonicalWorkout | null = null;
-    try {
-      if (ext === 'fit') {
-        const buf = await file.arrayBuffer();
-        const parsed = parseFitFile(buf);
-        canonical = parsed?.canonicalWorkout || null;
-      } else {
-        const text = await file.text();
-        canonical = parseZwoXmlToCanonicalWorkout(text);
-      }
-    } catch (err) {
-      console.warn('[PickerView] Upload parse failed:', err);
-      canonical = null;
-    }
-    if (!canonical || !Array.isArray(canonical.rawSegments) || !canonical.rawSegments.length) {
+    const canonical = await parseUploadFile(file);
+    if (!canonical) {
       await dialogs.alert('Unable to load workout file.', { title: 'Upload failed' });
       return;
     }
-    loadIntoBuilder(normalizeUploadedWorkout(canonical, name), 'Uploaded Workout');
+    loadIntoBuilder(canonical, 'Uploaded Workout');
+  }
+
+  // Library upload: multi-select .zwo/.fit → save them all into the library.
+  let libraryUploadInputEl = $state<HTMLInputElement | null>(null);
+  function onLibraryUploadClick(): void {
+    importLibMenuOpen = false;
+    libraryUploadInputEl?.click();
+  }
+  async function onLibraryUploadChange(): Promise<void> {
+    if (!libraryUploadInputEl) return;
+    const files = Array.from(libraryUploadInputEl.files || []);
+    libraryUploadInputEl.value = '';
+    if (!files.length) return;
+    const canonicals: CanonicalWorkout[] = [];
+    for (const f of files) {
+      const c = await parseUploadFile(f);
+      if (c) canonicals.push(c);
+    }
+    if (!canonicals.length) {
+      await dialogs.alert('No valid workout files were found.', { title: 'Upload failed' });
+      return;
+    }
+    const { added, skipped, error } = await fileStore.importWorkoutBatch(canonicals);
+    if (error) {
+      await dialogs.alert(error, { title: 'Upload failed' });
+      return;
+    }
+    await rescan();
+    enterFolder(''); // uploads land at the workouts root
+    const parts = [`${added} added`];
+    if (skipped) parts.push(`${skipped} already present`);
+    await dialogs.alert(`Uploaded: ${parts.join(', ')}.`, { title: 'Upload complete' });
   }
 
   // Default title/source/description for an uploaded file.
@@ -1456,8 +1498,21 @@
               <button class="wb-import-item" type="button" role="menuitem" data-testid="import-whatsonzwift" onclick={() => openImportModal('whatsonzwift')}>
                 <span>WhatsOnZwift</span><small>the full catalog at whatsonzwift.com</small>
               </button>
+              <div class="wb-import-sep"></div>
+              <button class="wb-import-item" type="button" role="menuitem" data-testid="import-upload" onclick={onLibraryUploadClick}>
+                <span>Upload files…</span><small>one or more .zwo or .fit</small>
+              </button>
             </div>
           {/if}
+          <input
+            bind:this={libraryUploadInputEl}
+            type="file"
+            accept=".zwo,.fit"
+            multiple
+            data-testid="library-upload-input"
+            style="display: none"
+            onchange={() => void onLibraryUploadChange()}
+          />
         </div>
 
         <button
@@ -1527,15 +1582,8 @@
                 data-testid="builder-import-url"
                 onclick={() => void pickImport('url')}
               >
-                <span>From a URL…</span><small>paste a TrainerDay or WhatsOnZwift link</small>
+                <span>From a URL…</span><small>TrainerDay or WhatsOnZwift</small>
               </button>
-              <div class="wb-import-browse">
-                New here? Browse
-                <button type="button" class="wb-import-link" onclick={() => void openExternal(TRAINERDAY_SEARCH_URL)}>TrainerDay</button>
-                or
-                <button type="button" class="wb-import-link" onclick={() => void openExternal(WHATSONZWIFT_BROWSE_URL)}>WhatsOnZwift</button>,
-                open a workout, copy its URL, then choose “From a URL…”.
-              </div>
               <button
                 class="wb-import-item"
                 type="button"
@@ -1545,12 +1593,6 @@
               >
                 <span>Upload a file…</span><small>.zwo or .fit</small>
               </button>
-              <div class="wb-import-sep"></div>
-              <p class="wb-import-hint">
-                Tip: you can also drop <code>.zwo</code> files (in folders too)
-                straight into your VeloDrive <strong>workouts</strong> folder — they
-                appear here next time you open the library.
-              </p>
             </div>
           {/if}
         </div>

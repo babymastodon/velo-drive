@@ -15,6 +15,8 @@ export interface DialogRequest {
   placeholder?: string;
   // For prompt: an example value shown as a styled monospace hint.
   example?: string;
+  // For prompt: optional action links rendered as buttons (e.g. "browse X").
+  links?: { label: string; onClick: () => void }[];
   resolve: (value: boolean) => void;
   // For prompt: resolves with the entered string (or null on cancel).
   resolveText?: (value: string | null) => void;
@@ -64,6 +66,7 @@ export class DialogStore {
       defaultValue?: string;
       placeholder?: string;
       example?: string;
+      links?: { label: string; onClick: () => void }[];
     } = {},
   ): Promise<string | null> {
     return new Promise<string | null>((resolveText) => {
@@ -76,6 +79,7 @@ export class DialogStore {
         inputValue: opts.defaultValue ?? '',
         placeholder: opts.placeholder,
         example: opts.example,
+        links: opts.links,
         resolve: () => {},
         resolveText,
       };
