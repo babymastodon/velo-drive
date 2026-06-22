@@ -9,7 +9,6 @@ import type {
   FsDirHandle,
   FsHandle,
   FsFileHandle,
-  FsFile,
 } from '../FileStore.js';
 import type { CanonicalWorkout } from '../../core/model.js';
 import {
@@ -47,21 +46,6 @@ const SETTINGS_STORE = 'settings';
 // preview format/computation changes (invalidates the whole cache).
 const STATS_CACHE_KEY = 'workoutStatsCache';
 const STATS_CACHE_VERSION = 30;
-
-// Persisted parsed-library cache: per .zwo path → its parse signature (size:mtime)
-// + parsed CanonicalWorkout. listWorkouts reuses entries whose signature is
-// unchanged, so it never re-reads or re-parses unchanged files across opens. Bump
-// the version if the parse output shape changes.
-const WORKOUT_CACHE_KEY = 'workoutLibraryCache';
-const WORKOUT_CACHE_VERSION = 1;
-interface WorkoutCacheEntry {
-  sig: string;
-  canonical: CanonicalWorkout;
-}
-interface WorkoutCache {
-  version: number;
-  entries: Record<string, WorkoutCacheEntry>;
-}
 
 const STORAGE_SELECTED_WORKOUT = 'selectedWorkout';
 const STORAGE_ACTIVE_STATE = 'activeWorkoutState';
@@ -354,6 +338,7 @@ export class WebFileStore implements FileStore {
       await this.saveHandle(WORKOUT_DIR_KEY, history);
       await this.saveHandle(TRASH_DIR_KEY, trash);
       this.workoutDirHandle = history;
+      this.invalidatePreloadedWorkouts();
       return root;
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return null;
@@ -534,89 +519,78 @@ export class WebFileStore implements FileStore {
     }
   }
 
-  private workoutCache: WorkoutCache | null = null;
-  private async loadWorkoutCache(): Promise<WorkoutCache | null> {
-    if (this.workoutCache) return this.workoutCache;
-    try {
-      const c = await this.getSetting<WorkoutCache | null>(WORKOUT_CACHE_KEY, null);
-      if (c && c.version === WORKOUT_CACHE_VERSION && c.entries) {
-        this.workoutCache = c;
-        return c;
-      }
-    } catch {
-      /* ignore — fall back to a full scan */
-    }
-    return null;
-  }
-  private saveWorkoutCache(c: WorkoutCache): void {
-    this.workoutCache = c;
-    void this.putSetting(WORKOUT_CACHE_KEY, c).catch(() => {});
-  }
-
+  /** Scan the workouts dir (+ nested subfolders) and parse every .zwo. */
   async listWorkouts(): Promise<CanonicalWorkout[]> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) return [];
-    // Re-authorize the reloaded handle. Runs in the gesture that opened the
-    // picker, so the prompt is allowed.
+    // Re-authorize the reloaded handle (no-op once granted).
     await ensureDirPermission(dir);
-    const cache = await this.loadWorkoutCache();
-    const next: WorkoutCache = { version: WORKOUT_CACHE_VERSION, entries: {} };
     const out: CanonicalWorkout[] = [];
-    let dirty = false;
     try {
-      // Scan the workouts dir AND any nested subfolders, reusing unchanged files.
-      for await (const { dir: entryDir, name, relPath, sig } of this.walkZwoEntries(dir, '', 0)) {
-        let signature = sig;
-        let file: FsFile | undefined;
-        if (!signature) {
-          // No listing signature (FSA): read cheap file metadata via the handle.
-          const handle = await entryDir.getFileHandle(name);
-          file = await handle.getFile?.();
-          signature = file ? `${file.size ?? 0}:${file.lastModified ?? 0}` : '0:0';
-        }
-        const cached = cache?.entries[relPath];
-        // Only trust a real signature — '0:0' means the platform gave no size/
-        // mtime (e.g. the test fakes), so always re-parse to stay correct.
-        if (cached && cached.sig === signature && signature !== '0:0') {
-          next.entries[relPath] = cached;
-          out.push(cached.canonical);
-          continue;
-        }
-        // Miss: read + parse the file.
-        if (!file) {
-          const handle = await entryDir.getFileHandle(name);
-          file = await handle.getFile?.();
-        }
+      for await (const { dir: entryDir, name, relPath } of this.walkZwoEntries(dir, '', 0)) {
+        const handle = await entryDir.getFileHandle(name);
+        const file = await handle.getFile?.();
         if (!file) continue;
         const canonical = parseZwoXmlToCanonicalWorkout(await file.text());
         if (!canonical) continue;
         canonical.sourcePath = relPath;
-        next.entries[relPath] = { sig: signature, canonical };
         out.push(canonical);
-        dirty = true;
       }
     } catch (err) {
       console.error('[WebFileStore] listWorkouts failed:', err);
-      return out;
     }
-    // Persist when anything was re-parsed OR files were removed (entry count drops).
-    const prevCount = cache ? Object.keys(cache.entries).length : -1;
-    if (dirty || prevCount !== Object.keys(next.entries).length) this.saveWorkoutCache(next);
     return out;
   }
 
-  /**
-   * The last-known parsed library straight from the cache — NO filesystem scan.
-   * The picker shows this instantly on open, then calls listWorkouts() in the
-   * background to reconcile against disk. Returns null when nothing is cached yet
-   * (the first-ever scan), so the caller knows to show a loading state.
-   */
-  async getCachedWorkouts(): Promise<CanonicalWorkout[] | null> {
-    const cache = await this.loadWorkoutCache();
-    if (!cache) return null;
-    const entries = Object.values(cache.entries);
-    if (!entries.length) return null;
-    return entries.map((e) => e.canonical);
+  // --- In-memory library preload: scan once at page load, hold the result so the
+  //     picker opens instantly (or shows a loading state until the preload lands).
+  private preloadedWorkouts: CanonicalWorkout[] | null = null;
+  private preloadingWorkouts: Promise<CanonicalWorkout[]> | null = null;
+
+  /** Start scanning the library in the background (call at app boot). */
+  preloadWorkouts(): void {
+    if (this.preloadedWorkouts || this.preloadingWorkouts) return;
+    this.preloadingWorkouts = this.listWorkouts()
+      .then((lib) => {
+        this.preloadedWorkouts = lib;
+        return lib;
+      })
+      .catch((err) => {
+        console.warn('[WebFileStore] preloadWorkouts failed:', err);
+        this.preloadingWorkouts = null;
+        return [] as CanonicalWorkout[];
+      });
+  }
+
+  /** True once the preload has completed — for an instant, flash-free open. */
+  isWorkoutsReady(): boolean {
+    return this.preloadedWorkouts != null;
+  }
+
+  /** The preloaded library — resolves instantly if ready, else awaits the
+   *  in-flight preload (or kicks one off). */
+  async getWorkouts(): Promise<CanonicalWorkout[]> {
+    if (this.preloadedWorkouts) return this.preloadedWorkouts;
+    if (!this.preloadingWorkouts) this.preloadWorkouts();
+    return (await this.preloadingWorkouts) ?? [];
+  }
+
+  /** Drop the in-memory library (e.g. after the root folder changes). */
+  protected invalidatePreloadedWorkouts(): void {
+    this.preloadedWorkouts = null;
+    this.preloadingWorkouts = null;
+  }
+
+  /** Force a fresh scan + refresh the in-memory library (after save/delete/import
+   *  or a root-folder change). */
+  async refreshWorkouts(): Promise<CanonicalWorkout[]> {
+    this.preloadedWorkouts = null;
+    const p = this.listWorkouts().then((lib) => {
+      this.preloadedWorkouts = lib;
+      return lib;
+    });
+    this.preloadingWorkouts = p;
+    return p;
   }
 
   async deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean> {

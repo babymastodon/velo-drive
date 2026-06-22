@@ -66,10 +66,15 @@ export interface FileStore {
   // ---- Workout library (picker) ----
   /** Scan the .zwo workouts dir and return parsed CanonicalWorkouts. */
   listWorkouts(): Promise<CanonicalWorkout[]>;
-  /** The last-known parsed library from the cache (no disk scan), or null if
-   *  nothing is cached yet — for an instant first paint while listWorkouts()
-   *  reconciles in the background. */
-  getCachedWorkouts(): Promise<CanonicalWorkout[] | null>;
+  /** Start scanning the library in the background (call at app boot) so it's
+   *  ready before the user opens the picker. */
+  preloadWorkouts(): void;
+  /** True once the preload has finished (for an instant, flash-free open). */
+  isWorkoutsReady(): boolean;
+  /** The preloaded in-memory library — instant if ready, else awaits the preload. */
+  getWorkouts(): Promise<CanonicalWorkout[]>;
+  /** Re-scan + refresh the in-memory library (after save/delete/import). */
+  refreshWorkouts(): Promise<CanonicalWorkout[]>;
   /** Move a workout's .zwo file to the trash folder (delete). */
   deleteWorkoutToTrash(canonical: CanonicalWorkout): Promise<boolean>;
   /** Serialize + write a CanonicalWorkout into the workouts dir (used by clone). */
