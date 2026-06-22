@@ -29,6 +29,7 @@
   import { themeAutoVersion } from '../state/theme.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import BuilderView, { type BuilderApi } from './BuilderView.svelte';
+  import FilterDropdown from './FilterDropdown.svelte';
   import { parseWorkoutUrl } from '../core/scrapers.js';
   import { fetchTrainerDayPopular, fetchWhatsOnZwiftAll } from '../core/importers.js';
   import { openExternal } from '../app/compat.js';
@@ -440,6 +441,27 @@
     if (z.startsWith('vo2')) return 'picker-zone-dot-vo2';
     if (z.startsWith('anaerobic')) return 'picker-zone-dot-anaerobic';
     return 'picker-zone-dot-unknown';
+  }
+
+  // Option lists for the custom zone/duration filter dropdowns.
+  const ZONE_FILTER_OPTIONS = [
+    'Freeride',
+    'Recovery',
+    'Endurance',
+    'Tempo',
+    'Threshold',
+    'VO2Max',
+    'Anaerobic',
+  ].map((z) => ({ value: z, label: z, dotClass: zoneDotClass(z) }));
+  const DURATION_FILTER_OPTIONS = DURATION_BUCKETS.map((b) => ({ value: b.value, label: b.label }));
+  let zoneFilterOpen = $state(false);
+  let durFilterOpen = $state(false);
+
+  // Collapsed rows truncate long names; the expanded (selected) row shows the full
+  // name (and the cell's title attr always has it on hover).
+  const NAME_MAX = 48;
+  function truncName(s: string): string {
+    return s.length > NAME_MAX ? s.slice(0, NAME_MAX).trimEnd() + '…' : s;
   }
   function ifText(m: SegmentMetrics): string {
     return m.ifValue != null ? m.ifValue.toFixed(2) : '';
@@ -1098,46 +1120,7 @@
   }
 
   let searchInputEl = $state<HTMLInputElement | null>(null);
-  let zoneSelectEl = $state<HTMLSelectElement | null>(null);
-  let durationSelectEl = $state<HTMLSelectElement | null>(null);
   let selectBtnEl = $state<HTMLButtonElement | null>(null);
-
-  // Focus a filter <select> and open its native dropdown if the browser allows
-  // it (via el.showPicker()). showPicker() requires a user gesture and can throw
-  // / steal focus when called outside one, so it's best-effort and deferred so
-  // it never clobbers the focus() we just set.
-  function focusAndOpenSelect(el: HTMLSelectElement | null): void {
-    if (!el) return;
-    el.focus();
-    const sp = (el as unknown as { showPicker?: () => void }).showPicker;
-    if (typeof sp === 'function') {
-      requestAnimationFrame(() => {
-        try { sp.call(el); } catch { /* not user-gesture; ignore */ }
-      });
-    }
-  }
-
-  // When a filter <select> is FOCUSED, j/k + ArrowUp/ArrowDown navigate its
-  // options (clamped) and apply the new value. A focused native <select>
-  // swallows letter keydowns (Chromium typeahead) so they never reach the
-  // window-routed handlePickerKey — hence this is bound directly on each
-  // <select>'s keydown. We set the bound state directly so Svelte's bind:value
-  // stays in sync (no synthetic change needed).
-  function onSelectNavKeydown(e: KeyboardEvent, which: 'zone' | 'duration'): void {
-    const key = (e.key || '').toLowerCase();
-    if (key !== 'j' && key !== 'k' && key !== 'arrowdown' && key !== 'arrowup') return;
-    const sel = e.currentTarget as HTMLSelectElement;
-    const opts = Array.from(sel.options || []);
-    if (!opts.length) return;
-    const delta = key === 'k' || key === 'arrowup' ? -1 : 1;
-    const cur = sel.selectedIndex >= 0 ? sel.selectedIndex : 0;
-    const nextIdx = Math.min(Math.max(0, cur + delta), opts.length - 1);
-    const nextVal = opts[nextIdx]?.value ?? '';
-    if (which === 'zone') zoneValue = nextVal;
-    else durationValue = nextVal;
-    e.preventDefault();
-    e.stopPropagation();
-  }
 
   // The picker keymap. Routed here by the App overlay-key hook while the picker
   // overlay is open (registered below). Returns true if it consumed the key.
@@ -1179,16 +1162,17 @@
       return false;
     }
 
-    // z / d → focus + open the zone / duration filter. Allow these even when
-    // another SELECT is focused (so you can hop between them).
+    // z / d → open the zone / duration filter dropdown.
     if (key === 'z') {
       e.preventDefault();
-      focusAndOpenSelect(zoneSelectEl);
+      durFilterOpen = false;
+      zoneFilterOpen = true;
       return true;
     }
     if (key === 'd') {
       e.preventDefault();
-      focusAndOpenSelect(durationSelectEl);
+      zoneFilterOpen = false;
+      durFilterOpen = true;
       return true;
     }
 
@@ -1400,64 +1384,24 @@
             </svg>
           </button>
         </div>
-        <div class="picker-filter-wrap" style:display={builderMode ? 'none' : ''}>
-          <select
-            id="pickerZoneFilter"
-            data-testid="picker-zone-filter"
-            class:picker-filter-active={!!zoneValue}
-            bind:this={zoneSelectEl}
+        {#if !builderMode}
+          <FilterDropdown
             bind:value={zoneValue}
-            onkeydown={(e) => onSelectNavKeydown(e, 'zone')}
-          >
-            <option value="">All zones</option>
-            <option value="Freeride">Freeride</option>
-            <option value="Recovery">Recovery</option>
-            <option value="Endurance">Endurance</option>
-            <option value="Tempo">Tempo</option>
-            <option value="Threshold">Threshold</option>
-            <option value="VO2Max">VO2Max</option>
-            <option value="Anaerobic">Anaerobic</option>
-          </select>
-          {#if zoneValue}
-            <button
-              class="picker-filter-clear"
-              type="button"
-              data-testid="picker-zone-clear"
-              title="Clear zone filter"
-              aria-label="Clear zone filter"
-              onclick={() => (zoneValue = '')}
-            >
-              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
-            </button>
-          {/if}
-        </div>
-        <div class="picker-filter-wrap" style:display={builderMode ? 'none' : ''}>
-          <select
-            id="pickerDurationFilter"
-            data-testid="picker-duration-filter"
-            class:picker-filter-active={!!durationValue}
-            bind:this={durationSelectEl}
+            bind:open={zoneFilterOpen}
+            options={ZONE_FILTER_OPTIONS}
+            placeholder="All zones"
+            testid="picker-zone-filter"
+            ariaLabel="Filter by zone"
+          />
+          <FilterDropdown
             bind:value={durationValue}
-            onkeydown={(e) => onSelectNavKeydown(e, 'duration')}
-          >
-            <option value="">All durations</option>
-            {#each DURATION_BUCKETS as b}
-              <option value={b.value}>{b.label}</option>
-            {/each}
-          </select>
-          {#if durationValue}
-            <button
-              class="picker-filter-clear"
-              type="button"
-              data-testid="picker-duration-clear"
-              title="Clear duration filter"
-              aria-label="Clear duration filter"
-              onclick={() => (durationValue = '')}
-            >
-              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
-            </button>
-          {/if}
-        </div>
+            bind:open={durFilterOpen}
+            options={DURATION_FILTER_OPTIONS}
+            placeholder="All durations"
+            testid="picker-duration-filter"
+            ariaLabel="Filter by duration"
+          />
+        {/if}
 
         <button
           type="button"
@@ -1766,7 +1710,7 @@
               {@const m = item.metrics}
               {#if expandedId !== id}
               <tr class="picker-row" data-title={title} onclick={() => toggleExpand(id)}>
-                <td title={displayName}>{displayName}</td>
+                <td title={displayName}>{truncName(displayName)}</td>
                 <td>
                   <div class="picker-zone-cell">
                     <span class="picker-zone-dot {zoneDotClass(zone)}"></span>
