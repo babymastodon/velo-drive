@@ -10,8 +10,9 @@ File System Access platform seams, and a Svelte 5 UI.
   the `zwo`/`fit` codecs, `metrics`, the ride `engine`, `beeper`, `chart`
   renderers, and `builder-backend`.
 - **`src/ports/`** — two platform seams behind typed interfaces: `TrainerTransport`
-  (Web Bluetooth FTMS) and `FileStore` (File System Access + IndexedDB). These are
-  the seams an eventual native (Tauri) port would swap.
+  (Web Bluetooth FTMS) and `FileStore` (File System Access + IndexedDB). The
+  `src/ports/native/` implementations swap both over Tauri commands for the native
+  (Tauri) shell; the active port is selected at boot in `app/app.ts`.
 - **`src/state/`** — Svelte 5 signals (engine view-model, overlay/UI host, dialog).
 - **`src/ui/`** — Svelte components, with the workout CSS hosted global in
   `src/styles/`.

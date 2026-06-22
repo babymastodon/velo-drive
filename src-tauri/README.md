@@ -95,9 +95,10 @@ If launching from a detached shell hits a Wayland error, force X11:
 `GDK_BACKEND=x11 cargo run --bin velodrive`. (For HMR dev, install the Tauri CLI and
 use `cargo tauri dev`.)
 
-**Note:** the workout *library* (folder picker) still uses the web File System
-Access API, which isn't in the webview yet — that's the next milestone
-(`NativeFileStore`). Bluetooth + the live HUD work today.
+The whole app runs natively today: the workout library, FIT history, planner, and
+schedule go through `NativeFileStore` (path-backed `fs` commands); Bluetooth + the
+live HUD ride through the native connector; and workout-URL imports route through
+Rust (`native-http.js`) to bypass webview CORS.
 
 ---
 
@@ -115,7 +116,9 @@ Access API, which isn't in the webview yet — that's the next milestone
 6. ✅ Native keep-awake during rides (`keepawake` inhibitor via `set_keep_awake`).
 7. ✅ Flatpak manifest scaffold — bundle id `bike.velodrive.app`,
    `--system-talk-name=org.bluez` for BLE; see [`../flatpak/`](../flatpak/).
+8. ✅ Native HTTP for workout-URL imports (`native-http.js` → Rust) so
+   TrainerDay/WhatsOnZwift imports work in the webview despite CORS.
 
 The Linux native app is feature-complete (Bluetooth, workout library/history/
-planner, rides, keep-awake). Follow-ups: route the TrainerDay URL import through
-Rust to bypass webview CORS; then the other desktop + mobile targets.
+planner, rides, keep-awake, URL imports). Follow-ups: the other desktop + mobile
+targets.
