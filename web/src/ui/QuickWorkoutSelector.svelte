@@ -270,7 +270,7 @@
     class="nav-icon-button"
     type="button"
     data-testid="quick-prev"
-    title="Previous workout (left arrow)"
+    title="Previous workout (←)"
     aria-label="Previous workout"
     disabled={!candidates.length}
     onclick={() => step(-1)}
@@ -333,7 +333,7 @@
     class="nav-icon-button"
     type="button"
     data-testid="quick-next"
-    title="Next workout (right arrow)"
+    title="Next workout (→)"
     aria-label="Next workout"
     disabled={!candidates.length}
     onclick={() => step(1)}
