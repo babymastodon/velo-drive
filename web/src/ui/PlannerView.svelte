@@ -198,23 +198,34 @@
     anchorStart = startOfWeek(selectedDate);
     loaded = false;
     scrollReady = false;
+
+    // The week grid renders WITHOUT the history/schedule data, so for a normal
+    // open scroll to today + reveal IMMEDIATELY — don't make the user watch the
+    // top of the window for the 1-2s the (cold-cache) history load can take.
+    // Cards + a re-anchor follow once loaded; the post-ride flow goes to detail.
+    const pending = ui.pendingHistoryFile;
+    if (!pending) {
+      await tick();
+      scrollToToday();
+      scrollReady = true;
+    }
+
     await Promise.all([loadHistory(), loadSchedule()]);
     loaded = true;
+
     // Post-ride flow: if the shell opened the planner with a just-saved ride,
     // auto-open that ride's DETAIL view. Consume + clear the pending file so a
     // later manual open shows the calendar.
-    const pending = ui.pendingHistoryFile;
     if (pending) {
       ui.pendingHistoryFile = null;
+      scrollReady = true; // reveal the calendar behind the detail (for Back)
       await openDetailByFile(pending.fileName, pending.date);
+      return;
     }
-    // Scroll so today's week sits one row below the top — BEFORE the first
-    // paint (await tick so the rows exist + getBoundingClientRect forces layout),
-    // then reveal. A second rAF pass corrects for any late card layout.
+
+    // Cards may have grown some rows — re-anchor today now they're laid out.
     await tick();
     scrollToToday();
-    scrollReady = true;
-    requestAnimationFrame(() => scrollToToday());
   }
 
   // Open the ride detail for a specific history file (post-ride follow-up).
@@ -915,7 +926,7 @@
           <div class="planner-day-head">Fri</div>
           <div class="planner-day-head">Sat</div>
         </div>
-        <div class="planner-calendar-body" id="plannerCalendarBody" bind:this={calendarBodyEl} data-testid="planner-calendar-body" style:visibility={loaded && !scrollReady ? 'hidden' : 'visible'}>
+        <div class="planner-calendar-body" id="plannerCalendarBody" bind:this={calendarBodyEl} data-testid="planner-calendar-body" style:visibility={scrollReady ? 'visible' : 'hidden'}>
           {#each weeks as week, wi (wi)}
             <div class="planner-week-row" data-week-offset={wi}>
               {#each week as cell (cell.key)}
