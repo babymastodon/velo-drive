@@ -1293,7 +1293,7 @@
             ></button>
             <div class="wb-import-menu" role="menu">
               <button class="wb-import-item" type="button" role="menuitem" data-testid="import-zwift" onclick={() => openImportModal('zwift')}>
-                <span>Zwift collection</span><small>the built-in workouts from the original app</small>
+                <span>Zwift collection</span><small>from the original app</small>
               </button>
               <button class="wb-import-item" type="button" role="menuitem" data-testid="import-trainerday" onclick={() => openImportModal('trainerday')}>
                 <span>TrainerDay</span><small>the most popular from trainerday.com</small>
