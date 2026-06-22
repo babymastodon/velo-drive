@@ -28,6 +28,13 @@
       {/if}
       <div class="settings-body">
         <p class="dialog-message" data-testid="dialog-message">{req.message}</p>
+        {#if req.kind === 'prompt' && req.links?.length}
+          <div class="dialog-links">
+            {#each req.links as link}
+              <button type="button" class="dialog-link" onclick={() => link.onClick()}>{link.label}</button>
+            {/each}
+          </div>
+        {/if}
         {#if req.kind === 'prompt'}
           <input
             class="dialog-input"
@@ -102,6 +109,25 @@
   .dialog-input:focus {
     outline: none;
     border-color: var(--text-muted);
+  }
+  .dialog-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 14px;
+  }
+  .dialog-link {
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text-main);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 0.9em;
+    cursor: pointer;
+  }
+  .dialog-link:hover {
+    background: var(--hover-light);
   }
   .dialog-example {
     display: flex;
