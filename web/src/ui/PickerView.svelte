@@ -1437,7 +1437,7 @@
               <path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Import ▾</span>
+            <span>Import</span>
           </button>
           {#if importLibMenuOpen}
             <button
@@ -1510,7 +1510,7 @@
               <path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
-            <span>Import ▾</span>
+            <span>Import</span>
           </button>
           {#if importMenuOpen}
             <button
