@@ -22,6 +22,11 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  # Audio (workout beeps).
+  - --socket=pulseaudio
+  # This GPU/driver trips WebKitGTK's DMABUF renderer (GBM buffer / Wayland
+  # protocol errors); disabling it renders reliably.
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
   # Network: TrainerDay import + (future) update checks.
   - --share=network
   # Bluetooth LE: talk to the system BlueZ service (trainer + HRM).
