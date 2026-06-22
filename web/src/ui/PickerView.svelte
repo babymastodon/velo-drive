@@ -213,11 +213,10 @@
   let currentFolder = $state('');
   let showAllFolders = $state(false);
 
-  // Browse by folder by default; switch to a flat list when "show all" is on or
-  // any search/filter is active (those cut across folders).
-  const flatMode = $derived(
-    showAllFolders || !!searchTerm.trim() || !!zoneValue || !!durationValue,
-  );
+  // Browse by folder by default; "show all" flattens to one list. Search/filter
+  // keep the folder layout but only show folders that contain matches (the
+  // folder counts then reflect the number of matches).
+  const flatMode = $derived(showAllFolders);
 
   type NavFolder = { kind: 'folder'; name: string; path: string; count: number };
   type NavWorkout = { kind: 'workout'; item: PickerItem; label: string };
@@ -1201,6 +1200,22 @@
         </select>
 
         <button
+          type="button"
+          class="picker-toggle-btn"
+          class:is-on={showAllFolders}
+          data-testid="picker-showall"
+          aria-pressed={showAllFolders}
+          title="Show every workout from all subfolders in one flat list, instead of browsing folders"
+          style:display={builderMode ? 'none' : 'inline-flex'}
+          onclick={() => (showAllFolders = !showAllFolders)}
+        >
+          <svg viewBox="0 0 24 24" class="wb-code-icon" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>Show all</span>
+        </button>
+
+        <button
           id="pickerAddWorkoutBtn"
           data-testid="picker-add-workout"
           class="picker-add-btn"
@@ -1241,7 +1256,7 @@
             ></button>
             <div class="wb-import-menu" role="menu">
               <button class="wb-import-item" type="button" role="menuitem" data-testid="import-zwift" onclick={() => openImportModal('zwift')}>
-                <span>Zwift collection</span><small>official workouts (one download)</small>
+                <span>Zwift collection</span><small>original workouts (one download)</small>
               </button>
               <button class="wb-import-item" type="button" role="menuitem" data-testid="import-trainerday" onclick={() => openImportModal('trainerday')}>
                 <span>TrainerDay</span><small>the most popular workouts</small>
@@ -1406,38 +1421,31 @@
         </div>
       {/if}
 
-      <div class="picker-navbar">
-        <nav class="picker-breadcrumb" aria-label="Folder path">
-          {#if flatMode}
-            <span class="picker-crumb picker-crumb-current">
-              {searchTerm.trim() || zoneValue || durationValue ? 'Search results' : 'All workouts'}
-            </span>
-          {:else}
+      {#if !flatMode && currentFolder}
+        <nav class="picker-navbar picker-breadcrumb" aria-label="Folder path">
+          <button
+            type="button"
+            class="picker-crumb picker-crumb-home"
+            title="Workouts root"
+            aria-label="Workouts root"
+            onclick={() => enterFolder('')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 11l8-7 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M6 10v9h12v-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          {#each breadcrumbSegments as seg, i}
+            <span class="picker-crumb-sep">/</span>
             <button
               type="button"
               class="picker-crumb"
-              class:picker-crumb-current={!currentFolder}
-              onclick={() => enterFolder('')}
-            >Library</button>
-            {#each breadcrumbSegments as seg, i}
-              <span class="picker-crumb-sep">/</span>
-              <button
-                type="button"
-                class="picker-crumb"
-                class:picker-crumb-current={i === breadcrumbSegments.length - 1}
-                onclick={() => enterFolder(seg.path)}
-              >{seg.name}</button>
-            {/each}
-          {/if}
+              class:picker-crumb-current={i === breadcrumbSegments.length - 1}
+              onclick={() => enterFolder(seg.path)}
+            >{seg.name}</button>
+          {/each}
         </nav>
-        <label
-          class="picker-showall"
-          title="Show every workout from all subfolders in one flat list, instead of browsing folders"
-        >
-          <input type="checkbox" data-testid="picker-showall" bind:checked={showAllFolders} />
-          <span>Show all</span>
-        </label>
-      </div>
+      {/if}
 
       <table class="workout-picker-table">
         <thead>
@@ -1688,7 +1696,7 @@
         {#if importModal === 'zwift'}
           <h2 class="import-modal-title">Import the Zwift collection</h2>
           <p>
-            Download the official Zwift workout collection — 1,300+ <code>.zwo</code>
+            Download the original Zwift workout collection — 1,300+ <code>.zwo</code>
             workouts organized by training plan — into a <strong>Zwift</strong> folder
             in your library.
           </p>
@@ -1716,8 +1724,7 @@
             />
           </label>
           <p class="import-modal-note">
-            TrainerDay has 40,000+ workouts; the top {trainerdayLimit} by popularity
-            are imported.
+            TrainerDay has 40,000+ workouts.
             <button type="button" class="wb-import-link" onclick={() => void openExternal(TRAINERDAY_SEARCH_URL)}>
               Browse TrainerDay →
             </button>
@@ -1730,8 +1737,7 @@
             folder.
           </p>
           <p class="import-modal-note">
-            This is a large crawl and works best in the desktop app — the browser
-            blocks the cross-origin requests it needs.
+            Only works in the desktop app.
             <button type="button" class="wb-import-link" onclick={() => void openExternal(WHATSONZWIFT_BROWSE_URL)}>
               Browse WhatsOnZwift →
             </button>

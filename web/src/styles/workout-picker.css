@@ -1508,10 +1508,18 @@ body.wb-dragging .wb-drag-handle--move {
 .picker-navbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 2px 8px;
+  gap: 4px;
+  padding: 4px 2px 8px;
   flex-wrap: wrap;
+}
+.picker-crumb-home {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+}
+.picker-crumb-home svg {
+  width: 16px;
+  height: 16px;
 }
 .picker-breadcrumb {
   display: flex;
@@ -1546,17 +1554,34 @@ body.wb-dragging .wb-drag-handle--move {
   color: var(--text-muted);
   opacity: 0.6;
 }
-.picker-showall {
+/* "Show all" view toggle — neutral when off, red (CTA) when on. */
+.picker-toggle-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  height: var(--nav-control-height);
+  padding: 0 11px;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-main);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.85em;
-  color: var(--text-muted);
-  cursor: pointer;
+  justify-content: center;
+  gap: 5px;
+  flex-shrink: 0;
   white-space: nowrap;
 }
-.picker-showall input {
-  cursor: pointer;
+.picker-toggle-btn:hover {
+  background: var(--hover-light);
+}
+.picker-toggle-btn.is-on {
+  background: var(--cta-bg);
+  border-color: var(--cta-bg);
+  color: var(--cta-text);
+}
+.picker-toggle-btn.is-on:hover {
+  background: var(--cta-bg-hover);
+  border-color: var(--cta-bg-hover);
 }
 .picker-folder-row {
   cursor: pointer;
