@@ -856,6 +856,18 @@ export function renderMiniWorkoutGraph(
 
   container.appendChild(svg);
   container.appendChild(tooltip);
+
+  // Wire per-segment hover (highlight + stats tooltip). There's no live trace in
+  // the picker mini-chart, so pass empty samples — only the segment-hover path
+  // runs (zone / %FTP / watts / duration / cadence).
+  attachSegmentHover(svg, tooltip, container, ftp, {
+    liveSamples: [],
+    totalSec,
+    width,
+    height,
+    maxY,
+    gapBreakSeconds: 0,
+  });
 }
 
 // --------------------------- Builder mini chart ---------------------------
