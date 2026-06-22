@@ -158,6 +158,9 @@
   }
   const btAvailable = $derived(isWebBluetoothAvailable());
   const pwaInstalled = $derived(isRunningAsPwa());
+  // The native (Tauri) shell is already a local offline app — the PWA install
+  // row doesn't apply there.
+  const isNativeApp = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
   // ---- Help toggles ----
   let helpOpen = $state<Record<string, boolean>>({});
@@ -601,7 +604,8 @@
             </ul>
           </div>
 
-          <!-- Offline / PWA -->
+          <!-- Offline / PWA (hidden in the native app — it's already offline). -->
+          {#if !isNativeApp}
           <div class="settings-row">
             <div class="settings-row-main">
               <div class="settings-icon">
@@ -654,6 +658,7 @@
             the right side → <strong>Install VeloDrive</strong>. On Android, open
             Chrome’s menu and select <strong>Add to Home screen</strong>.
           </div>
+          {/if}
 
           <!-- Connection logs -->
           <div class="settings-row">
