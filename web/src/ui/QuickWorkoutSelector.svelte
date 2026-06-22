@@ -152,13 +152,37 @@
 
   let zoneOpen = $state(false);
   let durOpen = $state(false);
+  let zoneDropEl = $state<HTMLElement | null>(null);
+  let durDropEl = $state<HTMLElement | null>(null);
+
+  // Close an open drop-up when clicking anywhere outside it (a document-level
+  // listener is more reliable here than an overlay, since the bottom bar sits in
+  // its own stacking context).
+  $effect(() => {
+    if (!zoneOpen && !durOpen) return;
+    function onDown(e: Event): void {
+      const t = e.target as Node;
+      if (zoneOpen && zoneDropEl && !zoneDropEl.contains(t)) zoneOpen = false;
+      if (durOpen && durDropEl && !durDropEl.contains(t)) durOpen = false;
+    }
+    window.addEventListener('pointerdown', onDown, true);
+    return () => window.removeEventListener('pointerdown', onDown, true);
+  });
 
   // ←/→ step to the prev/next workout while the selector is showing (idle, no
-  // overlay open, not typing). The component only mounts when no workout is
-  // running, so this is inert during a ride.
+  // overlay open, not typing); Esc closes an open drop-up. The component only
+  // mounts when no workout is running, so this is inert during a ride.
   $effect(() => {
     function onKey(e: KeyboardEvent): void {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (zoneOpen || durOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          zoneOpen = false;
+          durOpen = false;
+        }
+        return;
+      }
       if (activeOverlay !== 'none') return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))
@@ -189,7 +213,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
   </button>
 
-  <div class="quick-drop">
+  <div class="quick-drop" bind:this={zoneDropEl}>
     <button
       class="inline-clicktoggle"
       type="button"
@@ -206,7 +230,6 @@
       <span>{selZone || 'Zone'}</span>
     </button>
     {#if zoneOpen}
-      <button class="quick-backdrop" type="button" aria-label="Close" onclick={() => (zoneOpen = false)}></button>
       <div class="quick-menu" role="menu">
         {#each ZONES as z}
           <button class="quick-item" type="button" onclick={() => pickZone(z)}>
@@ -217,7 +240,7 @@
     {/if}
   </div>
 
-  <div class="quick-drop">
+  <div class="quick-drop" bind:this={durDropEl}>
     <button
       class="inline-clicktoggle"
       type="button"
@@ -233,7 +256,6 @@
       <span>{selDuration ? bucketLabel(selDuration) : 'Duration'}</span>
     </button>
     {#if durOpen}
-      <button class="quick-backdrop" type="button" aria-label="Close" onclick={() => (durOpen = false)}></button>
       <div class="quick-menu quick-menu-scroll" role="menu">
         {#each DURATION_BUCKETS as b}
           <button class="quick-item" type="button" onclick={() => pickDuration(b.value)}>{b.label}</button>
@@ -275,15 +297,6 @@
   .quick-drop {
     position: relative;
     display: inline-flex;
-  }
-  .quick-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: transparent;
-    border: none;
-    padding: 0;
-    cursor: default;
   }
   .quick-menu {
     position: absolute;

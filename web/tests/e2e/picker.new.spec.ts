@@ -641,7 +641,9 @@ test.describe("Quick workout selector", () => {
     await page.getByTestId("quick-zone").click();
     await expect(page.locator(".quick-menu")).toBeVisible();
     await expect(page.locator(".quick-menu .picker-zone-dot").first()).toBeVisible();
-    await page.locator(".quick-backdrop").click();
+    // Clicking outside (Escape) closes it.
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".quick-menu")).toHaveCount(0);
 
     // The duration drop-up opens with buckets and NO "Any duration" on the main page.
     await page.getByTestId("quick-duration").click();
