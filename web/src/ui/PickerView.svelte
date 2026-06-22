@@ -71,6 +71,10 @@
   let sortKey = $state<SortKey>('kjAdj');
   let sortDir = $state<'asc' | 'desc'>('asc');
   let expandedId = $state<string | null>(null);
+  // Folder navigation state (persisted with the rest of the picker state so the
+  // current directory + view survive a reload).
+  let currentFolder = $state('');
+  let showAllFolders = $state(false);
 
   // pickerState persistence (search + zone + duration + sort) across opens.
   // We suppress the auto-save effect while restoring so the restore itself
@@ -82,6 +86,8 @@
     duration?: string;
     sortKey?: SortKey;
     sortDir?: 'asc' | 'desc';
+    folder?: string;
+    showAll?: boolean;
   }
   const VALID_DURATIONS = new Set([
     '', '1-30', '31-45', '46-60', '61-75', '76-90', '91-120', '121-180', '181-240', '>240',
@@ -97,6 +103,8 @@
       durationValue = VALID_DURATIONS.has(saved.duration || '') ? saved.duration || '' : '';
       if (saved.sortKey) sortKey = saved.sortKey;
       if (saved.sortDir === 'asc' || saved.sortDir === 'desc') sortDir = saved.sortDir;
+      currentFolder = typeof saved.folder === 'string' ? saved.folder : '';
+      showAllFolders = saved.showAll === true;
     }
     pickerStateReady = true;
   }
@@ -108,6 +116,8 @@
       duration: durationValue,
       sortKey,
       sortDir,
+      folder: currentFolder,
+      showAll: showAllFolders,
     } satisfies PickerState);
   }
 
@@ -119,6 +129,8 @@
     void durationValue;
     void sortKey;
     void sortDir;
+    void currentFolder;
+    void showAllFolders;
     if (open && pickerStateReady && !builderMode) persistPickerState();
   });
 
@@ -133,6 +145,13 @@
       void (async () => {
         await restorePickerState();
         await rescan();
+        // A restored folder may no longer exist (deleted/renamed) — fall to root.
+        if (
+          currentFolder &&
+          !allItems.some((it) => (it.canonical.sourcePath || '').startsWith(currentFolder + '/'))
+        ) {
+          currentFolder = '';
+        }
         if (scheduledTitle) expandedId = idForTitle(scheduledTitle);
       })();
     }
@@ -243,9 +262,6 @@
   });
 
   // --------------------------- folder navigation ---------------------------
-  let currentFolder = $state('');
-  let showAllFolders = $state(false);
-
   // Browse by folder by default; "show all" flattens to one list. Search/filter
   // keep the folder layout but only show folders that contain matches (the
   // folder counts then reflect the number of matches).
