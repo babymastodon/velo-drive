@@ -22,7 +22,8 @@ export class NativeFileStore extends WebFileStore {
    *  No-op once a folder is configured (the user can change it in Settings). */
   async ensureDefaultRoot(): Promise<void> {
     const existing = await this.getSetting<string | null>(ROOT_PATH_KEY, null);
-    if (existing) return;
+    // Keep a configured folder that already holds a library.
+    if (existing && (await this.folderHasWorkouts(existing))) return;
     try {
       const path = await invoke<string>('fs_default_root');
       await this.putSetting(ROOT_PATH_KEY, path);
@@ -35,6 +36,18 @@ export class NativeFileStore extends WebFileStore {
     } catch (err) {
       console.error('[NativeFileStore] ensureDefaultRoot failed:', err);
     }
+  }
+
+  private async folderHasWorkouts(rootPath: string): Promise<boolean> {
+    try {
+      const w = await new NativeDirHandle(rootPath).getDirectoryHandle('workouts', { create: false });
+      for await (const e of w.values()) {
+        if (e.kind === 'file' && e.name.toLowerCase().endsWith('.zwo')) return true;
+      }
+    } catch {
+      /* no workouts dir */
+    }
+    return false;
   }
 
   override async pickRootDir(): Promise<FsDirHandle | null> {

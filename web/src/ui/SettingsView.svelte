@@ -330,19 +330,39 @@
                 </div>
               </div>
             </div>
-            <div class="settings-row-right">
-              <div class="settings-inline-group">
-                <div
-                  class="settings-row-status"
-                  id="rootDirStatus"
-                  data-testid="root-dir-status"
-                  class:settings-status-ok={rootDirLoaded && !!rootDirName}
-                  class:settings-status-missing={rootDirLoaded && !rootDirName}
-                >
-                  {rootDirLoaded ? (rootDirName ?? 'Not configured') : ''}
+            {#if !rootDirPath}
+              <div class="settings-row-right">
+                <div class="settings-inline-group">
+                  <div
+                    class="settings-row-status"
+                    id="rootDirStatus"
+                    data-testid="root-dir-status"
+                    class:settings-status-ok={rootDirLoaded && !!rootDirName}
+                    class:settings-status-missing={rootDirLoaded && !rootDirName}
+                  >
+                    {rootDirLoaded ? (rootDirName ?? 'Not configured') : ''}
+                  </div>
+                  <button
+                    id="rootDirButton"
+                    class="settings-button"
+                    type="button"
+                    data-testid="root-dir-button"
+                    onclick={onChooseRootDir}
+                  >
+                    Choose…
+                  </button>
                 </div>
+              </div>
+            {/if}
+          </div>
+
+          {#if rootDirPath}
+            <!-- The full path on its own line (it's long), indented to align with
+                 the row text, with Choose + Open together. -->
+            <div class="settings-rootdir-path">
+              <code data-testid="root-dir-path">{rootDirPath}</code>
+              <div class="settings-rootdir-actions">
                 <button
-                  id="rootDirButton"
                   class="settings-button"
                   type="button"
                   data-testid="root-dir-button"
@@ -350,23 +370,15 @@
                 >
                   Choose…
                 </button>
+                <button
+                  class="settings-button"
+                  type="button"
+                  data-testid="root-dir-open"
+                  onclick={onOpenRootDir}
+                >
+                  Open
+                </button>
               </div>
-            </div>
-          </div>
-
-          {#if rootDirPath}
-            <!-- Full path (longer, so it sits on its own line) + Open in file
-                 manager (native, unsandboxed). -->
-            <div class="settings-rootdir-path">
-              <code data-testid="root-dir-path">{rootDirPath}</code>
-              <button
-                class="settings-button"
-                type="button"
-                data-testid="root-dir-open"
-                onclick={onOpenRootDir}
-              >
-                Open
-              </button>
             </div>
           {/if}
 

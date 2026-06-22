@@ -18,7 +18,18 @@ const app = mount(App, { target: document.getElementById('app')! });
 // unavailable). The harness injects window.__VELO_TEST_ENV__ before app code
 // runs, so its presence reliably gates registration off during tests.
 const isHarness = !!(window as unknown as { __VELO_TEST_ENV__?: unknown }).__VELO_TEST_ENV__;
-if (
+const isNativeShell = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+if (isNativeShell) {
+  // The native shell embeds the assets directly; the PWA service worker only gets
+  // in the way (e.g. it intercepts the /workouts/* seed fetches). Unregister any
+  // stale registration from a previous run.
+  if ('serviceWorker' in navigator) {
+    void navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => regs.forEach((r) => void r.unregister()))
+      .catch(() => {});
+  }
+} else if (
   !isHarness &&
   typeof navigator !== 'undefined' &&
   'serviceWorker' in navigator &&

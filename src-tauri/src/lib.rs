@@ -81,11 +81,12 @@ async fn ble_scan_role(
     ble.scan_role(r, secs.unwrap_or(5)).await
 }
 
-/// The default XDG data location for the VeloDrive folder (~/.local/share/VeloDrive).
+/// The default VeloDrive data folder: a `library` dir inside the app's own XDG
+/// data dir (~/.local/share/bike.velodrive.app), so everything lives in one place.
 #[tauri::command]
 fn fs_default_root(app: AppHandle) -> Result<String, String> {
-    let dir = app.path().data_dir().map_err(|e| e.to_string())?;
-    Ok(dir.join("VeloDrive").to_string_lossy().into_owned())
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("library").to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -155,6 +156,13 @@ pub fn run() {
         ])
         .manage(KeepAwake::default())
         .setup(|app| {
+            // Explicitly apply the branded VeloDrive icon to the window (the WM
+            // titlebar/taskbar doesn't always pick up the embedded bundle icon).
+            if let Some(icon) = app.default_window_icon().cloned() {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.set_icon(icon);
+                }
+            }
             // Init the BLE manager up front so events can fire as soon as the UI
             // calls reconnect/connect.
             let handle = app.handle().clone();
