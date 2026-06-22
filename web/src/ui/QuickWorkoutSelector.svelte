@@ -196,23 +196,39 @@
     loadForCombo();
   }
 
+  // Step within a ranked list, clamping at the ends (no wrap). When the current
+  // item isn't in the list, enter at the appropriate end. Returns the next index,
+  // or -1 to stop (already at the end).
+  function nextIndex(len: number, cur: number, dir: 1 | -1): number {
+    if (!len) return -1;
+    if (cur < 0) return dir > 0 ? 0 : len - 1;
+    const n = cur + dir;
+    return n < 0 || n >= len ? -1 : n;
+  }
+
   function step(dir: 1 | -1): void {
     // Freeride has one workout per duration, so the carets step through durations.
     if (selZone === FREERIDE_ZONE) {
       const opts = durationOptionsFor(FREERIDE_ZONE);
-      if (!opts.length) return;
-      let i = opts.findIndex((b) => b.value === selDuration);
-      if (i < 0) i = dir > 0 ? -1 : opts.length;
-      selDuration = opts[(i + dir + opts.length) % opts.length]!.value;
+      const i = nextIndex(
+        opts.length,
+        opts.findIndex((b) => b.value === selDuration),
+        dir,
+      );
+      if (i < 0) return; // at an end → stop
+      selDuration = opts[i]!.value;
       loadForCombo();
       return;
     }
     const cands = candidatesFor(selZone, selDuration);
-    if (!cands.length) return;
     const key = workoutKey(current);
-    let idx = cands.findIndex((it) => workoutKey(it.canonical) === key);
-    if (idx < 0) idx = dir > 0 ? -1 : cands.length; // start just past an end
-    load(cands[(idx + dir + cands.length) % cands.length]!);
+    const i = nextIndex(
+      cands.length,
+      cands.findIndex((it) => workoutKey(it.canonical) === key),
+      dir,
+    );
+    if (i < 0) return; // at an end → stop
+    load(cands[i]!);
   }
 
   let zoneOpen = $state(false);
