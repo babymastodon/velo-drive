@@ -1346,15 +1346,43 @@
       </div>
 
       <div class="workout-picker-header-main">
-        <div class="workout-picker-title" id="workoutPickerTitle" data-testid="picker-title">
-          {builderMode
-            ? builderTitle
-            : scheduleMode
-              ? scheduleEditMode
-                ? 'Edit Schedule'
-                : 'Schedule Workout'
-              : 'Workout library'}
-        </div>
+        {#if !builderMode && !scheduleMode && !flatMode && currentFolder}
+          <!-- In a subfolder the directory breadcrumb replaces the "Workout
+               library" title; at root the title shows. -->
+          <nav class="picker-breadcrumb picker-header-breadcrumb" aria-label="Folder path">
+            <button
+              type="button"
+              class="picker-crumb picker-crumb-home"
+              title="Workouts root"
+              aria-label="Workouts root"
+              onclick={() => enterFolder('')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 11l8-7 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M6 10v9h12v-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            {#each breadcrumbSegments as seg, i}
+              <span class="picker-crumb-sep">/</span>
+              <button
+                type="button"
+                class="picker-crumb"
+                class:picker-crumb-current={i === breadcrumbSegments.length - 1}
+                onclick={() => enterFolder(seg.path)}
+              >{seg.name}</button>
+            {/each}
+          </nav>
+        {:else}
+          <div class="workout-picker-title" id="workoutPickerTitle" data-testid="picker-title">
+            {builderMode
+              ? builderTitle
+              : scheduleMode
+                ? scheduleEditMode
+                  ? 'Edit Schedule'
+                  : 'Schedule Workout'
+                : 'Workout library'}
+          </div>
+        {/if}
       </div>
 
       <div class="workout-picker-controls">
@@ -1627,32 +1655,6 @@
             + Add workout
           </button>
         </div>
-      {/if}
-
-      {#if !flatMode && currentFolder}
-        <nav class="picker-navbar picker-breadcrumb" aria-label="Folder path">
-          <button
-            type="button"
-            class="picker-crumb picker-crumb-home"
-            title="Workouts root"
-            aria-label="Workouts root"
-            onclick={() => enterFolder('')}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 11l8-7 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M6 10v9h12v-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          {#each breadcrumbSegments as seg, i}
-            <span class="picker-crumb-sep">/</span>
-            <button
-              type="button"
-              class="picker-crumb"
-              class:picker-crumb-current={i === breadcrumbSegments.length - 1}
-              onclick={() => enterFolder(seg.path)}
-            >{seg.name}</button>
-          {/each}
-        </nav>
       {/if}
 
       <table class="workout-picker-table">
