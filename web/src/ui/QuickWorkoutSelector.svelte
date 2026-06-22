@@ -37,6 +37,7 @@
   }
   function zoneDotClass(zone: string): string {
     const z = (zone || '').toLowerCase();
+    if (z.startsWith('freeride')) return 'picker-zone-dot-freeride';
     if (z.startsWith('recovery')) return 'picker-zone-dot-recovery';
     if (z.startsWith('endurance')) return 'picker-zone-dot-endurance';
     if (z.startsWith('tempo')) return 'picker-zone-dot-tempo';
@@ -44,10 +45,6 @@
     if (z.startsWith('vo2')) return 'picker-zone-dot-vo2';
     if (z.startsWith('anaerobic')) return 'picker-zone-dot-anaerobic';
     return 'picker-zone-dot-unknown';
-  }
-
-  function bucketLabel(value: string): string {
-    return DURATION_BUCKETS.find((b) => b.value === value)?.label ?? value;
   }
 
   // Fresh-install default combo (no loaded workout, no persisted memory yet).
@@ -102,10 +99,15 @@
       // Match the loaded workout (computed straight from its cached segments so the
       // controls populate immediately — no wait for the library scan) and remember
       // it for the combo. Duration is FTP-independent, so a default FTP is exact.
-      selZone = allFreeRide(cw.rawSegments)
-        ? FREERIDE_ZONE
-        : inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
-      selDuration = getDurationBucket(computeMetricsFromSegments(cw.rawSegments, ftp).durationMin);
+      const mins = computeMetricsFromSegments(cw.rawSegments, ftp).durationMin;
+      if (allFreeRide(cw.rawSegments)) {
+        // Freeride is keyed by exact length, not a bucket.
+        selZone = FREERIDE_ZONE;
+        selDuration = String(Math.round(mins));
+      } else {
+        selZone = inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
+        selDuration = getDurationBucket(mins);
+      }
       lastSyncedKey = key;
       rememberCombo(selZone, selDuration, key);
     } else if (!cw && !selZone) {
@@ -116,15 +118,29 @@
   });
 
   const isAllFreeRide = (it: LibraryItem): boolean => allFreeRide(it.canonical.rawSegments);
+  const exactMin = (it: LibraryItem): number => Math.round(it.metrics.durationMin);
+
+  // Free-ride workouts deduped by their ACTUAL duration (one per exact length),
+  // ascending — keyed by that length in minutes.
+  function freerideOptions(): { item: LibraryItem; value: string; label: string }[] {
+    const seen = new Set<string>();
+    const out: { item: LibraryItem; value: string; label: string }[] = [];
+    for (const it of library
+      .filter(isAllFreeRide)
+      .slice()
+      .sort((a, b) => a.metrics.durationMin - b.metrics.durationMin)) {
+      const value = String(exactMin(it));
+      if (seen.has(value)) continue;
+      seen.add(value);
+      out.push({ item: it, value, label: `${value} min` });
+    }
+    return out;
+  }
 
   function candidatesFor(zone: string, dur: string): LibraryItem[] {
     if (zone === FREERIDE_ZONE) {
-      // The 100%-free-ride workouts for this duration, deduped to one (free rides
-      // of the same length are interchangeable).
-      const fr = library.filter(
-        (it) => isAllFreeRide(it) && getDurationBucket(it.metrics.durationMin) === dur,
-      );
-      return fr.slice(0, 1);
+      const o = freerideOptions().find((x) => x.value === dur);
+      return o ? [o.item] : [];
     }
     return library
       .filter(
@@ -138,15 +154,17 @@
   }
   const candidates = $derived(candidatesFor(selZone, selDuration));
 
-  // Duration buckets offered for a zone: for Freeride only the buckets that have a
-  // free-ride workout (one option per duration); all buckets otherwise.
-  function availableDurationsFor(zone: string): typeof DURATION_BUCKETS {
-    if (zone !== FREERIDE_ZONE) return DURATION_BUCKETS;
-    return DURATION_BUCKETS.filter((b) =>
-      library.some((it) => isAllFreeRide(it) && getDurationBucket(it.metrics.durationMin) === b.value),
-    );
+  // Duration drop options: Freeride lists each actual free-ride length; every other
+  // zone lists the standard buckets.
+  function durationOptionsFor(zone: string): { value: string; label: string }[] {
+    return zone === FREERIDE_ZONE
+      ? freerideOptions().map((o) => ({ value: o.value, label: o.label }))
+      : DURATION_BUCKETS.map((b) => ({ value: b.value, label: b.label }));
   }
-  const durationOptions = $derived(availableDurationsFor(selZone));
+  const durationOptions = $derived(durationOptionsFor(selZone));
+  function durationLabel(value: string): string {
+    return durationOptions.find((o) => o.value === value)?.label ?? value;
+  }
 
   function load(it: LibraryItem): void {
     rememberCombo(selZone, selDuration, workoutKey(it.canonical));
@@ -167,8 +185,8 @@
   function pickZone(z: string): void {
     zoneOpen = false;
     selZone = z;
-    // Keep the duration valid for the new zone (Freeride only offers some).
-    const avail = availableDurationsFor(z);
+    // Keep the duration valid for the new zone (Freeride lists exact lengths).
+    const avail = durationOptionsFor(z);
     if (avail.length && !avail.some((b) => b.value === selDuration)) selDuration = avail[0]!.value;
     loadForCombo();
   }
@@ -181,7 +199,7 @@
   function step(dir: 1 | -1): void {
     // Freeride has one workout per duration, so the carets step through durations.
     if (selZone === FREERIDE_ZONE) {
-      const opts = availableDurationsFor(FREERIDE_ZONE);
+      const opts = durationOptionsFor(FREERIDE_ZONE);
       if (!opts.length) return;
       let i = opts.findIndex((b) => b.value === selDuration);
       if (i < 0) i = dir > 0 ? -1 : opts.length;
@@ -247,25 +265,6 @@
   });
 </script>
 
-<!-- Zone swatch: the squiggle free-ride texture (matching the chart) for Freeride,
-     a solid color dot otherwise. `uid` makes each SVG pattern id unique. -->
-{#snippet zoneSwatch(zone: string, uid: string)}
-  {#if zone === FREERIDE_ZONE}
-    <svg class="picker-zone-dot freeride-dot" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-      <defs>
-        <pattern id={uid} patternUnits="userSpaceOnUse" width="16" height="16" patternTransform="rotate(45)">
-          <rect width="16" height="16" style="fill: var(--freeride-fill)"></rect>
-          <path d="M-8 4 Q-4 0 0 4 T8 4 T16 4 T24 4" style="fill:none;stroke:var(--freeride-stripe)" stroke-width="2.6" stroke-linecap="round"></path>
-          <path d="M-8 12 Q-4 8 0 12 T8 12 T16 12 T24 12" style="fill:none;stroke:var(--freeride-stripe)" stroke-width="2.6" stroke-linecap="round"></path>
-        </pattern>
-      </defs>
-      <rect width="16" height="16" fill="url(#{uid})"></rect>
-    </svg>
-  {:else}
-    <span class="picker-zone-dot {zoneDotClass(zone)}"></span>
-  {/if}
-{/snippet}
-
 <div class="quick-selector" data-testid="quick-selector">
   <button
     class="nav-icon-button"
@@ -292,14 +291,14 @@
         durOpen = false;
       }}
     >
-      {@render zoneSwatch(selZone, 'fr-quick-btn')}
+      <span class="picker-zone-dot {zoneDotClass(selZone)}"></span>
       <span>{selZone || 'Zone'}</span>
     </button>
     {#if zoneOpen}
       <div class="quick-menu" role="menu">
         {#each ZONES as z}
           <button class="quick-item" type="button" onclick={() => pickZone(z)}>
-            {@render zoneSwatch(z, `fr-quick-${z}`)}<span>{z}</span>
+            <span class="picker-zone-dot {zoneDotClass(z)}"></span><span>{z}</span>
           </button>
         {/each}
       </div>
@@ -319,7 +318,7 @@
         zoneOpen = false;
       }}
     >
-      <span>{selDuration ? bucketLabel(selDuration) : 'Duration'}</span>
+      <span>{selDuration ? durationLabel(selDuration) : 'Duration'}</span>
     </button>
     {#if durOpen}
       <div class="quick-menu quick-menu-scroll" role="menu">
@@ -363,12 +362,6 @@
   .quick-drop {
     position: relative;
     display: inline-flex;
-  }
-  /* The Freeride swatch is an inline SVG; clip it to the same rounded box as the
-     solid-color .picker-zone-dot swatches. */
-  .freeride-dot {
-    overflow: hidden;
-    padding: 0;
   }
   .quick-menu {
     position: absolute;

@@ -460,6 +460,25 @@
   background: transparent;
 }
 
+/* Freeride zone swatch — the chart's free-ride squiggle texture (wavy stripes in
+   --freeride-stripe over a --freeride-fill base), theme-aware + reusable anywhere
+   a zone dot is shown. */
+.picker-zone-dot-freeride {
+  position: relative;
+  overflow: hidden;
+  background: var(--freeride-fill);
+}
+.picker-zone-dot-freeride::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--freeride-stripe);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 2 Q2 0 4 2 T8 2' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linecap='round'/%3E%3Cpath d='M0 6 Q2 4 4 6 T8 6' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")
+    0 0 / 8px 8px repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 2 Q2 0 4 2 T8 2' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linecap='round'/%3E%3Cpath d='M0 6 Q2 4 4 6 T8 6' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")
+    0 0 / 8px 8px repeat;
+}
+
 .picker-expanded-row td {
   background: var(--expanded-bg);
   white-space: normal;

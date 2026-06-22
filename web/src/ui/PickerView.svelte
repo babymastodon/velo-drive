@@ -432,6 +432,7 @@
   }
   function zoneDotClass(zoneLabel: string): string {
     const z = (zoneLabel || '').toLowerCase();
+    if (z.startsWith('freeride')) return 'picker-zone-dot-freeride';
     if (z.startsWith('recovery')) return 'picker-zone-dot-recovery';
     if (z.startsWith('endurance')) return 'picker-zone-dot-endurance';
     if (z.startsWith('tempo')) return 'picker-zone-dot-tempo';
@@ -1367,6 +1368,7 @@
           onkeydown={(e) => onSelectNavKeydown(e, 'zone')}
         >
           <option value="">All zones</option>
+          <option value="Freeride">Freeride</option>
           <option value="Recovery">Recovery</option>
           <option value="Endurance">Endurance</option>
           <option value="Tempo">Tempo</option>

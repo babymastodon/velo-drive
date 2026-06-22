@@ -323,6 +323,11 @@ export function inferZoneFromSegments(
     return 'Uncategorized';
   }
 
+  // A workout that is entirely free-ride belongs to the dedicated "Freeride" zone.
+  if (rawSegments.every((s) => isFreeRideSegment(s))) {
+    return 'Freeride';
+  }
+
   const zoneTime: Record<string, number> = {
     recovery: 0,
     endurance: 0,
