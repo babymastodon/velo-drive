@@ -19,12 +19,11 @@
   import type { DialogStore } from '../state/dialog.svelte.js';
   import type { CanonicalWorkout } from '../core/model.js';
   import {
-    computeMetricsFromSegments,
-    inferZoneFromSegments,
     getDurationBucket,
     formatDurationMinSec,
     type SegmentMetrics,
   } from '../core/metrics.js';
+  import { prepareLibraryItems } from '../core/library-items.js';
   import { renderMiniWorkoutGraph } from '../core/chart.js';
   import { themeAutoVersion } from '../state/theme.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
@@ -204,9 +203,6 @@
     }
   }
 
-  function getZone(cw: CanonicalWorkout): string {
-    return inferZoneFromSegments(cw.rawSegments) || 'Uncategorized';
-  }
 
   // Name shown in the library navigator: the workout's folder path (from its
   // sourcePath) + its title. Workouts at the root just show the title. Used only
@@ -234,14 +230,9 @@
   }
 
   // --------------------------- visible (search / filter / sort) ---------------------------
-  const allItems = $derived.by<PickerItem[]>(() => {
-    const ftp = currentFtp;
-    return workouts.map((canonical) => ({
-      canonical,
-      zone: getZone(canonical),
-      metrics: computeMetricsFromSegments(canonical.rawSegments, ftp),
-    }));
-  });
+  // Memoized + pre-warmed at boot, so this is a cache hit on open (no per-workout
+  // metrics recompute) unless the FTP changed.
+  const allItems = $derived<PickerItem[]>(prepareLibraryItems(workouts, currentFtp));
 
   const visibleItems = $derived.by<PickerItem[]>(() => {
     let items = allItems;

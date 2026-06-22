@@ -13,6 +13,7 @@ import { WorkoutEngine } from '../core/engine.js';
 import { EngineStore } from '../state/engine.svelte.js';
 import { LogsStore } from '../state/logs.svelte.js';
 import { DEFAULT_FTP } from '../core/metrics.js';
+import { prepareLibraryItems } from '../core/library-items.js';
 import { applyThemeMode, loadThemeMode } from './theme.js';
 
 export interface AppContext {
@@ -110,8 +111,13 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   });
 
   // Start scanning the workout library in the background now, so the picker can
-  // open instantly later (or show a loading state if it's not done yet).
+  // open instantly later (or show a loading state if it's not done yet). Once the
+  // scan lands, pre-warm the per-workout metrics/zone the picker renders, so the
+  // open is a memo hit rather than a heavy recompute.
   fileStore.preloadWorkouts();
+  void fileStore.getWorkouts().then((lib) => {
+    prepareLibraryItems(lib, store.vm?.currentFtp || DEFAULT_FTP);
+  });
 
   return { store, engine, transport, fileStore, beeper, logs };
 }
