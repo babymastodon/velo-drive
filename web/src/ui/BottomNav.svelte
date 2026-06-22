@@ -263,7 +263,7 @@
           >{:else}{part.text}{/if}{/each}{:else}{coaching.text}{/if}
     </div>
     {#if !workoutActive && !freeRideUiActive}
-      <QuickWorkoutSelector {vm} {engine} {fileStore} />
+      <QuickWorkoutSelector {vm} {engine} {fileStore} {activeOverlay} />
     {/if}
   </div>
 
