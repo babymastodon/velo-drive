@@ -95,6 +95,22 @@
       .then((c) => {
         if (cancelled) return;
         ctx = c;
+        // Wire the native BLE device chooser to a themed dialog (web uses the
+        // browser's built-in requestDevice picker, so this is native-only).
+        const t = c.transport as unknown as {
+          onPickDevice?: (
+            role: 'bike' | 'hr',
+            devices: { id: string; name: string; rssi?: number | null }[],
+          ) => Promise<string | null>;
+        };
+        if ('onPickDevice' in t) {
+          t.onPickDevice = (role, devices) =>
+            dialogs.pickDevice(
+              role === 'hr' ? 'Heart-rate monitor' : 'Trainer',
+              `Select your ${role === 'hr' ? 'heart-rate monitor' : 'trainer'} from the devices found nearby.`,
+              devices,
+            );
+        }
         void maybeShowWelcomeThenAttention(c);
       })
       .catch((err) => {
@@ -103,6 +119,22 @@
     return () => {
       cancelled = true;
     };
+  });
+
+  // F11 toggles fullscreen in the native (Tauri) app.
+  $effect(() => {
+    if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
+    function onKey(e: KeyboardEvent): void {
+      if (e.key !== 'F11' || e.defaultPrevented) return;
+      e.preventDefault();
+      void (async () => {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const w = getCurrentWindow();
+        await w.setFullscreen(!(await w.isFullscreen()));
+      })();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   });
 
   // PWA / standalone detection.

@@ -32,6 +32,17 @@ interface BleStatus {
   deviceName: string | null;
 }
 
+export interface BleDevice {
+  id: string;
+  name: string;
+  rssi: number | null;
+}
+
+function shortErr(err: unknown): string {
+  const s = String((err as { message?: string })?.message ?? err ?? '').trim();
+  return s.length > 140 ? s.slice(0, 140) + '…' : s || 'unknown error';
+}
+
 /** Map the Rust connector states onto the interface's DeviceStatus states. */
 function mapState(s: string): DeviceStatus['state'] {
   switch (s) {
@@ -137,17 +148,77 @@ export class NativeTrainerTransport implements TrainerTransport {
     this.persistHrId = cb.saveHrId;
   }
 
+  // Set by the composition root: shows the device-chooser UI and resolves with
+  // the picked device id (or null if cancelled). When unset, falls back to the
+  // legacy auto-pick-first behavior.
+  onPickDevice: ((role: 'bike' | 'hr', devices: BleDevice[]) => Promise<string | null>) | null =
+    null;
+
   async connectBikeViaPicker(): Promise<void> {
-    // Errors also arrive as a bikeStatus 'error' event; swallow the rejection.
-    await invoke('ble_connect_bike').catch((err) =>
-      this.emit('log', 'connect bike failed: ' + String(err)),
-    );
+    await this.connectViaPicker('bike');
   }
 
   async connectHrViaPicker(): Promise<void> {
-    await invoke('ble_connect_hr').catch((err) =>
-      this.emit('log', 'connect HR failed: ' + String(err)),
-    );
+    await this.connectViaPicker('hr');
+  }
+
+  private async connectViaPicker(role: 'bike' | 'hr'): Promise<void> {
+    const evt: 'bikeStatus' | 'hrStatus' = role === 'hr' ? 'hrStatus' : 'bikeStatus';
+    const label = role === 'hr' ? 'heart-rate monitor' : 'trainer';
+
+    this.emit(evt, { state: 'connecting', message: `Scanning for your ${label}…` });
+    let devices: BleDevice[];
+    try {
+      devices = await invoke<BleDevice[]>('ble_scan', { secs: 4 });
+    } catch (err) {
+      this.emit(evt, {
+        state: 'error',
+        message: `Bluetooth scan failed — ${shortErr(err)}. Is Bluetooth turned on?`,
+      });
+      return;
+    }
+
+    const named = devices
+      .filter((d) => (d.name || '').trim())
+      .sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
+    if (!named.length) {
+      this.emit(evt, {
+        state: 'error',
+        message: `No Bluetooth devices found. Turn your ${label} on, wake it (pedal / touch the strap), and make sure it isn't connected to another app.`,
+      });
+      return;
+    }
+
+    if (!this.onPickDevice) {
+      // No chooser wired — fall back to auto-pick-first.
+      await invoke(role === 'hr' ? 'ble_connect_hr' : 'ble_connect_bike').catch((err) =>
+        this.emit(evt, { state: 'error', message: `Connect failed — ${shortErr(err)}.` }),
+      );
+      return;
+    }
+
+    let id: string | null;
+    try {
+      id = await this.onPickDevice(role, named);
+    } catch {
+      id = null;
+    }
+    if (!id) {
+      // Cancelled — back to a neutral dot, not an error.
+      this.emit(evt, { state: 'idle', message: '' });
+      return;
+    }
+
+    const dev = named.find((d) => d.id === id);
+    this.emit(evt, { state: 'connecting', message: `Connecting to ${dev?.name || 'device'}…` });
+    try {
+      await invoke('ble_connect_device', { role, id });
+    } catch (err) {
+      this.emit(evt, {
+        state: 'error',
+        message: `Couldn't connect to ${dev?.name || 'the device'} — ${shortErr(err)}.`,
+      });
+    }
   }
 
   async setTrainerState(state: TrainerState, opts?: { force?: boolean }): Promise<void> {
