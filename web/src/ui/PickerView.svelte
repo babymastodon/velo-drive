@@ -1400,38 +1400,64 @@
             </svg>
           </button>
         </div>
-        <select
-          id="pickerZoneFilter"
-          data-testid="picker-zone-filter"
-          class:picker-filter-active={!!zoneValue}
-          style:display={builderMode ? 'none' : ''}
-          bind:this={zoneSelectEl}
-          bind:value={zoneValue}
-          onkeydown={(e) => onSelectNavKeydown(e, 'zone')}
-        >
-          <option value="">All zones</option>
-          <option value="Freeride">Freeride</option>
-          <option value="Recovery">Recovery</option>
-          <option value="Endurance">Endurance</option>
-          <option value="Tempo">Tempo</option>
-          <option value="Threshold">Threshold</option>
-          <option value="VO2Max">VO2Max</option>
-          <option value="Anaerobic">Anaerobic</option>
-        </select>
-        <select
-          id="pickerDurationFilter"
-          data-testid="picker-duration-filter"
-          class:picker-filter-active={!!durationValue}
-          style:display={builderMode ? 'none' : ''}
-          bind:this={durationSelectEl}
-          bind:value={durationValue}
-          onkeydown={(e) => onSelectNavKeydown(e, 'duration')}
-        >
-          <option value="">All durations</option>
-          {#each DURATION_BUCKETS as b}
-            <option value={b.value}>{b.label}</option>
-          {/each}
-        </select>
+        <div class="picker-filter-wrap" style:display={builderMode ? 'none' : ''}>
+          <select
+            id="pickerZoneFilter"
+            data-testid="picker-zone-filter"
+            class:picker-filter-active={!!zoneValue}
+            bind:this={zoneSelectEl}
+            bind:value={zoneValue}
+            onkeydown={(e) => onSelectNavKeydown(e, 'zone')}
+          >
+            <option value="">All zones</option>
+            <option value="Freeride">Freeride</option>
+            <option value="Recovery">Recovery</option>
+            <option value="Endurance">Endurance</option>
+            <option value="Tempo">Tempo</option>
+            <option value="Threshold">Threshold</option>
+            <option value="VO2Max">VO2Max</option>
+            <option value="Anaerobic">Anaerobic</option>
+          </select>
+          {#if zoneValue}
+            <button
+              class="picker-filter-clear"
+              type="button"
+              data-testid="picker-zone-clear"
+              title="Clear zone filter"
+              aria-label="Clear zone filter"
+              onclick={() => (zoneValue = '')}
+            >
+              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            </button>
+          {/if}
+        </div>
+        <div class="picker-filter-wrap" style:display={builderMode ? 'none' : ''}>
+          <select
+            id="pickerDurationFilter"
+            data-testid="picker-duration-filter"
+            class:picker-filter-active={!!durationValue}
+            bind:this={durationSelectEl}
+            bind:value={durationValue}
+            onkeydown={(e) => onSelectNavKeydown(e, 'duration')}
+          >
+            <option value="">All durations</option>
+            {#each DURATION_BUCKETS as b}
+              <option value={b.value}>{b.label}</option>
+            {/each}
+          </select>
+          {#if durationValue}
+            <button
+              class="picker-filter-clear"
+              type="button"
+              data-testid="picker-duration-clear"
+              title="Clear duration filter"
+              aria-label="Clear duration filter"
+              onclick={() => (durationValue = '')}
+            >
+              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            </button>
+          {/if}
+        </div>
 
         <button
           type="button"
