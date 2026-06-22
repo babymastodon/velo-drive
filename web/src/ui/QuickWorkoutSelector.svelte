@@ -6,7 +6,7 @@
   import type { EngineViewModel, WorkoutEngine } from '../core/engine.js';
   import type { WebFileStore } from '../ports/web/WebFileStore.js';
   import type { CanonicalWorkout } from '../core/model.js';
-  import { DEFAULT_FTP } from '../core/metrics.js';
+  import { DEFAULT_FTP, getDurationBucket, DURATION_BUCKETS } from '../core/metrics.js';
   import { prepareLibraryItems, type LibraryItem } from '../core/library-items.js';
 
   let {
@@ -31,26 +31,6 @@
     return 'picker-zone-dot-unknown';
   }
 
-  // Duration buckets: 10-min steps to 90, 15-min steps to 240, then > 4 hours.
-  interface Bucket {
-    value: string;
-    label: string;
-    max: number;
-  }
-  const DURATION_BUCKETS: Bucket[] = (() => {
-    const out: Bucket[] = [];
-    for (let lo = 1, hi = 10; hi <= 90; lo = hi + 1, hi += 10)
-      out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });
-    for (let lo = 91, hi = 105; hi <= 240; lo = hi + 1, hi += 15)
-      out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });
-    out.push({ value: '>240', label: '> 4 hours', max: Infinity });
-    return out;
-  })();
-  function durationBucket(min: number): string {
-    if (!Number.isFinite(min)) return '>240';
-    for (const b of DURATION_BUCKETS) if (min <= b.max) return b.value;
-    return '>240';
-  }
   function bucketLabel(value: string): string {
     return DURATION_BUCKETS.find((b) => b.value === value)?.label ?? value;
   }
@@ -72,8 +52,8 @@
     });
   });
 
-  // Zone + duration filters, synced to the loaded workout when it changes (a
-  // manual change persists until the workout changes again).
+  // Zone (always a specific zone on the main page) + duration filters, synced to
+  // the loaded workout when it changes (a manual change persists until then).
   let selZone = $state('');
   let selDuration = $state('');
   let lastSyncedKey = '';
@@ -85,8 +65,13 @@
       const item = library.find((it) => workoutKey(it.canonical) === key);
       if (item) {
         selZone = item.zone;
-        selDuration = durationBucket(item.metrics.durationMin);
+        selDuration = getDurationBucket(item.metrics.durationMin);
       }
+    } else if (!selZone && library.length) {
+      // No loaded workout yet — default to the first library item's zone so the
+      // zone (and its color swatch) is always populated.
+      selZone = library[0]!.zone;
+      selDuration = getDurationBucket(library[0]!.metrics.durationMin);
     }
   });
 
@@ -96,7 +81,7 @@
       .filter(
         (it) =>
           (!selZone || it.zone === selZone) &&
-          (!selDuration || durationBucket(it.metrics.durationMin) === selDuration),
+          (!selDuration || getDurationBucket(it.metrics.durationMin) === selDuration),
       )
       .slice()
       .sort((a, b) => (a.metrics.kj ?? 0) - (b.metrics.kj ?? 0)),
@@ -121,7 +106,7 @@
 
 <div class="quick-selector" data-testid="quick-selector">
   <button
-    class="quick-caret"
+    class="inline-clicktoggle quick-caret"
     type="button"
     data-testid="quick-prev"
     title="Previous workout (lower kJ)"
@@ -132,7 +117,7 @@
 
   <div class="quick-drop">
     <button
-      class="quick-drop-btn"
+      class="inline-clicktoggle"
       type="button"
       data-testid="quick-zone"
       title="Filter by training zone"
@@ -143,16 +128,13 @@
         durOpen = false;
       }}
     >
-      {#if selZone}<span class="picker-zone-dot {zoneDotClass(selZone)}"></span>{/if}
-      <span>{selZone || 'Any zone'}</span>
+      <span class="picker-zone-dot {zoneDotClass(selZone)}"></span>
+      <span>{selZone || 'Zone'}</span>
       <span class="quick-chevron">▴</span>
     </button>
     {#if zoneOpen}
       <button class="quick-backdrop" type="button" aria-label="Close" onclick={() => (zoneOpen = false)}></button>
       <div class="quick-menu" role="menu">
-        <button class="quick-item" type="button" onclick={() => { selZone = ''; zoneOpen = false; }}>
-          <span class="picker-zone-dot picker-zone-dot-unknown"></span><span>Any zone</span>
-        </button>
         {#each ZONES as z}
           <button class="quick-item" type="button" onclick={() => { selZone = z; zoneOpen = false; }}>
             <span class="picker-zone-dot {zoneDotClass(z)}"></span><span>{z}</span>
@@ -164,7 +146,7 @@
 
   <div class="quick-drop">
     <button
-      class="quick-drop-btn"
+      class="inline-clicktoggle"
       type="button"
       data-testid="quick-duration"
       title="Filter by duration"
@@ -190,7 +172,7 @@
   </div>
 
   <button
-    class="quick-caret"
+    class="inline-clicktoggle quick-caret"
     type="button"
     data-testid="quick-next"
     title="Next workout (higher kJ)"
@@ -210,45 +192,20 @@
        the carets/drop-ups (and their menus) are clickable. */
     pointer-events: auto;
   }
+  /* Carets + drop-up buttons reuse the global .inline-clicktoggle (borderless,
+     transparent, same hover/active as the rest of the bottom bar). These only
+     add the caret glyph size + the disabled state. */
   .quick-caret {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--text-main);
-    cursor: pointer;
     font-size: 1.2rem;
     line-height: 1;
-    padding: 0 10px;
-    display: inline-flex;
-    align-items: center;
-  }
-  .quick-caret:hover:not(:disabled) {
-    background: var(--hover-light);
   }
   .quick-caret:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: default;
   }
   .quick-drop {
     position: relative;
     display: inline-flex;
-  }
-  .quick-drop-btn {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--text-main);
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--font-size-base);
-    padding: 0 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-  }
-  .quick-drop-btn:hover {
-    background: var(--hover-light);
   }
   .quick-chevron {
     font-size: 0.7em;

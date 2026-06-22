@@ -55,7 +55,7 @@ test.describe("Picker — behavior", () => {
     await openPicker(page);
 
     const before = await rows(page).count();
-    await page.getByTestId("picker-duration-filter").selectOption("1-30");
+    await page.getByTestId("picker-duration-filter").selectOption("31-40");
     await page.waitForTimeout(50);
     const after = await rows(page).count();
     expect(after).toBeLessThan(before);
@@ -640,7 +640,7 @@ test.describe("Quick workout selector", () => {
     // The zone drop-up opens upward with options.
     await page.getByTestId("quick-zone").click();
     await expect(page.locator(".quick-menu")).toBeVisible();
-    await page.locator(".quick-item", {hasText: "Any zone"}).first().click();
+    await page.locator(".quick-item", {hasText: "Endurance"}).first().click();
 
     // Stepping loads a workout onto the HUD (the name label populates).
     await page.getByTestId("quick-next").click();

@@ -417,16 +417,26 @@ export function inferZoneFromSegments(
 /**
  * Buckets duration into label used by the duration filter.
  */
+// Duration buckets shared by the picker filter + the bottom-bar quick selector:
+// 10-minute steps up to 90, 30-minute steps up to 240 (4h), then "> 4 hours".
+export interface DurationBucket {
+  value: string;
+  label: string;
+  max: number;
+}
+export const DURATION_BUCKETS: DurationBucket[] = (() => {
+  const out: DurationBucket[] = [];
+  for (let lo = 1, hi = 10; hi <= 90; lo = hi + 1, hi += 10)
+    out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });
+  for (let lo = 91, hi = 120; hi <= 240; lo = hi + 1, hi += 30)
+    out.push({ value: `${lo}-${hi}`, label: `${lo}–${hi} min`, max: hi });
+  out.push({ value: '>240', label: '> 4 hours', max: Infinity });
+  return out;
+})();
+
 export function getDurationBucket(durationMin: number): string {
   if (!Number.isFinite(durationMin)) return '>240';
-  if (durationMin <= 30) return '1-30';
-  if (durationMin <= 45) return '31-45';
-  if (durationMin <= 60) return '46-60';
-  if (durationMin <= 75) return '61-75';
-  if (durationMin <= 90) return '76-90';
-  if (durationMin <= 120) return '91-120';
-  if (durationMin <= 180) return '121-180';
-  if (durationMin <= 240) return '181-240';
+  for (const b of DURATION_BUCKETS) if (durationMin <= b.max) return b.value;
   return '>240';
 }
 
