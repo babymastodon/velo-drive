@@ -20,6 +20,7 @@
   //    rows on scroll — deep scroll just stops instead of paging. Keyboard
   //    day-nav stays within this window and scrolls the selected cell into view
   //    (scrollSelectedIntoView).
+  import { tick } from 'svelte';
   import OverlayModal from './OverlayModal.svelte';
   import type { FileStore } from '../ports/FileStore.js';
   import type { UiStore } from '../state/ui.svelte.js';
@@ -134,6 +135,9 @@
   let historyMap = $state<Map<string, HistoryPreview[]>>(new Map());
   let scheduledMap = $state<Map<string, ScheduledPreview[]>>(new Map());
   let loaded = $state(false);
+  // The calendar body stays invisible until its initial scroll-to-today is
+  // applied, so it never flashes scrolled to the top before jumping.
+  let scrollReady = $state(false);
   let calendarBodyEl = $state<HTMLDivElement | null>(null);
   let modalEl = $state<HTMLDivElement | null>(null);
 
@@ -193,6 +197,7 @@
     }
     anchorStart = startOfWeek(selectedDate);
     loaded = false;
+    scrollReady = false;
     await Promise.all([loadHistory(), loadSchedule()]);
     loaded = true;
     // Post-ride flow: if the shell opened the planner with a just-saved ride,
@@ -203,7 +208,12 @@
       ui.pendingHistoryFile = null;
       await openDetailByFile(pending.fileName, pending.date);
     }
-    // Scroll so today's week sits one row below the top.
+    // Scroll so today's week sits one row below the top — BEFORE the first
+    // paint (await tick so the rows exist + getBoundingClientRect forces layout),
+    // then reveal. A second rAF pass corrects for any late card layout.
+    await tick();
+    scrollToToday();
+    scrollReady = true;
     requestAnimationFrame(() => scrollToToday());
   }
 
@@ -905,7 +915,7 @@
           <div class="planner-day-head">Fri</div>
           <div class="planner-day-head">Sat</div>
         </div>
-        <div class="planner-calendar-body" id="plannerCalendarBody" bind:this={calendarBodyEl} data-testid="planner-calendar-body">
+        <div class="planner-calendar-body" id="plannerCalendarBody" bind:this={calendarBodyEl} data-testid="planner-calendar-body" style:visibility={loaded && !scrollReady ? 'hidden' : 'visible'}>
           {#each weeks as week, wi (wi)}
             <div class="planner-week-row" data-week-offset={wi}>
               {#each week as cell (cell.key)}
