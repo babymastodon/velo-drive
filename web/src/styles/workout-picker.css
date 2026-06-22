@@ -1574,6 +1574,14 @@ body.wb-dragging .wb-drag-handle--move {
   font-size: 0.88em;
   min-width: 0;
 }
+/* In the modal header (in a subfolder) the breadcrumb stands in for the title —
+   match its size + height, and keep it on one line. */
+.picker-header-breadcrumb {
+  font-size: var(--font-size-base);
+  min-height: var(--nav-control-height);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
 .picker-crumb {
   background: none;
   border: none;
