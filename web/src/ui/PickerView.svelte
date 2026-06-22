@@ -161,13 +161,9 @@
           expandedId = idForTitle(scheduledTitle);
           return;
         }
-        // Preserve a still-valid selection from previous usage; otherwise default
-        // to the currently-loaded workout (if the active filters allow it).
-        const preserved = !!expandedId && allItems.some((it) => workoutId(it.canonical) === expandedId);
-        if (!preserved) {
-          expandedId = null;
-          selectCurrentWorkoutIfVisible();
-        }
+        // Always land on the currently-loaded workout when the filters allow it.
+        expandedId = null;
+        selectCurrentWorkoutIfVisible();
       })();
     }
   });

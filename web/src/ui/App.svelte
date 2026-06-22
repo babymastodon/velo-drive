@@ -419,6 +419,7 @@
     engine={ctx.engine}
     transport={ctx.transport}
     {dialogs}
+    fileStore={ctx.fileStore}
     onOpenSettings={() => ui.open('settings')}
     onOpenPicker={openPicker}
     onOpenPlanner={openPlanner}

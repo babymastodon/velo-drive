@@ -624,3 +624,27 @@ test.describe("Picker — restore last overlay on boot", () => {
     expect(await rows(page).count()).toBeGreaterThan(5);
   });
 });
+
+// The bottom-bar quick workout selector (zone/duration drop-ups + ‹ › carets).
+test.describe("Quick workout selector", () => {
+  test("renders carets + zone/duration drop-ups and steps to a workout", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    await expect(page.getByTestId("quick-selector")).toBeVisible();
+    await expect(page.getByTestId("quick-prev")).toBeVisible();
+    await expect(page.getByTestId("quick-next")).toBeVisible();
+    await expect(page.getByTestId("quick-zone")).toBeVisible();
+    await expect(page.getByTestId("quick-duration")).toBeVisible();
+
+    // The zone drop-up opens upward with options.
+    await page.getByTestId("quick-zone").click();
+    await expect(page.locator(".quick-menu")).toBeVisible();
+    await page.locator(".quick-item", {hasText: "Any zone"}).first().click();
+
+    // Stepping loads a workout onto the HUD (the name label populates).
+    await page.getByTestId("quick-next").click();
+    await page.waitForTimeout(60);
+    expect((await page.getByTestId("workout-name-label").textContent())?.trim().length || 0).toBeGreaterThan(0);
+  });
+});
