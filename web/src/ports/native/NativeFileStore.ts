@@ -32,7 +32,7 @@ export class NativeFileStore extends WebFileStore {
       await root.getDirectoryHandle('history', { create: true });
       await root.getDirectoryHandle('trash', { create: true });
       await this.maybeSeedDefaultWorkouts(workouts);
-      this.invalidatePreloadedWorkouts();
+      this.resetFolderCaches();
     } catch (err) {
       console.error('[NativeFileStore] ensureDefaultRoot failed:', err);
     }
@@ -61,7 +61,12 @@ export class NativeFileStore extends WebFileStore {
       await root.getDirectoryHandle('trash', { create: true });
       // Seed the bundled defaults when the library is empty (same as the web path).
       await this.maybeSeedDefaultWorkouts(workouts);
-      this.invalidatePreloadedWorkouts();
+      // Drop folder-derived caches (history-dir handle, stats cache, preloaded
+      // library) so the calendar/history/picker re-read the new folder instead of
+      // showing the old one until relaunch. This is the native half of the bug:
+      // unlike the web path, pickRootDir here never reset the cached history-dir
+      // handle, so the planner kept listing the previous folder's history/.
+      this.resetFolderCaches();
       return root;
     } catch (err) {
       console.error('[NativeFileStore] pickRootDir failed:', err);

@@ -356,8 +356,9 @@ export class WebFileStore implements FileStore {
       await this.saveHandle(ZWO_DIR_KEY, workouts);
       await this.saveHandle(WORKOUT_DIR_KEY, history);
       await this.saveHandle(TRASH_DIR_KEY, trash);
-      this.workoutDirHandle = history;
-      this.invalidatePreloadedWorkouts();
+      // Drop folder-derived caches so the calendar/history/picker re-read the new
+      // folder. The freshly saved WORKOUT_DIR_KEY handle is re-resolved on demand.
+      this.resetFolderCaches();
       return root;
     } catch (err) {
       if ((err as { name?: string })?.name === 'AbortError') return null;
@@ -606,6 +607,21 @@ export class WebFileStore implements FileStore {
   protected invalidatePreloadedWorkouts(): void {
     this.preloadedWorkouts = null;
     this.preloadingWorkouts = null;
+  }
+
+  /**
+   * Drop every in-memory cache that's derived from the current root folder: the
+   * resolved history-dir handle (`workoutDirHandle`), the per-file history stats
+   * cache, and the preloaded workout library. Call this whenever the root folder
+   * changes so the picker, calendar and history re-read the NEW folder instead of
+   * serving the previous folder's data until the app is relaunched — relaunching
+   * is exactly what used to be required, because that's the only thing that reset
+   * these in-memory caches.
+   */
+  protected resetFolderCaches(): void {
+    this.workoutDirHandle = null;
+    this.statsCache = null;
+    this.invalidatePreloadedWorkouts();
   }
 
   /** Force a fresh scan + refresh the in-memory library (after save/delete/import

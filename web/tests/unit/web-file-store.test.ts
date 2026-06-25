@@ -19,6 +19,7 @@ import {
   createFakeIndexedDB,
 } from "../../harness/file-store.js";
 import {WebFileStore} from "../../src/ports/web/WebFileStore.js";
+import type {FsDirHandle} from "../../src/ports/FileStore.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_WORKOUTS = resolve(__dirname, "..", "..", "public", "workouts");
@@ -298,5 +299,56 @@ describe("WebFileStore.setSetting de-proxies values (selectedWorkout reload regr
     expect(back).toMatchObject({workoutTitle: "Sleepy Spin"});
     // The stored value is now plain -> survives the real structured clone.
     expect(() => structuredClone(back)).not.toThrow();
+  });
+});
+
+describe("WebFileStore.resetFolderCaches drops the cached history dir (folder-change regression)", () => {
+  // Regression for the "change folder doesn't update the calendar until relaunch"
+  // bug: loadWorkoutDirHandle() memoizes the resolved history dir in
+  // `workoutDirHandle`. When the root folder changes, that cache must be dropped
+  // so the planner/history re-read the NEW folder's history/ — otherwise it keeps
+  // listing the OLD folder until the app is relaunched (which is the only thing
+  // that used to clear the in-memory cache). The native store hit this because,
+  // unlike the web pickRootDir, it never reset the handle; both now route through
+  // the shared resetFolderCaches().
+  //
+  // Probe swaps the resolved root the way changing folders does (native swaps the
+  // path, web re-resolves a new handle) and exposes the protected reset.
+  class Probe extends WebFileStore {
+    current!: FakeFileSystemDirectoryHandle;
+    override async loadRootDirHandle(): Promise<FsDirHandle | null> {
+      return this.current as unknown as FsDirHandle;
+    }
+    runReset(): void {
+      this.resetFolderCaches();
+    }
+  }
+
+  beforeEach(() => {
+    // Empty IndexedDB so loadHandle(WORKOUT_DIR_KEY) misses and the history dir is
+    // resolved from the (swappable) root, exercising the cache.
+    const {indexedDB} = createFakeIndexedDB({});
+    (globalThis as unknown as {indexedDB: unknown}).indexedDB = indexedDB;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("re-resolves the history dir from the new root after a reset", async () => {
+    const rootA = new FakeFileSystemDirectoryHandle("FolderA");
+    const rootB = new FakeFileSystemDirectoryHandle("FolderB");
+    const histB = await rootB.getDirectoryHandle("history", {create: true});
+
+    const probe = new Probe();
+    probe.current = rootA;
+    const firstHistory = await probe.loadWorkoutDirHandle(); // caches FolderA/history
+    expect(firstHistory).not.toBeNull();
+
+    // Change the folder: point at FolderB and clear the folder-derived caches.
+    probe.current = rootB;
+    probe.runReset();
+
+    const afterHistory = await probe.loadWorkoutDirHandle();
+    // Without the reset this would still be FolderA's cached history (the bug).
+    expect(afterHistory).toBe(histB);
+    expect(afterHistory).not.toBe(firstHistory);
   });
 });
