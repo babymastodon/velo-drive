@@ -10,6 +10,15 @@ publish = false
 name = "velodrive_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
+[features]
+# Production builds MUST enable this: it flips Tauri from dev mode (loads the
+# `devUrl` dev server at http://localhost:5173) to prod mode (serves the embedded
+# `frontendDist` via the tauri:// protocol). `cargo tauri build` passes it
+# automatically; our plain `cargo build` must pass `--features custom-protocol`
+# (the build script does). Without it the packaged app shows
+# "Could not connect to localhost: Connection refused".
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

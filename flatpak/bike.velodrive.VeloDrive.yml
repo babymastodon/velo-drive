@@ -5,15 +5,19 @@
 # Flatpak would. Build the binary first, then flatpak-builder:
 #
 #   npm --prefix ../web run build
-#   cargo build --release --manifest-path ../src-tauri/Cargo.toml
+#   cargo build --release --features custom-protocol --manifest-path ../src-tauri/Cargo.toml
 #   flatpak-builder --user --install --force-clean build-dir flatpak/bike.velodrive.VeloDrive.yml
 #
+# (--features custom-protocol is required, else the app loads the dev server and
+# shows "Could not connect to localhost". The scripts/build-flatpak.sh helper
+# does all of this for you.)
+#
 # The runtime version may need bumping to one you have installed
-# (`flatpak install flathub org.gnome.Platform//47 org.gnome.Sdk//47`).
+# (`flatpak install flathub org.gnome.Platform//49 org.gnome.Sdk//49`).
 
 app-id: bike.velodrive.VeloDrive
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '49'
 sdk: org.gnome.Sdk
 command: velodrive
 
