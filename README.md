@@ -41,14 +41,28 @@ webview. Its main advantages over the PWA:
 * **More reliable Bluetooth** — it talks to the trainer and heart-rate monitor through a native BlueZ connector (with remember-and-reconnect on launch), instead of the browser's Web Bluetooth, which is flakier and can't auto-reconnect.
 * **Import from more sites** — workout-URL imports (e.g. **WhatsOnZwift** and TrainerDay) route through native HTTP, bypassing the browser CORS restrictions that block them in the PWA.
 
-Build + install from this repo (needs `flatpak` + the GNOME runtime + `flatpak-builder`):
+Build + install from this repo with the one-step script (needs `node`/`npm`,
+`cargo`, and `flatpak`; it checks the rest and installs the missing Flatpak
+runtime/SDK/`flatpak-builder` from Flathub for you):
+
+```sh
+scripts/build-flatpak.sh          # build + install
+scripts/build-flatpak.sh --run    # build + install, then launch
+flatpak run bike.velodrive.VeloDrive
+```
+
+<details><summary>Manual steps (what the script runs)</summary>
 
 ```sh
 npm --prefix web run build
-cargo build --release --manifest-path src-tauri/Cargo.toml
+# --features custom-protocol is REQUIRED — without it the app launches in dev
+# mode and shows "Could not connect to localhost: Connection refused".
+cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
 flatpak-builder --user --install --force-clean flatpak/build-dir flatpak/bike.velodrive.VeloDrive.yml
 flatpak run bike.velodrive.VeloDrive
 ```
+
+</details>
 
 See [`flatpak/`](./flatpak) for packaging details.
 
