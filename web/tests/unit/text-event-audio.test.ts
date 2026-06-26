@@ -16,6 +16,8 @@ describe("engine text-event audio cue", () => {
     const taps = vi.fn();
     const beeper = {
       setEnabled() {},
+      keepAwake() {},
+      releaseKeepAwake() {},
       runStartCountdown(onDone: () => void) {
         onDone();
       },

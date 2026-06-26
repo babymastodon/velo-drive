@@ -10,10 +10,12 @@
 // countdown shows the big "3/2/1/Start" labels; when absent the countdown still
 // runs on the (virtual) clock and fires onDone.
 
-type AudioContextCtor = new () => AudioContext;
+type AudioContextCtor = new (opts?: { latencyHint?: 'interactive' | 'balanced' | 'playback' | number }) => AudioContext;
 
 export interface BeeperLike {
   setEnabled(flag: boolean): void;
+  keepAwake(): void;
+  releaseKeepAwake(): void;
   runStartCountdown(onDone: () => void): void;
   showPausedOverlay(): void;
   showResumedOverlay(): void;
@@ -28,6 +30,13 @@ export class Beeper implements BeeperLike {
   private audioCtx: AudioContext | null = null;
   private timeouts: number[] = [];
   private countdownRunning = false;
+  // Inaudible node that holds the AudioContext (and its GStreamer/PulseAudio
+  // output pipeline) in the `running` state for the duration of a ride. On
+  // WebKitGTK (the Tauri webview) an idle context spins its pipeline down, and
+  // resuming it on-demand at cue time costs SECONDS — so mid-ride beeps land late.
+  // Keeping this silent source alive prevents the spin-down. See keepAwake().
+  private keepAliveNode: OscillatorNode | null = null;
+  private keepAliveGain: GainNode | null = null;
 
   constructor() {
     this.installAudioPrimer();
@@ -59,6 +68,50 @@ export class Beeper implements BeeperLike {
   /** Create (if needed) and resume the AudioContext. Safe to call repeatedly. */
   warmUp(): void {
     this.ensureAudioContext();
+  }
+
+  /**
+   * Keep the AudioContext's output pipeline alive so mid-ride cues fire instantly
+   * instead of paying WebKitGTK's multi-second pipeline-resume latency. Call when
+   * a ride starts. Attaches a permanently-silent oscillator (gain 0) to the
+   * destination — inaudible, but enough to stop the engine from idling the
+   * pipeline. Idempotent and harness-safe (no AudioContext → no-op). Survives
+   * mute: this is about latency, not loudness, so it ignores `enabled`/`volume`.
+   */
+  keepAwake(): void {
+    const ctx = this.ensureAudioContext();
+    if (!ctx || this.keepAliveNode) return;
+    try {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.value = 0; // fully silent
+      osc.frequency.value = 20; // sub-audible; gain 0 makes it inaudible anyway
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start();
+      this.keepAliveNode = osc;
+      this.keepAliveGain = g;
+    } catch {
+      /* ignore — best effort */
+    }
+  }
+
+  /** Tear down the keep-alive node (call when the ride ends), letting the context
+   *  idle normally. Safe to call when nothing is running. */
+  releaseKeepAwake(): void {
+    try {
+      this.keepAliveNode?.stop();
+    } catch {
+      /* already stopped */
+    }
+    try {
+      this.keepAliveNode?.disconnect();
+      this.keepAliveGain?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    this.keepAliveNode = null;
+    this.keepAliveGain = null;
   }
 
   private get statusOverlay(): HTMLElement | null {
@@ -93,7 +146,14 @@ export class Beeper implements BeeperLike {
       const Ctor = (window as unknown as { AudioContext?: AudioContextCtor }).AudioContext;
       if (!Ctor) return null;
       try {
-        this.audioCtx = new Ctor();
+        // `interactive` requests the lowest-latency output buffer (WebKitGTK
+        // otherwise picks a higher-latency default). Fall back to the no-arg
+        // ctor if the options form isn't accepted.
+        try {
+          this.audioCtx = new Ctor({ latencyHint: 'interactive' });
+        } catch {
+          this.audioCtx = new Ctor();
+        }
       } catch {
         this.audioCtx = null;
       }

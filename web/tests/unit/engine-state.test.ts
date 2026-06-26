@@ -68,6 +68,8 @@ function makeClock() {
 function makeBeeper() {
   return {
     setEnabled() {},
+    keepAwake() {},
+    releaseKeepAwake() {},
     // Synchronous countdown so beginRun runs inline (matches text-event test).
     runStartCountdown(onDone: () => void) {
       onDone();
