@@ -171,6 +171,82 @@ WebKitGTK 2.50 (Skia GPU path may have fixed the original bug).
 
 ---
 
+## Verdict — per full code analysis (2026-06-25)
+
+A deeper read settled which option actually works against the real code. Two new
+facts reshape the picture:
+
+**A. The 3k blowup only happens in "Show all" mode or a large *flat* folder.**
+`navEntries` (`ui/PickerView.svelte:355-388`) renders only the **current folder's**
+contents in the default browse mode — subfolders + workouts directly in it. So a
+foldered library is already cheap to browse. The slow path is:
+- **"Show all folders"** (`flatMode`, default `false`, `ui/PickerView.svelte:349`),
+  which flattens all ~3000 into one list; and
+- a single folder that *is* flat with thousands in it — note the **TrainerDay
+  import is flat** (`core/importers.ts:116`, `sourcePath = TrainerDay/<title>.zwo`),
+  whereas **WhatsOnZwift is foldered by collection**
+  (`core/importers.ts:193`, `WhatsOnZwift/<collection>/<name>.zwo`).
+
+**B. The `<table>` is AUTO layout — a second, independent cost.**
+`styles/workout-picker.css:375` declares `.workout-picker-table { width:100%;
+border-collapse:collapse }` with **no `table-layout: fixed`**. Auto layout makes
+the engine measure every cell across all 3000 rows to compute column widths — a
+global, superlinear pass that is separate from paint. The scroll container is
+`.workout-picker-table-wrapper { overflow:auto }` (`:365`) with a `position:sticky`
+`thead` (`:381`).
+
+So the slowness is **two compounding costs**: (a) the global auto-table column
+sizing, and (b) laying out + software-painting ~27k nodes.
+
+### Feasibility of each option against the real code
+
+| Option | Fixes (a)? | Fixes (b)? | Preserves scroll/keyboard/Ctrl+F? | Effort/risk |
+|---|---|---|---|---|
+| **1. De-table → grid rows + `content-visibility:auto`** | ✅ (no table) | ✅ (skips off-screen layout+paint) | ✅ rows stay in DOM | medium / low |
+| **2. Virtualization** | ✅ | ✅ (fewer nodes) | ⚠️ breaks `scrollIntoView` + Ctrl+F | high / med-high |
+| **3. Re-enable GPU/DMABUF** | ❌ | partial (paint only) | ✅ no UI change | low / hardware-uncertain |
+
+Hard code constraints that decide it:
+- **`content-visibility:auto` does not apply to `display:table-row`/`-cell`** (internal
+  table boxes can't take layout/size containment). So option 1 genuinely *requires*
+  dropping the `<table>` — but dropping it also removes cost (a) for free.
+- **Scroll-to-selected uses `row.scrollIntoView({block:'nearest'})`**
+  (`ui/PickerView.svelte:229-237`) and **`j`/`k` keyboard nav**
+  (`:1231-1236`) both assume the target row is in the DOM. Option 1 keeps that
+  true; **option 2 would break both** and force a `scrollToIndex` + measured-height
+  reimplementation.
+- Rows are uniform-height (~28px; `.picker-row` has no explicit height,
+  `td` padding `4px 8px`, `white-space:nowrap`) and **only one row is ever expanded**
+  (`expandedId` is a single value, `:78`). That makes `contain-intrinsic-size`
+  accurate for option 1, and is the *only* variable-height case option 2 would have
+  to special-case.
+
+### Recommendation
+**Option 1 is the best and the one that will actually work.** It's the only choice
+that fixes *both* costs while leaving native scroll, keyboard nav, Ctrl+F, sticky
+header, and the existing `scrollIntoView`/selection logic intact. Concretely:
+- Convert `thead`/`tbody`/`tr`/`td` to a sticky grid header + block/`display:grid`
+  rows with a fixed `grid-template-columns`; folder rows and the expanded row span
+  all columns (`grid-column: 1 / -1`).
+- Add `content-visibility:auto; contain-intrinsic-size: 0 28px` to each row.
+- `scrollIntoView` and `.picker-expanded-row`/`.picker-folder-selected` queries keep
+  working (they're just divs now); `scrollMarginTop` uses the sticky header height.
+
+**Option 2 (virtualization) is not worth it here:** it's strictly more work and more
+UX risk for no extra benefit once option 1 skips off-screen layout/paint — and folder
+mode already bounds the common case.
+
+**Option 3 (GPU) is a complement, not a fix:** it only speeds paint, leaves the
+auto-table layout cost untouched, and risks reviving the blank-render bug the flag
+was added for. Worth testing *after* option 1 if paint still dominates.
+
+### Cheap step 0 (measurement + partial win, zero structural change)
+Add `table-layout: fixed` + explicit column widths to the existing `<table>`. This
+removes cost (a) — the global column-sizing pass — with **no markup/scroll change**,
+and the before/after tells us how much of the slowness is layout (a) vs paint (b).
+If it alone makes it usable, the table refactor can be deprioritized; if paint still
+crawls, that confirms option 1's `content-visibility` (or option 3) is needed.
+
 ## Sources
 - Tauri Linux perf: https://github.com/tauri-apps/tauri/issues/3988
 - wry perf: https://github.com/tauri-apps/wry/issues/890
