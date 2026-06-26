@@ -373,12 +373,24 @@
 }
 
 .workout-picker-table {
+  /* We keep the <table>/<thead>/<tbody>/<tr>/<td> ELEMENTS but lay them out with
+     CSS grid instead of table layout. Two wins for big (3000+) libraries on
+     WebKitGTK: (1) it drops the auto table-layout column-sizing pass — a global
+     measure of every cell across every row — and (2) it lets `content-visibility`
+     apply to rows (it has no effect on real table-row boxes), so off-screen rows
+     skip layout + paint entirely. */
   width: 100%;
-  border-collapse: collapse;
+  display: block;
   font-size: var(--font-size-base);
+  /* One shared column template, used by the header row AND every data row, so the
+     columns line up. The widths are FIXED (not content-derived) on purpose:
+     content-visibility skips off-screen rows, so columns can't auto-size to the
+     widest cell across all rows. Name flexes; the rest are sized generously. */
+  --picker-cols: minmax(8rem, 1fr) 9rem 11rem 5rem 5rem 9rem 6rem;
 }
 
 .workout-picker-table thead {
+  display: block;
   position: sticky;
   top: 0;
   background: var(--surface);
@@ -386,12 +398,50 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.workout-picker-table tbody {
+  display: block;
+}
+
+.workout-picker-table thead tr,
+.workout-picker-table tbody tr {
+  display: grid;
+  grid-template-columns: var(--picker-cols);
+  align-items: center;
+}
+
+/* Off-screen rows skip layout + paint; the reserved height keeps the scrollbar
+   length honest (~32px ≈ one single-line row). The row border lives here (not on
+   each cell) so it always renders as one clean line regardless of cell heights. */
+.workout-picker-table tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 32px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .workout-picker-table th,
 .workout-picker-table td {
-  padding: 4px 8px 4px 8px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 8px;
   text-align: left;
   white-space: nowrap;
+  min-width: 0; /* let grid cells shrink so text can ellipsize instead of overflow */
+}
+
+.workout-picker-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Full-width rows (folder up/rows and the expanded detail) span all columns. */
+.picker-folder-row > td,
+.picker-folder-up > td,
+.picker-expanded-row > td {
+  grid-column: 1 / -1;
+}
+
+/* At most one expanded (tall) row exists and it's the one in focus, so always
+   render it rather than reserve a wrong intrinsic height for it. */
+.picker-expanded-row {
+  content-visibility: visible;
 }
 
 .workout-picker-table th {
@@ -425,7 +475,7 @@
   content: "▼";
 }
 
-.workout-picker-table tbody tr:last-child td {
+.workout-picker-table tbody tr:last-child {
   border-bottom: none;
 }
 
@@ -508,6 +558,9 @@
 .picker-expanded-row td {
   background: var(--expanded-bg);
   white-space: normal;
+  /* Detail block, not a single-line cell — opt out of the row-cell ellipsis/clip. */
+  overflow: visible;
+  text-overflow: clip;
   padding-top: 4px;
   padding-bottom: 4px;
 }
