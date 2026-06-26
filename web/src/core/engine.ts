@@ -429,6 +429,11 @@ export class WorkoutEngine {
 
   private startTicker(): void {
     if (this.workoutTicker) return;
+    // Hold the audio output pipeline open for the whole ride so interval/text
+    // cues fire instantly. Without this, WebKitGTK (the Tauri webview) idles the
+    // pipeline between cues and resuming it on-demand costs seconds, so mid-ride
+    // beeps land late. No-op on Chrome (already low-latency) and under the harness.
+    this.beeper.keepAwake();
     this.lastTickWallMs = this.now();
     this.workoutTicker = this._setInterval(() => {
       void this.tick();
@@ -538,6 +543,8 @@ export class WorkoutEngine {
     if (!this.workoutTicker) return;
     this._clearInterval(this.workoutTicker);
     this.workoutTicker = null;
+    // Let the audio pipeline idle again once the ride is over.
+    this.beeper.releaseKeepAwake();
   }
 
   // --------- state transitions ---------
