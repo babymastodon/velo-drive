@@ -652,6 +652,11 @@
   max-width: 100%;
   min-width: 0;
   position: relative;
+  /* Reserve the chart's height up front. The SVG (.picker-graph-svg, 200px) is
+     drawn on a later rAF by the miniChart action, so without this the expanded
+     row is ~200px too short for the frame in which auto-scroll measures it —
+     which scrolled the row only partway and cut the bottom off. */
+  min-height: 200px;
 }
 
 .picker-detail {

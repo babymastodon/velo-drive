@@ -222,24 +222,52 @@
   // extra frame; reset after one use (j/k scrolls don't pay that cost).
   let openScrollPending = false;
   $effect(() => {
-    if (!expandedId && !selectedFolderPath) return;
+    if (expandedId === null && selectedFolderPath === null) return;
     const isOpenScroll = openScrollPending;
     openScrollPending = false;
-    const run = (): void => {
+    // Returns true once the row is fully within the band (no scroll needed), so
+    // the caller can stop re-correcting.
+    const run = (): boolean => {
       const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
         tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
-      if (!row) return;
-      // The table header is sticky, so leave room for it when scrolling up —
-      // otherwise it covers the top of the row (and its action buttons).
+      if (!row) return true;
+      const wrapper = tbodyEl?.closest('.workout-picker-table-wrapper') as HTMLElement | null;
+      if (!wrapper) return true;
+      // The header is sticky, so the usable band starts below it — otherwise it
+      // covers the top of the row (and its action buttons).
       const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
-      row.style.scrollMarginTop = `${(thead?.offsetHeight ?? 0) + 6}px`;
-      // Instant jump — a smooth animation across thousands of rows takes seconds.
-      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      const headerH = (thead?.offsetHeight ?? 0) + 6;
+      // Manual scroll (not scrollIntoView({block:'nearest'})): a freshly EXPANDED
+      // row grows downward, and 'nearest' considers it "already visible" by its top
+      // edge, leaving the tall body cut off at the bottom of the viewport. Compute
+      // the scroll delta ourselves so the whole row is revealed; if it's taller
+      // than the band, align its top under the header.
+      const rowRect = row.getBoundingClientRect();
+      const wrapRect = wrapper.getBoundingClientRect();
+      const viewTop = wrapRect.top + headerH;
+      let delta = 0;
+      if (rowRect.top < viewTop || rowRect.height > wrapRect.bottom - viewTop) {
+        delta = rowRect.top - viewTop; // above header, or taller than band → align top
+      } else if (rowRect.bottom > wrapRect.bottom) {
+        delta = rowRect.bottom - wrapRect.bottom; // below the fold → reveal the bottom
+      }
+      if (Math.abs(delta) < 1) return true; // already fully visible
+      wrapper.scrollTop += delta;
+      return false;
+    };
+    // Re-correct on the next frame after each scroll: with content-visibility,
+    // scrolling reveals previously-skipped rows whose real heights replace the
+    // intrinsic estimate, which can nudge the target's position — so one scroll
+    // isn't always enough. Settle in up to a few passes.
+    let passes = 0;
+    const settle = (): void => {
+      if (run() || ++passes >= 4) return;
+      requestAnimationFrame(settle);
     };
     // On OPEN, defer an extra frame so the (un-virtualized) list paints before the
     // layout-forcing jump (otherwise the picker stalls ~1s on huge libraries). For
     // j/k navigation the list is already laid out — one frame, so it stays snappy.
-    requestAnimationFrame(isOpenScroll ? () => requestAnimationFrame(run) : run);
+    requestAnimationFrame(isOpenScroll ? () => requestAnimationFrame(settle) : settle);
   });
 
   let scanning = $state(false);
@@ -348,9 +376,10 @@
   // folder counts then reflect the number of matches).
   const flatMode = $derived(showAllFolders);
 
+  type NavUp = { kind: 'up'; path: string };
   type NavFolder = { kind: 'folder'; name: string; path: string; count: number };
   type NavWorkout = { kind: 'workout'; item: PickerItem; label: string };
-  type NavEntry = NavFolder | NavWorkout;
+  type NavEntry = NavUp | NavFolder | NavWorkout;
 
   const navEntries = $derived.by<NavEntry[]>(() => {
     if (flatMode) {
@@ -384,7 +413,10 @@
     const folders: NavEntry[] = [...folderCounts.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, count]) => ({ kind: 'folder', name, path: prefix + name, count }));
-    return [...folders, ...workoutsHere];
+    // The ".." up row is a real nav entry (not separate markup) so the keyboard
+    // cursor can land on it; Enter/click then ascends to the parent folder.
+    const up: NavEntry[] = currentFolder ? [{ kind: 'up', path: folderParent(currentFolder) }] : [];
+    return [...up, ...folders, ...workoutsHere];
   });
 
   // The workout rows actually shown right now (current folder, or all in flat
@@ -401,6 +433,7 @@
   });
 
   function navEntryKey(e: NavEntry): string {
+    if (e.kind === 'up') return 'up';
     return e.kind === 'folder'
       ? 'f:' + e.path
       : 'w:' + (e.item.canonical.sourcePath ?? e.item.canonical.workoutTitle);
@@ -1107,19 +1140,20 @@
     const entries = navEntries;
     if (!entries.length) return;
     let idx = entries.findIndex((e) =>
-      e.kind === 'folder'
-        ? e.path === selectedFolderPath
-        : workoutId(e.item.canonical) === expandedId,
+      e.kind === 'workout'
+        ? workoutId(e.item.canonical) === expandedId
+        : e.path === selectedFolderPath,
     );
     if (idx === -1) idx = delta > 0 ? 0 : entries.length - 1;
     else idx = (idx + delta + entries.length) % entries.length;
     const e = entries[idx]!;
-    if (e.kind === 'folder') {
-      selectedFolderPath = e.path;
-      expandedId = null;
-    } else {
+    if (e.kind === 'workout') {
       expandedId = workoutId(e.item.canonical);
       selectedFolderPath = null;
+    } else {
+      // folder or ".." up — highlight it; Enter ascends/descends.
+      selectedFolderPath = e.path;
+      expandedId = null;
     }
   }
 
@@ -1208,8 +1242,10 @@
     }
 
     if (key === 'enter') {
-      // Enter on a highlighted folder descends into it; on a workout, selects it.
-      if (selectedFolderPath) {
+      // Enter on a highlighted folder descends into it, on ".." ascends, on a
+      // workout selects it. Compare to null (not truthiness): the ".." up entry's
+      // path is '' when the parent is the root, which is a valid selection.
+      if (selectedFolderPath !== null) {
         e.preventDefault();
         enterFolder(selectedFolderPath);
         return true;
@@ -1670,24 +1706,24 @@
           </tr>
         </thead>
         <tbody id="pickerWorkoutTbody" data-testid="picker-tbody" bind:this={tbodyEl}>
-          {#if !flatMode && currentFolder}
-            <tr
-              class="picker-folder-row picker-folder-up"
-              data-testid="picker-folder-up"
-              onclick={() => enterFolder(folderParent(currentFolder))}
-            >
-              <td colspan="7">
-                <span class="picker-folder-cell">
-                  <svg viewBox="0 0 24 24" class="picker-folder-icon" aria-hidden="true">
-                    <path d="M5 12l7-7 7 7M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  <span class="picker-folder-name">..</span>
-                </span>
-              </td>
-            </tr>
-          {/if}
           {#each navEntries as entry (navEntryKey(entry))}
-            {#if entry.kind === 'folder'}
+            {#if entry.kind === 'up'}
+              <tr
+                class="picker-folder-row picker-folder-up"
+                class:picker-folder-selected={selectedFolderPath === entry.path}
+                data-testid="picker-folder-up"
+                onclick={() => enterFolder(entry.path)}
+              >
+                <td colspan="7">
+                  <span class="picker-folder-cell">
+                    <svg viewBox="0 0 24 24" class="picker-folder-icon" aria-hidden="true">
+                      <path d="M5 12l7-7 7 7M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span class="picker-folder-name">..</span>
+                  </span>
+                </td>
+              </tr>
+            {:else if entry.kind === 'folder'}
               <tr
                 class="picker-folder-row"
                 class:picker-folder-selected={selectedFolderPath === entry.path}
