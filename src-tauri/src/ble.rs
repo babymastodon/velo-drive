@@ -243,10 +243,11 @@ impl Ble {
     }
 
     /// Disconnect everything cleanly (on app exit) so other apps can use the
-    /// trainer/HRM. Best-effort.
+    /// trainer/HRM. Best-effort and concurrent — BlueZ takes ~2s to answer
+    /// each Disconnect(), so serializing them doubles the exit wait. Callers
+    /// bound the total wait (see the ExitRequested handler).
     pub async fn shutdown(&self) {
-        let _ = self.disconnect(Role::Bike).await;
-        let _ = self.disconnect(Role::Hr).await;
+        let _ = tokio::join!(self.disconnect(Role::Bike), self.disconnect(Role::Hr));
     }
 
     async fn bike_control(&self) -> Result<(Peripheral, Characteristic), String> {
