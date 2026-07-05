@@ -263,6 +263,34 @@ function renderSegmentPolygon(args: {
 const hoverCleanupMap = new WeakMap<SVGSVGElement, () => void>();
 let lastHoveredSegment: SVGPolygonElement | null = null;
 
+/** Place `tooltipEl` near the cursor, clamped inside `containerEl` (its
+ * positioned ancestor) and the svg's horizontal extent. */
+function placeTooltip(
+  tooltipEl: HTMLElement,
+  containerEl: HTMLElement,
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): void {
+  const panelRect = containerEl.getBoundingClientRect();
+  const svgRect = svg.getBoundingClientRect();
+  const baseLeft = svgRect.left - panelRect.left;
+  const viewWidth = svgRect.width || panelRect.width;
+  let tx = clientX - panelRect.left + 8;
+  let ty = clientY - panelRect.top + 8;
+
+  const ttRect = tooltipEl.getBoundingClientRect();
+  const minX = baseLeft;
+  const maxX = minX + viewWidth - ttRect.width - 4;
+  if (tx > maxX) tx = maxX;
+  if (tx < minX) tx = minX;
+  if (ty + ttRect.height > panelRect.height - 4) ty = panelRect.height - ttRect.height - 4;
+  if (ty < 0) ty = 0;
+
+  tooltipEl.style.left = `${tx}px`;
+  tooltipEl.style.top = `${ty}px`;
+}
+
 interface HoverOptions {
   liveSamples: LiveSample[];
   totalSec: number;
@@ -312,25 +340,8 @@ function attachSegmentHover(
     }
   };
 
-  const updateTooltipPosition = (clientX: number, clientY: number): void => {
-    const panelRect = containerEl.getBoundingClientRect();
-    const svgRect = svg.getBoundingClientRect();
-    const baseLeft = svgRect.left - panelRect.left;
-    const viewWidth = svgRect.width || panelRect.width;
-    let tx = clientX - panelRect.left + 8;
-    let ty = clientY - panelRect.top + 8;
-
-    const ttRect = tooltipEl.getBoundingClientRect();
-    const minX = baseLeft;
-    const maxX = minX + viewWidth - ttRect.width - 4;
-    if (tx > maxX) tx = maxX;
-    if (tx < minX) tx = minX;
-    if (ty + ttRect.height > panelRect.height - 4) ty = panelRect.height - ttRect.height - 4;
-    if (ty < 0) ty = 0;
-
-    tooltipEl.style.left = `${tx}px`;
-    tooltipEl.style.top = `${ty}px`;
-  };
+  const updateTooltipPosition = (clientX: number, clientY: number): void =>
+    placeTooltip(tooltipEl, containerEl, svg, clientX, clientY);
 
   interface LineHover {
     x: number;
@@ -1596,7 +1607,10 @@ function formatDurationLabel(sec: number): string {
   if (!sec) return '0s';
   if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);
-  if (sec < 3600) return `${m}m`;
+  if (sec < 3600) {
+    const remS = sec % 60;
+    return remS > 0 ? `${m}m${remS}s` : `${m}m`;
+  }
   const h = Math.floor(sec / 3600);
   const remM = Math.floor((sec % 3600) / 60);
   if (remM > 0) return `${h}h${remM}m`;
@@ -1748,6 +1762,87 @@ export interface DrawPowerCurveChartArgs {
   ftp?: number;
   points?: PowerCurvePoint[];
   maxDurationSec?: number;
+  // Hover tooltip wiring (`panel`/`tooltipEl`), as in drawWorkoutChart. When
+  // both are supplied, a mousemove vertically near the line snaps to the
+  // nearest curve point (by time) and shows its duration/power with a dot on
+  // the curve.
+  panel?: HTMLElement | null;
+  tooltipEl?: HTMLElement | null;
+}
+
+// The power curve is single-valued in duration, so hover snaps by X alone to
+// the nearest point in screen-x (unlike the workout chart's 2D radius snap,
+// which must disambiguate three overlapping traces) — but the cursor must
+// also be vertically near the line, so hovering empty chart area away from
+// the curve stays inert. A cursor left/right of the first/last point clamps
+// to that end point.
+const CURVE_HIT_PX = 16; // max vertical cursor-to-line distance (screen px)
+
+function attachPowerCurveHover(args: {
+  svg: SVGSVGElement;
+  tooltipEl: HTMLElement;
+  panel: HTMLElement;
+  // viewBox coords precomputed by the draw pass, sorted by durSec ascending
+  points: { durSec: number; power: number; x: number; y: number }[];
+  width: number;
+  height: number;
+}): void {
+  const { svg, tooltipEl, panel, points, width, height } = args;
+  if (!points.length || !(width > 0) || !(height > 0)) return;
+
+  const dot = el('circle', {
+    r: '4',
+    fill: getCssVar('--power-line'),
+    'pointer-events': 'none',
+  });
+  dot.style.display = 'none';
+  svg.appendChild(dot);
+
+  const hide = (): void => {
+    dot.style.display = 'none';
+    tooltipEl.style.display = 'none';
+  };
+
+  const onMouseMove = (e: MouseEvent): void => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      hide();
+      return;
+    }
+    // Compare in x-fraction space so a rect resized since the last draw still
+    // maps the cursor onto the same time axis the curve was drawn with.
+    const fx = (e.clientX - rect.left) / rect.width;
+    let best = points[0]!;
+    let bestDist = Infinity;
+    for (const p of points) {
+      const d = Math.abs(p.x / width - fx);
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+    // Vertical gate: the snapped point stands in for the line's height at the
+    // cursor's x (points are second-dense, so it tracks the line closely).
+    const lineScreenY = rect.top + (best.y / height) * rect.height;
+    if (Math.abs(e.clientY - lineScreenY) > CURVE_HIT_PX) {
+      hide();
+      return;
+    }
+    dot.setAttribute('cx', String(best.x));
+    dot.setAttribute('cy', String(best.y));
+    dot.style.display = 'block';
+    tooltipEl.textContent = `Best ${formatDurationLabel(best.durSec)}: ${Math.round(best.power)} W`;
+    tooltipEl.style.display = 'block';
+    placeTooltip(tooltipEl, panel, svg, e.clientX, e.clientY);
+  };
+
+  svg.addEventListener('mousemove', onMouseMove);
+  svg.addEventListener('mouseleave', hide);
+  hoverCleanupMap.set(svg, () => {
+    svg.removeEventListener('mousemove', onMouseMove);
+    svg.removeEventListener('mouseleave', hide);
+    hide();
+  });
 }
 
 /**
@@ -1760,6 +1855,15 @@ export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
     args;
   if (!svg) return;
   clearSvg(svg as SVGSVGElement & { _freeridePatternIds?: FreeridePatternIds });
+
+  // Detach any hover wiring from a previous draw (theme change redraws) so
+  // stale listeners don't pile up and the tooltip never survives a redraw.
+  const prevHoverCleanup = hoverCleanupMap.get(svg);
+  if (prevHoverCleanup) {
+    prevHoverCleanup();
+    hoverCleanupMap.delete(svg);
+  }
+  if (args.tooltipEl) args.tooltipEl.style.display = 'none';
 
   const w = Math.max(200, width);
   const h = Math.max(180, height);
@@ -1890,4 +1994,20 @@ export function drawPowerCurveChart(args: DrawPowerCurveChartArgs): void {
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
   });
+
+  if (args.panel && args.tooltipEl) {
+    attachPowerCurveHover({
+      svg,
+      panel: args.panel,
+      tooltipEl: args.tooltipEl,
+      points: sorted.map((pt) => ({
+        durSec: Math.max(1, Math.round(pt.durSec || 1)),
+        power: Math.max(0, pt.power || 0),
+        x: xFor(pt.durSec || 1),
+        y: yFor(pt.power || 0),
+      })),
+      width: w,
+      height: h,
+    });
+  }
 }

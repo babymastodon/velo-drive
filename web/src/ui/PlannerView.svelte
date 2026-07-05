@@ -429,6 +429,8 @@
   function powerCurveChart(node: SVGSVGElement, d: DetailState) {
     return registerChart(node, () => {
       const rect = node.getBoundingClientRect();
+      const panel = node.parentElement as HTMLElement | null;
+      const tooltipEl = panel?.querySelector<HTMLElement>('#plannerPowerCurveTooltip') || null;
       drawPowerCurveChart({
         svg: node,
         width: rect.width || 600,
@@ -436,6 +438,8 @@
         ftp: d.ftp || 0,
         points: d.powerCurve || [],
         maxDurationSec: d.durationSec || 0,
+        panel,
+        tooltipEl,
       });
     });
   }
@@ -1069,6 +1073,7 @@
                 </div>
               </div>
               <svg id="plannerPowerCurveSvg" class="planner-power-curve" viewBox="0 0 600 300" data-testid="planner-power-curve" use:powerCurveChart={detail}></svg>
+              <div id="plannerPowerCurveTooltip" class="chart-tooltip" data-testid="planner-power-curve-tooltip"></div>
             </div>
           </div>
           <div class="planner-detail-chart-panel" id="plannerDetailChartPanel">
