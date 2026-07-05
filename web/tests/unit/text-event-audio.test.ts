@@ -18,6 +18,7 @@ describe("engine text-event audio cue", () => {
       setEnabled() {},
       keepAwake() {},
       releaseKeepAwake() {},
+      stopAll() {},
       runStartCountdown(onDone: () => void) {
         onDone();
       },

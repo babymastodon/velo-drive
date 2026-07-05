@@ -70,6 +70,7 @@ function makeBeeper() {
     setEnabled() {},
     keepAwake() {},
     releaseKeepAwake() {},
+    stopAll() {},
     // Synchronous countdown so beginRun runs inline (matches text-event test).
     runStartCountdown(onDone: () => void) {
       onDone();
@@ -291,6 +292,50 @@ describe("engine state-machine bug fixes", () => {
     expect(beeper.showResumedOverlay).toHaveBeenCalled();
     // P4: auto-resume clears the manual-pause block for symmetry.
     expect(priv(engine).manualPauseAutoResumeBlockedUntilMs).toBe(0);
+  });
+
+  // S1 -----------------------------------------------------------------------
+  it("S1: a stalled feed (samples stop) is treated as zero power → auto-pause", async () => {
+    const {engine, clock} = await makeEngine();
+    engine.setWorkoutFromPicker(structuredClone(ERG_WORKOUT));
+    engine.startWorkout();
+    // Ride past the 15s grace WITH power flowing every second (advances the feed
+    // clock so lastBikeSampleMs is non-zero and fresh).
+    for (let i = 0; i < 16; i++) {
+      engine.handleBikeSample(bike(150));
+      await clock.tick(1);
+    }
+    expect(priv(engine).workoutPaused).toBe(false);
+
+    // Feed stops (BLE link up, notifications dead): no more handleBikeSample.
+    // lastSamplePower stays 150, but after >STALE_SAMPLE_MS (12s) with no fresh
+    // sample it's treated as 0, so the ride auto-pauses instead of coasting on.
+    clock.advance(14_000);
+    await clock.tick(1);
+    expect(priv(engine).workoutPaused).toBe(true);
+  });
+
+  // S2 -----------------------------------------------------------------------
+  it("S2: a ride left paused past the idle window auto-ends", async () => {
+    const {engine, clock} = await makeEngine();
+    engine.setWorkoutFromPicker(structuredClone(ERG_WORKOUT));
+    engine.startWorkout();
+    // Get running past grace, then drop to 0 → auto-pause.
+    for (let i = 0; i < 16; i++) {
+      engine.handleBikeSample(bike(150));
+      await clock.tick(1);
+    }
+    engine.handleBikeSample(bike(0));
+    await clock.tick(2);
+    expect(priv(engine).workoutPaused).toBe(true);
+    expect(priv(engine).pauseStartedAtMs).not.toBeNull();
+
+    // Left paused past the 20-minute idle window → the ride auto-ends so it can't
+    // run (and beep) indefinitely in the background.
+    clock.advance(20 * 60_000 + 1000);
+    await clock.tick(1);
+    expect(priv(engine).workoutRunning).toBe(false);
+    expect(priv(engine).workoutPaused).toBe(false);
   });
 
   // P2 -----------------------------------------------------------------------

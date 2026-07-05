@@ -14,6 +14,14 @@ import type { TrainerTransport, BikeSample, TrainerState } from '../ports/Traine
 import type { FileStore, ActiveState } from '../ports/FileStore.js';
 import type { BeeperLike } from './beeper.js';
 
+// No fresh bike sample for this long → treat the feed as stalled (0 power), so a
+// dead-but-"connected" trainer auto-pauses instead of coasting on a stale reading.
+// Kept below the native BLE stall/reconnect timeout so the ride reacts first.
+const STALE_SAMPLE_MS = 12_000;
+// A ride left paused/idle (incl. auto-pause from no data) longer than this
+// auto-ends, so a forgotten ride can't run — and beep — indefinitely.
+const IDLE_AUTO_END_MS = 20 * 60_000;
+
 export interface LiveSample {
   t: number;
   power: number | null;
@@ -114,6 +122,9 @@ export class WorkoutEngine {
   private lastSamplePower: number | null = null;
   private lastSampleHr: number | null = null;
   private lastSampleCadence: number | null = null;
+  // Wall-clock (ms) of the last bike sample, for stale-feed detection. 0 until the
+  // first sample arrives, so a ride with no data yet is never treated as "stale".
+  private lastBikeSampleMs = 0;
 
   private zeroPowerSeconds = 0;
   // Dedup key so the text-event cue fires once per active text event.
@@ -468,6 +479,28 @@ export class WorkoutEngine {
       return;
     }
 
+    // A silently-stalled feed (BLE link up, notifications stopped) freezes
+    // lastSamplePower at its last value. Treat samples older than STALE_SAMPLE_MS
+    // as "no power" for BOTH auto-pause and auto-resume, so a dead trainer pauses
+    // the ride and can't spuriously auto-resume on the stale reading.
+    const sampleStale =
+      this.lastBikeSampleMs > 0 && this.now() - this.lastBikeSampleMs > STALE_SAMPLE_MS;
+
+    // Auto-finalize a ride left unattended: once it's been paused (including
+    // auto-pause from zero power / a stalled feed) longer than IDLE_AUTO_END_MS,
+    // end it. This is wall-clock based (robust to background tick throttling) and
+    // stops a forgotten ride from running — and firing cues — indefinitely.
+    if (
+      this.workoutRunning &&
+      this.workoutPaused &&
+      this.pauseStartedAtMs != null &&
+      this.now() - this.pauseStartedAtMs > IDLE_AUTO_END_MS
+    ) {
+      this.log('Auto-ending workout: paused/idle too long.');
+      await this.endWorkout();
+      return;
+    }
+
     if (shouldAdvance) {
       this.elapsedSec += 1;
       const { segment, target } = this.getCurrentSegmentAtTime(this.elapsedSec);
@@ -476,11 +509,12 @@ export class WorkoutEngine {
 
       {
         const inGrace = this.elapsedSec < this.autoPauseDisabledUntilSec;
-        if (!this.lastSamplePower || this.lastSamplePower <= 0) {
+        const power = sampleStale ? 0 : this.lastSamplePower;
+        if (!power || power <= 0) {
           if (!inGrace) this.zeroPowerSeconds++;
           else this.zeroPowerSeconds = 0;
           if (!this.workoutPaused && !inGrace && this.zeroPowerSeconds >= 1) {
-            this.log('Auto-pause: power at 0 for 1s.');
+            this.log(sampleStale ? 'Auto-pause: no trainer data.' : 'Auto-pause: power at 0 for 1s.');
             this.setPaused(true, { showOverlay: true });
           }
         } else {
@@ -515,7 +549,9 @@ export class WorkoutEngine {
       const autoResumeBlocked = now < this.manualPauseAutoResumeBlockedUntilMs;
       const { segment, target: currentTarget } = this.getCurrentSegmentAtTime(this.elapsedSec);
       const tgt = currentTarget ?? 0;
-      const hasPower = !!this.lastSamplePower && this.lastSamplePower > 0;
+      // Stale feed → no power, so a dead trainer never auto-resumes off a frozen
+      // reading (it would immediately un-pause the stale-triggered pause).
+      const hasPower = !sampleStale && !!this.lastSamplePower && this.lastSamplePower > 0;
       // Normal structured segments auto-resume at >=90% of target. But that
       // threshold is unreachable from a dead stop for (a) ANY free-ride —
       // resistance (no numeric target) OR a high manual-ERG free-ride — and
@@ -699,6 +735,9 @@ export class WorkoutEngine {
     this.lastTickWallMs = this.workoutStartedAt.getTime();
     this.recordPauseEvent('start');
     this.zeroPowerSeconds = 0;
+    // Fresh feed clock for this ride, so a stale timestamp from a prior ride
+    // doesn't count as an immediate stall.
+    this.lastBikeSampleMs = this.now();
     this.autoPauseDisabledUntilSec = 15;
     this.manualPauseAutoResumeBlockedUntilMs = 0;
     this.workoutStarting = false;
@@ -754,9 +793,12 @@ export class WorkoutEngine {
     this.totalPausedMs = 0;
     this.pauseStartedAtMs = null;
     this.zeroPowerSeconds = 0;
+    this.lastBikeSampleMs = 0;
     this.autoPauseDisabledUntilSec = 0;
     this.manualPauseAutoResumeBlockedUntilMs = 0;
     this.stopTicker();
+    // Clear any pending cue timers so a beep can't fire after the ride is over.
+    this.beeper.stopAll();
     void this.persistIdleState();
     this.emitStateChanged();
     this.onWorkoutEnded(savedInfo);
@@ -765,6 +807,7 @@ export class WorkoutEngine {
   // --------- BLE sample handlers ---------
 
   handleBikeSample = (sample: BikeSample): void => {
+    this.lastBikeSampleMs = this.now();
     this.lastSamplePower = sample.power;
     this.lastSampleCadence = sample.cadence;
     if (sample.hrFromBike != null && this.lastSampleHr == null) {

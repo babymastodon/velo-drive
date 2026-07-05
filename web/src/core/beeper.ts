@@ -16,6 +16,7 @@ export interface BeeperLike {
   setEnabled(flag: boolean): void;
   keepAwake(): void;
   releaseKeepAwake(): void;
+  stopAll(): void;
   runStartCountdown(onDone: () => void): void;
   showPausedOverlay(): void;
   showResumedOverlay(): void;
@@ -68,6 +69,20 @@ export class Beeper implements BeeperLike {
   /** Create (if needed) and resume the AudioContext. Safe to call repeatedly. */
   warmUp(): void {
     this.ensureAudioContext();
+  }
+
+  /**
+   * True when a cue should be DROPPED rather than scheduled: the document is
+   * hidden (window minimized/occluded). WebKitGTK suspends the AudioContext when
+   * hidden, which freezes ctx.currentTime — a beep scheduled then doesn't sound,
+   * it just QUEUES, and every queued oscillator fires at once when the window
+   * becomes visible again (the visibilitychange primer resumes the context). That
+   * produced the "phantom beeps hours after the ride" bug. Dropping cues while
+   * hidden is correct: a cue the rider can't hear now is stale by the time they
+   * return. Harness-safe (no document → never suppress).
+   */
+  private suppressWhileHidden(): boolean {
+    return typeof document !== 'undefined' && document.hidden === true;
   }
 
   /**
@@ -181,6 +196,7 @@ export class Beeper implements BeeperLike {
 
   private playBeep(durationMs: number, freq: number, gain: number): void {
     if (!this.enabled || this.volume <= 0) return;
+    if (this.suppressWhileHidden()) return;
     const ctx = this.ensureAudioContext();
     if (!ctx) return;
     try {
@@ -227,6 +243,7 @@ export class Beeper implements BeeperLike {
    */
   playTextEventTaps(gain = 0.6): void {
     if (!this.enabled) return;
+    if (this.suppressWhileHidden()) return;
     const ctx = this.ensureAudioContext();
     if (!ctx) return;
     try {
