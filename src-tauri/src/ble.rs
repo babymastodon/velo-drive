@@ -45,6 +45,12 @@ const SCAN_SECS: u64 = 6;
 const RECONNECT_MAX_ATTEMPTS: u32 = 6;
 const RECONNECT_BASE: Duration = Duration::from_secs(1);
 const RECONNECT_CAP: Duration = Duration::from_secs(30);
+/// How long to wait for a notification before treating the link as dead. FTMS
+/// trainers and HR straps notify continuously (~1 Hz+) while alive, so this much
+/// silence means the link stalled (device slept, supervision timeout) even though
+/// BlueZ still reports it "connected" — the case where the indicator stays green
+/// but no power flows until a manual reconnect.
+const NOTIFY_STALL: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -491,7 +497,35 @@ fn spawn_forward(
                 return;
             }
         };
-        while let Some(data) = notifs.next().await {
+        loop {
+            // A plain `notifs.next().await` blocks forever if the peripheral stops
+            // notifying while the BlueZ link stays up (trainer sleeps, supervision
+            // timeout) — the status would stay "connected" with no data flowing.
+            // Bound the wait: NOTIFY_STALL of silence means the link is dead in
+            // practice, so tear it down and fall through to the reconnect path.
+            let data = match tokio::time::timeout(NOTIFY_STALL, notifs.next()).await {
+                Ok(Some(data)) => data,
+                Ok(None) => break, // stream ended → a real disconnect
+                Err(_) => {
+                    let superseded = {
+                        let s = state.lock().await;
+                        s.generation != gen_id
+                    };
+                    if superseded {
+                        return;
+                    }
+                    log(
+                        &app,
+                        format!(
+                            "{}: no data for {}s — forcing reconnect",
+                            role.name(),
+                            NOTIFY_STALL.as_secs()
+                        ),
+                    );
+                    let _ = p.disconnect().await; // drop the stale link so reconnect is clean
+                    break;
+                }
+            };
             {
                 let s = state.lock().await;
                 if s.generation != gen_id {
@@ -511,7 +545,7 @@ fn spawn_forward(
                 }
             }
         }
-        // The notification stream ended → the link dropped.
+        // The notification stream ended (or stalled) → the link dropped.
         let (intentional, cur_gen, wanted) = {
             let s = state.lock().await;
             (s.intentional, s.generation, s.wanted_id.clone())
