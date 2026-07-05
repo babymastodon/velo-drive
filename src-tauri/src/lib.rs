@@ -224,11 +224,27 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error building VeloDrive")
         .run(|app_handle, event| {
-            // Free the trainer/HRM for other apps on exit.
+            // Free the trainer/HRM for other apps on exit. This handler runs on
+            // the main event-loop thread, so the wait MUST be bounded: BlueZ
+            // answers Device1.Disconnect() only once the link is fully down
+            // (its internal disconnect timer alone is ~2s per device), and an
+            // unbounded block_on here froze exit for multiple seconds. The
+            // disconnects only need to be DISPATCHED to bluetoothd — it tears
+            // the links down on its own whether or not we read the replies —
+            // so a 1s cap is ample margin for both (concurrent) calls to hit
+            // the bus, while keeping close feeling instant.
             if let RunEvent::ExitRequested { .. } = event {
                 if let Some(ble) = app_handle.try_state::<Arc<Ble>>() {
                     let ble = ble.inner().clone();
-                    tauri::async_runtime::block_on(ble.shutdown());
+                    // The timeout must be constructed INSIDE the async block:
+                    // tokio::time::timeout registers with the runtime's timer
+                    // driver at construction, and this callback runs on the
+                    // main (non-runtime) thread — building it eagerly panics
+                    // with "no reactor running".
+                    let _ = tauri::async_runtime::block_on(async move {
+                        tokio::time::timeout(std::time::Duration::from_secs(1), ble.shutdown())
+                            .await
+                    });
                 }
             }
         });
