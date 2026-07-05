@@ -447,6 +447,8 @@
   border: none;
   border-radius: 0;
   padding: 0;
+  /* anchor for the hover tooltip (.chart-tooltip is position: absolute) */
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
