@@ -242,7 +242,7 @@ export class Beeper implements BeeperLike {
     // mid-pattern silences the rest.
     const spacingMs = 1000;
     for (let i = 0; i < 3; i++) {
-      this.addTimeout(() => this.playBeep(120, 880, 0.75), i * spacingMs);
+      this.addTimeout(() => this.playBeep(240, 880, 0.75), i * spacingMs);
     }
     this.addTimeout(() => this.playBeep(500, 660, 0.75), 3 * spacingMs);
   }
