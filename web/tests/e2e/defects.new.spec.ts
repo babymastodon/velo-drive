@@ -170,6 +170,65 @@ test.describe("post-ride flow", () => {
   });
 });
 
+// --------------------------- post-ride flow across midnight ---------------------------
+// Regression: a ride that STARTS before local midnight and ENDS after it. The FIT
+// filename is stamped with the START instant, and the planner buckets history by
+// that filename's date — so the post-ride detail lookup must resolve to the
+// start-day bucket. It previously used endedAt (the NEXT day), hit an empty
+// bucket, and silently opened nothing.
+const NIGHT_START_MS = (() => {
+  const d = new Date(Date.UTC(2026, 5, 18, 12, 0, 0));
+  d.setHours(23, 57, 0, 0); // local 23:57 (runner TZ) → a short ride crosses midnight
+  return d.getTime();
+})();
+
+test.describe("post-ride flow across midnight", () => {
+  test.use({
+    harnessConfig: {
+      ftp: 250,
+      soundEnabled: false,
+      themeMode: "light",
+      selectedWorkout: SAMPLE_WORKOUT,
+      connectBike: true,
+      connectHr: false,
+      startMs: NIGHT_START_MS,
+      seedZwo: readSeedWorkouts(),
+    },
+  });
+
+  test("a ride crossing midnight still auto-opens its detail", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    await page.evaluate(() => {
+      (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.sim.setReportedPower(200);
+      (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.sim.setReportedCadence(90);
+    });
+    await page.getByTestId("start-btn").click();
+    // Ride ~4 minutes (SAMPLE_WORKOUT is 13 min, so it won't auto-complete) so the
+    // virtual clock crosses local midnight from the 23:57 start.
+    await page.evaluate(async () => {
+      await (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.ride(240, () => {
+        (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.sim.setReportedPower(200);
+        (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.sim.setReportedCadence(90);
+      });
+      await (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.settle();
+    });
+
+    // Stop + confirm -> writes a .fit under the START day -> detail must open.
+    await page.getByTestId("stop-btn").click();
+    await page.getByTestId("dialog-ok").click();
+    await page.evaluate(async () => {
+      await (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.settle();
+      await (window as unknown as {__VELO_HARNESS__: Harness}).__VELO_HARNESS__.clock.step(0);
+    });
+    await settle(page);
+
+    await expect(page.locator("#workoutPickerOverlay")).toBeVisible();
+    await expect(page.getByTestId("planner-detail")).toBeVisible();
+  });
+});
+
 // --------------------------- picker empty-search Escape ---------------------------
 test.describe("picker empty-search Escape", () => {
   test.use({

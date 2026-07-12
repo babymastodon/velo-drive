@@ -237,12 +237,28 @@
   // Selects the ride's day, finds its preview, and opens the detail.
   async function openDetailByFile(fileName: string, startedAt: Date | null): Promise<void> {
     if (!fileName) return;
-    const dateKey = startedAt ? formatKey(startedAt) : dateKeyFromHandleName(fileName);
-    if (!dateKey) return;
-    selectedDate = keyToDate(dateKey);
-    const previews = historyMap.get(dateKey) || [];
-    const match = previews.find((p) => p.fileName === fileName) || previews[0];
-    if (!match) return;
+    // Prefer the key derived from the FILENAME: history buckets are keyed by
+    // dateKeyFromHandleName(fileName), so this is the bucket that actually holds
+    // this ride. startedAt is only a fallback for an unparseable name.
+    const dateKey = dateKeyFromHandleName(fileName) ?? (startedAt ? formatKey(startedAt) : null);
+    let match: HistoryPreview | undefined;
+    let matchKey = dateKey;
+    if (dateKey) match = (historyMap.get(dateKey) || []).find((p) => p.fileName === fileName);
+    // Robustness: if the expected bucket misses (e.g. a date-key edge case such
+    // as a ride crossing midnight), scan every bucket for the file by name so we
+    // never silently fail to open the just-saved ride.
+    if (!match) {
+      for (const [key, previews] of historyMap) {
+        const found = previews.find((p) => p.fileName === fileName);
+        if (found) {
+          match = found;
+          matchKey = key;
+          break;
+        }
+      }
+    }
+    if (!match || !matchKey) return;
+    selectedDate = keyToDate(matchKey);
     await openDetail(match);
   }
 
