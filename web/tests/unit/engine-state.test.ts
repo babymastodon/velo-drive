@@ -316,7 +316,7 @@ describe("engine state-machine bug fixes", () => {
   });
 
   // S2 -----------------------------------------------------------------------
-  it("S2: a ride left paused past the idle window auto-ends", async () => {
+  it("S2: a ride left paused indefinitely stays paused — it does NOT auto-end", async () => {
     const {engine, clock} = await makeEngine();
     engine.setWorkoutFromPicker(structuredClone(ERG_WORKOUT));
     engine.startWorkout();
@@ -330,12 +330,13 @@ describe("engine state-machine bug fixes", () => {
     expect(priv(engine).workoutPaused).toBe(true);
     expect(priv(engine).pauseStartedAtMs).not.toBeNull();
 
-    // Left paused past the 20-minute idle window → the ride auto-ends so it can't
-    // run (and beep) indefinitely in the background.
-    clock.advance(20 * 60_000 + 1000);
+    // Even hours later the ride is still there, paused and resumable — pausing
+    // must never finalize the workout on the rider's behalf (only the rider
+    // ends it). This is the "don't kill a break" contract.
+    clock.advance(3 * 60 * 60_000);
     await clock.tick(1);
-    expect(priv(engine).workoutRunning).toBe(false);
-    expect(priv(engine).workoutPaused).toBe(false);
+    expect(priv(engine).workoutRunning).toBe(true);
+    expect(priv(engine).workoutPaused).toBe(true);
   });
 
   // P2 -----------------------------------------------------------------------
