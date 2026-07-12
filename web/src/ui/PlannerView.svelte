@@ -218,8 +218,13 @@
     // later manual open shows the calendar.
     if (pending) {
       ui.pendingHistoryFile = null;
-      scrollReady = true; // reveal the calendar behind the detail (for Back)
+      // Open the detail FIRST, while the calendar grid is still hidden
+      // (scrollReady === false → visibility:hidden). detailMode then display:none's
+      // the calendar, so it never flashes on screen during the async detail load.
+      // Only after detail is up do we mark the calendar ready — invisible behind
+      // the detail now, and correctly revealed when the rider presses Back.
       await openDetailByFile(pending.fileName, pending.date);
+      scrollReady = true;
       return;
     }
 
