@@ -18,9 +18,6 @@ import type { BeeperLike } from './beeper.js';
 // dead-but-"connected" trainer auto-pauses instead of coasting on a stale reading.
 // Kept below the native BLE stall/reconnect timeout so the ride reacts first.
 const STALE_SAMPLE_MS = 12_000;
-// A ride left paused/idle (incl. auto-pause from no data) longer than this
-// auto-ends, so a forgotten ride can't run — and beep — indefinitely.
-const IDLE_AUTO_END_MS = 20 * 60_000;
 
 export interface LiveSample {
   t: number;
@@ -485,21 +482,6 @@ export class WorkoutEngine {
     // the ride and can't spuriously auto-resume on the stale reading.
     const sampleStale =
       this.lastBikeSampleMs > 0 && this.now() - this.lastBikeSampleMs > STALE_SAMPLE_MS;
-
-    // Auto-finalize a ride left unattended: once it's been paused (including
-    // auto-pause from zero power / a stalled feed) longer than IDLE_AUTO_END_MS,
-    // end it. This is wall-clock based (robust to background tick throttling) and
-    // stops a forgotten ride from running — and firing cues — indefinitely.
-    if (
-      this.workoutRunning &&
-      this.workoutPaused &&
-      this.pauseStartedAtMs != null &&
-      this.now() - this.pauseStartedAtMs > IDLE_AUTO_END_MS
-    ) {
-      this.log('Auto-ending workout: paused/idle too long.');
-      await this.endWorkout();
-      return;
-    }
 
     if (shouldAdvance) {
       this.elapsedSec += 1;
