@@ -72,7 +72,12 @@
     bootApp({
       // Finishing a ride opens the planner to the saved ride.
       onWorkoutEnded: (info) => {
-        const date = info?.endedAt || info?.startedAt || new Date();
+        // Use the START date: the FIT filename is stamped with startedAt and the
+        // planner buckets history by that filename's date. Preferring endedAt
+        // broke a ride that crossed midnight — its file lives under the start day,
+        // but the detail lookup searched the end day's (empty) bucket and silently
+        // opened nothing. The scheduled entry is likewise keyed by the start day.
+        const date = info?.startedAt || info?.endedAt || new Date();
         // Remove the just-completed scheduled entry for the ride's day.
         const finishedTitle = ctx?.store.vm?.canonicalWorkout?.workoutTitle;
         if (finishedTitle) {
