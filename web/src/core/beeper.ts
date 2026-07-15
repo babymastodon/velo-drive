@@ -72,34 +72,6 @@ export class Beeper implements BeeperLike {
   }
 
   /**
-   * Ensure the AudioContext exists and return it ONLY when it is actually
-   * `running` — otherwise return null so the caller drops the cue.
-   *
-   * This is the fix for the "phantom taps hours after the ride" bug. A suspended
-   * AudioContext freezes `ctx.currentTime`; `osc.start(t)` scheduled against that
-   * frozen clock doesn't sound — it QUEUES, and the whole backlog fires in a
-   * burst the moment the context resumes (the pointerdown/visibilitychange primer
-   * resumes it when the rider returns — often long after the workout ended).
-   *
-   * The earlier attempt gated on `document.hidden`, but WebKitGTK (the Tauri
-   * webview) does NOT reliably flip `document.hidden` when the window is merely
-   * occluded/backgrounded, and it can suspend the context independent of that
-   * flag. So `document.hidden` is the wrong proxy. The context's OWN `state` is
-   * the only reliable signal for "will this cue queue instead of play":
-   *   - state 'running'   → currentTime advances, the cue plays now. Schedule it.
-   *   - state 'suspended' → currentTime is frozen, the cue would queue. Drop it.
-   * ensureAudioContext() already kicks off resume() (async); we intentionally do
-   * NOT wait for it — a cue the rider can't hear right now is stale by the time
-   * the context comes back, so dropping it is correct. Harness-safe: the fake
-   * AudioContext starts 'running', so cue-recording tests are unaffected.
-   */
-  private runningContext(): AudioContext | null {
-    const ctx = this.ensureAudioContext();
-    if (!ctx) return null;
-    return ctx.state === 'running' ? ctx : null;
-  }
-
-  /**
    * Keep the AudioContext's output pipeline alive so mid-ride cues fire instantly
    * instead of paying WebKitGTK's multi-second pipeline-resume latency. Call when
    * a ride starts. Attaches a permanently-silent oscillator (gain 0) to the
@@ -210,9 +182,7 @@ export class Beeper implements BeeperLike {
 
   private playBeep(durationMs: number, freq: number, gain: number): void {
     if (!this.enabled || this.volume <= 0) return;
-    // Only schedule against a running context; a suspended one queues the tone
-    // to replay later in a burst (see runningContext()).
-    const ctx = this.runningContext();
+    const ctx = this.ensureAudioContext();
     if (!ctx) return;
     try {
       const now = ctx.currentTime;
@@ -258,10 +228,7 @@ export class Beeper implements BeeperLike {
    */
   playTextEventTaps(gain = 0.6): void {
     if (!this.enabled) return;
-    // Only schedule against a running context; a suspended one freezes
-    // currentTime and queues these taps to replay hours later (see
-    // runningContext()) — the exact "phantom message beeps after the ride" bug.
-    const ctx = this.runningContext();
+    const ctx = this.ensureAudioContext();
     if (!ctx) return;
     try {
       const now = ctx.currentTime;

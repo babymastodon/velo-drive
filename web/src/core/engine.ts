@@ -19,6 +19,17 @@ import type { BeeperLike } from './beeper.js';
 // Kept below the native BLE stall/reconnect timeout so the ride reacts first.
 const STALE_SAMPLE_MS = 12_000;
 
+// Audio cues (interval beeps + text-event taps) only fire when the ticker is
+// running at ~real time. Ride time is counted in ticks (elapsedSec += 1 per
+// fired 1s interval — see the TODO in tick()), and browsers/WebKitGTK throttle
+// a backgrounded interval to a crawl. So a ride the rider walked away from keeps
+// limping forward one tick at a time, and cueing off those catch-up ticks
+// replayed a workout's message beeps for HOURS afterward. Requiring the gap
+// since the previous tick to be near the nominal 1s means only real-time ticks
+// beep; a throttled/slept tick advances state silently. 3s = 3x nominal, enough
+// headroom for an occasional slow BLE write without a false suppression.
+const TICK_CUE_MAX_GAP_MS = 3_000;
+
 export interface LiveSample {
   t: number;
   power: number | null;
@@ -458,7 +469,13 @@ export class WorkoutEngine {
     // a skip-guard would drop legitimate ticks and desync elapsedSec. The only
     // residual is a possible duplicate sample during a genuine multi-second BLE
     // stall — cosmetic in the FIT.
-    this.lastTickWallMs = this.now();
+    const nowMs = this.now();
+    const prevTickWallMs = this.lastTickWallMs;
+    this.lastTickWallMs = nowMs;
+    // True only when this tick fired ~on schedule (near the nominal 1s cadence).
+    // A large gap means the interval was throttled (backgrounded/asleep), so any
+    // cue on this tick would be stale — gate audio on it. See TICK_CUE_MAX_GAP_MS.
+    const tickRealtime = prevTickWallMs != null && nowMs - prevTickWallMs <= TICK_CUE_MAX_GAP_MS;
     // TODO (known limitation — do not "fix" casually): ride time is COUNTED IN
     // TICKS (elapsedSec += 1 per fired interval), not derived from wall-clock.
     // Browsers throttle background-tab setInterval (fires far slower than 1 Hz),
@@ -519,8 +536,14 @@ export class WorkoutEngine {
         return;
       }
 
-      if (this.workoutRunning && !this.workoutPaused) {
+      // Audio cues are driven ONLY from here — a real-time, advancing tick — never
+      // from emitStateChanged()/sample callbacks (which fire on every BLE/HR
+      // packet, so a still-connected trainer would replay message taps long after
+      // the rider left). tickRealtime additionally drops cues on a throttled
+      // catch-up tick.
+      if (tickRealtime && this.workoutRunning && !this.workoutPaused) {
         this.handleIntervalBeep(this.elapsedSec);
+        this.maybePlayTextEvent();
       }
 
       this.scheduleSaveActiveState();
@@ -568,7 +591,11 @@ export class WorkoutEngine {
   // --------- state transitions ---------
 
   private emitStateChanged(): void {
-    this.maybePlayTextEvent();
+    // NOTE: audio cues are deliberately NOT fired here. emitStateChanged runs on
+    // every BLE/HR sample (handleBikeSample/handleHrSample) and other state
+    // changes, so cueing here made a still-connected trainer replay text-event
+    // taps for hours after a ride. Text/interval cues fire only from a real-time
+    // tick — see tick()'s tickRealtime block.
     // Keep the trainer's target synced with the current selection even before
     // the workout starts: selecting a workout — or connecting the bike while one
     // is already selected (the first bikeSample lands here) — pushes its starting
