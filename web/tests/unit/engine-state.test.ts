@@ -339,6 +339,47 @@ describe("engine state-machine bug fixes", () => {
     expect(priv(engine).workoutPaused).toBe(true);
   });
 
+  // TEXT-CUE ------------------------------------------------------------------
+  // The "sound hours after the ride" bug: text-event taps were fired from
+  // emitStateChanged(), which runs on every BLE/HR sample — so a still-connected
+  // trainer replayed a workout's message taps long after the rider left, as the
+  // backgrounded (throttled) ride clock crawled through the remaining timeline.
+  // The fix drives cues ONLY from a real-time, advancing tick.
+  it("TEXT-CUE: text-event taps fire only on a real-time tick — not on a raw BLE sample or a throttled catch-up tick", async () => {
+    const {engine, clock, beeper} = await makeEngine();
+    const taps = vi.spyOn(beeper, "playTextEventTaps");
+    const WITH_TEXT = {
+      workoutTitle: "T",
+      rawSegments: [[10, 50, 50]], // 10 min
+      textEvents: [{offsetSec: 3, durationSec: 600, text: "Push!"}],
+    } as unknown as CanonicalWorkout;
+    engine.setWorkoutFromPicker(structuredClone(WITH_TEXT));
+    engine.startWorkout(); // synchronous countdown → running
+    expect(priv(engine).workoutRunning).toBe(true);
+
+    // Park elapsed inside the text-event window, as a forgotten backgrounded ride
+    // would be. A bare BLE sample landing in the window must NOT fire a tap —
+    // cues are decoupled from sample callbacks.
+    priv(engine).elapsedSec = 5;
+    taps.mockClear();
+    engine.handleBikeSample(bike(150));
+    engine.handleBikeSample(bike(150));
+    expect(taps).toHaveBeenCalledTimes(0);
+
+    // A throttled/backgrounded catch-up tick (hours of wall-clock, one tick) must
+    // NOT fire it either: the ride clock isn't tracking real time.
+    clock.advance(4 * 60 * 60_000);
+    await clock.tick(1);
+    expect(taps).toHaveBeenCalledTimes(0);
+
+    // A real-time tick advancing through the window DOES fire it, exactly once,
+    // then dedups on the next in-window tick.
+    await clock.tick(1);
+    expect(taps).toHaveBeenCalledTimes(1);
+    await clock.tick(1);
+    expect(taps).toHaveBeenCalledTimes(1);
+  });
+
   // P2 -----------------------------------------------------------------------
   it("P2: FTP / ERG / mode changes while paused do NOT force-send to trainer", async () => {
     const {engine, setTrainerState} = await makeEngine();
