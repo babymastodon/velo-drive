@@ -85,11 +85,6 @@ export async function bootApp(opts: BootOptions = {}): Promise<AppContext> {
   });
   // Surface BLE/transport logs in the Settings logs sub-view.
   transport.on('log', logs.append);
-  // Diagnostic: record every sound emission + AudioContext state change into the
-  // same log, so a "phantom sound hours after the ride" occurrence can be traced
-  // (a `[audio] play…` line names the JS caller; its ABSENCE at the phantom time
-  // means the WebKitGTK audio pipeline replayed/late-rendered it — an env bug).
-  beeper.attachLogger(logs.append);
 
   // Load persisted FTP + sound preference before init (the engine reads the
   // selected workout + active state itself in init()).

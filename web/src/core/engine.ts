@@ -782,6 +782,9 @@ export class WorkoutEngine {
     }
     if (this.workoutRunning) this.recordPauseEvent('stop_all');
     this.stopTicker();
+    // Tear down the Web Audio graph before FIT persistence can yield. Otherwise
+    // a suspended context can resume during the write and render a stale cue.
+    this.beeper.stopAll();
 
     let savedInfo: { fileName: string; startedAt: Date; endedAt: Date } | null = null;
     if (this.liveSamples.length) {
@@ -806,8 +809,6 @@ export class WorkoutEngine {
     this.autoPauseDisabledUntilSec = 0;
     this.manualPauseAutoResumeBlockedUntilMs = 0;
     this.stopTicker();
-    // Clear any pending cue timers so a beep can't fire after the ride is over.
-    this.beeper.stopAll();
     void this.persistIdleState();
     this.emitStateChanged();
     this.onWorkoutEnded(savedInfo);

@@ -38,38 +38,13 @@ export class Beeper implements BeeperLike {
   // Keeping this silent source alive prevents the spin-down. See keepAwake().
   private keepAliveNode: OscillatorNode | null = null;
   private keepAliveGain: GainNode | null = null;
-
-  // Diagnostic log sink (Settings → Logs). When attached, every actual sound
-  // emission and every AudioContext state change is recorded with a wall-clock
-  // timestamp. This exists to settle the "phantom sound hours after the ride"
-  // investigation: if a phantom tap is heard and NO `[audio] play…` line appears
-  // at that time, the sound is the WebKitGTK/GStreamer pipeline late-rendering or
-  // replaying audio scheduled during the ride (an environment bug, not a JS
-  // call); if a line DOES appear, it names the exact caller path.
-  private logSink: ((line: string) => void) | null = null;
-  private ctxLoggerAttached = false;
+  // Audible oscillators are retained until they end so stopAll() can disconnect
+  // them before closing the context. This is the synchronous backstop if a
+  // platform delays AudioContext.close().
+  private activeOscillators = new Set<OscillatorNode>();
 
   constructor() {
     this.installAudioPrimer();
-  }
-
-  /** Wire the diagnostic log sink. Safe no-op until attached; harness-safe. */
-  attachLogger(fn: (line: string) => void): void {
-    this.logSink = fn;
-  }
-
-  /** Record one audio-diagnostic line (wall-clock + live AudioContext state). */
-  private audioLog(msg: string): void {
-    if (!this.logSink) return;
-    const c = this.audioCtx;
-    const ctxInfo = c ? `state=${c.state} ctxTime=${c.currentTime.toFixed(3)}` : 'ctx=none';
-    let stamp: string;
-    try {
-      stamp = new Date().toISOString();
-    } catch {
-      stamp = '?';
-    }
-    this.logSink(`[audio ${stamp}] ${msg} ${ctxInfo}`);
   }
 
   /**
@@ -121,7 +96,6 @@ export class Beeper implements BeeperLike {
       osc.start();
       this.keepAliveNode = osc;
       this.keepAliveGain = g;
-      this.audioLog('keepAwake (start silent keep-alive)');
     } catch {
       /* ignore — best effort */
     }
@@ -143,7 +117,6 @@ export class Beeper implements BeeperLike {
     }
     this.keepAliveNode = null;
     this.keepAliveGain = null;
-    this.audioLog('releaseKeepAwake (stop silent keep-alive)');
   }
 
   private get statusOverlay(): HTMLElement | null {
@@ -191,19 +164,6 @@ export class Beeper implements BeeperLike {
       }
     }
     const ctx = this.audioCtx;
-    // Diagnostic: record every AudioContext state transition (suspend/resume/
-    // interrupted) with a wall-clock stamp, so a phantom sound can be correlated
-    // against pipeline wake/replay events. Attached once per context.
-    if (ctx && !this.ctxLoggerAttached) {
-      this.ctxLoggerAttached = true;
-      try {
-        (ctx as unknown as { onstatechange: (() => void) | null }).onstatechange = () =>
-          this.audioLog('ctx statechange');
-      } catch {
-        /* ignore */
-      }
-      this.audioLog('ctx created');
-    }
     // Browsers create the context SUSPENDED under the autoplay policy (and
     // re-suspend it when the tab is hidden). Resume so a beep fired from a tick
     // (not a click) — or after backgrounding — isn't silently dropped (AUDIO-R1/E2).
@@ -217,6 +177,56 @@ export class Beeper implements BeeperLike {
     return ctx;
   }
 
+  /**
+   * Return a context only when its media clock is advancing. ensureAudioContext()
+   * requests resume(), but resume is asynchronous; scheduling against the context
+   * before it reaches `running` queues the cue on a frozen currentTime and lets
+   * WebKitGTK replay it when the context wakes, potentially hours after the ride.
+   */
+  private runningAudioContext(): AudioContext | null {
+    const ctx = this.ensureAudioContext();
+    return ctx?.state === 'running' ? ctx : null;
+  }
+
+  private trackOscillator(osc: OscillatorNode): void {
+    this.activeOscillators.add(osc);
+    osc.onended = () => {
+      this.activeOscillators.delete(osc);
+      try {
+        osc.disconnect();
+      } catch {
+        /* already disconnected */
+      }
+    };
+  }
+
+  private stopOscillators(): void {
+    for (const osc of this.activeOscillators) {
+      try {
+        osc.stop();
+      } catch {
+        /* already stopped */
+      }
+      try {
+        osc.disconnect();
+      } catch {
+        /* already disconnected */
+      }
+    }
+    this.activeOscillators.clear();
+  }
+
+  private closeAudioContext(): void {
+    const ctx = this.audioCtx;
+    this.audioCtx = null;
+    if (!ctx) return;
+    try {
+      void ctx.close().catch(() => {});
+    } catch {
+      /* already closed */
+    }
+  }
+
   setVolume(v: number): void {
     // Gain multiplier where 1.0 is the reference loudness (the settings slider's
     // 70% mark). Allow a modest boost above 1.0; playBeep caps the final gain at
@@ -226,7 +236,7 @@ export class Beeper implements BeeperLike {
 
   private playBeep(durationMs: number, freq: number, gain: number): void {
     if (!this.enabled || this.volume <= 0) return;
-    const ctx = this.ensureAudioContext();
+    const ctx = this.runningAudioContext();
     if (!ctx) return;
     try {
       const now = ctx.currentTime;
@@ -243,7 +253,7 @@ export class Beeper implements BeeperLike {
       g.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + durSec + 0.05);
-      this.audioLog(`playBeep freq=${freq} durMs=${durationMs} when=${now.toFixed(3)}`);
+      this.trackOscillator(osc);
     } catch {
       /* ignore audio errors */
     }
@@ -273,7 +283,7 @@ export class Beeper implements BeeperLike {
    */
   playTextEventTaps(gain = 0.6): void {
     if (!this.enabled) return;
-    const ctx = this.ensureAudioContext();
+    const ctx = this.runningAudioContext();
     if (!ctx) return;
     try {
       const now = ctx.currentTime;
@@ -319,12 +329,13 @@ export class Beeper implements BeeperLike {
         osc2.start(startTime);
         osc1.stop(startTime + release + 0.05);
         osc2.stop(startTime + release + 0.05);
+        this.trackOscillator(osc1);
+        this.trackOscillator(osc2);
       };
 
       for (let i = 0; i < 3; i += 1) {
         scheduleTap(now + i * tapSpacing);
       }
-      this.audioLog(`playTextEventTaps gain=${gain} when0=${now.toFixed(3)} spacing=${tapSpacing}`);
     } catch {
       /* ignore audio errors */
     }
@@ -365,7 +376,7 @@ export class Beeper implements BeeperLike {
     }, durationMs);
   }
 
-  stopAll(): void {
+  private clearTransientState(): void {
     this.clearTimeouts();
     this.countdownRunning = false;
     const overlay = this.statusOverlay;
@@ -373,6 +384,16 @@ export class Beeper implements BeeperLike {
       overlay.style.opacity = '0';
       overlay.style.display = 'none';
     }
+  }
+
+  stopAll(): void {
+    this.clearTransientState();
+    this.releaseKeepAwake();
+    this.stopOscillators();
+    // Closing releases WebKitGTK/GStreamer pipeline state and invalidates every
+    // scheduled node. A later primer creates a fresh context instead of waking a
+    // context that still owns stale cues from the completed ride.
+    this.closeAudioContext();
   }
 
   runStartCountdown(onDone: () => void): void {
@@ -383,7 +404,9 @@ export class Beeper implements BeeperLike {
       return;
     }
 
-    this.stopAll();
+    // Reset an earlier countdown without closing the context primed by the user
+    // gesture that started this one.
+    this.clearTransientState();
     this.countdownRunning = true;
 
     const seq = ['3', '2', '1', 'Start'];
