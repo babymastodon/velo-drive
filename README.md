@@ -44,7 +44,7 @@ VeloDrive works with most modern Bluetooth smart trainers such as the [Wahoo KIC
 
 ### Find the right workout
 
-Velodrive comes with a large number of built-in workouts, but you may also import existing workouts or build your own.
+VeloDrive comes with a large number of built-in workouts, but you may also import existing workouts or build your own.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/library-airforge-dark.png">
@@ -64,7 +64,7 @@ You can also use the built-in workout builder to create your own.
 
 ### Plan the week
 
-Using the workout calendar to view your past workouts, or schedule ones for the future. 3/7/30 day stats are automcatically calculated for your scheudle, so you can keep your TSS in check.
+Using the workout calendar to view your past workouts, or schedule ones for the future. 3/7/30 day stats are automatically calculated for your schedule, so you can keep your TSS in check.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/calendar-training-week-dark.png">
