@@ -6,7 +6,7 @@
 
 # VeloDrive
 
-VeloDrive is an offline cycling workout app for FTMS-compatible smart trainers. It runs as a browser/PWA or a native Linux app, keeps workouts and ride history on your device, and does not require an account or backend service.
+VeloDrive lets you build and ride structured workouts on an FTMS smart trainer. It works in Chrome or as a native Linux app, saves workouts and ride history on your device, and needs no account.
 
 [Open VeloDrive](https://velodrive.bike/)
 
@@ -14,97 +14,88 @@ VeloDrive is an offline cycling workout app for FTMS-compatible smart trainers. 
 
 ### 1. Install the web app
 
-Open [velodrive.bike](https://velodrive.bike/) in Google Chrome. Select the install icon in the address bar to add VeloDrive to your app launcher. Once its assets are cached, the installed PWA can run offline.
+Open [velodrive.bike](https://velodrive.bike/) in Chrome and select the install icon in the address bar. VeloDrive will appear in your app launcher and can be used offline.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/install_dark.png">
   <img src="media/screenshots/install_light.png" alt="Google Chrome showing the option to install VeloDrive as a PWA">
 </picture>
 
-Chrome is the supported browser path because VeloDrive needs Web Bluetooth and File System Access. iOS Safari does not provide the required APIs. You can also build the [native Linux app](#native-linux-app-flatpak).
-
 ### 2. Set up your data and devices
 
-On first launch, choose a local VeloDrive folder. An empty folder is initialized with `workouts`, `history`, and `trash` directories plus the bundled workout library. The native app creates its data folder automatically.
+Choose a folder for your workouts and ride history. VeloDrive fills a new folder with a library of built-in workouts to get you started.
 
-In **Settings**, enter your FTP, choose sound and theme preferences, and check Bluetooth availability. Back on the ride screen, use **Bike** to pair an FTMS trainer and **HRM** to pair an optional heart-rate monitor.
+In **Settings**, enter your FTP and choose your sound and theme preferences. Then use **Bike** to pair your trainer and **HRM** to pair an optional heart-rate monitor.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/settings-dark.png">
   <img src="media/screenshots/guide/settings-light.png" alt="Configured VeloDrive settings showing the local data folder, FTP, sounds, theme, Bluetooth status, PWA status, and connection logs">
 </picture>
 
-The data folder and device choices are remembered. A browser may ask you to grant folder access again after a restart.
-
 ### 3. Choose a workout
 
-Select the workout name at the bottom of the ride screen or press `W` to open the library. Search by name or source, filter by zone and duration, sort calculated metrics, and expand any workout to inspect its description and profile.
+Select the workout name at the bottom of the ride screen to open the library. Browse by folder, search by name or source, and narrow the list by training zone or duration. Expand a workout to preview its profile and training load.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/library-airforge-dark.png">
   <img src="media/screenshots/guide/library-airforge-light.png" alt="VeloDrive workout library with Airforge expanded to show its metrics, description, actions, and profile">
 </picture>
 
-The library can select, clone, edit, import, or move workouts to `trash`. Subfolders inside `workouts` appear as library folders, while **Show all** provides a flat view.
+Choose a workout to ride, or clone and edit it to make your own version. You can also organize workouts in folders and import new ones into the library.
 
 ### 4. Ride
 
-The ride screen shows live and target power, interval and workout time, heart rate, cadence, coaching text, and the full workout profile. Live power, heart-rate, and cadence traces build across the chart while you ride.
+Everything you need during a ride stays on one screen: current and target power, interval time, heart rate, cadence, and the full workout profile. The chart fills in with your live data as you progress.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/ride-violator-dark.png">
   <img src="media/screenshots/guide/ride-violator-light.png" alt="An active Violator workout showing live power, heart rate, cadence, target power, timers, coaching, and the workout profile">
 </picture>
 
-_App screenshots use simulated trainer and heart-rate data. This example loads TrainerDay’s 64-sprint Violator workout when the screenshots are generated._
+_Shown with simulated trainer and heart-rate data on TrainerDay’s 64-sprint Violator workout._
 
-Use the play control or `Space` to start, pause, and resume. The stop control ends the ride and saves a FIT file when samples have been recorded. During free-ride blocks, the bottom bar adds ERG and resistance modes with a manual target.
+Use the play control to start, pause, and resume. When the ride ends, VeloDrive saves it to your history. Free-ride blocks let you switch between ERG and resistance modes and adjust the target as you go.
 
 ### 5. Import, build, and edit
 
-Import local `.zwo` files or structured-workout `.fit` files, popular TrainerDay workouts, the original Zwift collection, or the WhatsOnZwift catalog. The builder can also import supported TrainerDay and WhatsOnZwift URLs.
+Bring in `.zwo` or structured `.fit` files, browse popular TrainerDay workouts, or import from the Zwift and WhatsOnZwift collections. You can also paste a TrainerDay or WhatsOnZwift workout link into the builder.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/builder-airforge-dark.png">
   <img src="media/screenshots/guide/builder-airforge-light.png" alt="VeloDrive workout builder editing Airforge with a warm-up block and its duration, power, and cadence controls visible">
 </picture>
 
-The builder supports steady zones, warm-up and cooldown ramps, repeated intervals, free rides, cadence targets, and text cues. Select a chart block to edit it; move, copy, paste, delete, undo, or redo blocks as needed. Saving writes a `.zwo` file to the local library.
-
-URL and catalog imports require a network connection. Browser cross-origin restrictions can reject a supported source; the native app routes those requests through native HTTP.
+Build workouts from steady efforts, ramps, repeated intervals, free rides, cadence targets, and text cues. Select any block in the chart to adjust it, rearrange blocks with familiar editing controls, and save the result straight to your library.
 
 ### 6. Plan your training
 
-Open the calendar from the bottom bar or press `C`. It combines completed FIT rides with scheduled workouts and summarizes duration, work, and TSS over recent 3-, 7-, and 30-day periods.
+Open the calendar from the bottom bar to see planned workouts and completed rides together. Recent totals for time, work, and TSS make it easy to judge the shape of your training week.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/calendar-training-week-dark.png">
   <img src="media/screenshots/guide/calendar-training-week-light.png" alt="VeloDrive calendar with completed rides, future scheduled workouts, a selected date, and recent training totals">
 </picture>
 
-Select an empty date to schedule a workout. Scheduled cards can be loaded, replaced, removed, or dragged to today or a future date.
+Select a date to schedule a workout, or drag an existing plan to another day. When it is time to ride, load the workout directly from its calendar card.
 
 ### 7. Review a completed ride
 
-Select a completed calendar card to review duration, average and normalized power, work, IF, TSS, VI, heart rate, and cadence. The detail view also includes a power curve and planned-versus-actual traces.
+Open a completed ride to compare the workout plan with the power, heart rate, and cadence you recorded. Summary metrics and a power curve show how the effort added up.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/history-airforge-dark.png">
   <img src="media/screenshots/guide/history-airforge-light.png" alt="Completed Airforge ride analysis with summary metrics, a power curve, and planned-versus-actual power, heart-rate, and cadence traces">
 </picture>
 
-Deleting a completed ride moves its FIT file to `trash`.
+## Your data
 
-## Local files
+Your workouts and ride files stay in the folder you choose, where you can inspect, back up, or move them yourself:
 
-The selected VeloDrive folder contains:
+- `workouts/` holds your workout library
+- `history/` holds completed rides as FIT files
+- `trash/` holds workouts and rides removed through the app
 
-- `workouts/` — `.zwo` and imported workout files
-- `history/` — FIT files created by completed rides
-- `trash/` — workouts and history removed through the app
-- `schedule.json` — scheduled workout titles and dates
-
-Web preferences and remembered browser handles stay in the app’s local browser data. Moving the VeloDrive folder outside the app may require selecting it again.
+Items in `trash` remain available until you decide to remove them permanently.
 
 ## Shortcuts
 
@@ -118,11 +109,9 @@ Web preferences and remembered browser handles stay in the app’s local browser
 | `J` / `K` | Lower or raise the active free-ride target |
 | `Esc` | Close the current view or return to its parent |
 
-The library, builder, and calendar show additional shortcuts for their own editing and navigation tasks.
-
 ## Native Linux app (Flatpak)
 
-The native application uses the same interface with more reliable Bluetooth connection and fewer browser restrictions on supported workout imports. It is currently installed from source:
+Linux users can build a native version with steadier Bluetooth connections, automatic device reconnect, and more reliable workout-link imports:
 
 ```sh
 scripts/build-flatpak.sh          # build and install
@@ -134,13 +123,13 @@ See [flatpak/README.md](flatpak/README.md) for prerequisites and packaging detai
 
 ## Device support
 
-VeloDrive controls trainers through the standard Bluetooth Fitness Machine Service and reads the standard Bluetooth Heart Rate service. It has been tested with a Wahoo KICKR and Wahoo TICKR. Other devices implementing the same services are expected to work, but are not all tested.
+VeloDrive works with Bluetooth FTMS trainers and standard Bluetooth heart-rate monitors. It has been tested with a Wahoo KICKR and Wahoo TICKR, and other standards-compliant devices should work too.
 
-If a device does not appear, confirm that it is awake, not connected to another app, and exposes the expected service. Check **Settings → Bluetooth** and **Connection logs** for the latest messages.
+If a device does not appear, wake it and make sure another app is not already connected. **Connection logs** in Settings show the latest pairing messages.
 
 ## Development
 
-The TypeScript, Vite, and Svelte application is in [web/](web/). The production PWA is built into the generated [docs/](docs/) directory for GitHub Pages. Architecture, harness details, and the full command list are in [web/README.md](web/README.md).
+The app is built with TypeScript, Vite, and Svelte. Source code lives in [web/](web/), and the GitHub Pages build lives in [docs/](docs/). See [web/README.md](web/README.md) for architecture and test-harness details.
 
 ```sh
 cd web
@@ -151,7 +140,7 @@ npm run test:e2e
 npm run docs:screenshots
 ```
 
-The screenshot command downloads the TrainerDay example to an ignored temporary directory, then regenerates every app screenshot in light and dark themes. The PWA installation image is maintained separately.
+`npm run docs:screenshots` refreshes the tour in light and dark themes, fetching the TrainerDay example during the run. Update the PWA installation image separately.
 
 ## Contributing
 
