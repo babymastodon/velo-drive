@@ -6,7 +6,7 @@
 
 # VeloDrive
 
-VeloDrive lets you build and ride structured workouts on an FTMS smart trainer. It works in Chrome or as a native Linux app, saves workouts and ride history on your device, and needs no account.
+VeloDrive lets you build and ride structured workouts on an FTMS smart trainer. It works in [Chrome](https://www.google.com/chrome/) or as a [native Linux app](#native-linux-app-flatpak), saves workouts and ride history on your device, and needs no account.
 
 <https://velodrive.bike/>
 
