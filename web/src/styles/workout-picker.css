@@ -440,7 +440,7 @@
 
 /* At most one expanded (tall) row exists and it's the one in focus, so always
    render it rather than reserve a wrong intrinsic height for it. */
-.picker-expanded-row {
+.workout-picker-table tbody tr.picker-expanded-row {
   content-visibility: visible;
 }
 
