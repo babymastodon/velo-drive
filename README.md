@@ -6,7 +6,7 @@
 
 # VeloDrive
 
-VeloDrive lets you build and ride structured workouts on any FTMS smart trainer, like the [Wahoo KICKR](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) or [Tacx NEO](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/). It works in [Chrome](https://www.google.com/chrome/) or as a [native Linux app](#native-linux-app-flatpak), saves workouts and ride history on your device, and needs no account.
+VeloDrive is a private, local app for building and riding structured workouts on any FTMS smart trainer, like the [Wahoo KICKR](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) or [Tacx NEO](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/). It runs entirely on your computer in [Google Chrome](https://www.google.com/chrome/) or as a [native Linux app](#native-linux-app-flatpak)—no account, and no workout or ride data is uploaded.
 
 Click here to start riding 👉 **https://velodrive.bike/**
 
