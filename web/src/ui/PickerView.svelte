@@ -221,8 +221,17 @@
   // Non-reactive: set true when the picker opens so the first scroll defers an
   // extra frame; reset after one use (j/k scrolls don't pay that cost).
   let openScrollPending = false;
+  let previousScrollFilterKey: string | null = null;
   $effect(() => {
-    if (expandedId === null && selectedFolderPath === null) return;
+    // Filtering can remove the expanded row and later restore it without
+    // changing expandedId. Track the filter values so the restored row is
+    // revealed again after the filtered DOM settles.
+    const filterKey = `${searchTerm}\u0000${zoneValue}\u0000${durationValue}`;
+    const filterChanged =
+      previousScrollFilterKey !== null && filterKey !== previousScrollFilterKey;
+    previousScrollFilterKey = filterKey;
+    if (!open) return;
+    if (expandedId === null && selectedFolderPath === null && !filterChanged) return;
     const isOpenScroll = openScrollPending;
     openScrollPending = false;
     // Returns true once the row is fully within the band (no scroll needed), so
@@ -230,9 +239,16 @@
     const run = (): boolean => {
       const row = (tbodyEl?.querySelector('.picker-expanded-row') ??
         tbodyEl?.querySelector('.picker-folder-selected')) as HTMLElement | null;
-      if (!row) return true;
       const wrapper = tbodyEl?.closest('.workout-picker-table-wrapper') as HTMLElement | null;
       if (!wrapper) return true;
+      // If filtering hid the selection (or there was no expanded row), an old
+      // deep scroll offset can leave the much shorter result set entirely above
+      // the viewport. Show the top results; clearing the filter will restore and
+      // reveal the preserved expandedId on the next effect run.
+      if (!row) {
+        if (filterChanged) wrapper.scrollTop = 0;
+        return true;
+      }
       // The header is sticky, so the usable band starts below it — otherwise it
       // covers the top of the row (and its action buttons).
       const thead = tbodyEl?.parentElement?.querySelector('thead') as HTMLElement | null;
@@ -260,14 +276,29 @@
     // intrinsic estimate, which can nudge the target's position — so one scroll
     // isn't always enough. Settle in up to a few passes.
     let passes = 0;
+    let frame = 0;
+    let cancelled = false;
     const settle = (): void => {
+      if (cancelled) return;
       if (run() || ++passes >= 4) return;
-      requestAnimationFrame(settle);
+      frame = requestAnimationFrame(settle);
     };
     // On OPEN, defer an extra frame so the (un-virtualized) list paints before the
     // layout-forcing jump (otherwise the picker stalls ~1s on huge libraries). For
     // j/k navigation the list is already laid out — one frame, so it stays snappy.
-    requestAnimationFrame(isOpenScroll ? () => requestAnimationFrame(settle) : settle);
+    frame = requestAnimationFrame(
+      isOpenScroll
+        ? () => {
+            if (!cancelled) frame = requestAnimationFrame(settle);
+          }
+        : settle,
+    );
+    // Search input can change several times before a frame. Keep only the latest
+    // reveal request instead of leaving concurrent settle loops behind.
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   });
 
   let scanning = $state(false);
@@ -1957,8 +1988,7 @@
         {:else if importModal === 'trainerday'}
           <h2 class="import-modal-title">Import from TrainerDay</h2>
           <p>
-            Download the most popular workouts from TrainerDay into a
-            <strong>TrainerDay</strong> folder, ordered by popularity.
+            Download popular workouts from TrainerDay.
           </p>
           <label class="import-modal-field">
             <span>How many workouts?</span>

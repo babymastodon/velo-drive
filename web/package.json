@@ -12,6 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "docs:screenshots": "node scripts/download-docs-workouts.mjs && playwright test --config playwright.docs.config.ts",
+    "docs:check": "node scripts/check-user-docs.mjs",
     "typecheck": "tsc --noEmit",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },

@@ -112,6 +112,106 @@ test.describe("Picker — behavior", () => {
     await expect(page.getByTestId("picker-mini-chart").locator("svg")).toBeVisible();
   });
 
+  test("keyboard expansion keeps the next detail row inside the scroll viewport", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+
+    const collapsedRows = rows(page);
+    await expect(collapsedRows.first()).toHaveCSS("content-visibility", "auto");
+    const target = collapsedRows.nth(Math.min(20, (await collapsedRows.count()) - 2));
+    await target.evaluate((row) => {
+      const wrapper = row.closest<HTMLElement>(".workout-picker-table-wrapper");
+      if (!wrapper) throw new Error("picker scroll wrapper not found");
+      wrapper.scrollTop =
+        (row as HTMLElement).offsetTop -
+        wrapper.clientHeight +
+        (row as HTMLElement).offsetHeight +
+        12;
+      (row as HTMLElement).click();
+    });
+
+    const expanded = page.locator("#pickerWorkoutTbody tr.picker-expanded-row");
+    await expect(expanded).toBeVisible();
+    await expect(expanded).toHaveCSS("content-visibility", "visible");
+    await page.keyboard.press("j");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const wrapper = document.querySelector<HTMLElement>(
+            ".workout-picker-table-wrapper",
+          );
+          const row = document.querySelector<HTMLElement>(".picker-expanded-row");
+          const thead = document.querySelector<HTMLElement>(
+            ".workout-picker-table thead",
+          );
+          if (!wrapper || !row || !thead) return false;
+          const rowRect = row.getBoundingClientRect();
+          const wrapRect = wrapper.getBoundingClientRect();
+          const viewTop = wrapRect.top + thead.offsetHeight + 6;
+          const bandHeight = wrapRect.bottom - viewTop;
+          return rowRect.height > bandHeight
+            ? Math.abs(rowRect.top - viewTop) <= 1
+            : rowRect.top >= viewTop - 1 && rowRect.bottom <= wrapRect.bottom + 1;
+        }),
+      )
+      .toBe(true);
+  });
+
+  test("filtering and clearing keep the relevant workout in view", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openPicker(page);
+
+    const collapsedRows = rows(page);
+    const filterTitle = await collapsedRows.first().getAttribute("data-title");
+    const target = collapsedRows.nth(Math.min(30, (await collapsedRows.count()) - 1));
+    const targetTitle = await target.getAttribute("data-title");
+    await target.click();
+    await expect(page.locator("#pickerWorkoutTbody tr.picker-expanded-row")).toHaveAttribute(
+      "data-title",
+      targetTitle || "",
+    );
+
+    // Hide the deep selection while retaining a much shorter result list.
+    await page.getByTestId("picker-search").fill(filterTitle || "");
+    await expect(page.locator("#pickerWorkoutTbody tr.picker-expanded-row")).toHaveCount(0);
+    await expect(rows(page).first()).toHaveAttribute("data-title", filterTitle || "");
+    await expect
+      .poll(() =>
+        page.locator(".workout-picker-table-wrapper").evaluate((wrapper) => wrapper.scrollTop),
+      )
+      .toBeLessThanOrEqual(1);
+
+    // The selected ID is preserved. When clearing restores its row much farther
+    // down the list, it should be brought back inside the usable viewport.
+    await page.getByRole("button", {name: "Clear search"}).click();
+    await expect
+      .poll(() =>
+        page.evaluate((title) => {
+          const wrapper = document.querySelector<HTMLElement>(
+            ".workout-picker-table-wrapper",
+          );
+          const row = document.querySelector<HTMLElement>(
+            `#pickerWorkoutTbody tr.picker-expanded-row[data-title="${CSS.escape(title)}"]`,
+          );
+          const thead = document.querySelector<HTMLElement>(
+            ".workout-picker-table thead",
+          );
+          if (!wrapper || !row || !thead) return false;
+          const rowRect = row.getBoundingClientRect();
+          const wrapRect = wrapper.getBoundingClientRect();
+          const viewTop = wrapRect.top + thead.offsetHeight + 6;
+          const bandHeight = wrapRect.bottom - viewTop;
+          return rowRect.height > bandHeight
+            ? Math.abs(rowRect.top - viewTop) <= 1
+            : rowRect.top >= viewTop - 1 && rowRect.bottom <= wrapRect.bottom + 1;
+        }, targetTitle || ""),
+      )
+      .toBe(true);
+  });
+
   test("selecting a workout closes the picker and sets it as the engine's workout", async ({configuredPage}) => {
     const page = configuredPage;
     await reachNewRidingView(page);

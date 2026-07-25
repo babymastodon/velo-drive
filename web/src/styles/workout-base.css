@@ -555,16 +555,33 @@ a:hover {
   top: 0;
   transform: translateX(-50%);
   height: 100%;
+  max-width: 60vw;
   display: flex;
   align-items: center;
+  gap: 8px;
   pointer-events: none;
+}
+
+.active-workout-name {
+  max-width: 18vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.active-workout-separator {
+  color: var(--text-muted);
 }
 
 .workout-title-center {
   font-size: var(--font-size-base);
   font-weight: 600;
   white-space: nowrap;
-  max-width: 60vw;
+  min-width: 0;
+  max-width: 42vw;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
@@ -987,6 +1004,15 @@ a:hover {
 @media (max-width: 800px) {
   .bottom-nav {
     font-size: var(--font-size-base);
+  }
+
+  .active-workout-name,
+  .active-workout-separator {
+    display: none !important;
+  }
+
+  .workout-title-center {
+    max-width: 60vw;
   }
 }
 

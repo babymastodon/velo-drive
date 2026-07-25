@@ -40,5 +40,12 @@ npm run typecheck                      # tsc --noEmit (strict)
 npm run test                           # vitest: unit + property tests
 npx playwright install chromium        # once
 npm run test:e2e                       # Playwright end-to-end
+npm run docs:screenshots               # regenerate the README/user-guide image pairs
+npm run docs:check                     # check guide links and screenshot dimensions
 npm run build:docs                     # build the PWA into ../docs (GitHub Pages)
 ```
+
+The documentation capture suite uses the same fake trainer, filesystem, and
+clock as the end-to-end tests. It downloads the TrainerDay Violator example to
+an ignored temporary directory, then generates deterministic light/dark images
+in `../media/screenshots/guide/` without requiring Bluetooth hardware.

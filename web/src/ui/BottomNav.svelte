@@ -252,6 +252,19 @@
 
   <div class="workout-title-wrapper">
     <div
+      data-testid="active-workout-name"
+      class="active-workout-name"
+      style="display: {showTitleCenter ? 'block' : 'none'}"
+      title={nameLabelText}
+    >
+      {nameLabelText}
+    </div>
+    <span
+      class="active-workout-separator"
+      style="display: {showTitleCenter ? 'inline' : 'none'}"
+      aria-hidden="true">·</span
+    >
+    <div
       id="workoutTitleCenter"
       data-testid="workout-title-center"
       class="workout-title-center"

@@ -12,8 +12,10 @@
   import type { LogsStore } from '../state/logs.svelte.js';
   import { DEFAULT_FTP } from '../core/metrics.js';
   import { saveAndApplyThemeMode, loadThemeMode, type ThemeMode } from '../app/theme.js';
-  import { compatMessage, isWebBluetoothAvailable } from '../app/compat.js';
+  import { compatMessage, isWebBluetoothAvailable, openExternal } from '../app/compat.js';
   import { tick } from 'svelte';
+
+  const REPOSITORY_URL = 'https://github.com/babymastodon/velo-drive';
 
   let {
     store,
@@ -731,6 +733,35 @@
                 onclick={openLogs}
               >
                 View logs
+              </button>
+            </div>
+          </div>
+
+          <!-- Open source -->
+          <div class="settings-row">
+            <div class="settings-row-main">
+              <div class="settings-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7A5.4 5.4 0 0 0 19.4 4 5 5 0 0 0 19.3 1S18.2.6 15 2.3a13.4 13.4 0 0 0-7 0C4.8.6 3.7 1 3.7 1a5 5 0 0 0-.1 3.5 5.4 5.4 0 0 0-1.4 3.7c0 5.4 3.5 6.5 6.8 7A4.8 4.8 0 0 0 8 18v4M8 19c-3 .9-3-1.5-4-2"
+                  />
+                </svg>
+              </div>
+              <div class="settings-row-text">
+                <div class="settings-row-label">Open source</div>
+                <div class="settings-row-description">
+                  Explore the code, report issues, or contribute.
+                </div>
+              </div>
+            </div>
+            <div class="settings-row-right">
+              <button
+                class="settings-button"
+                type="button"
+                data-testid="settings-open-github"
+                onclick={() => void openExternal(REPOSITORY_URL)}
+              >
+                Open GitHub
               </button>
             </div>
           </div>

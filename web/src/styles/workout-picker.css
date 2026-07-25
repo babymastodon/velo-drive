@@ -702,6 +702,11 @@
 
 .picker-footer-builder {
   justify-content: flex-start;
+  font-size: 14px;
+}
+
+.picker-footer-builder span {
+  white-space: normal;
 }
 
 .workout-picker-modal:not(.workout-picker-modal--builder)

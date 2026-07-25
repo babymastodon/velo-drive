@@ -88,4 +88,29 @@ test.describe("Settings — behavior", () => {
     await page.keyboard.press("s");
     await expect(page.getByTestId("settings-modal")).toBeVisible();
   });
+
+  test("the open-source row opens the GitHub repository", async ({configuredPage}) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+    await openSettings(page);
+
+    await page.evaluate(() => {
+      (window as unknown as {__OPENED_URL__?: string}).__OPENED_URL__ = "";
+      window.open = ((url?: string | URL) => {
+        (window as unknown as {__OPENED_URL__?: string}).__OPENED_URL__ = String(url ?? "");
+        return null;
+      }) as typeof window.open;
+    });
+
+    await expect(page.getByText("Open source", {exact: true})).toBeVisible();
+    await expect(page.getByText("Explore the code, report issues, or contribute.")).toBeVisible();
+    await page.getByTestId("settings-open-github").click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as {__OPENED_URL__?: string}).__OPENED_URL__,
+        ),
+      )
+      .toBe("https://github.com/babymastodon/velo-drive");
+  });
 });

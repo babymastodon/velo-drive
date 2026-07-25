@@ -4,6 +4,7 @@ test-results/
 playwright-report/
 .playwright/
 *.tsbuildinfo
+.tmp/
 
 
 # Visual-test transient artifacts
