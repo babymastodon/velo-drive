@@ -41,8 +41,8 @@ flatpak run bike.velodrive.VeloDrive
 - **Bluetooth:** access is granted by `--system-talk-name=org.bluez` in
   `finish-args` (BLE central via the system BlueZ service) — the key sandbox
   permission for this app.
-- **Workout folder:** `--filesystem=home` lets the native fs commands read/write
-  the user-picked VeloDrive folder. (Could be tightened to the document portal
+- **Workout data folder:** `--filesystem=home` lets the native fs commands read/write
+  the user-picked workout data folder. (Could be tightened to the document portal
   later.)
 - This is a **scaffold to validate** — the `runtime-version` may need bumping to a
   runtime you have installed, and updates go through a Flatpak repo (Flathub or

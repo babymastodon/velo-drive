@@ -263,7 +263,7 @@
     }
   }
 
-  // Boot-time auto-open: if the root data folder is missing, OR Web Bluetooth is
+  // Boot-time auto-open: if the workout data folder is missing, OR Web Bluetooth is
   // unavailable, OR the platform/browser is unsupported, auto-open Settings to
   // the relevant help section. In the hermetic tests the root dir is seeded,
   // the FTMS sim provides navigator.bluetooth.getDevices, and the runner is
@@ -421,7 +421,7 @@
     }
   }
 
-  // Guard the picker/save flows on a configured VeloDrive folder: no folder →
+  // Guard the picker/save flows on a configured workout data folder: no folder →
   // warn + open Settings to the folders help section, and do NOT proceed.
   async function ensureRootDirConfigured(): Promise<boolean> {
     if (!ctx) return false;
@@ -432,7 +432,7 @@
       hasRoot = false;
     }
     if (hasRoot) return true;
-    await dialogs.alert('Choose a VeloDrive folder first, then pick a workout.');
+    await dialogs.alert('Choose a workout data folder first, then pick a workout.');
     ui.forceHelpSection = 'settingsFoldersHelp';
     ui.open('settings');
     return false;

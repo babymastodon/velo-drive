@@ -543,7 +543,7 @@ test.describe("Picker — save round-trip + dir persistence", () => {
   });
 });
 
-// Opening the picker (or 'w') with NO VeloDrive folder configured must warn
+// Opening the picker (or 'w') with NO workout data folder configured must warn
 // (Dialog) + open Settings — not silently do nothing
 // (ensureRootDirConfiguredForWorkouts).
 test.describe("Picker — no-folder guard", () => {
@@ -579,7 +579,7 @@ test.describe("Picker — no-folder guard", () => {
 
     await page.getByTestId("workout-name-label").click();
     // The no-folder guard fires: a warning Dialog appears, the picker does NOT.
-    await expect(page.getByTestId("dialog-message")).toContainText("VeloDrive folder");
+    await expect(page.getByTestId("dialog-message")).toContainText("workout data folder");
     await expect(page.getByTestId("picker-modal")).toHaveCount(0);
 
     // Dismissing the warning reveals Settings (the guard opened it).

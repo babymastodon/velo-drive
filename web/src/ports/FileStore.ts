@@ -58,9 +58,9 @@ export interface FileStore {
   loadActiveState(): Promise<ActiveState | null>;
   saveActiveState(state: ActiveState): Promise<void>;
   loadWorkoutDirHandle(): Promise<FsDirHandle | null>;
-  /** The persisted root-dir handle (VeloDrive folder), or null if unset. */
+  /** The persisted root-dir handle (workout data folder), or null if unset. */
   loadRootDirHandle(): Promise<FsDirHandle | null>;
-  /** Prompt the user to pick the VeloDrive root folder (FSA). */
+  /** Prompt the user to pick the workout data folder (FSA). */
   pickRootDir(): Promise<FsDirHandle | null>;
 
   // ---- Workout library (picker) ----

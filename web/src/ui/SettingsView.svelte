@@ -153,7 +153,7 @@
       rootDirPath = pathOf(handle);
     }
   }
-  // Open the VeloDrive folder in the system file manager (native, unsandboxed).
+  // Open the workout data folder in the system file manager (native, unsandboxed).
   async function onOpenRootDir(): Promise<void> {
     if (!rootDirPath) return;
     try {
@@ -306,7 +306,7 @@
         </div>
 
         <div class="settings-list">
-          <!-- VeloDrive folder -->
+          <!-- Workout data folder -->
           <div class="settings-row">
             <div class="settings-row-main">
               <div class="settings-icon">
@@ -316,7 +316,7 @@
               </div>
               <div class="settings-row-text">
                 <div class="settings-row-label">
-                  VeloDrive folder
+                  Workout data folder
                   <button
                     class="settings-help-toggle-btn"
                     type="button"
@@ -326,7 +326,7 @@
                   </button>
                 </div>
                 <div class="settings-row-description">
-                  Workouts, history, and trash live in one folder you pick.
+                  Choose where to save workouts, history, and trash.
                 </div>
               </div>
             </div>
@@ -388,8 +388,8 @@
             class:settings-help-content--visible={helpOpen.settingsFoldersHelp}
             hidden={!helpOpen.settingsFoldersHelp}
           >
-            Pick a home base for VeloDrive (for example
-            <code>~/Dropbox/VeloDrive</code>). We’ll use that one spot to store
+            Pick a folder for your workout data (for example
+            <code>~/Dropbox/WorkoutData</code>). We’ll use that one spot to store
             everything and you can reselect it later if you move devices.
           </div>
 

@@ -504,7 +504,7 @@
   padding-left: 4px;
 }
 
-/* The VeloDrive folder's full path (native) + Choose / Open. Indented to align
+/* The workout data folder's full path (native) + Choose / Open. Indented to align
    with the row text (28px icon + 12px gap), on its own line since it's long. */
 .settings-rootdir-path {
   display: flex;

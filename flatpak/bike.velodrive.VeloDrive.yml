@@ -35,7 +35,7 @@ finish-args:
   - --share=network
   # Bluetooth LE: talk to the system BlueZ service (trainer + HRM).
   - --system-talk-name=org.bluez
-  # The user-picked VeloDrive workout/history folder (read-write).
+  # The user-picked workout data folder (read-write).
   - --filesystem=home
 
 modules:

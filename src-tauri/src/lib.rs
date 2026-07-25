@@ -81,7 +81,7 @@ async fn ble_scan_role(
     ble.scan_role(r, secs.unwrap_or(5)).await
 }
 
-/// The default VeloDrive data folder: a `library` dir inside the app's own XDG
+/// The default workout data folder: a `library` dir inside the app's own XDG
 /// data dir (~/.local/share/bike.velodrive.VeloDrive), so everything's in one place.
 #[tauri::command]
 fn fs_default_root(app: AppHandle) -> Result<String, String> {

@@ -329,7 +329,7 @@ export class WebFileStore implements FileStore {
       showDirectoryPicker?: () => Promise<FsDirHandle>;
     }).showDirectoryPicker;
     if (typeof picker !== 'function') {
-      this.notifyError('Selecting a data folder requires File System Access support.');
+      this.notifyError('Selecting a workout data folder requires File System Access support.');
       return null;
     }
     try {
@@ -647,7 +647,7 @@ export class WebFileStore implements FileStore {
   async saveWorkout(canonical: CanonicalWorkout): Promise<boolean> {
     const dir = await this.loadZwoDirHandle();
     if (!dir) {
-      this.notifyError('Choose a VeloDrive folder first, then save the workout.');
+      this.notifyError('Choose a workout data folder first, then save the workout.');
       return false;
     }
     // Re-authorize the persisted handle before writing. A handle reloaded from
@@ -706,7 +706,7 @@ export class WebFileStore implements FileStore {
     subfolder = '',
   ): Promise<{ added: number; error: string | null }> {
     const root = await this.loadZwoDirHandle();
-    if (!root) return { added: 0, error: 'Choose a VeloDrive folder first.' };
+    if (!root) return { added: 0, error: 'Choose a workout data folder first.' };
     if (!(await ensureDirPermission(root))) {
       return { added: 0, error: 'Permission to write to the workouts folder was not granted.' };
     }
@@ -778,7 +778,7 @@ export class WebFileStore implements FileStore {
     shouldCancel?: () => boolean,
   ): Promise<{ added: number; skipped: number; error: string | null }> {
     const root = await this.loadZwoDirHandle();
-    if (!root) return { added: 0, skipped: 0, error: 'Choose a VeloDrive folder first.' };
+    if (!root) return { added: 0, skipped: 0, error: 'Choose a workout data folder first.' };
     if (!(await ensureDirPermission(root))) {
       return { added: 0, skipped: 0, error: 'Permission to write to the workouts folder was not granted.' };
     }
@@ -1043,7 +1043,7 @@ export class WebFileStore implements FileStore {
     try {
       const root = await this.loadRootDirHandle();
       if (!root) {
-        this.notifyError('Choose a VeloDrive folder first to save the schedule.');
+        this.notifyError('Choose a workout data folder first to save the schedule.');
         return false;
       }
       if (!(await ensureDirPermission(root))) {
@@ -1102,7 +1102,7 @@ export class WebFileStore implements FileStore {
     const srcDir = await this.loadWorkoutDirHandle();
     const trashDir = await this.loadTrashDirHandle();
     if (!srcDir || !trashDir) {
-      this.notifyError('Choose a VeloDrive folder first to delete this ride.');
+      this.notifyError('Choose a workout data folder first to delete this ride.');
       return false;
     }
     if (!(await ensureDirPermission(srcDir)) || !(await ensureDirPermission(trashDir))) {

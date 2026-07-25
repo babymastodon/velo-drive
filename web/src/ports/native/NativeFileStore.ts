@@ -17,7 +17,7 @@ export class NativeFileStore extends WebFileStore {
     return path ? new NativeDirHandle(path) : null;
   }
 
-  /** First run: default the data folder to the XDG location (~/.local/share/
+  /** First run: default the workout data folder to the XDG location (~/.local/share/
    *  VeloDrive), creating + seeding it, so the app works without a folder prompt.
    *  No-op once a folder is configured (the user can change it in Settings). */
   async ensureDefaultRoot(): Promise<void> {
@@ -70,7 +70,7 @@ export class NativeFileStore extends WebFileStore {
       return root;
     } catch (err) {
       console.error('[NativeFileStore] pickRootDir failed:', err);
-      this.onError?.('Failed to set up the data folder.');
+      this.onError?.('Failed to set up the workout data folder.');
       return null;
     }
   }
