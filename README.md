@@ -8,13 +8,25 @@
 
 VeloDrive lets you build and ride structured workouts on an FTMS smart trainer. It works in Chrome or as a native Linux app, saves workouts and ride history on your device, and needs no account.
 
-[Open VeloDrive](https://velodrive.bike/)
+<https://velodrive.bike/>
+
+## Install the Chrome App
+
+If you install it as a Chrome app, you can ride offline.
+
+1. Open <https://velodrive.bike/> in Chrome.
+2. Click the install icon in the address bar.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/install_dark.png">
+  <img src="media/screenshots/install_light.png" alt="Chrome showing the option to install VeloDrive">
+</picture>
 
 ## Feature tour
 
 ### Stay on target while riding
 
-The ride screen keeps current and target power, interval time, heart rate, cadence, coaching cues, and the full workout at a glance. VeloDrive controls the trainer through each interval, while live data over the plan shows how the current effort compares and what comes next.
+See real-time information at a glance, in a simple, distraction-free workout view.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/ride-violator-dark.png">
@@ -23,7 +35,7 @@ The ride screen keeps current and target power, interval time, heart rate, caden
 
 ### Workouts matched to you and your trainer
 
-VeloDrive uses your Functional Threshold Power (FTP) to scale every workout to your fitness. It controls compatible Bluetooth smart trainers through the standard FTMS protocol and records heart rate from an optional Bluetooth monitor.
+VeloDrive works with most modern Bluetooth smart trainers such as the [Wahoo KICKR](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) and [Garmin Tacx NEO](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/) through the standard FTMS protocol and records heart rate from an optional Bluetooth monitor.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/settings-dark.png">
@@ -32,7 +44,7 @@ VeloDrive uses your Functional Threshold Power (FTP) to scale every workout to y
 
 ### Find the right workout
 
-Built-in and imported workouts share one searchable library. Each shows its profile, duration, training zone, and training load (TSS), so you know what the session demands before you ride.
+Velodrive comes with a large number of built-in workouts, but you may also import existing workouts or build your own.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/library-airforge-dark.png">
@@ -41,18 +53,18 @@ Built-in and imported workouts share one searchable library. Each shows its prof
 
 ### Import or build workouts
 
-VeloDrive can import `.zwo` and structured `.fit` files, plus collections from TrainerDay, the original Zwift workout collection, and WhatsOnZwift. TrainerDay and WhatsOnZwift links open directly in the builder.
+VeloDrive is compatible with the `.zwo` and `.fit` protocols, meaning you can import any workout from websites like [TrainerDay](https://app.trainerday.com/search?sortBy=popularity), [the Zwift collection](https://forums.zwift.com/t/workout-refresh-october-2023/609799), and [WhatsOnZwift](https://whatsonzwift.com/workouts).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/builder-airforge-dark.png">
   <img src="media/screenshots/guide/builder-airforge-light.png" alt="VeloDrive workout builder editing Airforge with a warm-up block and its duration, power, and cadence controls visible">
 </picture>
 
-Build simple endurance sessions or complex intervals with ramps, repeats, free riding, cadence targets, and on-screen coaching cues.
+You can also use the built-in workout builder to create or edit your own.
 
 ### Plan the week
 
-The calendar keeps scheduled workouts and completed rides in one view. You can rearrange the week when plans change, while 3-, 7-, and 30-day totals show recent training time, energy (kJ), and training load (TSS).
+Using the workout calendar to view your past workouts, or schedule ones for the future. 3/7/30 day stats are automcatically calculated for your scheudle, so you can keep your TSS in check.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/calendar-training-week-dark.png">
@@ -61,20 +73,11 @@ The calendar keeps scheduled workouts and completed rides in one view. You can r
 
 ### Understand the ride
 
-Ride history overlays the workout plan with recorded power, heart rate, and cadence, showing where you held the target and where you did not. Summary metrics show how hard you rode, while the power curve highlights your strongest average power across different durations.
+All workouts are saved at FIT files to your hard drive, so you can analyze them whenever you want, or even upload them to apps like [Intervals.icu](https://intervals.icu/) or [Strava](https://www.strava.com/upload/select).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/history-airforge-dark.png">
   <img src="media/screenshots/guide/history-airforge-light.png" alt="Completed Airforge ride analysis with summary metrics, a power curve, and planned-versus-actual power, heart-rate, and cadence traces">
-</picture>
-
-### Ride in Chrome, even offline
-
-VeloDrive runs in Chrome or installs as a web app. The workout library and ride screen remain available offline.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/install_dark.png">
-  <img src="media/screenshots/install_light.png" alt="Google Chrome showing the option to install VeloDrive as a PWA">
 </picture>
 
 ## Your data
