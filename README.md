@@ -55,12 +55,12 @@ Velodrive comes with a large number of built-in workouts, but you may also impor
 
 VeloDrive is compatible with the `.zwo` and `.fit` protocols, meaning you can import any workout from websites like [TrainerDay](https://app.trainerday.com/search?sortBy=popularity), [the Zwift collection](https://forums.zwift.com/t/workout-refresh-october-2023/609799), and [WhatsOnZwift](https://whatsonzwift.com/workouts).
 
+You can also use the built-in workout builder to create your own.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/screenshots/guide/builder-airforge-dark.png">
   <img src="media/screenshots/guide/builder-airforge-light.png" alt="VeloDrive workout builder editing Airforge with a warm-up block and its duration, power, and cadence controls visible">
 </picture>
-
-You can also use the built-in workout builder to create or edit your own.
 
 ### Plan the week
 
