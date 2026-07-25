@@ -33,7 +33,7 @@ See real-time information at a glance, in a simple, distraction-free workout vie
   <img src="media/screenshots/guide/ride-violator-light.png" alt="An active Violator workout showing live power, heart rate, cadence, target power, timers, coaching, and the workout profile">
 </picture>
 
-### Workouts matched to you and your trainer
+### Connect over Bluetooth
 
 VeloDrive works with most modern Bluetooth smart trainers such as the [Wahoo KICKR](https://www.wahoofitness.com/devices/indoor-cycling/bike-trainers) and [Garmin Tacx NEO](https://www.garmin.com/en-US/c/sports-fitness/indoor-trainers/) through the standard FTMS protocol and records heart rate from an optional Bluetooth monitor.
 
