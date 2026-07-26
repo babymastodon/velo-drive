@@ -167,6 +167,24 @@ test.describe("post-ride flow", () => {
     // (b) The planner opened to the saved ride's DETAIL view.
     await expect(page.locator("#workoutPickerOverlay")).toBeVisible();
     await expect(page.getByTestId("planner-detail")).toBeVisible();
+
+    // (c) Back reveals the calendar already positioned at today. The post-ride
+    // path never showed/scrolled the calendar before opening detail.
+    await page.getByTestId("planner-back").click();
+    await expect(page.getByTestId("planner-calendar-body")).toBeVisible();
+    await expect(page.locator(".planner-day.is-selected")).toHaveAttribute("data-date", TODAY_KEY);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const body = document.querySelector<HTMLElement>("#plannerCalendarBody");
+          const today = document.querySelector<HTMLElement>(".planner-day.is-today");
+          if (!body || !today) return false;
+          const bodyRect = body.getBoundingClientRect();
+          const todayRect = today.getBoundingClientRect();
+          return todayRect.bottom > bodyRect.top && todayRect.top < bodyRect.bottom;
+        }),
+      )
+      .toBe(true);
   });
 });
 

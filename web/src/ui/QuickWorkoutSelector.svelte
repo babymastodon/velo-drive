@@ -63,28 +63,70 @@
   // The preloaded library → items with zone + metrics (memoized + boot-warmed, so
   // this is a cache hit). Re-fetch when ftp / the loaded workout changes.
   let library = $state<LibraryItem[]>([]);
+  let libraryLoadPromise: Promise<void> | null = null;
+  function refreshLibrary(currentFtp: number): Promise<void> {
+    const request = fileStore.getWorkouts().then((workouts) => {
+      library = prepareLibraryItems(workouts, currentFtp);
+    });
+    libraryLoadPromise = request;
+    return request;
+  }
+  function ensureLibraryLoaded(): Promise<void> {
+    if (library.length) return Promise.resolve();
+    return libraryLoadPromise ?? refreshLibrary(ftp);
+  }
   $effect(() => {
     const f = ftp;
     void current;
-    void fileStore.getWorkouts().then((w) => {
-      library = prepareLibraryItems(w, f);
-    });
+    void refreshLibrary(f);
   });
 
   // Per-combo memory: the workout last loaded for each (zone, duration), persisted
   // so switching back to a combo restores its workout.
   let comboMap = $state<Record<string, string>>({});
   let comboLoaded = false;
-  $effect(() => {
-    if (comboLoaded) return;
-    comboLoaded = true;
-    void fileStore
+  let comboDirtyBeforeLoad = false;
+  let comboLoadPromise: Promise<void> | null = null;
+  let comboPersistChain = Promise.resolve();
+
+  function persistComboMap(): void {
+    const snapshot = { ...comboMap };
+    comboPersistChain = comboPersistChain
+      .then(() => fileStore.putSetting('quickComboWorkouts', snapshot))
+      .catch(() => {});
+  }
+
+  function ensureComboMapLoaded(): Promise<void> {
+    if (comboLoadPromise) return comboLoadPromise;
+    comboLoadPromise = fileStore
       .getSetting<Record<string, string>>('quickComboWorkouts', {})
-      .then((m) => (comboMap = m || {}));
+      .then((saved) => {
+        // A workout can become visible before IndexedDB returns. That visible
+        // workout is newer than the saved value for its combo, while untouched
+        // saved combos must survive the merge.
+        comboMap = { ...(saved || {}), ...comboMap };
+        comboLoaded = true;
+        if (comboDirtyBeforeLoad) {
+          comboDirtyBeforeLoad = false;
+          persistComboMap();
+        }
+      })
+      .catch(() => {
+        comboLoaded = true;
+      });
+    return comboLoadPromise;
+  }
+
+  $effect(() => {
+    void ensureComboMapLoaded();
   });
+
   function rememberCombo(zone: string, dur: string, key: string): void {
-    comboMap[comboKey(zone, dur)] = key;
-    void fileStore.putSetting('quickComboWorkouts', { ...comboMap }).catch(() => {});
+    const mapKey = comboKey(zone, dur);
+    if (comboMap[mapKey] === key) return;
+    comboMap = { ...comboMap, [mapKey]: key };
+    if (comboLoaded) persistComboMap();
+    else comboDirtyBeforeLoad = true;
   }
 
   // Zone + duration (both always specific on the main page), synced to the loaded
@@ -193,28 +235,67 @@
     engine.setWorkoutFromPicker(it.canonical);
   }
 
-  // Switching combo loads its workout: the one last used (persisted), else the
-  // middle-ranked (by kJ) eligible workout.
-  function loadForCombo(): void {
-    const cands = candidatesFor(selZone, selDuration);
+  // Preserve the current workout's relative place in its kJ-ranked list when a
+  // combination has never been viewed. A one-item or unmatched list conveys no
+  // rank, so use the midpoint.
+  interface RankReference {
+    zone: string;
+    duration: string;
+    workout: string;
+  }
+
+  function currentRankReference(): RankReference {
+    return {
+      zone: selZone,
+      duration: selDuration,
+      workout: workoutKey(current),
+    };
+  }
+
+  function rankPosition(reference: RankReference): number {
+    const cands = candidatesFor(reference.zone, reference.duration);
+    if (cands.length <= 1) return 0.5;
+    const currentIndex = cands.findIndex((it) => workoutKey(it.canonical) === reference.workout);
+    return currentIndex < 0 ? 0.5 : currentIndex / (cands.length - 1);
+  }
+
+  function candidateAtPosition(cands: LibraryItem[], position: number): LibraryItem {
+    const clamped = Math.max(0, Math.min(1, position));
+    return cands[Math.round(clamped * (cands.length - 1))]!;
+  }
+
+  let comboLoadRequest = 0;
+
+  // Switching combo loads its last shown workout. Only a never-viewed (or now
+  // missing) saved workout falls back to the same percentage of the new kJ list.
+  async function loadForCombo(rankReference: RankReference | null = null): Promise<void> {
+    const request = ++comboLoadRequest;
+    const zone = selZone;
+    const duration = selDuration;
+    await Promise.all([ensureComboMapLoaded(), ensureLibraryLoaded()]);
+    if (request !== comboLoadRequest || zone !== selZone || duration !== selDuration) return;
+
+    const cands = candidatesFor(zone, duration);
     if (!cands.length) return;
-    const savedKey = comboMap[comboKey(selZone, selDuration)];
+    const savedKey = comboMap[comboKey(zone, duration)];
     const saved = savedKey ? cands.find((c) => workoutKey(c.canonical) === savedKey) : undefined;
-    load(saved ?? cands[Math.floor(cands.length / 2)]!);
+    load(saved ?? candidateAtPosition(cands, rankReference ? rankPosition(rankReference) : 0.5));
   }
 
   function pickZone(z: string): void {
+    const rankReference = currentRankReference();
     zoneOpen = false;
     selZone = z;
     // Keep the duration valid for the new zone (Freeride lists exact lengths).
     const avail = durationOptionsFor(z);
     if (avail.length && !avail.some((b) => b.value === selDuration)) selDuration = avail[0]!.value;
-    loadForCombo();
+    void loadForCombo(rankReference);
   }
   function pickDuration(d: string): void {
+    const rankReference = currentRankReference();
     durOpen = false;
     selDuration = d;
-    loadForCombo();
+    void loadForCombo(rankReference);
   }
 
   // Step within a ranked list, clamping at the ends (no wrap). When the current
@@ -237,8 +318,9 @@
         dir,
       );
       if (i < 0) return; // at an end → stop
+      const rankReference = currentRankReference();
       selDuration = opts[i]!.value;
-      loadForCombo();
+      void loadForCombo(rankReference);
       return;
     }
     const cands = candidatesFor(selZone, selDuration);

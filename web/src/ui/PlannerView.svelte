@@ -509,8 +509,18 @@
     });
   }
 
-  function exitDetail(): void {
+  async function exitDetail(): Promise<void> {
+    // The post-ride path opens detail before ever scrolling the hidden calendar,
+    // so revealing it directly would expose the first rendered week. Rebuild the
+    // window around today and keep it hidden until the scroll is applied.
+    scrollReady = false;
     detail = null;
+    today = todayMidnight();
+    selectedDate = new Date(today);
+    anchorStart = startOfWeek(today);
+    await tick();
+    scrollToToday();
+    scrollReady = true;
   }
 
   // Detail stat chips (label/value/tooltip).
@@ -645,7 +655,7 @@
         return true;
       }
       if (key === 'backspace' || key === 'escape') {
-        exitDetail();
+        void exitDetail();
         return true;
       }
       return false;
@@ -882,7 +892,7 @@
           type="button"
           data-testid="planner-back"
           style="display: {detailMode ? 'inline-flex' : 'none'}"
-          onclick={exitDetail}
+          onclick={() => void exitDetail()}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" class="wb-code-icon">
             <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />

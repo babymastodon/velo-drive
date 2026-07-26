@@ -743,6 +743,123 @@ test.describe("Quick workout selector", () => {
   });
 });
 
+function rankedWorkoutXml(name: string, minutes: number, power: number): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>VeloDrive Test</author>
+  <name>${name}</name>
+  <description>Quick selector ranking fixture.</description>
+  <sportType>bike</sportType>
+  <workout>
+    <SteadyState Duration="${minutes * 60}" Power="${power.toFixed(2)}" />
+  </workout>
+</workout_file>`;
+}
+
+const QUICK_SELECTOR_WORKOUTS = {
+  "endurance-1.zwo": rankedWorkoutXml("Endurance 1", 20, 0.60),
+  "endurance-2.zwo": rankedWorkoutXml("Endurance 2", 20, 0.63),
+  "endurance-3.zwo": rankedWorkoutXml("Endurance 3", 20, 0.66),
+  "endurance-4.zwo": rankedWorkoutXml("Endurance 4", 20, 0.70),
+  "endurance-5.zwo": rankedWorkoutXml("Endurance 5", 20, 0.74),
+  "endurance-long-1.zwo": rankedWorkoutXml("Endurance Long 1", 40, 0.60),
+  "endurance-long-2.zwo": rankedWorkoutXml("Endurance Long 2", 40, 0.67),
+  "endurance-long-3.zwo": rankedWorkoutXml("Endurance Long 3", 40, 0.74),
+  "tempo-1.zwo": rankedWorkoutXml("Tempo 1", 20, 0.80),
+  "tempo-2.zwo": rankedWorkoutXml("Tempo 2", 20, 0.82),
+  "tempo-3.zwo": rankedWorkoutXml("Tempo 3", 20, 0.84),
+};
+
+test.describe("Quick workout selector — combination memory", () => {
+  test.use({
+    harnessConfig: {
+      ftp: 250,
+      soundEnabled: false,
+      themeMode: "light",
+      selectedWorkout: {
+        workoutTitle: "Endurance 4",
+        sourcePath: "endurance-4.zwo",
+        rawSegments: [[20, 70, 70]],
+        textEvents: [],
+      },
+      connectBike: false,
+      connectHr: false,
+      seedZwo: QUICK_SELECTOR_WORKOUTS,
+    },
+  });
+
+  test("restores each combo's last workout and uses rank percentage only for a new combo", async ({
+    configuredPage,
+  }) => {
+    const page = configuredPage;
+    await reachNewRidingView(page);
+
+    const loadedTitle = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as {
+            __VELO_APP__: {getVm: () => {canonicalWorkout?: {workoutTitle?: string} | null} | null};
+          }).__VELO_APP__.getVm()?.canonicalWorkout?.workoutTitle ?? "",
+      );
+    const chooseZone = async (zone: string) => {
+      await page.getByTestId("quick-zone").click();
+      await page.locator(".quick-menu .quick-item", {hasText: zone}).click();
+    };
+    const chooseDuration = async (duration: string) => {
+      await page.getByTestId("quick-duration").click();
+      await page.locator(".quick-menu .quick-item", {hasText: duration}).click();
+    };
+
+    await expect(page.getByTestId("quick-zone")).toContainText("Endurance");
+    await expect(page.getByTestId("quick-duration")).toContainText("16–30 min");
+
+    // Endurance 4 is 75% through its five-workout list. Tempo has never been
+    // viewed, so its three-workout list should open at the same rank: Tempo 3.
+    await chooseZone("Tempo");
+    await expect.poll(loadedTitle).toBe("Tempo 3");
+
+    // Make Tempo 2 the last workout shown for the Tempo/16–30 combination.
+    await page.getByTestId("quick-prev").click();
+    await expect.poll(loadedTitle).toBe("Tempo 2");
+
+    // Both switches restore combo memory. A percentage fallback here would pick
+    // Endurance 3 and then Tempo 3, so these assertions distinguish the paths.
+    await chooseZone("Endurance");
+    await expect.poll(loadedTitle).toBe("Endurance 4");
+    await chooseZone("Tempo");
+    await expect.poll(loadedTitle).toBe("Tempo 2");
+
+    // Duration changes use the same rule and remember a separate workout for
+    // every zone/duration pair.
+    await chooseZone("Endurance");
+    await chooseDuration("31–45 min");
+    await expect.poll(loadedTitle).toBe("Endurance Long 3");
+    await page.getByTestId("quick-prev").click();
+    await expect.poll(loadedTitle).toBe("Endurance Long 2");
+    await chooseDuration("16–30 min");
+    await expect.poll(loadedTitle).toBe("Endurance 4");
+    await chooseDuration("31–45 min");
+    await expect.poll(loadedTitle).toBe("Endurance Long 2");
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const record = (
+            window as unknown as {
+              __VELO_HARNESS__: {settingsStore: Map<string, {value?: Record<string, string>}>};
+            }
+          ).__VELO_HARNESS__.settingsStore.get("quickComboWorkouts");
+          return record?.value ?? {};
+        }),
+      )
+      .toMatchObject({
+        "Endurance|16-30": "endurance-4.zwo",
+        "Endurance|31-45": "endurance-long-2.zwo",
+        "Tempo|16-30": "tempo-2.zwo",
+      });
+  });
+});
+
 // The filter <select>s show a clear "×" (replacing the caret) when a value is set.
 test.describe("Picker — filter clear", () => {
   test("selecting a zone shows a × that clears it", async ({configuredPage}) => {
